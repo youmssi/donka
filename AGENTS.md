@@ -100,7 +100,7 @@ file and add what is specific to that tool.
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked        # integration tests need DATABASE_URL (Postgres 16)
-scripts/check-engine-version.sh        # Studio and Runtime evaluate with the same zen-engine
+scripts/check-engine-version.sh        # same zen-engine as Studio; needs ../donka-runtime (or pass its path)
 
 # Web (apps/web) — from DNK-6 on
 pnpm --dir apps/web lint

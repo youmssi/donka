@@ -442,3 +442,18 @@ Recommendation: A. It already runs in zen, cli and agent, and our commits follow
 - [ ] Release PRs carry a generated `CHANGELOG.md` entry and a semantic version bump
 - [ ] Nothing is published to a package registry under GoRules names
 
+---
+
+### DNK-31 — Local stack starts, and engine drift fails CI
+
+**Type:** build · **Repos:** S · **Dependencies:** DNK-12 · **Size:** S
+
+#### Why
+`minio/minio` and `minio/mc` were removed from Docker Hub, so `docker compose up` failed. The
+engine drift check skipped silently in CI because the runtime was never checked out.
+
+#### Acceptance criteria
+- [ ] Every image in `docker-compose.yml` exists and is pinned to a release (no `latest`)
+- [ ] CI checks out donka-runtime (`develop`) and fails when its zen-engine differs from Studio's
+- [ ] The drift check fails instead of skipping when it cannot find the runtime
+

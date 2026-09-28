@@ -17,6 +17,7 @@ docker-compose for PostgreSQL, MinIO and Mailpit.
 | 3 | DNK-3 Persistent storage | S |
 | 3b | DNK-25 Practices from the upstream codebases (docs) | S |
 | 4 | DNK-12 Runtime on engine 2.0.1, own name | R |
+| 4b | DNK-31 Local stack images and CI engine-drift check | S |
 | 5 | DNK-4 Sign in | S |
 | 6 | DNK-5 Invitations and password reset | S |
 | 7 | DNK-6 Web foundation | S |
