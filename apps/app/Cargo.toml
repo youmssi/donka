@@ -13,6 +13,7 @@ path = "src/main.rs"
 [dependencies]
 anyhow = { workspace = true }
 axum = { workspace = true }
+donka-db = { workspace = true }
 donka-engine = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -27,5 +28,9 @@ uuid = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+sqlx = { workspace = true }
 async-trait = { workspace = true }
 http-body-util = "0.1"
+
+[lints]
+workspace = true

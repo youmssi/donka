@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // tests fail loudly on purpose
+
 use donka_engine::{Bundle, DecisionRuntime, EvaluateOptions, RuntimeError, ZenRuntime};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;

@@ -12,6 +12,7 @@ pub mod routes;
 use axum::extract::DefaultBodyLimit;
 use axum::routing::get;
 use axum::{middleware, Json, Router};
+use donka_db::PgPool;
 use donka_engine::DecisionRuntime;
 use std::sync::Arc;
 use tower_http::compression::CompressionLayer;
@@ -28,6 +29,7 @@ const MAX_BODY_BYTES: usize = 16 * 1024 * 1024;
 #[derive(Clone)]
 pub struct AppState {
     pub runtime: Arc<dyn DecisionRuntime>,
+    pub db: PgPool,
 }
 
 #[derive(OpenApi)]
@@ -41,6 +43,7 @@ struct ApiDoc;
 pub fn router(state: AppState, api_base_path: &str) -> Router {
     let (api, mut doc) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .routes(routes!(routes::health::health))
+        .routes(routes!(routes::health::ready))
         .routes(routes!(routes::simulate::simulate))
         .with_state(state)
         .split_for_parts();

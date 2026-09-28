@@ -43,6 +43,8 @@ pub enum ApiError {
     InvalidDecision { key: String, message: String },
     #[error("evaluation failed")]
     EvaluationFailed(Value),
+    #[error("database unavailable")]
+    DatabaseUnavailable,
     #[error("internal error: {0}")]
     Internal(String),
 }
@@ -97,6 +99,13 @@ impl IntoResponse for ApiError {
                 "The decision could not be evaluated with this input.".to_owned(),
                 None,
                 Some(details),
+            ),
+            Self::DatabaseUnavailable => (
+                StatusCode::SERVICE_UNAVAILABLE,
+                "DATABASE_UNAVAILABLE",
+                "The database is not reachable. Try again shortly.".to_owned(),
+                None,
+                None,
             ),
             Self::Internal(reason) => {
                 tracing::error!(%reason, "unexpected failure");

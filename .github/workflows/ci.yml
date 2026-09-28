@@ -4,9 +4,37 @@ on:
     branches: [main, develop]
   pull_request:
 
+# Least privilege; a newer push to the same branch or PR cancels the older run.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
 jobs:
   rust:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: donka
+          POSTGRES_PASSWORD: donka
+          POSTGRES_DB: donka
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U donka"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # sqlx::test creates a throwaway database per test from this server.
+      DATABASE_URL: postgres://donka:donka@localhost:5432/donka
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -14,6 +42,6 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
-      - run: cargo clippy --workspace --all-targets -- -D warnings
-      - run: cargo test --workspace
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked
       - run: scripts/check-engine-version.sh

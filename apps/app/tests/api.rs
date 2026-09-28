@@ -1,8 +1,11 @@
+#![allow(clippy::unwrap_used)] // tests fail loudly on purpose
+
 use async_trait::async_trait;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use axum::Router;
 use donka_app::{router, AppState};
+use donka_db::{DbOptions, PgPool};
 use donka_engine::{
     Bundle, DecisionRuntime, EvaluateOptions, Evaluation, RuntimeError, ZenRuntime,
 };
@@ -21,8 +24,24 @@ fn table() -> Value {
     serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
 }
 
+/// A pool that never connects: port 1 refuses immediately. Routes that do not need
+/// the database must work with it; readiness must report it unavailable.
+fn unreachable_db() -> PgPool {
+    let options = DbOptions {
+        acquire_timeout: std::time::Duration::from_millis(300),
+        ..DbOptions::default()
+    };
+    donka_db::connect_lazy("postgres://nobody@127.0.0.1:1/none", &options).unwrap()
+}
+
 fn app_with(runtime: Arc<dyn DecisionRuntime>, base: &str) -> Router {
-    router(AppState { runtime }, base)
+    router(
+        AppState {
+            runtime,
+            db: unreachable_db(),
+        },
+        base,
+    )
 }
 
 fn app() -> Router {
@@ -89,6 +108,40 @@ async fn changing_the_base_path_moves_every_route() {
         send(app, post_json("/studio/v2/simulate", &body))
             .await
             .status,
+        StatusCode::OK
+    );
+}
+
+// --- readiness --------------------------------------------------------------
+
+#[tokio::test]
+async fn ready_is_503_when_the_database_is_unreachable() {
+    let reply = send(app(), get("/api/v1/ready")).await;
+    assert_error(
+        &reply,
+        StatusCode::SERVICE_UNAVAILABLE,
+        "DATABASE_UNAVAILABLE",
+    );
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn ready_is_200_when_the_database_answers(db: PgPool) {
+    let app = router(
+        AppState {
+            runtime: Arc::new(ZenRuntime::new(1)),
+            db,
+        },
+        BASE,
+    );
+    let reply = send(app, get("/api/v1/ready")).await;
+    assert_eq!(reply.status, StatusCode::OK);
+    assert_eq!(reply.body, Value::String("ready".into()));
+}
+
+#[tokio::test]
+async fn health_does_not_need_the_database() {
+    assert_eq!(
+        send(app(), get("/api/v1/health")).await.status,
         StatusCode::OK
     );
 }
@@ -240,6 +293,7 @@ async fn openapi_document_describes_the_endpoints() {
     assert_eq!(reply.status, StatusCode::OK);
     assert_eq!(reply.body["servers"][0]["url"], "/api/v1");
     assert!(reply.body["paths"]["/health"]["get"].is_object());
+    assert!(reply.body["paths"]["/ready"]["get"].is_object());
     assert!(reply.body["paths"]["/simulate"]["post"].is_object());
     assert!(reply.body["components"]["schemas"]["ErrorBody"].is_object());
 }
