@@ -1,7 +1,7 @@
 # Backend guide (Rust)
 
 What is specific to `apps/app` and the `crates/`. Read `principles.md` first; this guide does
-not repeat it.
+not repeat it. Practices taken from the upstream GoRules codebases are listed in `references.md`.
 
 ---
 
@@ -107,6 +107,7 @@ One shape for the whole API:
   trait** owned by the module that needs it; the implementation is chosen by configuration.
   Tests use a fake.
 - Every call has a **timeout** and bounded **retries with backoff** for idempotent operations.
+  Retry only transport errors, `408`, `429` and `5xx`: any other `4xx` is an answer, not a blip.
 - Provider errors are translated into the module's own errors; provider types never leak out.
 
 ## 7. Configuration
@@ -125,6 +126,7 @@ One shape for the whole API:
   extractor, project routes require `ProjectAccess` with a minimum role.
 - Passwords with argon2id; reset and invite tokens single-use, hashed at rest, short-lived.
 - Runtime access tokens: random, shown once, stored hashed, scoped to one environment.
+- Tokens and connection strings never appear in logs, error bodies or CI output.
 - Rate limiting on login, password reset and simulate.
 - CORS off by default (same origin); allowed origins only from configuration.
 - `cargo audit` (RustSec) in CI; a fixable high/critical advisory fails the build.
