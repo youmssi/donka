@@ -40,7 +40,7 @@ artifact.
 
 ## Request flows
 
-1. **Author and test.** web → `POST /api/simulate` with the whole draft project → `ZenRuntime`
+1. **Author and test.** web → `POST /api/v1/simulate` with the whole draft project → `ZenRuntime`
    evaluates with trace → web shows the result per node. Connector nodes run in mock mode.
 2. **Release.** Save creates an immutable version, and tests run. A release freezes one version of
    every decision in the project. Deploying to staging writes the artifact. Production needs one

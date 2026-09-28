@@ -45,14 +45,15 @@ Requirements: Rust stable, Node 22 + pnpm, Docker (for Postgres and MinIO).
 
 ```bash
 cargo test --workspace          # engine + app tests
-cargo run -p donka-app          # Studio app on :8080
+cargo run -p donka-app          # Studio app on :8080, API under /api/v1
+# OpenAPI contract: http://localhost:8080/api/v1/openapi.json
 docker compose up -d postgres minio
 ```
 
 Try the simulator endpoint:
 
 ```bash
-curl -s localhost:8080/api/simulate -H 'content-type: application/json' -d @- <<'EOF'
+curl -s localhost:8080/api/v1/simulate -H 'content-type: application/json' -d @- <<'EOF'
 { "decisions": { "table": <paste a JDM graph> }, "key": "table", "context": { "input": 12 } }
 EOF
 ```
