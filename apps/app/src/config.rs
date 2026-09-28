@@ -1,5 +1,6 @@
 use donka_identity::Locale;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 
 /// Settings read from the environment at startup (documented in `.env.example`).
 #[derive(Debug, Clone, PartialEq)]
@@ -33,7 +34,12 @@ pub struct Config {
     pub smtp_from: String,
     /// Failed sends after which an account email is abandoned.
     pub email_max_attempts: u32,
+    /// Static export of the web app to serve on the same origin; API only when unset.
+    pub web_dir: Option<PathBuf>,
 }
+
+/// The web app calls the API here (apps/web `API_BASE`).
+const WEB_API_BASE_PATH: &str = "/api/v1";
 
 #[derive(Debug, thiserror::Error, PartialEq)]
 #[error("{var} {reason}")]
@@ -89,6 +95,16 @@ impl Config {
             ));
         }
 
+        let web_dir = get("DONKA_WEB_DIR")
+            .filter(|v| !v.trim().is_empty())
+            .map(PathBuf::from);
+        if web_dir.is_some() && api_base_path != WEB_API_BASE_PATH {
+            return Err(invalid(
+                "DONKA_API_BASE_PATH",
+                "must stay /api/v1 when DONKA_WEB_DIR is set: the web app calls /api/v1",
+            ));
+        }
+
         Ok(Self {
             listen,
             engine_workers: positive(&get, "DONKA_ENGINE_WORKERS")?,
@@ -110,6 +126,7 @@ impl Config {
             smtp_url,
             smtp_from,
             email_max_attempts: positive(&get, "DONKA_EMAIL_MAX_ATTEMPTS")?.unwrap_or(10),
+            web_dir,
         })
     }
 }
@@ -217,6 +234,19 @@ mod tests {
         assert_eq!(config.invitation_link_hours, 72);
         assert_eq!(config.password_reset_link_minutes, 30);
         assert_eq!(config.email_max_attempts, 10);
+        assert_eq!(config.web_dir, None);
+    }
+
+    #[test]
+    fn the_web_app_needs_the_api_where_it_calls_it() {
+        let config = load(&[("DONKA_WEB_DIR", "/srv/web")]).unwrap();
+        assert_eq!(config.web_dir, Some(PathBuf::from("/srv/web")));
+        let err = load(&[
+            ("DONKA_WEB_DIR", "/srv/web"),
+            ("DONKA_API_BASE_PATH", "/studio/api"),
+        ])
+        .unwrap_err();
+        assert_eq!(err.var, "DONKA_API_BASE_PATH");
     }
 
     #[test]

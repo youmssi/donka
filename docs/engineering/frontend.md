@@ -55,24 +55,30 @@ Dependencies go **one way only**: `app/ → Component → Cache hook → Service
   session cookie; requests are same-origin, so the cookie travels automatically. State-changing
   requests carry the CSRF header the API requires.
 - One HTTP client (`ky`), configured once: base path `/api/v1`, timeout, `x-request-id`.
-- Every service call returns a **discriminated union**, never throws for an expected outcome:
+- Every service call returns a **discriminated union**, never throws for an expected outcome
+  (`components/shared/api`):
 
   ```ts
-  export type ActionResult<T> =
-    | { ok: true; data: T }
-    | { ok: false; error: string; code?: string; fieldErrors?: Record<string, string> };
+  export type ActionResult<T> = { ok: true; data: T } | { ok: false; error: ActionError };
+  interface ActionError { code: ErrorCode; requestId?: string; fieldErrors?: Record<string, string> }
   ```
 
-- The service is the only layer that inspects status codes and maps API `code`s to translated,
-  user-ready messages (`SELF_APPROVAL` → "You cannot approve a release you authored."). Unexpected
-  errors show a generic translated message with the request id.
+- The service is the only layer that inspects status codes. It maps every failure to a code the
+  web app knows (`KNOWN_ERROR_CODES`; anything else becomes `UNEXPECTED`, an unreachable server
+  `NETWORK`), and the component shows `errors.<code>` from the catalogs through `ErrorAlert`.
+  Services stay free of React and locale state; messages stay in one place. Only failures on our
+  side (`UNEXPECTED`, `DATABASE_UNAVAILABLE`) show the request id to quote.
+- Contract values the UI must agree with (password length…) are read from `openapi.json`, not
+  copied: see `modules/identity/schema.ts`.
 
 ## 4. Forms
 
 - **TanStack Form + Zod** for every form (ADR-005), the same engine Fieldkit uses. Shared field
   components (label, hint, error, required marker) in `components/shared/form/`.
 - The Zod schema is the single source of the form's rules; the server validates again.
-- Errors next to the field, in plain language, after blur or submit.
+- Errors next to the field, in plain language, after blur or submit. The line under each field is
+  reserved (`TextField`), so an error that appears when the person leaves the last field does not
+  move the submit button out from under their pointer (a missed click).
 - Submit disabled while pending; no double submission; never wipe what the user typed on error.
 
 ## 5. UI and UX
@@ -122,13 +128,21 @@ per page for browser tabs and history.
 Branded ids (`ProjectId`, `ReleaseId`). `function` declarations for components. Path alias `@/`.
 Prettier (`printWidth: 120`, `singleQuote: true`, as in donka-cli) and ESLint settle style.
 
-## 11. Configuration
+## 11. Tooling notes
+
+- shadcn components live in `components/ui` and follow the new-york v4 sources on the `radix-ui`
+  package; `components.json` makes `pnpm dlx shadcn add <name>` work.
+- Next.js 16 ships its own docs in `node_modules/next/dist/docs/`: read them before relying on
+  memory. `next dev` writes `AGENTS.md`/`CLAUDE.md` into `apps/web` when it detects a coding
+  agent; they are ignored by git.
+
+## 12. Configuration
 
 The static bundle contains no secrets and no environment-specific URLs: it calls the same origin.
 Build-time `NEXT_PUBLIC_*` values are limited to non-secret flags and are listed in
 `.env.example`.
 
-## 12. Testing
+## 13. Testing
 
 | Kind | What | Tooling |
 |---|---|---|
@@ -139,7 +153,7 @@ Build-time `NEXT_PUBLIC_*` values are limited to non-secret flags and are listed
 
 E2E tests wait for real conditions, never fixed sleeps, and create their own data.
 
-## 13. Checklist for a new screen
+## 14. Checklist for a new screen
 
 - [ ] Page is thin; renders a component from the module barrel
 - [ ] Data through the service; `ActionResult` handled; no raw fetch

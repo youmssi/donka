@@ -33,7 +33,7 @@ on `dnk-<n>-<slug>` branches, squash-merged into `develop`.
 
 ```
 apps/app        Studio backend service (Rust, Axum)
-apps/web        Studio web app (Next.js static export, shadcn/Radix, jdm-editor)   [DNK-6]
+apps/web        Studio web app (Next.js static export, shadcn/Radix, jdm-editor)
 crates/engine   The only code that calls zen-engine (DecisionRuntime trait + ZenRuntime)
 crates/db       PostgreSQL pool, migrations, readiness
 crates/identity Users, sign-in with lockout, sessions, invitations, password reset
@@ -44,20 +44,33 @@ docs            Architecture, ADRs, roadmap, backlog, engineering guides
 
 ## Develop
 
-Requirements: Rust stable, Node 22 + pnpm, Docker (for Postgres and MinIO).
+Requirements: Rust stable, Node 22 + pnpm, Docker (for Postgres, MinIO and Mailpit).
 
 ```bash
-docker compose up -d postgres minio
+docker compose up -d postgres minio mailpit
 export DATABASE_URL=postgres://donka:donka@localhost:5432/donka
 cargo test --workspace          # unit + integration tests (integration tests need DATABASE_URL)
 cargo run -p donka-app          # Studio app on :8080, API under /api/v1, migrations applied at start
 # Health: /api/v1/health · Readiness: /api/v1/ready · OpenAPI: /api/v1/openapi.json
 ```
 
-First run: start with `DONKA_BOOTSTRAP_ADMIN_EMAIL=you@bank.example` (and `DONKA_COOKIE_SECURE=false`
-for local HTTP). Studio prints a one-time link; post its token and a password (12+ characters) to
-`POST /api/v1/auth/password-setup`, then sign in. Every request that changes data must send the
-`x-donka-csrf: 1` header.
+Web app, in a second terminal (hot reload on :3000; `/api` is forwarded to the app on :8080, or to
+`DONKA_DEV_API_ORIGIN`):
+
+```bash
+pnpm --dir apps/web install
+pnpm --dir apps/web dev          # http://localhost:3000
+```
+
+First run: start the app with `DONKA_BOOTSTRAP_ADMIN_EMAIL=you@bank.example`,
+`DONKA_PUBLIC_URL=http://localhost:3000` and `DONKA_COOKIE_SECURE=false` (local HTTP). It prints a
+one-time link to choose your password; invitation and reset emails land in Mailpit
+(http://localhost:8025).
+
+To try the production setup, build the export and let the app serve it on one origin:
+`pnpm --dir apps/web build && DONKA_WEB_DIR=apps/web/out cargo run -p donka-app`.
+
+The API directly: every request that changes data must send the `x-donka-csrf: 1` header.
 
 ```bash
 curl -s -c jar -X POST localhost:8080/api/v1/auth/sign-in -H 'x-donka-csrf: 1' \

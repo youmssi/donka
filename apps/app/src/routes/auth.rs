@@ -6,7 +6,7 @@ use axum::extract::State;
 use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::{Extension, Json};
-use donka_identity::{Locale, User};
+use donka_identity::{Locale, User, MAX_PASSWORD_CHARS, MIN_PASSWORD_CHARS};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
@@ -22,7 +22,17 @@ pub struct SignInRequest {
 pub struct PasswordSetupRequest {
     /// The token from the password-setup link.
     pub token: String,
+    #[schema(schema_with = password_schema)]
     pub password: String,
+}
+
+/// The password rules, published so the web app validates with the same limits.
+fn password_schema() -> utoipa::openapi::Object {
+    utoipa::openapi::ObjectBuilder::new()
+        .schema_type(utoipa::openapi::schema::Type::String)
+        .min_length(Some(MIN_PASSWORD_CHARS))
+        .max_length(Some(MAX_PASSWORD_CHARS))
+        .build()
 }
 
 #[derive(Deserialize, ToSchema)]

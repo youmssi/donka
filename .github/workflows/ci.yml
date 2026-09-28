@@ -51,3 +51,29 @@ jobs:
           ref: develop
           path: donka-runtime
       - run: scripts/check-engine-version.sh donka-runtime
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          # The pnpm version comes from packageManager in the web app's package.json.
+          package_json_file: apps/web/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm i18n:check
+      # The typed client must match apps/web/openapi.json (kept in step by the Rust tests).
+      - run: pnpm api:generate && git diff --exit-code -- src/components/shared/api/schema.d.ts
+      - run: pnpm build

@@ -275,3 +275,25 @@ async fn openapi_document_describes_the_endpoints() {
     assert!(reply.body["components"]["schemas"]["ErrorBody"].is_object());
     assert_eq!(reply.body["info"]["version"], donka_app::VERSION);
 }
+
+/// The web app's typed client is generated from `apps/web/openapi.json`; this keeps
+/// that copy in step with the handlers. Refresh it with
+/// `DONKA_UPDATE_OPENAPI=1 cargo test -p donka-app --test api`, then
+/// `pnpm --dir apps/web api:generate`.
+#[tokio::test]
+async fn the_web_app_has_the_current_openapi_document() {
+    let app = without_database();
+    let reply = send(&app.router, get("/api/v1/openapi.json", None)).await;
+    let current = serde_json::to_string_pretty(&reply.body).unwrap() + "\n";
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../web/openapi.json");
+    if std::env::var_os("DONKA_UPDATE_OPENAPI").is_some() {
+        std::fs::write(path, &current).unwrap();
+        return;
+    }
+    let committed = std::fs::read_to_string(path).unwrap_or_default();
+    assert!(
+        committed == current,
+        "apps/web/openapi.json is out of date: run DONKA_UPDATE_OPENAPI=1 cargo test -p donka-app --test api, \
+         then pnpm --dir apps/web api:generate"
+    );
+}

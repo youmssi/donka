@@ -46,6 +46,8 @@ pub enum ApiError {
     EvaluationFailed(Value),
     #[error("database unavailable")]
     DatabaseUnavailable,
+    #[error("no such endpoint")]
+    RouteNotFound,
     #[error("not signed in")]
     Unauthenticated,
     #[error("invalid credentials")]
@@ -144,6 +146,13 @@ impl IntoResponse for ApiError {
                 StatusCode::SERVICE_UNAVAILABLE,
                 "DATABASE_UNAVAILABLE",
                 "The database is not reachable. Try again shortly.".to_owned(),
+                None,
+                None,
+            ),
+            Self::RouteNotFound => (
+                StatusCode::NOT_FOUND,
+                "NOT_FOUND",
+                "There is no endpoint at this path.".to_owned(),
                 None,
                 None,
             ),

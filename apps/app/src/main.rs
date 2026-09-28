@@ -67,7 +67,7 @@ async fn main() -> anyhow::Result<()> {
                     "\nFirst administrator created: {email}\n\
                      Set the password within {link_hours} hours (the link works once):\n  \
                      {}\n",
-                    donka_identity::setup_link(&config.public_url, &token)
+                    donka_identity::setup_link(&config.public_url, config.default_locale, &token)
                 );
             }
             Ok(None) => tracing::info!("users already exist; DONKA_BOOTSTRAP_ADMIN_EMAIL ignored"),
@@ -83,6 +83,9 @@ async fn main() -> anyhow::Result<()> {
         config.public_url.clone(),
     ));
 
+    if let Some(dir) = &config.web_dir {
+        donka_app::web::check_export(dir).unwrap_or_else(|err| exit_with(&err));
+    }
     let app = router(
         AppState {
             runtime: Arc::new(runtime),
@@ -91,6 +94,7 @@ async fn main() -> anyhow::Result<()> {
             cookies,
         },
         &config.api_base_path,
+        config.web_dir.as_deref(),
     );
 
     let listener = tokio::net::TcpListener::bind(config.listen).await?;

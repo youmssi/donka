@@ -75,7 +75,7 @@ async fn an_invited_person_chooses_a_password_and_signs_in(db: PgPool) {
     assert_eq!(emails[0].subject, "Vous êtes invité(e) sur Donka");
     assert!(emails[0].text.contains("72 heures"), "{}", emails[0].text);
 
-    let token = token_in(&emails[0]);
+    let token = token_in_locale(&emails[0], "fr");
     assert_eq!(
         set_password(&app, &token, INVITEE_PASSWORD).await.status,
         StatusCode::NO_CONTENT
