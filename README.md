@@ -36,7 +36,8 @@ apps/app        Studio backend service (Rust, Axum)
 apps/web        Studio web app (Next.js static export, shadcn/Radix, jdm-editor)   [DNK-6]
 crates/engine   The only code that calls zen-engine (DecisionRuntime trait + ZenRuntime)
 crates/db       PostgreSQL pool, migrations, readiness
-crates/identity Users, sign-in with lockout, sessions, password-setup links
+crates/identity Users, sign-in with lockout, sessions, invitations, password reset
+crates/mail     Mailer trait and its SMTP implementation
 migrations      PostgreSQL migrations (sqlx), forward-only
 docs            Architecture, ADRs, roadmap, backlog, engineering guides
 ```

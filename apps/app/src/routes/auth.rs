@@ -6,7 +6,7 @@ use axum::extract::State;
 use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::{Extension, Json};
-use donka_identity::User;
+use donka_identity::{Locale, User};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
@@ -25,20 +25,27 @@ pub struct PasswordSetupRequest {
     pub password: String,
 }
 
+#[derive(Deserialize, ToSchema)]
+pub struct PasswordResetRequest {
+    pub email: String,
+}
+
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct MeResponse {
+pub struct UserResponse {
     pub id: Uuid,
     pub email: String,
     pub is_admin: bool,
+    pub locale: Locale,
 }
 
-impl From<User> for MeResponse {
+impl From<User> for UserResponse {
     fn from(user: User) -> Self {
         Self {
             id: user.id,
             email: user.email,
             is_admin: user.is_admin,
+            locale: user.locale,
         }
     }
 }
@@ -50,7 +57,7 @@ impl From<User> for MeResponse {
     tag = "identity",
     request_body = SignInRequest,
     responses(
-        (status = 200, description = "Signed in; the session cookie is set", body = MeResponse),
+        (status = 200, description = "Signed in; the session cookie is set", body = UserResponse),
         (status = 401, description = "Email or password is incorrect, or the account is locked (INVALID_CREDENTIALS)", body = ErrorBody),
         (status = 403, description = "Missing CSRF header (CSRF_REQUIRED)", body = ErrorBody),
     )
@@ -62,7 +69,7 @@ pub async fn sign_in(
     let (token, user) = state.identity.sign_in(&req.email, &req.password).await?;
     Ok((
         [(header::SET_COOKIE, state.cookies.session(token.expose()))],
-        Json(MeResponse::from(user)),
+        Json(UserResponse::from(user)),
     )
         .into_response())
 }
@@ -95,11 +102,11 @@ pub async fn sign_out(
     path = "/auth/me",
     tag = "identity",
     responses(
-        (status = 200, body = MeResponse),
+        (status = 200, body = UserResponse),
         (status = 401, description = "Not signed in (UNAUTHENTICATED)", body = ErrorBody),
     )
 )]
-pub async fn me(Extension(current): Extension<CurrentUser>) -> Json<MeResponse> {
+pub async fn me(Extension(current): Extension<CurrentUser>) -> Json<UserResponse> {
     Json(current.user.into())
 }
 
@@ -123,4 +130,24 @@ pub async fn password_setup(
         .complete_password_setup(&req.token, &req.password)
         .await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// Emails a one-time link to choose a new password. Answers the same whether or
+/// not the address has an account, so it cannot be used to find accounts.
+#[utoipa::path(
+    post,
+    path = "/auth/password-reset",
+    tag = "identity",
+    request_body = PasswordResetRequest,
+    responses(
+        (status = 202, description = "If the address has an account, a reset link is on its way"),
+        (status = 400, description = "Not an email address (INVALID_REQUEST)", body = ErrorBody),
+    )
+)]
+pub async fn password_reset(
+    State(state): State<AppState>,
+    ApiJson(req): ApiJson<PasswordResetRequest>,
+) -> Result<StatusCode, ApiError> {
+    state.identity.request_password_reset(&req.email).await?;
+    Ok(StatusCode::ACCEPTED)
 }

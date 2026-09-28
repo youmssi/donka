@@ -114,11 +114,11 @@ SSO/OIDC (Stage 3). Password reset and invitations (DNK-5).
 **Type:** feature · **Repos:** S · **Dependencies:** DNK-4 · **Size:** M
 
 #### Acceptance criteria
-- [ ] An administrator invites a person by email; the invitation link is single-use, expires (config), and is stored hashed
-- [ ] Password reset sends a single-use, short-lived link; requesting it for an unknown email looks identical to a known one
-- [ ] Emails go through an outbox processed after commit; a failed send is retried with backoff
-- [ ] SMTP settings come from `DONKA_SMTP_*`; local development uses Mailpit
-- [ ] Email content exists in English and French, chosen by the recipient's language
+- [x] An administrator invites a person by email; the invitation link is single-use, expires (config), and is stored hashed
+- [x] Password reset sends a single-use, short-lived link; requesting it for an unknown email looks identical to a known one
+- [x] Emails go through an outbox processed after commit; a failed send is retried with backoff
+- [x] SMTP settings come from `DONKA_SMTP_URL` and `DONKA_SMTP_FROM`; local development uses Mailpit
+- [x] Email content exists in English and French, chosen by the recipient's language
 
 ---
 

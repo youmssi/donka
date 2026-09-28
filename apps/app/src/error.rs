@@ -54,6 +54,10 @@ pub enum ApiError {
     CsrfRequired,
     #[error("invalid password-setup link")]
     InvalidSetupLink,
+    #[error("forbidden")]
+    Forbidden,
+    #[error("email already used")]
+    EmailTaken,
     #[error("invalid field {field}: {message}")]
     InvalidField {
         field: &'static str,
@@ -80,6 +84,8 @@ impl From<IdentityError> for ApiError {
             IdentityError::InvalidCredentials => Self::InvalidCredentials,
             IdentityError::Unauthenticated => Self::Unauthenticated,
             IdentityError::InvalidSetupLink => Self::InvalidSetupLink,
+            IdentityError::Forbidden => Self::Forbidden,
+            IdentityError::EmailTaken => Self::EmailTaken,
             IdentityError::WeakPassword => Self::InvalidField {
                 field: "password",
                 message: IdentityError::WeakPassword.to_string(),
@@ -170,6 +176,23 @@ impl IntoResponse for ApiError {
                 "This link is invalid, already used or expired. Ask an administrator for a new one."
                     .to_owned(),
                 None,
+                None,
+            ),
+            Self::Forbidden => (
+                StatusCode::FORBIDDEN,
+                "FORBIDDEN",
+                "You do not have permission to do this.".to_owned(),
+                None,
+                None,
+            ),
+            Self::EmailTaken => (
+                StatusCode::CONFLICT,
+                "EMAIL_TAKEN",
+                "Someone already has an account with this email.".to_owned(),
+                Some(BTreeMap::from([(
+                    "email".to_owned(),
+                    "already used".to_owned(),
+                )])),
                 None,
             ),
             Self::InvalidField { field, message } => (

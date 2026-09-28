@@ -1,3 +1,4 @@
+use donka_identity::Locale;
 use std::net::SocketAddr;
 
 /// Settings read from the environment at startup (documented in `.env.example`).
@@ -21,6 +22,17 @@ pub struct Config {
     pub sign_in_lock_minutes: u32,
     /// On an empty database, create this administrator and print a setup link.
     pub bootstrap_admin_email: Option<String>,
+    /// Language of the first administrator (others choose theirs when invited).
+    pub default_locale: Locale,
+    pub invitation_link_hours: u32,
+    pub password_reset_link_minutes: u32,
+    /// SMTP server, e.g. `smtp://user:pass@host:587?tls=required`. Contains
+    /// credentials: never log it.
+    pub smtp_url: String,
+    /// Sender of account emails, e.g. `Donka <donka@bank.example>`.
+    pub smtp_from: String,
+    /// Failed sends after which an account email is abandoned.
+    pub email_max_attempts: u32,
 }
 
 #[derive(Debug, thiserror::Error, PartialEq)]
@@ -45,14 +57,27 @@ impl Config {
         let api_base_path = get("DONKA_API_BASE_PATH").unwrap_or_else(|| "/api/v1".into());
         validate_base_path(&api_base_path)?;
 
-        let database_url = get("DATABASE_URL")
-            .filter(|v| !v.trim().is_empty())
-            .ok_or_else(|| {
-                invalid(
-                    "DATABASE_URL",
-                    "is required, e.g. postgres://user:pass@host:5432/donka",
-                )
-            })?;
+        let database_url = required(
+            &get,
+            "DATABASE_URL",
+            "is required, e.g. postgres://user:pass@host:5432/donka",
+        )?;
+        let smtp_url = required(
+            &get,
+            "DONKA_SMTP_URL",
+            "is required, e.g. smtp://user:pass@mail.bank.example:587?tls=required",
+        )?;
+        let smtp_from = required(
+            &get,
+            "DONKA_SMTP_FROM",
+            "is required, e.g. Donka <donka@bank.example>",
+        )?;
+        let default_locale = match get("DONKA_DEFAULT_LOCALE") {
+            None => Locale::En,
+            Some(value) => value
+                .parse()
+                .map_err(|reason: String| invalid("DONKA_DEFAULT_LOCALE", &reason))?,
+        };
 
         let public_url = get("DONKA_PUBLIC_URL").unwrap_or_else(|| "http://localhost:8080".into());
         if !(public_url.starts_with("http://") || public_url.starts_with("https://"))
@@ -78,8 +103,25 @@ impl Config {
             sign_in_lock_minutes: positive(&get, "DONKA_SIGN_IN_LOCK_MINUTES")?.unwrap_or(15),
             bootstrap_admin_email: get("DONKA_BOOTSTRAP_ADMIN_EMAIL")
                 .filter(|v| !v.trim().is_empty()),
+            default_locale,
+            invitation_link_hours: positive(&get, "DONKA_INVITATION_LINK_HOURS")?.unwrap_or(72),
+            password_reset_link_minutes: positive(&get, "DONKA_PASSWORD_RESET_LINK_MINUTES")?
+                .unwrap_or(30),
+            smtp_url,
+            smtp_from,
+            email_max_attempts: positive(&get, "DONKA_EMAIL_MAX_ATTEMPTS")?.unwrap_or(10),
         })
     }
+}
+
+fn required(
+    get: &impl Fn(&str) -> Option<String>,
+    var: &'static str,
+    reason: &str,
+) -> Result<String, ConfigError> {
+    get(var)
+        .filter(|v| !v.trim().is_empty())
+        .ok_or_else(|| invalid(var, reason))
 }
 
 /// An optional variable that must be a number greater than zero when set.
@@ -141,11 +183,18 @@ mod tests {
     use super::*;
     use std::collections::HashMap;
 
-    const DB: (&str, &str) = ("DATABASE_URL", "postgres://donka@localhost/donka");
+    const REQUIRED: [(&str, &str); 3] = [
+        ("DATABASE_URL", "postgres://donka@localhost/donka"),
+        ("DONKA_SMTP_URL", "smtp://localhost:1025"),
+        ("DONKA_SMTP_FROM", "donka@bank.example"),
+    ];
 
-    /// Loads with a database URL, the only required variable, unless the test overrides it.
+    /// Loads with the required variables set, unless the test overrides them.
     fn load(vars: &[(&str, &str)]) -> Result<Config, ConfigError> {
-        let mut map: HashMap<String, String> = HashMap::from([(DB.0.into(), DB.1.into())]);
+        let mut map: HashMap<String, String> = REQUIRED
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
         map.extend(vars.iter().map(|(k, v)| (k.to_string(), v.to_string())));
         Config::from_lookup(|k| map.get(k).cloned())
     }
@@ -164,6 +213,31 @@ mod tests {
         assert_eq!(config.sign_in_lock_minutes, 15);
         assert_eq!(config.public_url, "http://localhost:8080");
         assert_eq!(config.bootstrap_admin_email, None);
+        assert_eq!(config.default_locale, Locale::En);
+        assert_eq!(config.invitation_link_hours, 72);
+        assert_eq!(config.password_reset_link_minutes, 30);
+        assert_eq!(config.email_max_attempts, 10);
+    }
+
+    #[test]
+    fn email_settings_are_required_and_validated() {
+        for var in ["DONKA_SMTP_URL", "DONKA_SMTP_FROM"] {
+            assert_eq!(load(&[(var, " ")]).unwrap_err().var, var);
+        }
+        assert_eq!(
+            load(&[("DONKA_DEFAULT_LOCALE", "fr")])
+                .unwrap()
+                .default_locale,
+            Locale::Fr
+        );
+        for (var, bad) in [
+            ("DONKA_DEFAULT_LOCALE", "de"),
+            ("DONKA_INVITATION_LINK_HOURS", "0"),
+            ("DONKA_PASSWORD_RESET_LINK_MINUTES", "-5"),
+            ("DONKA_EMAIL_MAX_ATTEMPTS", "many"),
+        ] {
+            assert_eq!(load(&[(var, bad)]).unwrap_err().var, var, "{var}={bad}");
+        }
     }
 
     #[test]

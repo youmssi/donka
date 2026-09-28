@@ -10,7 +10,9 @@ use donka_app::{router, AppState};
 use donka_db::{DbOptions, PgPool};
 use donka_engine::{DecisionRuntime, ZenRuntime};
 use donka_identity::clock::ManualClock;
-use donka_identity::{Identity, Policy};
+use donka_identity::{Identity, Locale, Policy};
+use donka_mail::testing::RecordingMailer;
+use donka_mail::Email;
 use http_body_util::BodyExt;
 use serde_json::Value;
 use std::sync::Arc;
@@ -20,10 +22,13 @@ pub const BASE: &str = "/api/v1";
 pub const ADMIN_EMAIL: &str = "ada@bank.example";
 pub const ADMIN_PASSWORD: &str = "correct horse battery staple";
 
+pub const PUBLIC_URL: &str = "https://studio.bank.example";
+
 pub struct TestApp {
     pub router: Router,
     pub identity: Identity,
     pub clock: Arc<ManualClock>,
+    pub mailer: Arc<RecordingMailer>,
 }
 
 pub fn policy() -> Policy {
@@ -51,6 +56,7 @@ pub fn build(db: PgPool, runtime: Arc<dyn DecisionRuntime>, base: &str) -> TestA
         router,
         identity,
         clock,
+        mailer: Arc::new(RecordingMailer::default()),
     }
 }
 
@@ -135,7 +141,7 @@ pub fn session_from(reply: &Reply) -> String {
 pub async fn admin_with_password(app: &TestApp) {
     let token = app
         .identity
-        .bootstrap_admin(ADMIN_EMAIL)
+        .bootstrap_admin(ADMIN_EMAIL, Locale::En)
         .await
         .unwrap()
         .unwrap();
@@ -174,4 +180,32 @@ pub fn assert_error(reply: &Reply, status: StatusCode, code: &str) {
         reply.request_id.as_deref(),
         "body and header ids match"
     );
+}
+
+/// Runs one pass of the email worker; returns how many emails were sent.
+pub async fn deliver(app: &TestApp) -> usize {
+    app.identity
+        .deliver_due_emails(app.mailer.as_ref(), PUBLIC_URL)
+        .await
+        .unwrap()
+}
+
+/// Emails sent so far to `to`, oldest first.
+pub fn emails_to(app: &TestApp, to: &str) -> Vec<Email> {
+    app.mailer
+        .sent()
+        .into_iter()
+        .filter(|e| e.to == to)
+        .collect()
+}
+
+/// The one-time token in the link of an email.
+pub fn token_in(email: &Email) -> String {
+    let prefix = format!("{PUBLIC_URL}/setup-password?token=");
+    let start = email.text.find(&prefix).expect("a setup link") + prefix.len();
+    email.text[start..]
+        .split_whitespace()
+        .next()
+        .unwrap()
+        .to_owned()
 }

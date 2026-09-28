@@ -5,6 +5,7 @@
 
 pub mod auth;
 pub mod config;
+pub mod email_worker;
 pub mod error;
 pub mod extract;
 pub mod request_id;
@@ -52,12 +53,14 @@ pub fn router(state: AppState, api_base_path: &str) -> Router {
         .routes(routes!(routes::health::health))
         .routes(routes!(routes::health::ready))
         .routes(routes!(routes::auth::sign_in))
-        .routes(routes!(routes::auth::password_setup));
+        .routes(routes!(routes::auth::password_setup))
+        .routes(routes!(routes::auth::password_reset));
 
     let protected = OpenApiRouter::new()
         .routes(routes!(routes::auth::me))
         .routes(routes!(routes::auth::sign_out))
         .routes(routes!(routes::simulate::simulate))
+        .routes(routes!(routes::users::invite))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             auth::require_session,

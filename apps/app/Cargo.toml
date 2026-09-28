@@ -15,7 +15,8 @@ anyhow = { workspace = true }
 axum = { workspace = true }
 donka-db = { workspace = true }
 donka-engine = { workspace = true }
-donka-identity = { workspace = true }
+donka-identity = { workspace = true, features = ["openapi"] }
+donka-mail = { workspace = true }
 chrono = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -33,6 +34,7 @@ thiserror = { workspace = true }
 uuid = { workspace = true }
 sqlx = { workspace = true }
 async-trait = { workspace = true }
+donka-mail = { workspace = true, features = ["testing"] }
 http-body-util = "0.1"
 
 [lints]

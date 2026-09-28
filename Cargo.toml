@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/engine", "crates/db", "crates/identity", "apps/app"]
+members = ["crates/engine", "crates/db", "crates/identity", "crates/mail", "apps/app"]
 
 [workspace.package]
 version = "0.1.0"
@@ -28,6 +28,8 @@ argon2 = "0.6"
 sha2 = "0.10"
 base64 = "0.22"
 getrandom = "0.3"
+# rustls with the system trust store, so a bank's internal mail relay CA is honoured.
+lettre = { version = "0.11", default-features = false, features = ["builder", "hostname", "pool", "smtp-transport", "tokio1", "tokio1-rustls", "ring", "rustls-platform-verifier"] }
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "macros", "migrate", "uuid", "chrono"] }
 # One engine version for Studio, Runtime and the editor's WASM linting.
 # scripts/check-engine-version.sh fails CI if any of them drift apart.
@@ -36,6 +38,7 @@ zen-engine = { version = "=2.0.1", features = ["arbitrary_precision"] }
 donka-engine = { path = "crates/engine" }
 donka-db = { path = "crates/db" }
 donka-identity = { path = "crates/identity" }
+donka-mail = { path = "crates/mail" }
 
 # Adopted from gorules/zen: no unsafe code, no unwrap() outside tests (clippy.toml allows it there).
 [workspace.lints.rust]
