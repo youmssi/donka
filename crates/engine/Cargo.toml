@@ -1,0 +1,19 @@
+[package]
+name = "donka-engine"
+description = "Donka's single doorway to the decision engine (DecisionRuntime + ZEN implementation)"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+publish = false
+
+[dependencies]
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+zen-engine = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
