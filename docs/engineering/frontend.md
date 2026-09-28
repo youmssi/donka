@@ -118,9 +118,9 @@ per page for browser tabs and history.
 
 ## 10. TypeScript and code style
 
-`strict: true`, no `any`, no unexplained `!`. `interface` for object shapes, `type` for unions.
+`strict: true` and `noUncheckedIndexedAccess: true` (index access returns `T | undefined`), no `any`, no unexplained `!`. `interface` for object shapes, `type` for unions.
 Branded ids (`ProjectId`, `ReleaseId`). `function` declarations for components. Path alias `@/`.
-Prettier and ESLint settle style.
+Prettier (`printWidth: 120`, `singleQuote: true`, as in donka-cli) and ESLint settle style.
 
 ## 11. Configuration
 

@@ -15,6 +15,7 @@ docker-compose for PostgreSQL, MinIO and Mailpit.
 | 1 | DNK-1 Work the same way in every Donka repo | S R C |
 | 2 | DNK-2 API conventions | S |
 | 3 | DNK-3 Persistent storage | S |
+| 3b | DNK-25 Practices from the upstream codebases (docs) | S |
 | 4 | DNK-12 Runtime on engine 2.0.1, own name | R |
 | 5 | DNK-4 Sign in | S |
 | 6 | DNK-5 Invitations and password reset | S |
@@ -36,6 +37,11 @@ docker-compose for PostgreSQL, MinIO and Mailpit.
 | 22 | DNK-22 Runtime rate limits | R |
 | 23 | DNK-23 One-command install | S |
 | 24 | DNK-24 Credit starter pack | S |
+
+Practices from the upstream codebases, scheduled next to the stories that need them:
+DNK-26 `/version` (after DNK-4), DNK-28 container builds (before DNK-23), DNK-29 Storybook
+(with DNK-6), DNK-27 OpenTelemetry (before DNK-23), DNK-30 generated changelogs (before the
+first release PR).
 
 ## Stage 2: governance depth
 Branches, N-eyes approvals, webhooks, GitSync, more connectors, Fieldkit Stage 1.

@@ -12,6 +12,8 @@ file and add what is specific to that tool.
    - `docs/engineering/principles.md` — rules for all code;
    - `docs/engineering/backend.md` — `apps/app` and `crates/*` (Rust);
    - `docs/engineering/frontend.md` — `apps/web` (Next.js).
+   - `docs/engineering/references.md` — what we adopted (and refused) from the upstream
+     GoRules codebases; check it before inventing a convention.
 2. Read the story (`DNK-<n>` in `docs/backlog/`) in full: why, decisions, acceptance criteria,
    out of scope.
 3. Check the story's dependencies are merged. If one is not, **stop and say so**.

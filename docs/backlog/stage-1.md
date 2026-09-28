@@ -367,3 +367,78 @@ Customers buy time to a live scorecard, not an empty canvas.
 - Option B: generic, bureau-agnostic scores only
 Recommendation: A, once the pilot customer is known. Implementation of market-specific parts
 stops here until decided.
+
+---
+
+### DNK-25 — Learn from the upstream codebases before inventing
+
+**Type:** docs · **Repos:** S · **Dependencies:** DNK-3 · **Size:** S
+
+#### Why
+zen, agent-public and the CLI already solved many problems Donka meets. Copying good practice
+(and knowing what not to copy) is cheaper than rediscovering it.
+
+#### Acceptance criteria
+- [ ] `docs/engineering/references.md` lists adopted, planned and rejected practices, each with its source file
+- [ ] The engineering guides and `AGENTS.md` point to it
+- [ ] Every planned practice has a story (DNK-26 to DNK-30)
+
+---
+
+### DNK-26 — Report which version is running
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-3 · **Size:** S
+
+#### Acceptance criteria
+- [ ] `GET /api/v1/version` returns the version from the `SERVICE_VERSION` build argument (`unknown` in local builds)
+- [ ] The same version appears in the OpenAPI document and the startup log line
+
+---
+
+### DNK-27 — Optional OpenTelemetry
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-26 · **Size:** M
+
+#### Acceptance criteria
+- [ ] Traces and request metrics exported over OTLP when `DONKA_OTEL_ENABLED=true`; nothing exported by default
+- [ ] The request id is attached to every span
+- [ ] No personal data or secrets in span attributes
+
+---
+
+### DNK-28 — Fast, reproducible container builds
+
+**Type:** build · **Repos:** S · **Dependencies:** DNK-3 · **Size:** S
+
+#### Acceptance criteria
+- [ ] The Dockerfile builds dependencies in a layer that only `Cargo.toml`/`Cargo.lock` changes invalidate
+- [ ] The image runs as a non-root user and passes `SERVICE_VERSION` through
+- [ ] CI builds the image on every pull request (no push yet)
+
+---
+
+### DNK-29 — Storybook for Studio components
+
+**Type:** chore · **Repos:** S · **Dependencies:** DNK-6 · **Size:** S
+
+#### Acceptance criteria
+- [ ] Every shared UI component has a story showing its four states (loading, empty, error, success) where they apply
+- [ ] Stories render in light and dark, English and French
+- [ ] CI builds Storybook so a broken story fails the pull request
+
+---
+
+### DNK-30 — Changelog and versions from commits
+
+**Type:** chore · **Repos:** S, R, C · **Dependencies:** DNK-1 · **Size:** S
+
+#### Decision
+[INTERACTIVE STEP] How release PRs are produced.
+- Option A: release-please opens the `develop` → `main` release PR with the changelog and version bump generated from Conventional Commits
+- Option B: release PRs written by hand, as in CONTRIBUTING.md today
+Recommendation: A. It already runs in zen, cli and agent, and our commits follow the format it reads.
+
+#### Acceptance criteria
+- [ ] Release PRs carry a generated `CHANGELOG.md` entry and a semantic version bump
+- [ ] Nothing is published to a package registry under GoRules names
+
