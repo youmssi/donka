@@ -12,17 +12,31 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
 
-    let config = Config::from_env()?;
+    // One clear line for operators; a bad setting is not a crash worth a backtrace.
+    let config = match Config::from_env() {
+        Ok(config) => config,
+        Err(err) => {
+            eprintln!("invalid configuration: {err}");
+            std::process::exit(2);
+        }
+    };
     let runtime = match config.engine_workers {
         Some(n) => ZenRuntime::new(n),
         None => ZenRuntime::default(),
     };
-    let app = router(AppState {
-        runtime: Arc::new(runtime),
-    });
+    let app = router(
+        AppState {
+            runtime: Arc::new(runtime),
+        },
+        &config.api_base_path,
+    );
 
     let listener = tokio::net::TcpListener::bind(config.listen).await?;
-    tracing::info!("Donka Studio app listening on {}", listener.local_addr()?);
+    tracing::info!(
+        "Donka Studio app listening on {} under {}",
+        listener.local_addr()?,
+        config.api_base_path
+    );
     axum::serve(listener, app)
         .with_graceful_shutdown(async {
             let _ = tokio::signal::ctrl_c().await;

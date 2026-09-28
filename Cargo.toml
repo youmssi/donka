@@ -20,6 +20,9 @@ tower = { version = "0.5", features = ["util"] }
 tower-http = { version = "0.6", features = ["trace", "compression-full", "cors", "fs"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+utoipa = { version = "5", features = ["axum_extras"] }
+utoipa-axum = "0.2"
+uuid = { version = "1", features = ["v4"] }
 # One engine version for Studio, Runtime and the editor's WASM linting.
 # scripts/check-engine-version.sh fails CI if any of them drift apart.
 zen-engine = { version = "=2.0.1", features = ["arbitrary_precision"] }
