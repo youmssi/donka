@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/engine", "crates/db", "apps/app"]
+members = ["crates/engine", "crates/db", "crates/identity", "apps/app"]
 
 [workspace.package]
 version = "0.1.0"
@@ -20,16 +20,22 @@ tower = { version = "0.5", features = ["util"] }
 tower-http = { version = "0.6", features = ["trace", "compression-full", "cors", "fs"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
-utoipa = { version = "5", features = ["axum_extras"] }
+utoipa = { version = "5", features = ["axum_extras", "uuid"] }
 utoipa-axum = "0.2"
-uuid = { version = "1", features = ["v4"] }
-sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "macros", "migrate"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+argon2 = "0.6"
+sha2 = "0.10"
+base64 = "0.22"
+getrandom = "0.3"
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "macros", "migrate", "uuid", "chrono"] }
 # One engine version for Studio, Runtime and the editor's WASM linting.
 # scripts/check-engine-version.sh fails CI if any of them drift apart.
 zen-engine = { version = "=2.0.1", features = ["arbitrary_precision"] }
 
 donka-engine = { path = "crates/engine" }
 donka-db = { path = "crates/db" }
+donka-identity = { path = "crates/identity" }
 
 # Adopted from gorules/zen: no unsafe code, no unwrap() outside tests (clippy.toml allows it there).
 [workspace.lints.rust]

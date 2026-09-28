@@ -1,6 +1,10 @@
+use chrono::Duration;
+use donka_app::auth::CookieSettings;
 use donka_app::{config::Config, router, AppState};
 use donka_db::DbOptions;
 use donka_engine::ZenRuntime;
+use donka_identity::clock::SystemClock;
+use donka_identity::{Identity, Policy};
 use std::sync::Arc;
 use tracing_subscriber::EnvFilter;
 
@@ -36,10 +40,42 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("database migrations are up to date");
     }
 
+    let policy = Policy {
+        session_idle_timeout: Duration::minutes(config.session_idle_minutes.into()),
+        max_failed_sign_ins: config.sign_in_max_failures,
+        lock_duration: Duration::minutes(config.sign_in_lock_minutes.into()),
+        ..Policy::default()
+    };
+    let cookies = CookieSettings {
+        secure: config.cookie_secure,
+        max_age_seconds: policy.session_idle_timeout.num_seconds(),
+    };
+    let identity = Identity::new(db.clone(), Arc::new(SystemClock), policy);
+
+    if let Some(email) = &config.bootstrap_admin_email {
+        match identity.bootstrap_admin(email).await {
+            Ok(Some(token)) => {
+                // Printed once, to the operator's console, as the only way into a new
+                // installation. The link works once and expires after 24 hours.
+                eprintln!(
+                    "\nFirst administrator created: {email}\n\
+                     Set the password within 24 hours (the link works once):\n  \
+                     {}/setup-password?token={}\n",
+                    config.public_url,
+                    token.expose()
+                );
+            }
+            Ok(None) => tracing::info!("users already exist; DONKA_BOOTSTRAP_ADMIN_EMAIL ignored"),
+            Err(err) => exit_with(&format!("cannot create the first administrator: {err}")),
+        }
+    }
+
     let app = router(
         AppState {
             runtime: Arc::new(runtime),
             db,
+            identity,
+            cookies,
         },
         &config.api_base_path,
     );

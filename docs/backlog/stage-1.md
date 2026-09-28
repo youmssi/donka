@@ -89,7 +89,9 @@ attributable.
 
 #### Decision
 Session cookie (httpOnly, Secure, SameSite=Lax) on the same origin as the web app (ADR-002),
-sessions stored in PostgreSQL, argon2id password hashes. First administrator created from
+sessions stored in PostgreSQL as token hashes on Studio's own pool (ADR-007), argon2id password
+hashes, CSRF enforced with the `x-donka-csrf` header. A locked account gets the same
+`INVALID_CREDENTIALS` answer as a wrong password, so lockout does not reveal that an account exists. First administrator created from
 `DONKA_BOOTSTRAP_ADMIN_EMAIL` on an empty database, with a one-time password-setup link printed to
 the log.
 

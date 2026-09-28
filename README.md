@@ -36,6 +36,7 @@ apps/app        Studio backend service (Rust, Axum)
 apps/web        Studio web app (Next.js static export, shadcn/Radix, jdm-editor)   [DNK-6]
 crates/engine   The only code that calls zen-engine (DecisionRuntime trait + ZenRuntime)
 crates/db       PostgreSQL pool, migrations, readiness
+crates/identity Users, sign-in with lockout, sessions, password-setup links
 migrations      PostgreSQL migrations (sqlx), forward-only
 docs            Architecture, ADRs, roadmap, backlog, engineering guides
 ```
@@ -52,12 +53,17 @@ cargo run -p donka-app          # Studio app on :8080, API under /api/v1, migrat
 # Health: /api/v1/health · Readiness: /api/v1/ready · OpenAPI: /api/v1/openapi.json
 ```
 
-Try the simulator endpoint:
+First run: start with `DONKA_BOOTSTRAP_ADMIN_EMAIL=you@bank.example` (and `DONKA_COOKIE_SECURE=false`
+for local HTTP). Studio prints a one-time link; post its token and a password (12+ characters) to
+`POST /api/v1/auth/password-setup`, then sign in. Every request that changes data must send the
+`x-donka-csrf: 1` header.
 
 ```bash
-curl -s localhost:8080/api/v1/simulate -H 'content-type: application/json' -d @- <<'EOF'
-{ "decisions": { "table": <paste a JDM graph> }, "key": "table", "context": { "input": 12 } }
-EOF
+curl -s -c jar -X POST localhost:8080/api/v1/auth/sign-in -H 'x-donka-csrf: 1' \
+  -H 'content-type: application/json' -d '{"email":"you@bank.example","password":"..."}'
+curl -s -b jar -X POST localhost:8080/api/v1/simulate -H 'x-donka-csrf: 1' \
+  -H 'content-type: application/json' \
+  -d '{ "decisions": { "table": <a JDM graph> }, "key": "table", "context": { "input": 12 } }'
 ```
 
 ## License
