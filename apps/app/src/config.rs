@@ -7,6 +7,11 @@ pub struct Config {
     pub engine_workers: Option<usize>,
     /// Versioned prefix every endpoint lives under, e.g. `/api/v1`.
     pub api_base_path: String,
+    /// PostgreSQL connection string. Contains credentials: never log it.
+    pub database_url: String,
+    /// Apply pending migrations at startup.
+    pub db_migrate: bool,
+    pub db_max_connections: u32,
 }
 
 #[derive(Debug, thiserror::Error, PartialEq)]
@@ -38,10 +43,39 @@ impl Config {
         let api_base_path = get("DONKA_API_BASE_PATH").unwrap_or_else(|| "/api/v1".into());
         validate_base_path(&api_base_path)?;
 
+        let database_url = get("DATABASE_URL")
+            .filter(|v| !v.trim().is_empty())
+            .ok_or_else(|| {
+                invalid(
+                    "DATABASE_URL",
+                    "is required, e.g. postgres://user:pass@host:5432/donka",
+                )
+            })?;
+
+        let db_migrate = match get("DONKA_DB_MIGRATE").as_deref() {
+            None | Some("true") => true,
+            Some("false") => false,
+            Some(_) => return Err(invalid("DONKA_DB_MIGRATE", "must be true or false")),
+        };
+
+        let db_max_connections = get("DONKA_DB_MAX_CONNECTIONS")
+            .map(|v| match v.parse::<u32>() {
+                Ok(n) if n > 0 => Ok(n),
+                _ => Err(invalid(
+                    "DONKA_DB_MAX_CONNECTIONS",
+                    "must be a positive number",
+                )),
+            })
+            .transpose()?
+            .unwrap_or(10);
+
         Ok(Self {
             listen,
             engine_workers,
             api_base_path,
+            database_url,
+            db_migrate,
+            db_max_connections,
         })
     }
 }
@@ -76,11 +110,12 @@ mod tests {
     use super::*;
     use std::collections::HashMap;
 
+    const DB: (&str, &str) = ("DATABASE_URL", "postgres://donka@localhost/donka");
+
+    /// Loads with a database URL, the only required variable, unless the test overrides it.
     fn load(vars: &[(&str, &str)]) -> Result<Config, ConfigError> {
-        let map: HashMap<String, String> = vars
-            .iter()
-            .map(|(k, v)| (k.to_string(), v.to_string()))
-            .collect();
+        let mut map: HashMap<String, String> = HashMap::from([(DB.0.into(), DB.1.into())]);
+        map.extend(vars.iter().map(|(k, v)| (k.to_string(), v.to_string())));
         Config::from_lookup(|k| map.get(k).cloned())
     }
 
@@ -90,6 +125,31 @@ mod tests {
         assert_eq!(config.api_base_path, "/api/v1");
         assert_eq!(config.listen.port(), 8080);
         assert_eq!(config.engine_workers, None);
+        assert!(config.db_migrate);
+        assert_eq!(config.db_max_connections, 10);
+    }
+
+    #[test]
+    fn database_url_is_required() {
+        let err = Config::from_lookup(|_| None).unwrap_err();
+        assert_eq!(err.var, "DATABASE_URL");
+        assert_eq!(
+            load(&[("DATABASE_URL", "  ")]).unwrap_err().var,
+            "DATABASE_URL"
+        );
+    }
+
+    #[test]
+    fn database_settings_are_validated() {
+        assert!(!load(&[("DONKA_DB_MIGRATE", "false")]).unwrap().db_migrate);
+        assert_eq!(
+            load(&[("DONKA_DB_MIGRATE", "no")]).unwrap_err().var,
+            "DONKA_DB_MIGRATE"
+        );
+        assert_eq!(
+            load(&[("DONKA_DB_MAX_CONNECTIONS", "0")]).unwrap_err().var,
+            "DONKA_DB_MAX_CONNECTIONS"
+        );
     }
 
     #[test]

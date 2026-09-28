@@ -1,4 +1,5 @@
 use donka_app::{config::Config, router, AppState};
+use donka_db::DbOptions;
 use donka_engine::ZenRuntime;
 use std::sync::Arc;
 use tracing_subscriber::EnvFilter;
@@ -15,18 +16,30 @@ async fn main() -> anyhow::Result<()> {
     // One clear line for operators; a bad setting is not a crash worth a backtrace.
     let config = match Config::from_env() {
         Ok(config) => config,
-        Err(err) => {
-            eprintln!("invalid configuration: {err}");
-            std::process::exit(2);
-        }
+        Err(err) => exit_with(&format!("invalid configuration: {err}")),
     };
     let runtime = match config.engine_workers {
         Some(n) => ZenRuntime::new(n),
         None => ZenRuntime::default(),
     };
+    let db_options = DbOptions {
+        max_connections: config.db_max_connections,
+        ..DbOptions::default()
+    };
+    let db = donka_db::connect(&config.database_url, &db_options)
+        .await
+        .unwrap_or_else(|err| exit_with(&err.to_string()));
+    if config.db_migrate {
+        donka_db::migrate(&db)
+            .await
+            .unwrap_or_else(|err| exit_with(&err.to_string()));
+        tracing::info!("database migrations are up to date");
+    }
+
     let app = router(
         AppState {
             runtime: Arc::new(runtime),
+            db,
         },
         &config.api_base_path,
     );
@@ -43,4 +56,10 @@ async fn main() -> anyhow::Result<()> {
         })
         .await?;
     Ok(())
+}
+
+/// Startup failures an operator must fix (configuration, database): one line, no backtrace.
+fn exit_with(message: &str) -> ! {
+    eprintln!("{message}");
+    std::process::exit(2);
 }

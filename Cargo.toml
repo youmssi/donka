@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/engine", "apps/app"]
+members = ["crates/engine", "crates/db", "apps/app"]
 
 [workspace.package]
 version = "0.1.0"
@@ -23,12 +23,22 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 utoipa = { version = "5", features = ["axum_extras"] }
 utoipa-axum = "0.2"
 uuid = { version = "1", features = ["v4"] }
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "macros", "migrate"] }
 # One engine version for Studio, Runtime and the editor's WASM linting.
 # scripts/check-engine-version.sh fails CI if any of them drift apart.
 zen-engine = { version = "=2.0.1", features = ["arbitrary_precision"] }
 
 donka-engine = { path = "crates/engine" }
+donka-db = { path = "crates/db" }
+
+# Adopted from gorules/zen: no unsafe code, no unwrap() outside tests (clippy.toml allows it there).
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
 
 [profile.release]
 lto = true
 codegen-units = 1
+strip = "symbols"

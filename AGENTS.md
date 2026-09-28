@@ -96,8 +96,8 @@ file and add what is specific to that tool.
 ```bash
 # Rust (apps/app, crates/*)
 cargo fmt --all --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace                 # integration tests need DATABASE_URL (Postgres 16)
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo test --workspace --locked        # integration tests need DATABASE_URL (Postgres 16)
 scripts/check-engine-version.sh        # Studio and Runtime evaluate with the same zen-engine
 
 # Web (apps/web) — from DNK-6 on
@@ -131,8 +131,9 @@ CI (`.github/workflows/ci.yml`) runs the same commands and blocks the merge when
 apps/app/            Studio backend service (Axum). Routes, config, error model, wiring.
 apps/web/            Studio web app (Next.js static export, served by apps/app)   [DNK-6]
 crates/engine/       DecisionRuntime trait + ZenRuntime (the only zen_engine user)
-crates/<module>/     one crate per business module (identity, project, …)         [from DNK-3]
-migrations/          PostgreSQL migrations (sqlx), forward-only                    [DNK-3]
+crates/db/           PostgreSQL pool, migrations, readiness (shared by every module)
+crates/<module>/     one crate per business module (identity first, in DNK-4)
+migrations/          PostgreSQL migrations (sqlx), forward-only; <UTC timestamp>_<what>.sql
 scripts/             repo scripts (engine version drift check)
 docs/adr/            architecture decision records
 docs/backlog/        stories with acceptance criteria

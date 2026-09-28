@@ -35,7 +35,8 @@ on `dnk-<n>-<slug>` branches, squash-merged into `develop`.
 apps/app        Studio backend service (Rust, Axum)
 apps/web        Studio web app (Next.js static export, shadcn/Radix, jdm-editor)   [DNK-6]
 crates/engine   The only code that calls zen-engine (DecisionRuntime trait + ZenRuntime)
-migrations      Postgres schema (sqlx)                                               [DNK-3]
+crates/db       PostgreSQL pool, migrations, readiness
+migrations      PostgreSQL migrations (sqlx), forward-only
 docs            Architecture, ADRs, roadmap, backlog, engineering guides
 ```
 
@@ -44,10 +45,11 @@ docs            Architecture, ADRs, roadmap, backlog, engineering guides
 Requirements: Rust stable, Node 22 + pnpm, Docker (for Postgres and MinIO).
 
 ```bash
-cargo test --workspace          # engine + app tests
-cargo run -p donka-app          # Studio app on :8080, API under /api/v1
-# OpenAPI contract: http://localhost:8080/api/v1/openapi.json
 docker compose up -d postgres minio
+export DATABASE_URL=postgres://donka:donka@localhost:5432/donka
+cargo test --workspace          # unit + integration tests (integration tests need DATABASE_URL)
+cargo run -p donka-app          # Studio app on :8080, API under /api/v1, migrations applied at start
+# Health: /api/v1/health · Readiness: /api/v1/ready · OpenAPI: /api/v1/openapi.json
 ```
 
 Try the simulator endpoint:

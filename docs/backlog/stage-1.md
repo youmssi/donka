@@ -72,7 +72,7 @@ run them in CI.
 - [ ] `GET /ready` returns `503` when the database is unreachable, `200` otherwise
 - [ ] CI runs integration tests against PostgreSQL 16
 - [ ] A reusable append-only guard (trigger rejecting `UPDATE`/`DELETE`) exists, with a test that proves it
-- [ ] Crate layout for business modules is in place (`crates/identity` first)
+- [ ] Shared persistence crate (`crates/db`: pool, migrations, readiness); business-module crates arrive with their first table (`crates/identity` in DNK-4), so no empty crate is created ahead of use
 
 #### Out of scope
 Business tables other than what DNK-4 needs.
