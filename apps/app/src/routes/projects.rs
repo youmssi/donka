@@ -6,7 +6,10 @@ use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::{Extension, Json};
 use chrono::{DateTime, Utc};
-use donka_project::{Listing, Member, Project, ProjectSummary, Role};
+use donka_project::{
+    Listing, Member, Project, ProjectSummary, Role, KEY_PATTERN, MAX_DESCRIPTION_CHARS,
+    MAX_KEY_CHARS, MAX_NAME_CHARS, MIN_KEY_CHARS,
+};
 use donka_shared::page::PageRequest;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -86,18 +89,46 @@ pub struct ListProjectsQuery {
 
 #[derive(Deserialize, ToSchema)]
 pub struct CreateProjectRequest {
-    /// 2 to 40 lowercase letters, digits and single hyphens, starting with a letter. Cannot change later.
+    /// Lowercase letters, digits and single hyphens, starting with a letter. Cannot change later.
+    #[schema(schema_with = key_schema)]
     pub key: String,
+    #[schema(schema_with = name_schema)]
     pub name: String,
     #[serde(default)]
+    #[schema(schema_with = description_schema)]
     pub description: String,
 }
 
 #[derive(Deserialize, ToSchema)]
 pub struct UpdateProjectRequest {
+    #[schema(schema_with = name_schema)]
     pub name: String,
     #[serde(default)]
+    #[schema(schema_with = description_schema)]
     pub description: String,
+}
+
+// The project rules, published so the web app validates with the same limits.
+
+fn key_schema() -> utoipa::openapi::Object {
+    string_schema(MIN_KEY_CHARS, MAX_KEY_CHARS)
+        .pattern(Some(KEY_PATTERN))
+        .build()
+}
+
+fn name_schema() -> utoipa::openapi::Object {
+    string_schema(1, MAX_NAME_CHARS).build()
+}
+
+fn description_schema() -> utoipa::openapi::Object {
+    string_schema(0, MAX_DESCRIPTION_CHARS).build()
+}
+
+fn string_schema(min: usize, max: usize) -> utoipa::openapi::ObjectBuilder {
+    utoipa::openapi::ObjectBuilder::new()
+        .schema_type(utoipa::openapi::schema::Type::String)
+        .min_length(Some(min))
+        .max_length(Some(max))
 }
 
 #[derive(Serialize, ToSchema)]

@@ -15,7 +15,14 @@
     "themeSystem": "Système",
     "account": "Compte",
     "signOut": "Se déconnecter",
-    "signingOut": "Déconnexion…"
+    "signingOut": "Déconnexion…",
+    "close": "Fermer",
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "saving": "Enregistrement…",
+    "previous": "Précédent",
+    "next": "Suivant",
+    "pageOf": "{from}–{to} sur {total}"
   },
   "errors": {
     "INVALID_CREDENTIALS": "L'e-mail ou le mot de passe est incorrect.",
@@ -27,13 +34,22 @@
     "INVALID_REQUEST": "Certains champs sont à corriger.",
     "NETWORK": "Studio est injoignable. Vérifiez votre connexion et réessayez.",
     "UNEXPECTED": "Une erreur est survenue de notre côté. Réessayez.",
-    "withRequestId": "Référence : {requestId}"
+    "withRequestId": "Référence : {requestId}",
+    "PROJECT_NOT_FOUND": "Ce projet n'existe pas, ou vous n'en êtes pas membre.",
+    "PROJECT_KEY_TAKEN": "Un autre projet utilise déjà cette clé.",
+    "PROJECT_ARCHIVED": "Ce projet est archivé. Restaurez-le pour le modifier.",
+    "ALREADY_MEMBER": "Cette personne est déjà membre du projet.",
+    "MEMBER_NOT_FOUND": "Cette personne n'est plus membre du projet.",
+    "LAST_OWNER": "Un projet doit garder au moins un propriétaire. Nommez d'abord quelqu'un d'autre propriétaire.",
+    "NO_SUCH_USER": "Aucun compte Studio n'utilise cet e-mail. Demandez à un administrateur de l'inviter d'abord."
   },
   "validation": {
     "email": "Saisissez une adresse e-mail valide.",
     "required": "Ce champ est obligatoire.",
     "passwordLength": "Utilisez entre {min} et {max} caractères.",
-    "passwordMismatch": "Les mots de passe ne correspondent pas."
+    "passwordMismatch": "Les mots de passe ne correspondent pas.",
+    "maxLength": "Utilisez au plus {max} caractères.",
+    "projectKey": "Utilisez entre {min} et {max} lettres minuscules, chiffres et tirets simples, en commençant par une lettre."
   },
   "signIn": {
     "title": "Connexion",
@@ -68,13 +84,6 @@
     "done": "Connectez-vous avec votre e-mail et votre nouveau mot de passe.",
     "signIn": "Se connecter"
   },
-  "home": {
-    "title": "Accueil",
-    "welcome": "Bienvenue",
-    "signedInAs": "Vous êtes connecté(e) en tant que {email}.",
-    "emptyTitle": "Aucun projet pour l'instant",
-    "empty": "Les projets apparaîtront ici dès qu'ils seront disponibles dans Studio."
-  },
   "session": {
     "errorTitle": "Impossible de vérifier votre session"
   },
@@ -82,5 +91,78 @@
     "title": "Page introuvable",
     "description": "Cette page n'existe pas ou a été déplacée.",
     "home": "Aller à l'accueil de Studio"
+  },
+  "roles": {
+    "owner": "Propriétaire",
+    "editor": "Éditeur",
+    "viewer": "Lecteur",
+    "ownerHint": "Tout, y compris les paramètres et les membres",
+    "editorHint": "Modifie les décisions, les tests et les versions",
+    "viewerHint": "Consulte tout"
+  },
+  "projects": {
+    "title": "Projets",
+    "active": "Actifs",
+    "archived": "Archivés",
+    "create": "Nouveau projet",
+    "yourRole": "Votre rôle",
+    "archivedBadge": "Archivé",
+    "emptyTitle": "Aucun projet pour l'instant",
+    "emptyAdmin": "Créez le premier projet pour commencer à construire des décisions.",
+    "emptyMember": "Vous n'êtes membre d'aucun projet. Demandez à un propriétaire de projet de vous ajouter.",
+    "emptyArchivedTitle": "Aucun projet archivé",
+    "emptyArchived": "Les projets archivés apparaissent ici et peuvent être restaurés.",
+    "errorTitle": "Impossible de charger vos projets",
+    "createTitle": "Nouveau projet",
+    "createDescription": "Vous en devenez propriétaire et pourrez ajouter des membres ensuite.",
+    "name": "Nom",
+    "key": "Clé",
+    "keyHint": "Utilisée dans les liens et les chemins des versions. Elle ne pourra plus changer.",
+    "description": "Description",
+    "descriptionHint": "Facultatif. Les décisions que ce projet contient.",
+    "creating": "Création…"
+  },
+  "project": {
+    "settings": "Paramètres",
+    "members": "Membres",
+    "key": "Clé",
+    "archivedNotice": "Ce projet est archivé : il est en lecture seule jusqu'à sa restauration par un propriétaire.",
+    "detailsTitle": "Informations",
+    "detailsDescription": "La clé ne peut pas changer : les versions et les liens en dépendent.",
+    "readOnlyDetails": "Seuls les propriétaires peuvent modifier ces informations.",
+    "archivedDetails": "Restaurez le projet pour modifier ces informations.",
+    "saved": "Modifications enregistrées.",
+    "archiveTitle": "Archiver",
+    "archiveDescription": "Les projets archivés sont en lecture seule et masqués de la liste. Vous pouvez les restaurer.",
+    "archive": "Archiver le projet",
+    "archiving": "Archivage…",
+    "archiveConfirmTitle": "Archiver {name} ?",
+    "archiveConfirm": "Personne ne pourra le modifier avant sa restauration par un propriétaire. Rien n'est supprimé.",
+    "restoreTitle": "Restaurer",
+    "restoreDescription": "Rendre le projet de nouveau modifiable et l'afficher dans la liste.",
+    "restore": "Restaurer le projet",
+    "restoring": "Restauration…",
+    "notFoundTitle": "Projet indisponible",
+    "backToProjects": "Retour aux projets"
+  },
+  "members": {
+    "title": "Membres",
+    "description": "Les personnes qui peuvent ouvrir ce projet, et ce qu'elles peuvent faire.",
+    "you": "vous",
+    "role": "Rôle",
+    "roleFor": "Rôle de {email}",
+    "remove": "Retirer",
+    "removeFrom": "Retirer {email}",
+    "removeConfirmTitle": "Retirer {email} ?",
+    "removeConfirm": "Cette personne perd immédiatement l'accès à {project}. Vous pourrez l'ajouter à nouveau.",
+    "removing": "Retrait…",
+    "addTitle": "Ajouter un membre",
+    "addDescription": "La personne doit avoir un compte Studio. Un administrateur invite les nouvelles personnes.",
+    "email": "E-mail",
+    "add": "Ajouter",
+    "adding": "Ajout…",
+    "added": "{email} a été ajouté(e).",
+    "readOnly": "Seuls les propriétaires peuvent modifier les membres.",
+    "errorTitle": "Impossible de charger les membres"
   }
 }

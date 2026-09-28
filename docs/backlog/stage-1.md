@@ -144,13 +144,18 @@ handling.
 
 **Type:** feature · **Repos:** S · **Dependencies:** DNK-6 · **Size:** M
 
+#### Decisions (taken in the story, easy to change)
+- Only instance administrators create projects; the creator becomes the first owner.
+- Administrators are not implicit members of every project (least privilege); an owner adds them.
+- Keys are immutable (artifacts are stored under them); archiving is reversible by an owner.
+
 #### Acceptance criteria
-- [ ] Create, list, rename and archive projects; project keys are unique and URL-safe
-- [ ] Members with roles owner / editor / viewer; only owners manage members
-- [ ] One `ProjectAccess` extractor enforces membership on every project route; a non-member gets `404`
-- [ ] A viewer calling any change endpoint gets `403`
-- [ ] Tests prove a member of project A cannot read or change project B
-- [ ] Screens: project list (empty state explains how to create one), project settings, members
+- [x] Create, list, rename and archive projects; project keys are unique and URL-safe
+- [x] Members with roles owner / editor / viewer; only owners manage members
+- [x] One `ProjectAccess` extractor enforces membership on every project route; a non-member gets `404`
+- [x] A viewer calling any change endpoint gets `403`
+- [x] Tests prove a member of project A cannot read or change project B
+- [x] Screens: project list (empty state explains how to create one), project settings, members
 
 ---
 
@@ -459,6 +464,22 @@ how fast one client can try many accounts or ask for many reset emails (found in
       configuration; exceeding one returns `429 RATE_LIMITED` with `Retry-After`
 - [ ] The client address honours a configured trusted proxy (`X-Forwarded-For` only from it)
 - [ ] The web app shows the translated message and when to retry
+
+---
+
+### DNK-33 — People: invite and manage Studio accounts
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-7 · **Size:** S
+
+#### Why
+Invitations exist in the API (DNK-5) but not in the web app, and owners can only add people who
+already have an account (found in DNK-7).
+
+#### Acceptance criteria
+- [ ] Administrators see Studio's accounts (email, administrator or not, invited or active) on a People page
+- [ ] Administrators invite a person (email, language, administrator or not) and resend a pending invitation
+- [ ] In a project's members screen, an administrator adding an unknown email is offered to invite them
+- [ ] English and French; checked at 390 px and desktop
 
 ---
 

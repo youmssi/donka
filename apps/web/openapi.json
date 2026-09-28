@@ -31,13 +31,19 @@
       "CreateProjectRequest": {
         "properties": {
           "description": {
+            "maxLength": 1000,
+            "minLength": 0,
             "type": "string"
           },
           "key": {
-            "description": "2 to 40 lowercase letters, digits and single hyphens, starting with a letter. Cannot change later.",
+            "maxLength": 40,
+            "minLength": 2,
+            "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
             "type": "string"
           },
           "name": {
+            "maxLength": 100,
+            "minLength": 1,
             "type": "string"
           }
         },
@@ -353,9 +359,13 @@
       "UpdateProjectRequest": {
         "properties": {
           "description": {
+            "maxLength": 1000,
+            "minLength": 0,
             "type": "string"
           },
           "name": {
+            "maxLength": 100,
+            "minLength": 1,
             "type": "string"
           }
         },

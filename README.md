@@ -38,6 +38,8 @@ crates/engine   The only code that calls zen-engine (DecisionRuntime trait + Zen
 crates/db       PostgreSQL pool, migrations, readiness
 crates/identity Users, sign-in with lockout, sessions, invitations, password reset
 crates/mail     Mailer trait and its SMTP implementation
+crates/project  Projects, members and roles
+crates/shared   Clock and pagination shared by the modules
 migrations      PostgreSQL migrations (sqlx), forward-only
 docs            Architecture, ADRs, roadmap, backlog, engineering guides
 ```

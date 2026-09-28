@@ -299,7 +299,6 @@ export interface components {
     };
     CreateProjectRequest: {
       description?: string;
-      /** @description 2 to 40 lowercase letters, digits and single hyphens, starting with a letter. Cannot change later. */
       key: string;
       name: string;
     };

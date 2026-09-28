@@ -13,10 +13,12 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
-const MIN_KEY_CHARS: usize = 2;
-const MAX_KEY_CHARS: usize = 40;
-const MAX_NAME_CHARS: usize = 100;
-const MAX_DESCRIPTION_CHARS: usize = 1000;
+pub const MIN_KEY_CHARS: usize = 2;
+pub const MAX_KEY_CHARS: usize = 40;
+/// The key rule as a regular expression, for API clients (the check below is the same rule).
+pub const KEY_PATTERN: &str = "^[a-z][a-z0-9]*(-[a-z0-9]+)*$";
+pub const MAX_NAME_CHARS: usize = 100;
+pub const MAX_DESCRIPTION_CHARS: usize = 1000;
 
 /// What a member may do in a project. Each role includes the ones below it;
 /// variants are declared from least to most, so `Ord` follows that order.
