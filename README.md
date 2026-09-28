@@ -23,17 +23,20 @@ Applicant ─▶ Fieldkit form ─▶ Customer backend ──evaluate──▶ D
 | [youmssi/donka-runtime](https://github.com/youmssi/donka-runtime) | Serves decisions from published releases (fork of `gorules/agent-public`) |
 | [youmssi/donka-cli](https://github.com/youmssi/donka-cli) | Pulls releases into CI/CD, MCP bridge (fork of `gorules/cli`) |
 
-Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · Decisions: [docs/DECISIONS.md](docs/DECISIONS.md) ·
-Plan: [docs/ROADMAP.md](docs/ROADMAP.md)
+Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · Decisions: [docs/adr/](docs/adr/README.md) ·
+Plan: [docs/ROADMAP.md](docs/ROADMAP.md) · Stories: [docs/backlog/](docs/backlog/stage-1.md)
+
+**Contributing:** read [AGENTS.md](AGENTS.md) and [CONTRIBUTING.md](CONTRIBUTING.md) first. Work happens
+on `dnk-<n>-<slug>` branches, squash-merged into `develop`.
 
 ## Repository layout
 
 ```
 apps/app        Studio backend service (Rust, Axum)
-apps/web        Studio web app (Next.js static export, shadcn/Radix, jdm-editor)   [next milestone]
+apps/web        Studio web app (Next.js static export, shadcn/Radix, jdm-editor)   [DNK-6]
 crates/engine   The only code that calls zen-engine (DecisionRuntime trait + ZenRuntime)
-migrations      Postgres schema (sqlx)                                               [next milestone]
-docs            Architecture, decisions, roadmap
+migrations      Postgres schema (sqlx)                                               [DNK-3]
+docs            Architecture, ADRs, roadmap, backlog, engineering guides
 ```
 
 ## Develop
