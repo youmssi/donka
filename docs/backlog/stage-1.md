@@ -435,14 +435,30 @@ zen, agent-public and the CLI already solved many problems Donka meets. Copying 
 **Type:** chore · **Repos:** S, R, C · **Dependencies:** DNK-1 · **Size:** S
 
 #### Decision
-[INTERACTIVE STEP] How release PRs are produced.
-- Option A: release-please opens the `develop` → `main` release PR with the changelog and version bump generated from Conventional Commits
-- Option B: release PRs written by hand, as in CONTRIBUTING.md today
-Recommendation: A. It already runs in zen, cli and agent, and our commits follow the format it reads.
+Option A, signed off 2026-09-28: release-please generates the changelog and version bump from
+Conventional Commits (as in zen, cli and agent). It runs on `main`: a promotion PR brings
+`develop` in, release-please keeps a release PR open, merging it tags the release and opens a
+back-merge PR into `develop`. (Option B, hand-written release PRs, was declined.)
 
 #### Acceptance criteria
-- [ ] Release PRs carry a generated `CHANGELOG.md` entry and a semantic version bump
-- [ ] Nothing is published to a package registry under GoRules names
+- [x] Release PRs carry a generated `CHANGELOG.md` entry and a semantic version bump
+- [x] Nothing is published to a package registry under GoRules names
+
+---
+
+### DNK-32 — Rate limits on sign-in and password reset
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-5 · **Size:** S
+
+#### Why
+Lockout protects one account, and one pending email per user protects one inbox. Nothing limits
+how fast one client can try many accounts or ask for many reset emails (found in DNK-5).
+
+#### Acceptance criteria
+- [ ] Per-client-address limits on `POST /auth/sign-in` and `POST /auth/password-reset` from
+      configuration; exceeding one returns `429 RATE_LIMITED` with `Retry-After`
+- [ ] The client address honours a configured trusted proxy (`X-Forwarded-For` only from it)
+- [ ] The web app shows the translated message and when to retry
 
 ---
 

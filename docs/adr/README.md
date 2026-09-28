@@ -27,4 +27,5 @@
 | Fieldkit | Keeps its name, "by Donka"; separate open-source repo; server-side Runtime calls only |
 | Pricing structure | Annual license per deployment, tiered by environments and features |
 | Workflow | Tickets `DNK-<n>`; story PRs squash-merged by their author once CI is green |
+| Releases | release-please on `main` generates versions and changelogs (DNK-30); nothing published to registries under GoRules names |
 | Repository visibility | `donka` is public until launch (free CI minutes), then made private; `donka-runtime` and `donka-cli` stay public (MIT) |

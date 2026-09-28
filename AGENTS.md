@@ -126,7 +126,8 @@ CI (`.github/workflows/ci.yml`) runs the same commands and blocks the merge when
 
 ## 7. Releases
 
-- `develop` → `main` through a release PR merged with a **merge commit** (not squash).
+- `develop` → `main` through a promotion PR merged with a **merge commit** (not squash); then
+  release-please's release PR sets the version and changelog (CONTRIBUTING.md §7).
 - Studio's web and app ship in one image, so they release together. When a release changes the
   artifact format or the Runtime's API, **Donka Runtime ships first**, then Studio.
 - After each deploy, confirm it: `GET /api/v1/health`, migrations applied, a simulate smoke test.
