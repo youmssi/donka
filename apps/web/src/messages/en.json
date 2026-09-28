@@ -1,0 +1,86 @@
+{
+  "app": {
+    "name": "Donka",
+    "skipToContent": "Skip to content"
+  },
+  "common": {
+    "retry": "Try again",
+    "loading": "Loading…",
+    "language": "Language",
+    "english": "English",
+    "french": "Français",
+    "theme": "Theme",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System",
+    "account": "Account",
+    "signOut": "Sign out",
+    "signingOut": "Signing out…"
+  },
+  "errors": {
+    "INVALID_CREDENTIALS": "Email or password is incorrect.",
+    "INVALID_SETUP_LINK": "This link is invalid, already used or expired. Ask for a new one.",
+    "UNAUTHENTICATED": "Your session has ended. Sign in again.",
+    "FORBIDDEN": "You do not have permission to do this.",
+    "EMAIL_TAKEN": "Someone already has an account with this email.",
+    "DATABASE_UNAVAILABLE": "Studio cannot reach its database. Try again in a moment.",
+    "INVALID_REQUEST": "Some fields need your attention.",
+    "NETWORK": "Studio could not be reached. Check your connection and try again.",
+    "UNEXPECTED": "Something went wrong on our side. Try again.",
+    "withRequestId": "Reference: {requestId}"
+  },
+  "validation": {
+    "email": "Enter a valid email address.",
+    "required": "This field is required.",
+    "passwordLength": "Use {min} to {max} characters.",
+    "passwordMismatch": "The passwords do not match."
+  },
+  "signIn": {
+    "title": "Sign in",
+    "description": "Sign in to Donka Studio with your work email.",
+    "email": "Email",
+    "password": "Password",
+    "submit": "Sign in",
+    "submitting": "Signing in…",
+    "forgotPassword": "Forgot your password?",
+    "signedOut": "You are signed out."
+  },
+  "forgotPassword": {
+    "title": "Reset your password",
+    "description": "Enter your work email. If it has an account, we send a link to choose a new password.",
+    "email": "Email",
+    "submit": "Send the link",
+    "submitting": "Sending…",
+    "sentTitle": "Check your inbox",
+    "sent": "If {email} has an account, a link is on its way. It works once and expires soon.",
+    "backToSignIn": "Back to sign in"
+  },
+  "setupPassword": {
+    "title": "Choose your password",
+    "description": "Use at least {min} characters. A long phrase is easier to remember and harder to guess.",
+    "password": "New password",
+    "confirm": "Confirm the password",
+    "submit": "Save the password",
+    "submitting": "Saving…",
+    "missingToken": "This page needs the link from your email. Open the link again, or ask for a new one.",
+    "requestNewLink": "Ask for a new link",
+    "doneTitle": "Your password is set",
+    "done": "Sign in with your email and new password.",
+    "signIn": "Sign in"
+  },
+  "home": {
+    "title": "Home",
+    "welcome": "Welcome",
+    "signedInAs": "You are signed in as {email}.",
+    "emptyTitle": "No projects yet",
+    "empty": "Projects will appear here once they are available in Studio."
+  },
+  "session": {
+    "errorTitle": "We could not check your session"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "description": "This page does not exist or has moved.",
+    "home": "Go to Studio home"
+  }
+}

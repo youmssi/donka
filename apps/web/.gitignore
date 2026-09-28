@@ -1,0 +1,12 @@
+/node_modules
+/.next/
+/out/
+/coverage
+/storybook-static
+*.tsbuildinfo
+next-env.d.ts
+.env*
+!.env.example
+# Written by `next dev` when it detects a coding agent; the repo's own AGENTS.md covers it.
+/AGENTS.md
+/CLAUDE.md

@@ -1,0 +1,86 @@
+{
+  "app": {
+    "name": "Donka",
+    "skipToContent": "Aller au contenu"
+  },
+  "common": {
+    "retry": "Réessayer",
+    "loading": "Chargement…",
+    "language": "Langue",
+    "english": "English",
+    "french": "Français",
+    "theme": "Thème",
+    "themeLight": "Clair",
+    "themeDark": "Sombre",
+    "themeSystem": "Système",
+    "account": "Compte",
+    "signOut": "Se déconnecter",
+    "signingOut": "Déconnexion…"
+  },
+  "errors": {
+    "INVALID_CREDENTIALS": "L'e-mail ou le mot de passe est incorrect.",
+    "INVALID_SETUP_LINK": "Ce lien est invalide, déjà utilisé ou expiré. Demandez-en un nouveau.",
+    "UNAUTHENTICATED": "Votre session a pris fin. Reconnectez-vous.",
+    "FORBIDDEN": "Vous n'avez pas l'autorisation de faire cela.",
+    "EMAIL_TAKEN": "Un compte existe déjà avec cet e-mail.",
+    "DATABASE_UNAVAILABLE": "Studio n'arrive pas à joindre sa base de données. Réessayez dans un instant.",
+    "INVALID_REQUEST": "Certains champs sont à corriger.",
+    "NETWORK": "Studio est injoignable. Vérifiez votre connexion et réessayez.",
+    "UNEXPECTED": "Une erreur est survenue de notre côté. Réessayez.",
+    "withRequestId": "Référence : {requestId}"
+  },
+  "validation": {
+    "email": "Saisissez une adresse e-mail valide.",
+    "required": "Ce champ est obligatoire.",
+    "passwordLength": "Utilisez entre {min} et {max} caractères.",
+    "passwordMismatch": "Les mots de passe ne correspondent pas."
+  },
+  "signIn": {
+    "title": "Connexion",
+    "description": "Connectez-vous à Donka Studio avec votre e-mail professionnel.",
+    "email": "E-mail",
+    "password": "Mot de passe",
+    "submit": "Se connecter",
+    "submitting": "Connexion…",
+    "forgotPassword": "Mot de passe oublié ?",
+    "signedOut": "Vous êtes déconnecté(e)."
+  },
+  "forgotPassword": {
+    "title": "Réinitialiser le mot de passe",
+    "description": "Saisissez votre e-mail professionnel. S'il correspond à un compte, nous envoyons un lien pour choisir un nouveau mot de passe.",
+    "email": "E-mail",
+    "submit": "Envoyer le lien",
+    "submitting": "Envoi…",
+    "sentTitle": "Consultez votre messagerie",
+    "sent": "Si {email} correspond à un compte, un lien est en route. Il ne fonctionne qu'une fois et expire rapidement.",
+    "backToSignIn": "Retour à la connexion"
+  },
+  "setupPassword": {
+    "title": "Choisissez votre mot de passe",
+    "description": "Utilisez au moins {min} caractères. Une phrase longue est plus facile à retenir et plus difficile à deviner.",
+    "password": "Nouveau mot de passe",
+    "confirm": "Confirmez le mot de passe",
+    "submit": "Enregistrer le mot de passe",
+    "submitting": "Enregistrement…",
+    "missingToken": "Cette page a besoin du lien reçu par e-mail. Ouvrez-le à nouveau ou demandez-en un nouveau.",
+    "requestNewLink": "Demander un nouveau lien",
+    "doneTitle": "Votre mot de passe est enregistré",
+    "done": "Connectez-vous avec votre e-mail et votre nouveau mot de passe.",
+    "signIn": "Se connecter"
+  },
+  "home": {
+    "title": "Accueil",
+    "welcome": "Bienvenue",
+    "signedInAs": "Vous êtes connecté(e) en tant que {email}.",
+    "emptyTitle": "Aucun projet pour l'instant",
+    "empty": "Les projets apparaîtront ici dès qu'ils seront disponibles dans Studio."
+  },
+  "session": {
+    "errorTitle": "Impossible de vérifier votre session"
+  },
+  "notFound": {
+    "title": "Page introuvable",
+    "description": "Cette page n'existe pas ou a été déplacée.",
+    "home": "Aller à l'accueil de Studio"
+  }
+}

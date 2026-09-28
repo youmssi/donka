@@ -131,12 +131,12 @@ Every screen after this one reuses its shell, language switch, theme, HTTP clien
 handling.
 
 #### Acceptance criteria
-- [ ] `apps/web` builds as a static export; `apps/app` serves it on the same origin, with unknown paths falling back to the app shell
-- [ ] shadcn/ui on Radix with CSS-variable tokens, light and dark
-- [ ] English and French with `i18n:check` in CI; language switch keeps the current page
-- [ ] Sign-in and sign-out screens working against DNK-4, with the four data states
-- [ ] Typed client generated from `/api/v1/openapi.json`; services return `ActionResult`
-- [ ] Checked at 390 px and desktop; screenshots in the PR
+- [x] `apps/web` builds as a static export; `apps/app` serves it on the same origin, with unknown paths falling back to the app shell
+- [x] shadcn/ui on Radix with CSS-variable tokens, light and dark
+- [x] English and French with `i18n:check` in CI; language switch keeps the current page
+- [x] Sign-in and sign-out screens working against DNK-4, with the four data states
+- [x] Typed client generated from `/api/v1/openapi.json`; services return `ActionResult`
+- [x] Checked at 390 px and desktop; screenshots in the PR
 
 ---
 

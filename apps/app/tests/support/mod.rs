@@ -36,6 +36,15 @@ pub fn policy() -> Policy {
 }
 
 pub fn build(db: PgPool, runtime: Arc<dyn DecisionRuntime>, base: &str) -> TestApp {
+    build_with_web(db, runtime, base, None)
+}
+
+pub fn build_with_web(
+    db: PgPool,
+    runtime: Arc<dyn DecisionRuntime>,
+    base: &str,
+    web_dir: Option<&std::path::Path>,
+) -> TestApp {
     let clock = Arc::new(ManualClock::new(
         Utc.with_ymd_and_hms(2026, 9, 28, 9, 0, 0).unwrap(),
     ));
@@ -51,6 +60,7 @@ pub fn build(db: PgPool, runtime: Arc<dyn DecisionRuntime>, base: &str) -> TestA
             },
         },
         base,
+        web_dir,
     );
     TestApp {
         router,
@@ -199,13 +209,19 @@ pub fn emails_to(app: &TestApp, to: &str) -> Vec<Email> {
         .collect()
 }
 
-/// The one-time token in the link of an email.
-pub fn token_in(email: &Email) -> String {
-    let prefix = format!("{PUBLIC_URL}/setup-password?token=");
+/// The one-time token in the link of an email, checking the link opens the
+/// setup page in `locale`.
+pub fn token_in_locale(email: &Email, locale: &str) -> String {
+    let prefix = format!("{PUBLIC_URL}/{locale}/setup-password/?token=");
     let start = email.text.find(&prefix).expect("a setup link") + prefix.len();
     email.text[start..]
         .split_whitespace()
         .next()
         .unwrap()
         .to_owned()
+}
+
+/// The one-time token in the link of an email sent in English.
+pub fn token_in(email: &Email) -> String {
+    token_in_locale(email, "en")
 }

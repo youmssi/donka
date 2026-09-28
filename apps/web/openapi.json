@@ -1,0 +1,596 @@
+{
+  "components": {
+    "schemas": {
+      "ErrorBody": {
+        "properties": {
+          "code": {
+            "description": "Stable, machine-readable code, e.g. `DECISION_NOT_FOUND`.",
+            "type": "string"
+          },
+          "details": {
+            "description": "Engine error document (failing node and reason) for evaluation failures."
+          },
+          "fields": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "message": {
+            "description": "Safe to show to a person.",
+            "type": "string"
+          },
+          "requestId": {
+            "description": "Same value as the `x-request-id` response header; quote it when reporting a problem.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message",
+          "code",
+          "requestId"
+        ],
+        "type": "object"
+      },
+      "InvitationRequest": {
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "isAdmin": {
+            "type": "boolean"
+          },
+          "locale": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Locale",
+                "description": "Language of the invitation email and of the account. Defaults to the inviter's."
+              }
+            ]
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "type": "object"
+      },
+      "Locale": {
+        "description": "Language of a user's emails and screens.",
+        "enum": [
+          "en",
+          "fr"
+        ],
+        "type": "string"
+      },
+      "PasswordResetRequest": {
+        "properties": {
+          "email": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "type": "object"
+      },
+      "PasswordSetupRequest": {
+        "properties": {
+          "password": {
+            "maxLength": 128,
+            "minLength": 12,
+            "type": "string"
+          },
+          "token": {
+            "description": "The token from the password-setup link.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "password"
+        ],
+        "type": "object"
+      },
+      "SignInRequest": {
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "type": "object"
+      },
+      "SimulateRequest": {
+        "description": "Design-time evaluation from the editor. The editor sends the whole draft\nproject so sub-decision references resolve exactly as they will in a release.",
+        "properties": {
+          "context": {
+            "description": "Input passed to the decision.",
+            "type": "object"
+          },
+          "decisions": {
+            "description": "Every decision of the project (JDM documents), keyed as graphs reference them.",
+            "type": "object"
+          },
+          "key": {
+            "description": "The decision to evaluate.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decisions",
+          "key"
+        ],
+        "type": "object"
+      },
+      "SimulateResponse": {
+        "properties": {
+          "performance": {
+            "description": "Engine evaluation time, e.g. `412.5µs`.",
+            "type": "string"
+          },
+          "result": {
+            "type": "object"
+          },
+          "trace": {
+            "description": "Per-node trace: inputs, outputs and timing of each node.",
+            "type": "object"
+          }
+        },
+        "required": [
+          "result",
+          "trace",
+          "performance"
+        ],
+        "type": "object"
+      },
+      "UserResponse": {
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "isAdmin": {
+            "type": "boolean"
+          },
+          "locale": {
+            "$ref": "#/components/schemas/Locale"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "isAdmin",
+          "locale"
+        ],
+        "type": "object"
+      },
+      "VersionResponse": {
+        "properties": {
+          "version": {
+            "description": "Release version baked in at build time, or `unknown` for a local build.",
+            "example": "1.4.0",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Control plane of Donka: authoring, simulation, releases.",
+    "license": {
+      "name": ""
+    },
+    "title": "Donka Studio API",
+    "version": "unknown"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/auth/me": {
+      "get": {
+        "operationId": "me",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not signed in (UNAUTHENTICATED)"
+          }
+        },
+        "summary": "The signed-in user.",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/auth/password-reset": {
+      "post": {
+        "operationId": "password_reset",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "If the address has an account, a reset link is on its way"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not an email address (INVALID_REQUEST)"
+          }
+        },
+        "summary": "Emails a one-time link to choose a new password. Answers the same whether or\nnot the address has an account, so it cannot be used to find accounts.",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/auth/password-setup": {
+      "post": {
+        "operationId": "password_setup",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordSetupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Password set; sign in with it"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Link invalid, used or expired (INVALID_SETUP_LINK), or password too short or too long (INVALID_REQUEST)"
+          }
+        },
+        "summary": "Sets a password from a one-time setup link. Ends the user's other sessions.",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/auth/sign-in": {
+      "post": {
+        "operationId": "sign_in",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignInRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            },
+            "description": "Signed in; the session cookie is set"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Email or password is incorrect, or the account is locked (INVALID_CREDENTIALS)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Missing CSRF header (CSRF_REQUIRED)"
+          }
+        },
+        "summary": "Signs in and sets the httpOnly session cookie.",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/auth/sign-out": {
+      "post": {
+        "operationId": "sign_out",
+        "responses": {
+          "204": {
+            "description": "Signed out"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not signed in (UNAUTHENTICATED)"
+          }
+        },
+        "summary": "Ends the session on the server and clears the cookie.",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "example": "ok",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The service is running"
+          }
+        },
+        "summary": "Liveness: answers as long as the process serves requests. Does not touch the database.",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/ready": {
+      "get": {
+        "operationId": "ready",
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "example": "ready",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The database answers"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The database is not reachable (DATABASE_UNAVAILABLE)"
+          }
+        },
+        "summary": "Readiness: the service can handle requests that need the database.",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/simulate": {
+      "post": {
+        "operationId": "simulate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulateResponse"
+                }
+              }
+            },
+            "description": "Result and per-node trace"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Malformed request body (INVALID_REQUEST)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "No decision with that key (DECISION_NOT_FOUND)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid decision model (INVALID_DECISION) or evaluation error (EVALUATION_FAILED)"
+          }
+        },
+        "tags": [
+          "simulator"
+        ]
+      }
+    },
+    "/users/invitations": {
+      "post": {
+        "operationId": "invite",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            },
+            "description": "Account created; the invitation email is on its way"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid email (INVALID_REQUEST)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not signed in (UNAUTHENTICATED)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not an administrator (FORBIDDEN)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The person already has an account (EMAIL_TAKEN)"
+          }
+        },
+        "summary": "Invites a person by email (administrators only). Inviting someone who has not\naccepted yet sends a new link and revokes the previous one.",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/version": {
+      "get": {
+        "operationId": "version",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "The version of Studio that is running. Needs no session, like health.",
+        "tags": [
+          "operations"
+        ]
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "/api/v1"
+    }
+  ]
+}

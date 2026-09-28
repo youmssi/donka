@@ -28,8 +28,9 @@ const EMAIL_BATCH: usize = 20;
 const EMAIL_RETRY_BASE_SECONDS: i64 = 30;
 /// ...up to this ceiling.
 const EMAIL_RETRY_MAX_SECONDS: i64 = 3600;
-/// Page of the web app that reads the token and asks for the new password.
-const SETUP_PAGE: &str = "/setup-password";
+/// Page of the web app (under the locale segment) that reads the token and
+/// asks for the new password.
+const SETUP_PAGE: &str = "setup-password";
 
 #[derive(Debug, Clone)]
 pub struct Policy {
@@ -380,7 +381,7 @@ impl Identity {
             let token = self
                 .issue_setup_token(&mut attempt, due.user_id, now, lifetime)
                 .await?;
-            let link = setup_link(public_url, &token);
+            let link = setup_link(public_url, due.locale, &token);
             let content = emails::render(kind, due.locale, &link, lifetime);
             let email = Email {
                 to: due.email,
@@ -679,11 +680,12 @@ async fn revoke_setup_tokens(
     Ok(())
 }
 
-/// The link a person opens to choose their password.
-pub fn setup_link(public_url: &str, token: &IssuedToken) -> String {
+/// The link a person opens to choose their password, in their language.
+pub fn setup_link(public_url: &str, locale: Locale, token: &IssuedToken) -> String {
     format!(
-        "{}{SETUP_PAGE}?token={}",
+        "{}/{}/{SETUP_PAGE}/?token={}",
         public_url.trim_end_matches('/'),
+        locale.as_str(),
         token.expose()
     )
 }

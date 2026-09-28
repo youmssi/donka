@@ -102,12 +102,16 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked        # integration tests need DATABASE_URL (Postgres 16)
 scripts/check-engine-version.sh        # same zen-engine as Studio; needs ../donka-runtime (or pass its path)
 
-# Web (apps/web) — from DNK-6 on
+# Web (apps/web)
+pnpm --dir apps/web format:check
 pnpm --dir apps/web lint
-pnpm --dir apps/web exec tsc --noEmit
+pnpm --dir apps/web typecheck           # next typegen + tsc
 pnpm --dir apps/web test
 pnpm --dir apps/web i18n:check
 pnpm --dir apps/web build
+
+# After changing an endpoint: refresh the contract the web client is generated from
+DONKA_UPDATE_OPENAPI=1 cargo test -p donka-app --test api && pnpm --dir apps/web api:generate
 ```
 
 CI (`.github/workflows/ci.yml`) runs the same commands and blocks the merge when one fails.
@@ -131,7 +135,7 @@ CI (`.github/workflows/ci.yml`) runs the same commands and blocks the merge when
 
 ```
 apps/app/            Studio backend service (Axum). Routes, config, error model, wiring.
-apps/web/            Studio web app (Next.js static export, served by apps/app)   [DNK-6]
+apps/web/            Studio web app (Next.js static export, served by apps/app)
 crates/engine/       DecisionRuntime trait + ZenRuntime (the only zen_engine user)
 crates/db/           PostgreSQL pool, migrations, readiness (shared by every module)
 crates/identity/     users, sign-in with lockout, sessions, invitations, password reset

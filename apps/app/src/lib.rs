@@ -10,16 +10,22 @@ pub mod error;
 pub mod extract;
 pub mod request_id;
 pub mod routes;
+pub mod web;
 
 use auth::CookieSettings;
 use axum::extract::DefaultBodyLimit;
+use axum::http::header::{
+    HeaderName, HeaderValue, REFERRER_POLICY, X_CONTENT_TYPE_OPTIONS, X_FRAME_OPTIONS,
+};
 use axum::routing::get;
 use axum::{middleware, Json, Router};
 use donka_db::PgPool;
 use donka_engine::DecisionRuntime;
 use donka_identity::Identity;
+use std::path::Path;
 use std::sync::Arc;
 use tower_http::compression::CompressionLayer;
+use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::{DefaultOnResponse, TraceLayer};
 use tracing::Level;
 use utoipa::openapi::{OpenApi as OpenApiDoc, Server};
@@ -53,10 +59,11 @@ pub struct AppState {
 ))]
 struct ApiDoc;
 
-/// All endpoints, mounted under `api_base_path` (e.g. `/api/v1`).
+/// All endpoints, mounted under `api_base_path` (e.g. `/api/v1`), and the web
+/// app's static export when `web_dir` is given.
 ///
 /// Deny by default: only the routes in `public` answer without a session.
-pub fn router(state: AppState, api_base_path: &str) -> Router {
+pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> Router {
     let public = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .routes(routes!(routes::health::health))
         .routes(routes!(routes::health::ready))
@@ -81,11 +88,19 @@ pub fn router(state: AppState, api_base_path: &str) -> Router {
 
     let api = api
         .route("/openapi.json", get(move || openapi(doc.clone())))
+        .fallback(api_not_found)
         .layer(DefaultBodyLimit::max(MAX_BODY_BYTES))
         .layer(middleware::from_fn(auth::require_csrf_header));
 
-    Router::new()
-        .nest(api_base_path, api)
+    let app = Router::new().nest(api_base_path, api);
+    let app = match web_dir {
+        Some(dir) => app.merge(web::routes(dir)),
+        None => app,
+    };
+    app.layer(security_header(X_CONTENT_TYPE_OPTIONS, "nosniff"))
+        .layer(security_header(X_FRAME_OPTIONS, "DENY"))
+        // Setup links carry their token in the query string: never send it to another site.
+        .layer(security_header(REFERRER_POLICY, "same-origin"))
         .layer(TraceLayer::new_for_http().on_response(DefaultOnResponse::new().level(Level::INFO)))
         .layer(CompressionLayer::new())
         .layer(middleware::from_fn(request_id::middleware))
@@ -93,4 +108,12 @@ pub fn router(state: AppState, api_base_path: &str) -> Router {
 
 async fn openapi(doc: OpenApiDoc) -> Json<OpenApiDoc> {
     Json(doc)
+}
+
+async fn api_not_found() -> error::ApiError {
+    error::ApiError::RouteNotFound
+}
+
+fn security_header(name: HeaderName, value: &'static str) -> SetResponseHeaderLayer<HeaderValue> {
+    SetResponseHeaderLayer::if_not_present(name, HeaderValue::from_static(value))
 }
