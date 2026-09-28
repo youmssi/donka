@@ -14,5 +14,6 @@ if [[ -f "$runtime_dir/Cargo.toml" ]]; then
     exit 1
   fi
 else
-  echo "runtime not checked out at $runtime_dir, skipping"
+  echo "::error::runtime not found at $runtime_dir; pass its path as the first argument" >&2
+  exit 1
 fi

@@ -18,7 +18,9 @@ services:
       retries: 10
 
   minio:
-    image: minio/minio:latest
+    # minio/minio and minio/mc were removed from Docker Hub; pgsty/* are maintained builds
+    # of the same server and client (see docs/engineering/references.md).
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
     command: server /data --console-address :9001
     environment:
       MINIO_ROOT_USER: donka
@@ -28,14 +30,14 @@ services:
 
   # Creates the release bucket once MinIO is up.
   minio-init:
-    image: minio/mc:latest
+    image: pgsty/mc:RELEASE.2026-09-16T00-00-00Z
     depends_on: [minio]
     entrypoint: >
       sh -c "until mc alias set local http://minio:9000 donka donka-secret; do sleep 1; done;
              mc mb --ignore-existing local/donka-releases"
 
   mailpit:
-    image: axllent/mailpit:latest
+    image: axllent/mailpit:v1.31.3
     ports: ["8025:8025", "1025:1025"]
 
   app:

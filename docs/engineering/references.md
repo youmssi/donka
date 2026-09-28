@@ -21,6 +21,7 @@ did not, and why. Update it when a new practice is taken from them.
 | Atomic file writes (temp file + rename) so a reader never sees a partial file | cli (`api/extract.ts`) | Rule for artifact publishing (DNK-14) |
 | Lenient parsing of the artifact config: a missing field degrades that field, never the whole config | agent (`data/release_data.rs`) | Rule for the artifact contract (DNK-13, DNK-14) |
 | Exit codes as a documented contract | cli (`README.md`) | Studio startup: exit 2 for operator-fixable failures |
+| Test and local services pinned to maintained images: `pgsty/minio` replaces `minio/minio` (removed from Docker Hub) | donka-runtime tests (DNK-12) | `docker-compose.yml`, `tests/it/support/minio.rs` |
 | TypeScript `strict` + `noUncheckedIndexedAccess`; Prettier `printWidth: 120`, `singleQuote` | cli (`tsconfig.json`, `.prettierrc`) | `frontend.md` §10 (applies from DNK-6) |
 
 ## Planned (stories in the backlog)
