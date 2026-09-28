@@ -1,52 +1,45 @@
 # Roadmap
 
-Stage 1 is the MVP for one self-hosted pilot (a bank or microfinance lender). Items marked ✅ are
-merged.
+Stage 1 is the MVP for one self-hosted pilot (a bank or microfinance lender). Stories and
+acceptance criteria: [`docs/backlog/stage-1.md`](backlog/stage-1.md). One story at a time, each
+merged before the next.
 
-## Stage 1: pilot-ready
+Already on `develop` before the playbook was adopted: Cargo workspace, `crates/engine`
+(`DecisionRuntime` + `ZenRuntime` on zen-engine 2.0.1), `apps/app` with health and simulate, CI,
+docker-compose for PostgreSQL, MinIO and Mailpit.
 
-### A. Foundation
-- ✅ A1 Monorepo, Cargo workspace, CI (fmt, clippy, tests)
-- ✅ A2 `crates/engine`: `DecisionRuntime` trait + `ZenRuntime` on zen-engine 2.0.1, bundle-level evaluation with sub-decisions
-- ✅ A3 `apps/app` skeleton with `/api/health` and `/api/simulate`
-- A4 Postgres schema + sqlx migrations (users, projects, members, decisions, versions, releases, environments, deployments, approvals, audit)
-- A5 Session auth (argon2), login / logout / password reset, first-admin bootstrap
-- A6 Roles per project (owner / editor / viewer), enforced by one middleware
+## Stage 1 order
 
-### B. Authoring
-- B1 `apps/web`: Next.js static export, shadcn/Radix shell, EN/FR, light/dark
-- B2 Editor page with jdm-editor (client-only, antd themed to match)
-- B3 Decisions stored via the API, immutable versions on save, history + diff view
-- B4 Test scenarios (input → expected output) run on save; results shown on approval
-
-### C. Releases and approvals
-- C1 Project-level releases (semver), artifact = zip + `.config/project.json`
-- C2 Publish to MinIO/S3 per environment (staging, production)
-- C3 Approval gate: production needs one approver who is not the author; email via SMTP
-- C4 Rollback = redeploy an approved release (approver role, audited)
-- C5 `rules-sync` API compatible with donka-cli targets (`main`, `commit:`, `release:`, `env:`)
-
-### D. Runtime (youmssi/donka-runtime)
-- D1 Rebrand, upgrade to zen-engine 2.0.1
-- D2 Hashed, per-environment access tokens
-- D3 Connector handler (custom-node adapter) + secrets from env/vault + timeouts/retries
-- D4 Decision-log emitter (async, batched, retried)
-- D5 Rate limiting
-
-### E. Trust
-- E1 Append-only audit log (database-enforced)
-- E2 Decision log: ingest, search, replay, retention
-- E3 AI explain (off by default, customer LLM endpoint, read-only)
-
-### F. Ship
-- F1 `docker compose up` for studio + runtime + postgres + minio
-- F2 donka-cli rebrand, CI templates
-- F3 Credit starter pack: person scorecard, SME treasury evaluation, reason codes, Fieldkit questionnaire
-- F4 Install and operations guide (EN/FR)
+| # | Story | Repos |
+|---|---|---|
+| 1 | DNK-1 Work the same way in every Donka repo | S R C |
+| 2 | DNK-2 API conventions | S |
+| 3 | DNK-3 Persistent storage | S |
+| 4 | DNK-12 Runtime on engine 2.0.1, own name | R |
+| 5 | DNK-4 Sign in | S |
+| 6 | DNK-5 Invitations and password reset | S |
+| 7 | DNK-6 Web foundation | S |
+| 8 | DNK-7 Projects and members | S |
+| 9 | DNK-11 Audit log | S |
+| 10 | DNK-8 Edit and simulate | S |
+| 11 | DNK-9 Versions and diff | S |
+| 12 | DNK-10 Test scenarios | S |
+| 13 | DNK-13 Hashed per-environment tokens | R S |
+| 14 | DNK-14 Releases and environments | S |
+| 15 | DNK-15 Approval gate | S |
+| 16 | DNK-16 Rollback | S |
+| 17 | DNK-17 Connectors | R S |
+| 18 | DNK-18 Decision log | R S |
+| 19 | DNK-19 AI explain | S |
+| 20 | DNK-20 rules-sync API | S |
+| 21 | DNK-21 Donka CLI | C |
+| 22 | DNK-22 Runtime rate limits | R |
+| 23 | DNK-23 One-command install | S |
+| 24 | DNK-24 Credit starter pack | S |
 
 ## Stage 2: governance depth
-Branches, N-eyes approvals, webhooks, GitSync, more connectors, notifications, Fieldkit Stage 1.
+Branches, N-eyes approvals, webhooks, GitSync, more connectors, Fieldkit Stage 1.
 
 ## Stage 3: enterprise
-SSO/OIDC, global roles, path coverage, policy-document editor, MCP bridge in Studio, SOC 2 program,
-Case Tracker, optional multi-tenant SaaS.
+SSO/OIDC, global roles, path coverage, policy-document editor, MCP bridge in Studio, SOC 2
+program, Case Tracker, optional multi-tenant SaaS.
