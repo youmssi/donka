@@ -392,8 +392,8 @@ zen, agent-public and the CLI already solved many problems Donka meets. Copying 
 **Type:** feature · **Repos:** S · **Dependencies:** DNK-3 · **Size:** S
 
 #### Acceptance criteria
-- [ ] `GET /api/v1/version` returns the version from the `SERVICE_VERSION` build argument (`unknown` in local builds)
-- [ ] The same version appears in the OpenAPI document and the startup log line
+- [x] `GET /api/v1/version` returns the version from the `SERVICE_VERSION` build argument (`unknown` in local builds)
+- [x] The same version appears in the OpenAPI document and the startup log line
 
 ---
 

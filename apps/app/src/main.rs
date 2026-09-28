@@ -95,7 +95,8 @@ async fn main() -> anyhow::Result<()> {
 
     let listener = tokio::net::TcpListener::bind(config.listen).await?;
     tracing::info!(
-        "Donka Studio app listening on {} under {}",
+        "Donka Studio {} listening on {} under {}",
+        donka_app::VERSION,
         listener.local_addr()?,
         config.api_base_path
     );

@@ -27,6 +27,14 @@ use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
+/// Set by the `SERVICE_VERSION` build argument of the container image. Read at
+/// compile time so the binary reports what it was built from, whatever its
+/// runtime environment says.
+pub const VERSION: &str = match option_env!("SERVICE_VERSION") {
+    Some(version) => version,
+    None => "unknown",
+};
+
 /// Decision models are JSON documents that can reach a few MB with large tables.
 const MAX_BODY_BYTES: usize = 16 * 1024 * 1024;
 
@@ -52,6 +60,7 @@ pub fn router(state: AppState, api_base_path: &str) -> Router {
     let public = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .routes(routes!(routes::health::health))
         .routes(routes!(routes::health::ready))
+        .routes(routes!(routes::health::version))
         .routes(routes!(routes::auth::sign_in))
         .routes(routes!(routes::auth::password_setup))
         .routes(routes!(routes::auth::password_reset));
@@ -68,6 +77,7 @@ pub fn router(state: AppState, api_base_path: &str) -> Router {
 
     let (api, mut doc) = public.merge(protected).with_state(state).split_for_parts();
     doc.servers = Some(vec![Server::new(api_base_path)]);
+    doc.info.version = VERSION.to_owned();
 
     let api = api
         .route("/openapi.json", get(move || openapi(doc.clone())))
