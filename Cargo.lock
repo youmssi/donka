@@ -932,6 +932,8 @@ dependencies = [
  "donka-engine",
  "donka-identity",
  "donka-mail",
+ "donka-project",
+ "donka-shared",
  "http-body-util",
  "serde",
  "serde_json",
@@ -978,6 +980,7 @@ dependencies = [
  "chrono",
  "donka-db",
  "donka-mail",
+ "donka-shared",
  "getrandom 0.3.4",
  "serde",
  "sha2 0.10.9",
@@ -997,6 +1000,29 @@ dependencies = [
  "lettre",
  "thiserror 2.0.21",
  "tokio",
+]
+
+[[package]]
+name = "donka-project"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "donka-db",
+ "donka-shared",
+ "serde",
+ "sqlx",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "utoipa",
+ "uuid",
+]
+
+[[package]]
+name = "donka-shared"
+version = "0.1.0"
+dependencies = [
+ "chrono",
 ]
 
 [[package]]

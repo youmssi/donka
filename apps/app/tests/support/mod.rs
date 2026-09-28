@@ -9,10 +9,11 @@ use donka_app::auth::{CookieSettings, CSRF_HEADER, SESSION_COOKIE};
 use donka_app::{router, AppState};
 use donka_db::{DbOptions, PgPool};
 use donka_engine::{DecisionRuntime, ZenRuntime};
-use donka_identity::clock::ManualClock;
 use donka_identity::{Identity, Locale, Policy};
 use donka_mail::testing::RecordingMailer;
 use donka_mail::Email;
+use donka_project::Projects;
+use donka_shared::clock::ManualClock;
 use http_body_util::BodyExt;
 use serde_json::Value;
 use std::sync::Arc;
@@ -49,11 +50,13 @@ pub fn build_with_web(
         Utc.with_ymd_and_hms(2026, 9, 28, 9, 0, 0).unwrap(),
     ));
     let identity = Identity::new(db.clone(), clock.clone(), policy());
+    let projects = Projects::new(db.clone(), clock.clone());
     let router = router(
         AppState {
             runtime,
             db,
             identity: identity.clone(),
+            projects,
             cookies: CookieSettings {
                 secure: true,
                 max_age_seconds: 8 * 3600,
@@ -224,4 +227,50 @@ pub fn token_in_locale(email: &Email, locale: &str) -> String {
 /// The one-time token in the link of an email sent in English.
 pub fn token_in(email: &Email) -> String {
     token_in_locale(email, "en")
+}
+
+/// A JSON request with any method, as Studio's pages send it (CSRF header included).
+pub fn request(
+    method: &str,
+    path: &str,
+    body: Option<&Value>,
+    session: Option<&str>,
+) -> Request<Body> {
+    let mut req = Request::builder()
+        .method(method)
+        .uri(path)
+        .header(CSRF_HEADER, "1");
+    if let Some(token) = session {
+        req = req.header(header::COOKIE, format!("{SESSION_COOKIE}={token}"));
+    }
+    match body {
+        Some(body) => req
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(body.to_string()))
+            .unwrap(),
+        None => req.body(Body::empty()).unwrap(),
+    }
+}
+
+/// A signed-in user invited by the first administrator, who must exist already.
+/// Returns their session.
+pub async fn signed_in_user(app: &TestApp, email: &str, is_admin: bool) -> String {
+    let admin = app
+        .identity
+        .find_by_email(ADMIN_EMAIL)
+        .await
+        .unwrap()
+        .unwrap();
+    app.identity
+        .invite(&admin, email, Locale::En, is_admin)
+        .await
+        .unwrap();
+    deliver(app).await;
+    let token = token_in(emails_to(app, email).last().unwrap());
+    let password = "a long enough passphrase";
+    app.identity
+        .complete_password_setup(&token, password)
+        .await
+        .unwrap();
+    session_from(&sign_in(app, email, password).await)
 }

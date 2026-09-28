@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/engine", "crates/db", "crates/identity", "crates/mail", "apps/app"]
+members = ["crates/shared", "crates/engine", "crates/db", "crates/identity", "crates/mail", "crates/project", "apps/app"]
 
 [workspace.package]
 version = "0.1.0"
@@ -20,7 +20,7 @@ tower = { version = "0.5", features = ["util"] }
 tower-http = { version = "0.6", features = ["trace", "compression-full", "cors", "fs", "set-header"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
-utoipa = { version = "5", features = ["axum_extras", "uuid"] }
+utoipa = { version = "5", features = ["axum_extras", "uuid", "chrono"] }
 utoipa-axum = "0.2"
 uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
@@ -38,6 +38,8 @@ zen-engine = { version = "=2.0.1", features = ["arbitrary_precision"] }
 donka-engine = { path = "crates/engine" }
 donka-db = { path = "crates/db" }
 donka-identity = { path = "crates/identity" }
+donka-project = { path = "crates/project" }
+donka-shared = { path = "crates/shared" }
 donka-mail = { path = "crates/mail" }
 
 # Adopted from gorules/zen: no unsafe code, no unwrap() outside tests (clippy.toml allows it there).

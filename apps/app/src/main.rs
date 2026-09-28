@@ -3,9 +3,10 @@ use donka_app::auth::CookieSettings;
 use donka_app::{config::Config, router, AppState};
 use donka_db::DbOptions;
 use donka_engine::ZenRuntime;
-use donka_identity::clock::SystemClock;
 use donka_identity::{Identity, Policy};
 use donka_mail::SmtpMailer;
+use donka_project::Projects;
+use donka_shared::clock::SystemClock;
 use std::sync::Arc;
 use tracing_subscriber::EnvFilter;
 
@@ -56,7 +57,9 @@ async fn main() -> anyhow::Result<()> {
         secure: config.cookie_secure,
         max_age_seconds: policy.session_idle_timeout.num_seconds(),
     };
-    let identity = Identity::new(db.clone(), Arc::new(SystemClock), policy);
+    let clock = Arc::new(SystemClock);
+    let identity = Identity::new(db.clone(), clock.clone(), policy);
+    let projects = Projects::new(db.clone(), clock);
 
     if let Some(email) = &config.bootstrap_admin_email {
         match identity.bootstrap_admin(email, config.default_locale).await {
@@ -91,6 +94,7 @@ async fn main() -> anyhow::Result<()> {
             runtime: Arc::new(runtime),
             db,
             identity,
+            projects,
             cookies,
         },
         &config.api_base_path,

@@ -266,6 +266,16 @@ async fn openapi_document_describes_the_endpoints() {
         ("/auth/password-reset", "post"),
         ("/users/invitations", "post"),
         ("/version", "get"),
+        ("/projects", "get"),
+        ("/projects", "post"),
+        ("/projects/{project_id}", "get"),
+        ("/projects/{project_id}", "patch"),
+        ("/projects/{project_id}/archive", "post"),
+        ("/projects/{project_id}/restore", "post"),
+        ("/projects/{project_id}/members", "get"),
+        ("/projects/{project_id}/members", "post"),
+        ("/projects/{project_id}/members/{user_id}", "patch"),
+        ("/projects/{project_id}/members/{user_id}", "delete"),
     ] {
         assert!(
             reply.body["paths"][path][method].is_object(),

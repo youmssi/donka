@@ -22,6 +22,7 @@ use axum::{middleware, Json, Router};
 use donka_db::PgPool;
 use donka_engine::DecisionRuntime;
 use donka_identity::Identity;
+use donka_project::Projects;
 use std::path::Path;
 use std::sync::Arc;
 use tower_http::compression::CompressionLayer;
@@ -49,6 +50,7 @@ pub struct AppState {
     pub runtime: Arc<dyn DecisionRuntime>,
     pub db: PgPool,
     pub identity: Identity,
+    pub projects: Projects,
     pub cookies: CookieSettings,
 }
 
@@ -77,6 +79,18 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
         .routes(routes!(routes::auth::sign_out))
         .routes(routes!(routes::simulate::simulate))
         .routes(routes!(routes::users::invite))
+        .routes(routes!(routes::projects::list, routes::projects::create))
+        .routes(routes!(routes::projects::get, routes::projects::update))
+        .routes(routes!(routes::projects::archive))
+        .routes(routes!(routes::projects::restore))
+        .routes(routes!(
+            routes::projects::members,
+            routes::projects::add_member
+        ))
+        .routes(routes!(
+            routes::projects::change_role,
+            routes::projects::remove_member
+        ))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             auth::require_session,

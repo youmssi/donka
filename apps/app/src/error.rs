@@ -10,6 +10,7 @@ use axum::response::{IntoResponse, Response};
 use axum::Json;
 use donka_engine::RuntimeError;
 use donka_identity::IdentityError;
+use donka_project::ProjectError;
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -60,6 +61,20 @@ pub enum ApiError {
     Forbidden,
     #[error("email already used")]
     EmailTaken,
+    #[error("project not found")]
+    ProjectNotFound,
+    #[error("project key already used")]
+    ProjectKeyTaken,
+    #[error("project archived")]
+    ProjectArchived,
+    #[error("already a member")]
+    AlreadyMember,
+    #[error("member not found")]
+    MemberNotFound,
+    #[error("last owner")]
+    LastOwner,
+    #[error("no user with this email")]
+    NoSuchUser,
     #[error("invalid field {field}: {message}")]
     InvalidField {
         field: &'static str,
@@ -98,6 +113,28 @@ impl From<IdentityError> for ApiError {
             },
             IdentityError::Database(err) => Self::Internal(err.to_string()),
             IdentityError::Internal(message) => Self::Internal(message),
+        }
+    }
+}
+
+impl From<ProjectError> for ApiError {
+    fn from(err: ProjectError) -> Self {
+        let field = |field: &'static str, err: &ProjectError| Self::InvalidField {
+            field,
+            message: err.to_string(),
+        };
+        match err {
+            ProjectError::NotFound => Self::ProjectNotFound,
+            ProjectError::Forbidden => Self::Forbidden,
+            ProjectError::KeyTaken => Self::ProjectKeyTaken,
+            ProjectError::InvalidKey => field("key", &err),
+            ProjectError::InvalidName => field("name", &err),
+            ProjectError::InvalidDescription => field("description", &err),
+            ProjectError::Archived => Self::ProjectArchived,
+            ProjectError::AlreadyMember => Self::AlreadyMember,
+            ProjectError::MemberNotFound => Self::MemberNotFound,
+            ProjectError::LastOwner => Self::LastOwner,
+            ProjectError::Database(err) => Self::Internal(err.to_string()),
         }
     }
 }
@@ -202,6 +239,58 @@ impl IntoResponse for ApiError {
                     "email".to_owned(),
                     "already used".to_owned(),
                 )])),
+                None,
+            ),
+            // Also the answer for a project the reader is not a member of: whether
+            // it exists is not theirs to know.
+            Self::ProjectNotFound => (
+                StatusCode::NOT_FOUND,
+                "PROJECT_NOT_FOUND",
+                "This project does not exist, or you are not one of its members.".to_owned(),
+                None,
+                None,
+            ),
+            Self::ProjectKeyTaken => (
+                StatusCode::CONFLICT,
+                "PROJECT_KEY_TAKEN",
+                "Another project already uses this key.".to_owned(),
+                Some(BTreeMap::from([("key".to_owned(), "already used".to_owned())])),
+                None,
+            ),
+            Self::ProjectArchived => (
+                StatusCode::CONFLICT,
+                "PROJECT_ARCHIVED",
+                "This project is archived. Restore it to make changes.".to_owned(),
+                None,
+                None,
+            ),
+            Self::AlreadyMember => (
+                StatusCode::CONFLICT,
+                "ALREADY_MEMBER",
+                "This person is already a member of the project.".to_owned(),
+                None,
+                None,
+            ),
+            Self::MemberNotFound => (
+                StatusCode::NOT_FOUND,
+                "MEMBER_NOT_FOUND",
+                "This person is not a member of the project.".to_owned(),
+                None,
+                None,
+            ),
+            Self::LastOwner => (
+                StatusCode::CONFLICT,
+                "LAST_OWNER",
+                "A project needs at least one owner. Make someone else an owner first.".to_owned(),
+                None,
+                None,
+            ),
+            Self::NoSuchUser => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "NO_SUCH_USER",
+                "No Studio account uses this email. Ask an administrator to invite them first."
+                    .to_owned(),
+                Some(BTreeMap::from([("email".to_owned(), "no account".to_owned())])),
                 None,
             ),
             Self::InvalidField { field, message } => (
