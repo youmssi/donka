@@ -1,122 +1,71 @@
 #![allow(clippy::unwrap_used)] // tests fail loudly on purpose
 
+mod support;
+
 use async_trait::async_trait;
-use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use axum::Router;
-use donka_app::{router, AppState};
-use donka_db::{DbOptions, PgPool};
-use donka_engine::{
-    Bundle, DecisionRuntime, EvaluateOptions, Evaluation, RuntimeError, ZenRuntime,
-};
-use http_body_util::BodyExt;
+use donka_db::PgPool;
+use donka_engine::{Bundle, DecisionRuntime, EvaluateOptions, Evaluation, RuntimeError};
 use serde_json::{json, Value};
 use std::sync::Arc;
-use tower::ServiceExt;
+use support::*;
 
-const BASE: &str = "/api/v1";
-
-fn table() -> Value {
-    let path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../crates/engine/tests/fixtures/table.json"
+fn fixture(name: &str) -> Value {
+    let path = format!(
+        "{}/../../crates/engine/tests/fixtures/{name}.json",
+        env!("CARGO_MANIFEST_DIR")
     );
     serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
-}
-
-/// A pool that never connects: port 1 refuses immediately. Routes that do not need
-/// the database must work with it; readiness must report it unavailable.
-fn unreachable_db() -> PgPool {
-    let options = DbOptions {
-        acquire_timeout: std::time::Duration::from_millis(300),
-        ..DbOptions::default()
-    };
-    donka_db::connect_lazy("postgres://nobody@127.0.0.1:1/none", &options).unwrap()
-}
-
-fn app_with(runtime: Arc<dyn DecisionRuntime>, base: &str) -> Router {
-    router(
-        AppState {
-            runtime,
-            db: unreachable_db(),
-        },
-        base,
-    )
-}
-
-fn app() -> Router {
-    app_with(Arc::new(ZenRuntime::new(1)), BASE)
-}
-
-struct Reply {
-    status: StatusCode,
-    request_id: Option<String>,
-    body: Value,
-}
-
-async fn send(app: Router, req: Request<Body>) -> Reply {
-    let res = app.oneshot(req).await.unwrap();
-    let status = res.status();
-    let request_id = res
-        .headers()
-        .get("x-request-id")
-        .map(|v| v.to_str().unwrap().to_owned());
-    let bytes = res.into_body().collect().await.unwrap().to_bytes();
-    let body = serde_json::from_slice(&bytes)
-        .unwrap_or_else(|_| Value::String(String::from_utf8_lossy(&bytes).into_owned()));
-    Reply {
-        status,
-        request_id,
-        body,
-    }
-}
-
-fn post_json(path: &str, body: &str) -> Request<Body> {
-    Request::post(path)
-        .header("content-type", "application/json")
-        .body(Body::from(body.to_owned()))
-        .unwrap()
-}
-
-fn get(path: &str) -> Request<Body> {
-    Request::get(path).body(Body::empty()).unwrap()
 }
 
 // --- base path -------------------------------------------------------------
 
 #[tokio::test]
 async fn health_lives_under_the_base_path() {
-    let reply = send(app(), get("/api/v1/health")).await;
+    let app = without_database();
+    let reply = send(&app.router, get("/api/v1/health", None)).await;
     assert_eq!(reply.status, StatusCode::OK);
     assert_eq!(reply.body, Value::String("ok".into()));
 }
 
-#[tokio::test]
-async fn changing_the_base_path_moves_every_route() {
-    let app = app_with(Arc::new(ZenRuntime::new(1)), "/studio/v2");
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn changing_the_base_path_moves_every_route(db: PgPool) {
+    let app = build(db, Arc::new(donka_engine::ZenRuntime::new(1)), "/studio/v2");
+    admin_with_password(&app).await;
 
     assert_eq!(
-        send(app.clone(), get("/studio/v2/health")).await.status,
-        StatusCode::OK
-    );
-    assert_eq!(
-        send(app.clone(), get("/api/v1/health")).await.status,
-        StatusCode::NOT_FOUND
-    );
-    let body = json!({ "decisions": { "table": table() }, "key": "table" }).to_string();
-    assert_eq!(
-        send(app, post_json("/studio/v2/simulate", &body))
+        send(&app.router, get("/studio/v2/health", None))
             .await
             .status,
         StatusCode::OK
     );
+    assert_eq!(
+        send(&app.router, get("/api/v1/health", None)).await.status,
+        StatusCode::NOT_FOUND
+    );
+    let credentials = json!({ "email": ADMIN_EMAIL, "password": ADMIN_PASSWORD });
+    let reply = send(
+        &app.router,
+        post("/studio/v2/auth/sign-in", &credentials, None),
+    )
+    .await;
+    assert_eq!(reply.status, StatusCode::OK);
+    let session = session_from(&reply);
+    let body = json!({ "decisions": { "table": fixture("table") }, "key": "table" });
+    let reply = send(
+        &app.router,
+        post("/studio/v2/simulate", &body, Some(&session)),
+    )
+    .await;
+    assert_eq!(reply.status, StatusCode::OK);
 }
 
 // --- readiness --------------------------------------------------------------
 
 #[tokio::test]
 async fn ready_is_503_when_the_database_is_unreachable() {
-    let reply = send(app(), get("/api/v1/ready")).await;
+    let app = without_database();
+    let reply = send(&app.router, get("/api/v1/ready", None)).await;
     assert_error(
         &reply,
         StatusCode::SERVICE_UNAVAILABLE,
@@ -126,84 +75,65 @@ async fn ready_is_503_when_the_database_is_unreachable() {
 
 #[sqlx::test(migrator = "donka_db::MIGRATOR")]
 async fn ready_is_200_when_the_database_answers(db: PgPool) {
-    let app = router(
-        AppState {
-            runtime: Arc::new(ZenRuntime::new(1)),
-            db,
-        },
-        BASE,
-    );
-    let reply = send(app, get("/api/v1/ready")).await;
+    let app = with_database(db);
+    let reply = send(&app.router, get("/api/v1/ready", None)).await;
     assert_eq!(reply.status, StatusCode::OK);
     assert_eq!(reply.body, Value::String("ready".into()));
 }
 
 #[tokio::test]
 async fn health_does_not_need_the_database() {
+    let app = without_database();
     assert_eq!(
-        send(app(), get("/api/v1/health")).await.status,
+        send(&app.router, get("/api/v1/health", None)).await.status,
         StatusCode::OK
     );
 }
 
 // --- simulate ---------------------------------------------------------------
 
-#[tokio::test]
-async fn simulate_returns_result_and_trace() {
-    let body =
-        json!({ "decisions": { "table": table() }, "key": "table", "context": { "input": 12 } });
-    let reply = send(app(), post_json("/api/v1/simulate", &body.to_string())).await;
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn simulate_returns_result_and_trace(db: PgPool) {
+    let app = with_database(db);
+    let session = signed_in_admin(&app).await;
+    let body = json!({ "decisions": { "table": fixture("table") }, "key": "table", "context": { "input": 12 } });
+    let reply = send(&app.router, post("/api/v1/simulate", &body, Some(&session))).await;
 
     assert_eq!(reply.status, StatusCode::OK);
     assert_eq!(reply.body["result"], json!({ "output": 10 }));
     assert!(reply.body["trace"].is_object());
 }
 
-// --- error model ------------------------------------------------------------
-
-fn assert_error(reply: &Reply, status: StatusCode, code: &str) {
-    assert_eq!(reply.status, status, "{}", reply.body);
-    assert_eq!(reply.body["code"], code);
-    assert!(reply.body["message"]
-        .as_str()
-        .is_some_and(|m| !m.is_empty()));
-    let id = reply.body["requestId"].as_str().expect("requestId in body");
-    assert_eq!(
-        Some(id),
-        reply.request_id.as_deref(),
-        "body and header ids match"
-    );
-}
-
-#[tokio::test]
-async fn unknown_decision_is_404_decision_not_found() {
-    let body = json!({ "decisions": { "table": table() }, "key": "missing" });
-    let reply = send(app(), post_json("/api/v1/simulate", &body.to_string())).await;
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn unknown_decision_is_404_decision_not_found(db: PgPool) {
+    let app = with_database(db);
+    let session = signed_in_admin(&app).await;
+    let body = json!({ "decisions": { "table": fixture("table") }, "key": "missing" });
+    let reply = send(&app.router, post("/api/v1/simulate", &body, Some(&session))).await;
 
     assert_error(&reply, StatusCode::NOT_FOUND, "DECISION_NOT_FOUND");
     assert_eq!(reply.body["fields"]["key"], "missing");
 }
 
-#[tokio::test]
-async fn invalid_model_is_422_invalid_decision() {
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn invalid_model_is_422_invalid_decision(db: PgPool) {
+    let app = with_database(db);
+    let session = signed_in_admin(&app).await;
     let body = json!({ "decisions": { "bad": { "nodes": 1 } }, "key": "bad" });
-    let reply = send(app(), post_json("/api/v1/simulate", &body.to_string())).await;
+    let reply = send(&app.router, post("/api/v1/simulate", &body, Some(&session))).await;
 
     assert_error(&reply, StatusCode::UNPROCESSABLE_ENTITY, "INVALID_DECISION");
     assert_eq!(reply.body["fields"]["key"], "bad");
 }
 
-#[tokio::test]
-async fn engine_rejection_is_422_evaluation_failed_with_details() {
-    let parent_path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../crates/engine/tests/fixtures/nodes-parent.json"
-    );
-    let parent: Value =
-        serde_json::from_str(&std::fs::read_to_string(parent_path).unwrap()).unwrap();
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn engine_rejection_is_422_evaluation_failed_with_details(db: PgPool) {
+    let app = with_database(db);
+    let session = signed_in_admin(&app).await;
     // The parent references a sub-decision that is not in the bundle.
-    let body = json!({ "decisions": { "nodes-parent": parent }, "key": "nodes-parent" });
-    let reply = send(app(), post_json("/api/v1/simulate", &body.to_string())).await;
+    let body =
+        json!({ "decisions": { "nodes-parent": fixture("nodes-parent") }, "key": "nodes-parent" });
+    let reply = send(&app.router, post("/api/v1/simulate", &body, Some(&session))).await;
 
     assert_error(
         &reply,
@@ -213,12 +143,31 @@ async fn engine_rejection_is_422_evaluation_failed_with_details() {
     assert!(!reply.body["details"].is_null());
 }
 
-#[tokio::test]
-async fn malformed_json_is_400_invalid_request() {
-    let reply = send(app(), post_json("/api/v1/simulate", "{ not json")).await;
-    assert_error(&reply, StatusCode::BAD_REQUEST, "INVALID_REQUEST");
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn malformed_json_is_400_invalid_request(db: PgPool) {
+    let app = with_database(db);
+    let session = signed_in_admin(&app).await;
+    let raw = Request::post("/api/v1/simulate")
+        .header("content-type", "application/json")
+        .header("x-donka-csrf", "1")
+        .header("cookie", format!("donka_session={session}"))
+        .body(axum::body::Body::from("{ not json"))
+        .unwrap();
+    assert_error(
+        &send(&app.router, raw).await,
+        StatusCode::BAD_REQUEST,
+        "INVALID_REQUEST",
+    );
 
-    let reply = send(app(), post_json("/api/v1/simulate", r#"{"decisions":{}}"#)).await;
+    let reply = send(
+        &app.router,
+        post(
+            "/api/v1/simulate",
+            &json!({ "decisions": {} }),
+            Some(&session),
+        ),
+    )
+    .await;
     assert_error(&reply, StatusCode::BAD_REQUEST, "INVALID_REQUEST");
 }
 
@@ -239,11 +188,12 @@ impl DecisionRuntime for BrokenRuntime {
     }
 }
 
-#[tokio::test]
-async fn unexpected_failure_is_500_without_internal_detail() {
-    let app = app_with(Arc::new(BrokenRuntime), BASE);
-    let body = json!({ "decisions": { "table": table() }, "key": "table" });
-    let reply = send(app, post_json("/api/v1/simulate", &body.to_string())).await;
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn unexpected_failure_is_500_without_internal_detail(db: PgPool) {
+    let app = build(db, Arc::new(BrokenRuntime), BASE);
+    let session = signed_in_admin(&app).await;
+    let body = json!({ "decisions": { "table": fixture("table") }, "key": "table" });
+    let reply = send(&app.router, post("/api/v1/simulate", &body, Some(&session))).await;
 
     assert_error(&reply, StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR");
     let raw = reply.body.to_string();
@@ -257,43 +207,59 @@ async fn unexpected_failure_is_500_without_internal_detail() {
 
 #[tokio::test]
 async fn every_response_carries_a_generated_request_id() {
-    let reply = send(app(), get("/api/v1/health")).await;
-    let id = reply.request_id.expect("x-request-id header");
+    let app = without_database();
+    let id = send(&app.router, get("/api/v1/health", None))
+        .await
+        .request_id
+        .unwrap();
     assert_eq!(id.len(), 36, "uuid: {id}");
 }
 
 #[tokio::test]
 async fn a_safe_incoming_request_id_is_reused() {
+    let app = without_database();
     let req = Request::get("/api/v1/health")
         .header("x-request-id", "lb-7f3a.42")
-        .body(Body::empty())
+        .body(axum::body::Body::empty())
         .unwrap();
     assert_eq!(
-        send(app(), req).await.request_id.as_deref(),
+        send(&app.router, req).await.request_id.as_deref(),
         Some("lb-7f3a.42")
     );
 }
 
 #[tokio::test]
 async fn an_unsafe_incoming_request_id_is_replaced() {
+    let app = without_database();
     let req = Request::get("/api/v1/health")
         .header("x-request-id", "abc def")
-        .body(Body::empty())
+        .body(axum::body::Body::empty())
         .unwrap();
-    let id = send(app(), req).await.request_id.unwrap();
-    assert_ne!(id, "abc def");
+    assert_ne!(send(&app.router, req).await.request_id.unwrap(), "abc def");
 }
 
 // --- contract ---------------------------------------------------------------
 
 #[tokio::test]
 async fn openapi_document_describes_the_endpoints() {
-    let reply = send(app(), get("/api/v1/openapi.json")).await;
+    let app = without_database();
+    let reply = send(&app.router, get("/api/v1/openapi.json", None)).await;
 
     assert_eq!(reply.status, StatusCode::OK);
     assert_eq!(reply.body["servers"][0]["url"], "/api/v1");
-    assert!(reply.body["paths"]["/health"]["get"].is_object());
-    assert!(reply.body["paths"]["/ready"]["get"].is_object());
-    assert!(reply.body["paths"]["/simulate"]["post"].is_object());
+    for (path, method) in [
+        ("/health", "get"),
+        ("/ready", "get"),
+        ("/simulate", "post"),
+        ("/auth/sign-in", "post"),
+        ("/auth/sign-out", "post"),
+        ("/auth/me", "get"),
+        ("/auth/password-setup", "post"),
+    ] {
+        assert!(
+            reply.body["paths"][path][method].is_object(),
+            "{method} {path}"
+        );
+    }
     assert!(reply.body["components"]["schemas"]["ErrorBody"].is_object());
 }

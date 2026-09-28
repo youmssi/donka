@@ -12,6 +12,15 @@ pub struct Config {
     /// Apply pending migrations at startup.
     pub db_migrate: bool,
     pub db_max_connections: u32,
+    /// Where people reach Studio, used to build links (e.g. password setup).
+    pub public_url: String,
+    /// Send the session cookie only over HTTPS. Turn off only for local HTTP.
+    pub cookie_secure: bool,
+    pub session_idle_minutes: u32,
+    pub sign_in_max_failures: u32,
+    pub sign_in_lock_minutes: u32,
+    /// On an empty database, create this administrator and print a setup link.
+    pub bootstrap_admin_email: Option<String>,
 }
 
 #[derive(Debug, thiserror::Error, PartialEq)]
@@ -33,13 +42,6 @@ impl Config {
             .parse()
             .map_err(|_| invalid("DONKA_LISTEN", "must be host:port, e.g. 0.0.0.0:8080"))?;
 
-        let engine_workers = get("DONKA_ENGINE_WORKERS")
-            .map(|v| match v.parse::<usize>() {
-                Ok(n) if n > 0 => Ok(n),
-                _ => Err(invalid("DONKA_ENGINE_WORKERS", "must be a positive number")),
-            })
-            .transpose()?;
-
         let api_base_path = get("DONKA_API_BASE_PATH").unwrap_or_else(|| "/api/v1".into());
         validate_base_path(&api_base_path)?;
 
@@ -52,31 +54,60 @@ impl Config {
                 )
             })?;
 
-        let db_migrate = match get("DONKA_DB_MIGRATE").as_deref() {
-            None | Some("true") => true,
-            Some("false") => false,
-            Some(_) => return Err(invalid("DONKA_DB_MIGRATE", "must be true or false")),
-        };
-
-        let db_max_connections = get("DONKA_DB_MAX_CONNECTIONS")
-            .map(|v| match v.parse::<u32>() {
-                Ok(n) if n > 0 => Ok(n),
-                _ => Err(invalid(
-                    "DONKA_DB_MAX_CONNECTIONS",
-                    "must be a positive number",
-                )),
-            })
-            .transpose()?
-            .unwrap_or(10);
+        let public_url = get("DONKA_PUBLIC_URL").unwrap_or_else(|| "http://localhost:8080".into());
+        if !(public_url.starts_with("http://") || public_url.starts_with("https://"))
+            || public_url.ends_with('/')
+        {
+            return Err(invalid(
+                "DONKA_PUBLIC_URL",
+                "must start with http:// or https:// and not end with '/'",
+            ));
+        }
 
         Ok(Self {
             listen,
-            engine_workers,
+            engine_workers: positive(&get, "DONKA_ENGINE_WORKERS")?,
             api_base_path,
             database_url,
-            db_migrate,
-            db_max_connections,
+            db_migrate: boolean(&get, "DONKA_DB_MIGRATE", true)?,
+            db_max_connections: positive(&get, "DONKA_DB_MAX_CONNECTIONS")?.unwrap_or(10),
+            public_url,
+            cookie_secure: boolean(&get, "DONKA_COOKIE_SECURE", true)?,
+            session_idle_minutes: positive(&get, "DONKA_SESSION_IDLE_MINUTES")?.unwrap_or(480),
+            sign_in_max_failures: positive(&get, "DONKA_SIGN_IN_MAX_FAILURES")?.unwrap_or(5),
+            sign_in_lock_minutes: positive(&get, "DONKA_SIGN_IN_LOCK_MINUTES")?.unwrap_or(15),
+            bootstrap_admin_email: get("DONKA_BOOTSTRAP_ADMIN_EMAIL")
+                .filter(|v| !v.trim().is_empty()),
         })
+    }
+}
+
+/// An optional variable that must be a number greater than zero when set.
+fn positive<T>(
+    get: &impl Fn(&str) -> Option<String>,
+    var: &'static str,
+) -> Result<Option<T>, ConfigError>
+where
+    T: std::str::FromStr + PartialOrd + Default,
+{
+    get(var)
+        .map(|v| match v.parse::<T>() {
+            Ok(n) if n > T::default() => Ok(n),
+            _ => Err(invalid(var, "must be a positive number")),
+        })
+        .transpose()
+}
+
+fn boolean(
+    get: &impl Fn(&str) -> Option<String>,
+    var: &'static str,
+    default: bool,
+) -> Result<bool, ConfigError> {
+    match get(var).as_deref() {
+        None => Ok(default),
+        Some("true") => Ok(true),
+        Some("false") => Ok(false),
+        Some(_) => Err(invalid(var, "must be true or false")),
     }
 }
 
@@ -127,6 +158,31 @@ mod tests {
         assert_eq!(config.engine_workers, None);
         assert!(config.db_migrate);
         assert_eq!(config.db_max_connections, 10);
+        assert!(config.cookie_secure);
+        assert_eq!(config.session_idle_minutes, 480);
+        assert_eq!(config.sign_in_max_failures, 5);
+        assert_eq!(config.sign_in_lock_minutes, 15);
+        assert_eq!(config.public_url, "http://localhost:8080");
+        assert_eq!(config.bootstrap_admin_email, None);
+    }
+
+    #[test]
+    fn sign_in_settings_are_validated() {
+        assert!(
+            !load(&[("DONKA_COOKIE_SECURE", "false")])
+                .unwrap()
+                .cookie_secure
+        );
+        for (var, bad) in [
+            ("DONKA_COOKIE_SECURE", "yes"),
+            ("DONKA_SESSION_IDLE_MINUTES", "0"),
+            ("DONKA_SIGN_IN_MAX_FAILURES", "-1"),
+            ("DONKA_SIGN_IN_LOCK_MINUTES", "soon"),
+            ("DONKA_PUBLIC_URL", "studio.bank.example"),
+            ("DONKA_PUBLIC_URL", "https://studio.bank.example/"),
+        ] {
+            assert_eq!(load(&[(var, bad)]).unwrap_err().var, var, "{var}={bad}");
+        }
     }
 
     #[test]

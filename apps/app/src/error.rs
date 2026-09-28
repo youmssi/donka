@@ -9,6 +9,7 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use donka_engine::RuntimeError;
+use donka_identity::IdentityError;
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -45,6 +46,19 @@ pub enum ApiError {
     EvaluationFailed(Value),
     #[error("database unavailable")]
     DatabaseUnavailable,
+    #[error("not signed in")]
+    Unauthenticated,
+    #[error("invalid credentials")]
+    InvalidCredentials,
+    #[error("missing CSRF header")]
+    CsrfRequired,
+    #[error("invalid password-setup link")]
+    InvalidSetupLink,
+    #[error("invalid field {field}: {message}")]
+    InvalidField {
+        field: &'static str,
+        message: String,
+    },
     #[error("internal error: {0}")]
     Internal(String),
 }
@@ -56,6 +70,26 @@ impl From<RuntimeError> for ApiError {
             RuntimeError::InvalidContent { key, message } => Self::InvalidDecision { key, message },
             RuntimeError::Evaluation { details } => Self::EvaluationFailed(details),
             RuntimeError::Internal(message) => Self::Internal(message),
+        }
+    }
+}
+
+impl From<IdentityError> for ApiError {
+    fn from(err: IdentityError) -> Self {
+        match err {
+            IdentityError::InvalidCredentials => Self::InvalidCredentials,
+            IdentityError::Unauthenticated => Self::Unauthenticated,
+            IdentityError::InvalidSetupLink => Self::InvalidSetupLink,
+            IdentityError::WeakPassword => Self::InvalidField {
+                field: "password",
+                message: IdentityError::WeakPassword.to_string(),
+            },
+            IdentityError::InvalidEmail => Self::InvalidField {
+                field: "email",
+                message: IdentityError::InvalidEmail.to_string(),
+            },
+            IdentityError::Database(err) => Self::Internal(err.to_string()),
+            IdentityError::Internal(message) => Self::Internal(message),
         }
     }
 }
@@ -105,6 +139,44 @@ impl IntoResponse for ApiError {
                 "DATABASE_UNAVAILABLE",
                 "The database is not reachable. Try again shortly.".to_owned(),
                 None,
+                None,
+            ),
+            Self::Unauthenticated => (
+                StatusCode::UNAUTHORIZED,
+                "UNAUTHENTICATED",
+                "Sign in to continue.".to_owned(),
+                None,
+                None,
+            ),
+            // One message for every sign-in failure: it must not reveal whether
+            // the email exists or the account is locked.
+            Self::InvalidCredentials => (
+                StatusCode::UNAUTHORIZED,
+                "INVALID_CREDENTIALS",
+                "Email or password is incorrect.".to_owned(),
+                None,
+                None,
+            ),
+            Self::CsrfRequired => (
+                StatusCode::FORBIDDEN,
+                "CSRF_REQUIRED",
+                format!("Requests that change data must send the {} header.", crate::auth::CSRF_HEADER),
+                None,
+                None,
+            ),
+            Self::InvalidSetupLink => (
+                StatusCode::BAD_REQUEST,
+                "INVALID_SETUP_LINK",
+                "This link is invalid, already used or expired. Ask an administrator for a new one."
+                    .to_owned(),
+                None,
+                None,
+            ),
+            Self::InvalidField { field, message } => (
+                StatusCode::BAD_REQUEST,
+                "INVALID_REQUEST",
+                format!("Check the {field} field."),
+                Some(BTreeMap::from([(field.to_owned(), message)])),
                 None,
             ),
             Self::Internal(reason) => {

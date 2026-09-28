@@ -1,0 +1,27 @@
+[package]
+name = "donka-identity"
+description = "Studio users, password hashing, sessions and sign-in lockout"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+publish = false
+
+[dependencies]
+argon2 = { workspace = true }
+base64 = { workspace = true }
+chrono = { workspace = true }
+donka-db = { workspace = true }
+getrandom = { workspace = true }
+serde = { workspace = true }
+sha2 = { workspace = true }
+sqlx = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

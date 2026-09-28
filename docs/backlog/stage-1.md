@@ -89,18 +89,20 @@ attributable.
 
 #### Decision
 Session cookie (httpOnly, Secure, SameSite=Lax) on the same origin as the web app (ADR-002),
-sessions stored in PostgreSQL, argon2id password hashes. First administrator created from
+sessions stored in PostgreSQL as token hashes on Studio's own pool (ADR-007), argon2id password
+hashes, CSRF enforced with the `x-donka-csrf` header. A locked account gets the same
+`INVALID_CREDENTIALS` answer as a wrong password, so lockout does not reveal that an account exists. First administrator created from
 `DONKA_BOOTSTRAP_ADMIN_EMAIL` on an empty database, with a one-time password-setup link printed to
 the log.
 
 #### Acceptance criteria
-- [ ] Sign in with email + password; wrong credentials return one generic message (no account enumeration)
-- [ ] Sign out invalidates the session server-side
-- [ ] Every route except health, ready, sign-in and password setup returns `401` without a session
-- [ ] State-changing requests without the CSRF header are refused (`403`)
-- [ ] Five failed sign-ins for one account in 15 minutes lock it for 15 minutes (limits from config)
-- [ ] Sessions expire after `DONKA_SESSION_TTL` of inactivity
-- [ ] Passwords are never logged or returned
+- [x] Sign in with email + password; wrong credentials return one generic message (no account enumeration)
+- [x] Sign out invalidates the session server-side
+- [x] Every route except health, ready, sign-in and password setup returns `401` without a session
+- [x] State-changing requests without the CSRF header are refused (`403`)
+- [x] Five failed sign-ins for one account in 15 minutes lock it for 15 minutes (limits from config)
+- [x] Sessions expire after `DONKA_SESSION_IDLE_MINUTES` of inactivity
+- [x] Passwords are never logged or returned
 
 #### Out of scope
 SSO/OIDC (Stage 3). Password reset and invitations (DNK-5).
