@@ -42,7 +42,7 @@ docker-compose for PostgreSQL, MinIO and Mailpit.
 Practices from the upstream codebases, scheduled next to the stories that need them:
 DNK-26 `/version` (after DNK-4), DNK-28 container builds (before DNK-23), DNK-29 Storybook
 (with DNK-6), DNK-27 OpenTelemetry (before DNK-23), DNK-30 generated changelogs (before the
-first release PR).
+first release PR), DNK-32 rate limits on sign-in and password reset (before the pilot).
 
 ## Stage 2: governance depth
 Branches, N-eyes approvals, webhooks, GitSync, more connectors, Fieldkit Stage 1.

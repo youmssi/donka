@@ -8,7 +8,7 @@ change.
 
 | Branch | Role | Who writes to it |
 |---|---|---|
-| `main` | What customers install | Release PRs only (`develop` → `main`) |
+| `main` | What customers install | Promotion PRs (`develop` → `main`) and the release PR |
 | `develop` | The next release, always green | Squash-merged story PRs only |
 | `dnk-<n>-<slug>` | One story | Its author |
 
@@ -87,10 +87,21 @@ green; never push an empty commit to re-trigger CI.
 
 ## 7. Releasing
 
-1. Open a release PR `develop` → `main` listing the stories it ships, the migrations, the new
-   variables and whether a Runtime release is required first.
-2. When CI is green, merge it with a **merge commit**.
-3. Order: **Donka Runtime first** when the artifact format or Runtime API changed, then Studio.
+Versions and changelogs come from the commit messages (release-please, DNK-30): `feat` bumps
+the minor version (while below 1.0), `fix` and `perf` the patch; a `!` or `BREAKING CHANGE:`
+footer marks a breaking change.
+
+1. Open a promotion PR `develop` → `main` listing the stories it ships, the migrations, the new
+   variables and whether a Runtime release is required first. Merge it with a **merge commit**
+   once CI is green.
+2. The Release workflow opens (or updates) the release PR on `main`: next version in
+   `Cargo.toml`, `apps/web/package.json` and `version.txt`, the `CHANGELOG.md` entry, and a
+   refreshed `Cargo.lock`. Read the changelog; edit a commit message upstream rather than the
+   generated text.
+3. Squash-merge the release PR: it tags `vX.Y.Z` and creates the GitHub release. Build the image
+   with `--build-arg SERVICE_VERSION=X.Y.Z`.
+4. Merge the back-merge PR `main` → `develop` that the workflow opens, with a **merge commit**.
+5. Order: **Donka Runtime first** when the artifact format or Runtime API changed, then Studio.
 4. Confirm the deployment: `GET /api/v1/health`, migrations applied, a simulate smoke test.
 5. If production breaks, roll back first, then fix forward through the normal workflow.
 
