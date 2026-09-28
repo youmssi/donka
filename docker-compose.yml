@@ -1,5 +1,5 @@
 # Local development and single-server installs.
-#   docker compose up -d postgres minio        # backing services only
+#   docker compose up -d postgres minio mailpit   # backing services only (Mailpit UI: http://localhost:8025)
 #   docker compose --profile full up -d        # everything (needs ../donka-runtime checked out next to this repo)
 name: donka
 
@@ -46,8 +46,10 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgres://donka:donka@postgres:5432/donka
+      DONKA_SMTP_URL: smtp://mailpit:1025
     depends_on:
       postgres: { condition: service_healthy }
+      mailpit: { condition: service_started }
     ports: ["8080:8080"]
 
   runtime:

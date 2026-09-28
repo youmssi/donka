@@ -105,7 +105,9 @@ One shape for the whole API:
 
 - Object storage, SMTP, the customer's LLM endpoint and bureau/KYC connectors each sit **behind a
   trait** owned by the module that needs it; the implementation is chosen by configuration.
-  Tests use a fake.
+  Tests use a fake. Exception: a provider several modules need gets one shared crate, like
+  `crates/db` — `crates/mail` owns the `Mailer` trait, the SMTP implementation and the
+  `RecordingMailer` fake (feature `testing`). What an email says stays in the module that sends it.
 - Every call has a **timeout** and bounded **retries with backoff** for idempotent operations.
   Retry only transport errors, `408`, `429` and `5xx`: any other `4xx` is an answer, not a blip.
 - Provider errors are translated into the module's own errors; provider types never leak out.

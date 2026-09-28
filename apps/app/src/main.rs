@@ -5,6 +5,7 @@ use donka_db::DbOptions;
 use donka_engine::ZenRuntime;
 use donka_identity::clock::SystemClock;
 use donka_identity::{Identity, Policy};
+use donka_mail::SmtpMailer;
 use std::sync::Arc;
 use tracing_subscriber::EnvFilter;
 
@@ -12,8 +13,9 @@ use tracing_subscriber::EnvFilter;
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
-            EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "donka_app=info,tower_http=info".into()),
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+                "warn,donka_app=info,donka_identity=info,tower_http=info".into()
+            }),
         )
         .init();
 
@@ -44,8 +46,12 @@ async fn main() -> anyhow::Result<()> {
         session_idle_timeout: Duration::minutes(config.session_idle_minutes.into()),
         max_failed_sign_ins: config.sign_in_max_failures,
         lock_duration: Duration::minutes(config.sign_in_lock_minutes.into()),
+        invitation_link_lifetime: Duration::hours(config.invitation_link_hours.into()),
+        reset_link_lifetime: Duration::minutes(config.password_reset_link_minutes.into()),
+        email_max_attempts: config.email_max_attempts,
         ..Policy::default()
     };
+    let link_hours = config.invitation_link_hours;
     let cookies = CookieSettings {
         secure: config.cookie_secure,
         max_age_seconds: policy.session_idle_timeout.num_seconds(),
@@ -53,22 +59,29 @@ async fn main() -> anyhow::Result<()> {
     let identity = Identity::new(db.clone(), Arc::new(SystemClock), policy);
 
     if let Some(email) = &config.bootstrap_admin_email {
-        match identity.bootstrap_admin(email).await {
+        match identity.bootstrap_admin(email, config.default_locale).await {
             Ok(Some(token)) => {
                 // Printed once, to the operator's console, as the only way into a new
-                // installation. The link works once and expires after 24 hours.
+                // installation. The link works once and expires with the invitation lifetime.
                 eprintln!(
                     "\nFirst administrator created: {email}\n\
-                     Set the password within 24 hours (the link works once):\n  \
-                     {}/setup-password?token={}\n",
-                    config.public_url,
-                    token.expose()
+                     Set the password within {link_hours} hours (the link works once):\n  \
+                     {}\n",
+                    donka_identity::setup_link(&config.public_url, &token)
                 );
             }
             Ok(None) => tracing::info!("users already exist; DONKA_BOOTSTRAP_ADMIN_EMAIL ignored"),
             Err(err) => exit_with(&format!("cannot create the first administrator: {err}")),
         }
     }
+
+    let mailer = SmtpMailer::new(&config.smtp_url, &config.smtp_from)
+        .unwrap_or_else(|err| exit_with(&format!("DONKA_SMTP_URL / DONKA_SMTP_FROM: {err}")));
+    tokio::spawn(donka_app::email_worker::run(
+        identity.clone(),
+        Arc::new(mailer),
+        config.public_url.clone(),
+    ));
 
     let app = router(
         AppState {

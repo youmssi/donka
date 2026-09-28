@@ -6,6 +6,7 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use chrono::Duration;
 use donka_db::PgPool;
+use donka_identity::Locale;
 use serde_json::json;
 use support::*;
 
@@ -16,13 +17,13 @@ async fn the_first_administrator_is_created_only_on_an_empty_database(db: PgPool
     let app = with_database(db);
     assert!(app
         .identity
-        .bootstrap_admin(ADMIN_EMAIL)
+        .bootstrap_admin(ADMIN_EMAIL, Locale::En)
         .await
         .unwrap()
         .is_some());
     assert!(app
         .identity
-        .bootstrap_admin("eve@bank.example")
+        .bootstrap_admin("eve@bank.example", Locale::En)
         .await
         .unwrap()
         .is_none());
@@ -33,7 +34,7 @@ async fn a_setup_link_works_once(db: PgPool) {
     let app = with_database(db);
     let token = app
         .identity
-        .bootstrap_admin(ADMIN_EMAIL)
+        .bootstrap_admin(ADMIN_EMAIL, Locale::En)
         .await
         .unwrap()
         .unwrap();
@@ -58,12 +59,12 @@ async fn a_setup_link_expires(db: PgPool) {
     let app = with_database(db);
     let token = app
         .identity
-        .bootstrap_admin(ADMIN_EMAIL)
+        .bootstrap_admin(ADMIN_EMAIL, Locale::En)
         .await
         .unwrap()
         .unwrap();
     app.clock
-        .advance(Duration::hours(24) + Duration::seconds(1));
+        .advance(policy().invitation_link_lifetime + Duration::seconds(1));
 
     let body = json!({ "token": token.expose(), "password": ADMIN_PASSWORD });
     let reply = send(
@@ -79,7 +80,7 @@ async fn a_short_password_is_refused_and_the_link_stays_usable(db: PgPool) {
     let app = with_database(db);
     let token = app
         .identity
-        .bootstrap_admin(ADMIN_EMAIL)
+        .bootstrap_admin(ADMIN_EMAIL, Locale::En)
         .await
         .unwrap()
         .unwrap();
@@ -141,7 +142,10 @@ async fn wrong_password_and_unknown_email_look_the_same(db: PgPool) {
 #[sqlx::test(migrator = "donka_db::MIGRATOR")]
 async fn an_account_without_a_password_cannot_sign_in(db: PgPool) {
     let app = with_database(db);
-    app.identity.bootstrap_admin(ADMIN_EMAIL).await.unwrap();
+    app.identity
+        .bootstrap_admin(ADMIN_EMAIL, Locale::En)
+        .await
+        .unwrap();
     let reply = sign_in(&app, ADMIN_EMAIL, "").await;
     assert_error(&reply, StatusCode::UNAUTHORIZED, "INVALID_CREDENTIALS");
 }

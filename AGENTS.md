@@ -134,7 +134,8 @@ apps/app/            Studio backend service (Axum). Routes, config, error model,
 apps/web/            Studio web app (Next.js static export, served by apps/app)   [DNK-6]
 crates/engine/       DecisionRuntime trait + ZenRuntime (the only zen_engine user)
 crates/db/           PostgreSQL pool, migrations, readiness (shared by every module)
-crates/identity/     users, sign-in with lockout, sessions, password-setup links
+crates/identity/     users, sign-in with lockout, sessions, invitations, password reset
+crates/mail/         Mailer trait + SMTP implementation (shared by modules that send email)
 crates/<module>/     one crate per business module (project next, in DNK-7)
 migrations/          PostgreSQL migrations (sqlx), forward-only; <UTC timestamp>_<what>.sql
 scripts/             repo scripts (engine version drift check)

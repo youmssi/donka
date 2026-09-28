@@ -1,22 +1,35 @@
-//! Identity module: Studio users, sign-in with lockout, sessions and one-time
-//! password-setup links.
+//! Identity module: Studio users, sign-in with lockout, sessions, invitations,
+//! password reset and the one-time links they rely on.
 //!
 //! Other modules use it only through [`Identity`] and the types exported here.
 
 pub mod clock;
+mod emails;
 mod secret;
 
 use chrono::{DateTime, Duration, Utc};
 use clock::Clock;
 use donka_db::PgPool;
-use serde::Serialize;
+use donka_mail::{Email, Mailer};
+use emails::Kind;
+use serde::{Deserialize, Serialize};
+use sqlx::Acquire;
 use std::sync::Arc;
+use tokio::sync::Notify;
 use uuid::Uuid;
 
 pub use secret::{MAX_PASSWORD_CHARS, MIN_PASSWORD_CHARS};
 
 /// Avoid a database write on every request: `last_seen_at` moves at most this often.
 const TOUCH_INTERVAL_SECONDS: i64 = 60;
+/// Emails handled per call to [`Identity::deliver_due_emails`].
+const EMAIL_BATCH: usize = 20;
+/// Retry delays double from this value after each failed send...
+const EMAIL_RETRY_BASE_SECONDS: i64 = 30;
+/// ...up to this ceiling.
+const EMAIL_RETRY_MAX_SECONDS: i64 = 3600;
+/// Page of the web app that reads the token and asks for the new password.
+const SETUP_PAGE: &str = "/setup-password";
 
 #[derive(Debug, Clone)]
 pub struct Policy {
@@ -26,7 +39,12 @@ pub struct Policy {
     pub max_failed_sign_ins: u32,
     pub failure_window: Duration,
     pub lock_duration: Duration,
-    pub setup_link_lifetime: Duration,
+    /// How long an invitation link (and the first administrator's link) works.
+    pub invitation_link_lifetime: Duration,
+    /// How long a password-reset link works.
+    pub reset_link_lifetime: Duration,
+    /// Failed sends after which an account email is abandoned.
+    pub email_max_attempts: u32,
 }
 
 impl Default for Policy {
@@ -36,7 +54,42 @@ impl Default for Policy {
             max_failed_sign_ins: 5,
             failure_window: Duration::minutes(15),
             lock_duration: Duration::minutes(15),
-            setup_link_lifetime: Duration::hours(24),
+            invitation_link_lifetime: Duration::hours(72),
+            reset_link_lifetime: Duration::minutes(30),
+            email_max_attempts: 10,
+        }
+    }
+}
+
+/// Language of a user's emails and screens.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[serde(rename_all = "lowercase")]
+#[sqlx(type_name = "text", rename_all = "lowercase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub enum Locale {
+    En,
+    Fr,
+}
+
+impl Locale {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::En => "en",
+            Self::Fr => "fr",
+        }
+    }
+}
+
+impl std::str::FromStr for Locale {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "en" => Ok(Self::En),
+            "fr" => Ok(Self::Fr),
+            other => Err(format!(
+                "unsupported language '{other}' (expected en or fr)"
+            )),
         }
     }
 }
@@ -46,6 +99,7 @@ pub struct User {
     pub id: Uuid,
     pub email: String,
     pub is_admin: bool,
+    pub locale: Locale,
 }
 
 /// A secret handed to the browser (session cookie) or to a person (setup link).
@@ -78,6 +132,10 @@ pub enum IdentityError {
     WeakPassword,
     #[error("not a valid email address")]
     InvalidEmail,
+    #[error("only administrators can do this")]
+    Forbidden,
+    #[error("a user with this email already exists")]
+    EmailTaken,
     #[error(transparent)]
     Database(#[from] sqlx::Error),
     #[error("internal error: {0}")]
@@ -95,6 +153,8 @@ pub struct Identity {
     pool: PgPool,
     clock: Arc<dyn Clock>,
     policy: Policy,
+    /// Wakes the email worker when a transaction has queued an email.
+    outbox: Arc<Notify>,
 }
 
 impl Identity {
@@ -103,13 +163,24 @@ impl Identity {
             pool,
             clock,
             policy,
+            outbox: Arc::new(Notify::new()),
         }
+    }
+
+    /// Resolves when an email has been queued since the last call; the email
+    /// worker waits on it between polls.
+    pub async fn email_queued(&self) {
+        self.outbox.notified().await;
     }
 
     /// Creates the first administrator, without a password, when no user exists
     /// yet, and returns a one-time password-setup token. Returns `None` when
     /// users already exist, so it is safe to call on every start.
-    pub async fn bootstrap_admin(&self, email: &str) -> Result<Option<IssuedToken>, IdentityError> {
+    pub async fn bootstrap_admin(
+        &self,
+        email: &str,
+        locale: Locale,
+    ) -> Result<Option<IssuedToken>, IdentityError> {
         let email = normalize_email(email)?;
         let now = self.clock.now();
         let mut tx = self.pool.begin().await?;
@@ -125,14 +196,18 @@ impl Identity {
         }
         let user_id = Uuid::new_v4();
         sqlx::query(
-            "INSERT INTO users (id, email, is_admin, created_at) VALUES ($1, $2, true, $3)",
+            "INSERT INTO users (id, email, is_admin, locale, created_at) \
+             VALUES ($1, $2, true, $3, $4)",
         )
         .bind(user_id)
         .bind(&email)
+        .bind(locale)
         .bind(now)
         .execute(&mut *tx)
         .await?;
-        let token = self.issue_setup_token(&mut tx, user_id, now).await?;
+        let token = self
+            .issue_setup_token(&mut tx, user_id, now, self.policy.invitation_link_lifetime)
+            .await?;
         tx.commit().await?;
         Ok(Some(token))
     }
@@ -165,13 +240,193 @@ impl Identity {
         .bind(hash)
         .execute(&mut *tx)
         .await?;
-        // A new password ends every existing session of that user.
+        // A new password ends every existing session of that user...
         sqlx::query("DELETE FROM sessions WHERE user_id = $1")
             .bind(user_id)
             .execute(&mut *tx)
             .await?;
+        // ...and every other link still waiting in their inbox.
+        revoke_setup_tokens(&mut tx, user_id, now).await?;
         tx.commit().await?;
         Ok(())
+    }
+
+    /// Invites a person: creates their account without a password and queues
+    /// an email with a one-time link to choose it. Inviting someone who has
+    /// not accepted yet sends a fresh link and revokes the previous one.
+    pub async fn invite(
+        &self,
+        inviter: &User,
+        email: &str,
+        locale: Locale,
+        is_admin: bool,
+    ) -> Result<User, IdentityError> {
+        if !inviter.is_admin {
+            return Err(IdentityError::Forbidden);
+        }
+        let email = normalize_email(email)?;
+        let now = self.clock.now();
+        let mut tx = self.pool.begin().await?;
+        let existing: Option<(Uuid, bool)> = sqlx::query_as(
+            "SELECT id, password_hash IS NOT NULL FROM users WHERE email = $1 FOR UPDATE",
+        )
+        .bind(&email)
+        .fetch_optional(&mut *tx)
+        .await?;
+        let user_id = match existing {
+            Some((_, true)) => return Err(IdentityError::EmailTaken),
+            Some((id, false)) => {
+                sqlx::query("UPDATE users SET is_admin = $2, locale = $3 WHERE id = $1")
+                    .bind(id)
+                    .bind(is_admin)
+                    .bind(locale)
+                    .execute(&mut *tx)
+                    .await?;
+                revoke_setup_tokens(&mut tx, id, now).await?;
+                id
+            }
+            None => {
+                let id = Uuid::new_v4();
+                sqlx::query(
+                    "INSERT INTO users (id, email, is_admin, locale, created_at) \
+                     VALUES ($1, $2, $3, $4, $5)",
+                )
+                .bind(id)
+                .bind(&email)
+                .bind(is_admin)
+                .bind(locale)
+                .bind(now)
+                .execute(&mut *tx)
+                .await
+                .map_err(|err| match err {
+                    // Invited by someone else at the same moment.
+                    sqlx::Error::Database(db) if db.is_unique_violation() => {
+                        IdentityError::EmailTaken
+                    }
+                    other => other.into(),
+                })?;
+                id
+            }
+        };
+        queue_email(&mut tx, user_id, Kind::Invitation, now).await?;
+        tx.commit().await?;
+        self.outbox.notify_one();
+        tracing::info!(inviter = %inviter.id, user_id = %user_id, "user invited");
+        Ok(User {
+            id: user_id,
+            email,
+            is_admin,
+            locale,
+        })
+    }
+
+    /// Queues a password-reset email when the address belongs to a user.
+    /// Known and unknown addresses take the same single statement and give the
+    /// same answer, so the caller cannot tell which accounts exist.
+    pub async fn request_password_reset(&self, email: &str) -> Result<(), IdentityError> {
+        let email = normalize_email(email)?;
+        let now = self.clock.now();
+        // ON CONFLICT: a reset already waiting to be sent is not queued twice.
+        sqlx::query(
+            "INSERT INTO account_emails (id, user_id, kind, created_at, next_attempt_at) \
+             SELECT $1, id, $2, $3, $3 FROM users WHERE email = $4 \
+             ON CONFLICT DO NOTHING",
+        )
+        .bind(Uuid::new_v4())
+        .bind(Kind::PasswordReset.as_str())
+        .bind(now)
+        .bind(&email)
+        .execute(&self.pool)
+        .await?;
+        self.outbox.notify_one();
+        Ok(())
+    }
+
+    /// Sends the account emails that are due, each in its own transaction, and
+    /// returns how many were sent. Safe to run from several instances at once.
+    ///
+    /// The one-time link is created at send time, inside a savepoint that is
+    /// rolled back if the send fails: a working link never exists without an
+    /// email that carries it, and no link is ever stored in clear.
+    pub async fn deliver_due_emails(
+        &self,
+        mailer: &dyn Mailer,
+        public_url: &str,
+    ) -> Result<usize, IdentityError> {
+        let mut sent = 0;
+        for _ in 0..EMAIL_BATCH {
+            let now = self.clock.now();
+            let mut tx = self.pool.begin().await?;
+            let due: Option<DueEmail> = sqlx::query_as(
+                "SELECT e.id, e.kind, e.attempts, e.user_id, u.email, u.locale \
+                 FROM account_emails e JOIN users u ON u.id = e.user_id \
+                 WHERE e.sent_at IS NULL AND e.abandoned_at IS NULL AND e.next_attempt_at <= $1 \
+                 ORDER BY e.next_attempt_at LIMIT 1 \
+                 FOR UPDATE OF e SKIP LOCKED",
+            )
+            .bind(now)
+            .fetch_optional(&mut *tx)
+            .await?;
+            let Some(due) = due else { break };
+            let kind = Kind::parse(&due.kind).ok_or_else(|| {
+                IdentityError::Internal(format!("unknown email kind {}", due.kind))
+            })?;
+            let lifetime = match kind {
+                Kind::Invitation => self.policy.invitation_link_lifetime,
+                Kind::PasswordReset => self.policy.reset_link_lifetime,
+            };
+
+            let mut attempt = tx.begin().await?;
+            let token = self
+                .issue_setup_token(&mut attempt, due.user_id, now, lifetime)
+                .await?;
+            let link = setup_link(public_url, &token);
+            let content = emails::render(kind, due.locale, &link, lifetime);
+            let email = Email {
+                to: due.email,
+                subject: content.subject,
+                text: content.text,
+            };
+            let attempts = due.attempts.saturating_add(1);
+            match mailer.send(&email).await {
+                Ok(()) => {
+                    attempt.commit().await?;
+                    sqlx::query(
+                        "UPDATE account_emails SET sent_at = $2, attempts = $3, last_error = NULL \
+                         WHERE id = $1",
+                    )
+                    .bind(due.id)
+                    .bind(now)
+                    .bind(attempts)
+                    .execute(&mut *tx)
+                    .await?;
+                    sent += 1;
+                }
+                Err(err) => {
+                    attempt.rollback().await?;
+                    let max = i32::try_from(self.policy.email_max_attempts).unwrap_or(i32::MAX);
+                    let abandoned_at = (err.is_permanent() || attempts >= max).then_some(now);
+                    if abandoned_at.is_some() {
+                        tracing::error!(email_id = %due.id, kind = kind.as_str(), %err, attempts, "account email abandoned");
+                    } else {
+                        tracing::warn!(email_id = %due.id, kind = kind.as_str(), %err, attempts, "account email not sent; will retry");
+                    }
+                    sqlx::query(
+                        "UPDATE account_emails SET attempts = $2, last_error = $3, \
+                         next_attempt_at = $4, abandoned_at = $5 WHERE id = $1",
+                    )
+                    .bind(due.id)
+                    .bind(attempts)
+                    .bind(err.to_string())
+                    .bind(now + retry_delay(attempts))
+                    .bind(abandoned_at)
+                    .execute(&mut *tx)
+                    .await?;
+                }
+            }
+            tx.commit().await?;
+        }
+        Ok(sent)
     }
 
     /// Checks the credentials and opens a session. Every failure, including a
@@ -190,7 +445,7 @@ impl Identity {
         let mut tx = self.pool.begin().await?;
         // FOR UPDATE: concurrent failures for one account are counted one after another.
         let row: Option<AccountRow> = sqlx::query_as(
-            "SELECT id, email, is_admin, password_hash, failed_sign_ins, \
+            "SELECT id, email, is_admin, locale, password_hash, failed_sign_ins, \
                     failed_window_started_at, locked_until \
              FROM users WHERE email = $1 FOR UPDATE",
         )
@@ -242,7 +497,7 @@ impl Identity {
         let now = self.clock.now();
         let token_hash = secret::hash_token(token);
         let row: Option<SessionRow> = sqlx::query_as(
-            "SELECT u.id, u.email, u.is_admin, s.last_seen_at \
+            "SELECT u.id, u.email, u.is_admin, u.locale, s.last_seen_at \
              FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = $1",
         )
         .bind(&token_hash)
@@ -270,6 +525,7 @@ impl Identity {
             id: session.id,
             email: session.email,
             is_admin: session.is_admin,
+            locale: session.locale,
         })
     }
 
@@ -287,6 +543,7 @@ impl Identity {
         tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
         user_id: Uuid,
         now: DateTime<Utc>,
+        lifetime: Duration,
     ) -> Result<IssuedToken, IdentityError> {
         let (token, token_hash) = secret::new_token()?;
         sqlx::query(
@@ -296,7 +553,7 @@ impl Identity {
         .bind(token_hash)
         .bind(user_id)
         .bind(now)
-        .bind(now + self.policy.setup_link_lifetime)
+        .bind(now + lifetime)
         .execute(&mut **tx)
         .await?;
         Ok(IssuedToken(token))
@@ -349,6 +606,7 @@ struct AccountRow {
     id: Uuid,
     email: String,
     is_admin: bool,
+    locale: Locale,
     password_hash: Option<String>,
     failed_sign_ins: i32,
     failed_window_started_at: Option<DateTime<Utc>>,
@@ -361,6 +619,7 @@ impl AccountRow {
             id: self.id,
             email: self.email,
             is_admin: self.is_admin,
+            locale: self.locale,
         }
     }
 }
@@ -370,7 +629,71 @@ struct SessionRow {
     id: Uuid,
     email: String,
     is_admin: bool,
+    locale: Locale,
     last_seen_at: DateTime<Utc>,
+}
+
+#[derive(sqlx::FromRow)]
+struct DueEmail {
+    id: Uuid,
+    kind: String,
+    attempts: i32,
+    user_id: Uuid,
+    email: String,
+    locale: Locale,
+}
+
+async fn queue_email(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    user_id: Uuid,
+    kind: Kind,
+    now: DateTime<Utc>,
+) -> Result<(), IdentityError> {
+    // ON CONFLICT: an email of this kind already waiting covers this request.
+    sqlx::query(
+        "INSERT INTO account_emails (id, user_id, kind, created_at, next_attempt_at) \
+         VALUES ($1, $2, $3, $4, $4) ON CONFLICT DO NOTHING",
+    )
+    .bind(Uuid::new_v4())
+    .bind(user_id)
+    .bind(kind.as_str())
+    .bind(now)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
+/// Marks the user's unused links as spent, so only the newest one works.
+async fn revoke_setup_tokens(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    user_id: Uuid,
+    now: DateTime<Utc>,
+) -> Result<(), IdentityError> {
+    sqlx::query(
+        "UPDATE password_setup_tokens SET used_at = $2 WHERE user_id = $1 AND used_at IS NULL",
+    )
+    .bind(user_id)
+    .bind(now)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
+/// The link a person opens to choose their password.
+pub fn setup_link(public_url: &str, token: &IssuedToken) -> String {
+    format!(
+        "{}{SETUP_PAGE}?token={}",
+        public_url.trim_end_matches('/'),
+        token.expose()
+    )
+}
+
+/// 30 s, 1 min, 2 min… capped at one hour.
+fn retry_delay(attempts: i32) -> Duration {
+    let doublings = u32::try_from(attempts.saturating_sub(1))
+        .unwrap_or(0)
+        .min(16);
+    Duration::seconds((EMAIL_RETRY_BASE_SECONDS << doublings).min(EMAIL_RETRY_MAX_SECONDS))
 }
 
 /// Emails are compared case-insensitively and stored lower-cased.
@@ -445,6 +768,22 @@ mod tests {
         assert!(check_password_rules(&"x".repeat(12)).is_ok());
         assert!(check_password_rules(&"x".repeat(128)).is_ok());
         assert!(check_password_rules(&"x".repeat(129)).is_err());
+    }
+
+    #[test]
+    fn retries_back_off_exponentially_up_to_an_hour() {
+        assert_eq!(retry_delay(1), Duration::seconds(30));
+        assert_eq!(retry_delay(2), Duration::seconds(60));
+        assert_eq!(retry_delay(5), Duration::seconds(480));
+        assert_eq!(retry_delay(9), Duration::hours(1));
+        assert_eq!(retry_delay(i32::MAX), Duration::hours(1));
+    }
+
+    #[test]
+    fn locales_parse_from_their_codes() {
+        assert_eq!("fr".parse::<Locale>().unwrap(), Locale::Fr);
+        assert_eq!(Locale::En.as_str(), "en");
+        assert!("de".parse::<Locale>().is_err());
     }
 
     #[test]

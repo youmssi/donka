@@ -6,11 +6,16 @@ edition.workspace = true
 license-file.workspace = true
 publish = false
 
+[features]
+# Describes public types (Locale) in the API's OpenAPI document.
+openapi = ["dep:utoipa"]
+
 [dependencies]
 argon2 = { workspace = true }
 base64 = { workspace = true }
 chrono = { workspace = true }
 donka-db = { workspace = true }
+donka-mail = { workspace = true }
 getrandom = { workspace = true }
 serde = { workspace = true }
 sha2 = { workspace = true }
@@ -19,6 +24,7 @@ thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 uuid = { workspace = true }
+utoipa = { workspace = true, optional = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
