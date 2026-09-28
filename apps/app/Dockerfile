@@ -1,5 +1,8 @@
 FROM rust:1.94 AS builder
 WORKDIR /src
+# Release version reported by GET /api/v1/version; compiled into the binary.
+ARG SERVICE_VERSION=unknown
+ENV SERVICE_VERSION=$SERVICE_VERSION
 COPY . .
 RUN cargo build --release -p donka-app
 

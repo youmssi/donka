@@ -90,6 +90,14 @@ async fn health_does_not_need_the_database() {
     );
 }
 
+#[tokio::test]
+async fn version_needs_neither_session_nor_database() {
+    let app = without_database();
+    let reply = send(&app.router, get("/api/v1/version", None)).await;
+    assert_eq!(reply.status, StatusCode::OK);
+    assert_eq!(reply.body["version"], donka_app::VERSION);
+}
+
 // --- simulate ---------------------------------------------------------------
 
 #[sqlx::test(migrator = "donka_db::MIGRATOR")]
@@ -255,6 +263,9 @@ async fn openapi_document_describes_the_endpoints() {
         ("/auth/sign-out", "post"),
         ("/auth/me", "get"),
         ("/auth/password-setup", "post"),
+        ("/auth/password-reset", "post"),
+        ("/users/invitations", "post"),
+        ("/version", "get"),
     ] {
         assert!(
             reply.body["paths"][path][method].is_object(),
@@ -262,4 +273,5 @@ async fn openapi_document_describes_the_endpoints() {
         );
     }
     assert!(reply.body["components"]["schemas"]["ErrorBody"].is_object());
+    assert_eq!(reply.body["info"]["version"], donka_app::VERSION);
 }

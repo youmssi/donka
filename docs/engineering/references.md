@@ -22,13 +22,13 @@ did not, and why. Update it when a new practice is taken from them.
 | Lenient parsing of the artifact config: a missing field degrades that field, never the whole config | agent (`data/release_data.rs`) | Rule for the artifact contract (DNK-13, DNK-14) |
 | Exit codes as a documented contract | cli (`README.md`) | Studio startup: exit 2 for operator-fixable failures |
 | Test and local services pinned to maintained images: `pgsty/minio` replaces `minio/minio` (removed from Docker Hub) | donka-runtime tests (DNK-12) | `docker-compose.yml`, `tests/it/support/minio.rs` |
+| `GET /version` from a `SERVICE_VERSION` build argument, also in the OpenAPI `info.version`. Adapted: compiled in with `option_env!` (the agent reads it at runtime, so the environment could misreport it) and answered as JSON `{ version }` so fields can be added | agent (`routes/infra.rs`, `Dockerfile`) | `apps/app/src/lib.rs` (`VERSION`), `apps/app/Dockerfile` |
 | TypeScript `strict` + `noUncheckedIndexedAccess`; Prettier `printWidth: 120`, `singleQuote` | cli (`tsconfig.json`, `.prettierrc`) | `frontend.md` §10 (applies from DNK-6) |
 
 ## Planned (stories in the backlog)
 
 | Practice | Seen in | Story |
 |---|---|---|
-| `GET /version` from a `SERVICE_VERSION` build argument | agent (`routes/infra.rs`, `Dockerfile`) | DNK-26 |
 | Optional OpenTelemetry traces and metrics, off by default | agent (`telemetry.rs`) | DNK-27 |
 | Docker build with a dependency layer that only manifests invalidate | agent (`Dockerfile`) | DNK-28 |
 | Storybook for UI components, used in design review | jdm-editor | DNK-29 |
