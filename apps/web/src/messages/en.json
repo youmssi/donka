@@ -22,7 +22,9 @@
     "saving": "Saving…",
     "previous": "Previous",
     "next": "Next",
-    "pageOf": "{from}–{to} of {total}"
+    "pageOf": "{from}–{to} of {total}",
+    "actions": "Actions",
+    "admin": "Administrator"
   },
   "errors": {
     "INVALID_CREDENTIALS": "Email or password is incorrect.",
@@ -106,7 +108,6 @@
     "archived": "Archived",
     "create": "New project",
     "yourRole": "Your role",
-    "archivedBadge": "Archived",
     "emptyTitle": "No projects yet",
     "emptyAdmin": "Create the first project to start building decisions.",
     "emptyMember": "You are not a member of any project yet. Ask a project owner to add you.",
@@ -120,12 +121,14 @@
     "keyHint": "Used in links and release paths. It cannot change later.",
     "description": "Description",
     "descriptionHint": "Optional. What decisions this project holds.",
-    "creating": "Creating…"
+    "creating": "Creating…",
+    "project": "Project",
+    "archivedOn": "Archived",
+    "created": "{name} was created."
   },
   "project": {
     "settings": "Settings",
     "members": "Members",
-    "key": "Key",
     "archivedNotice": "This project is archived: it is read-only until an owner restores it.",
     "detailsTitle": "Details",
     "detailsDescription": "The key cannot change: releases and links depend on it.",
@@ -144,19 +147,17 @@
     "restoring": "Restoring…",
     "notFoundTitle": "Project not available",
     "backToProjects": "Back to projects",
-    "audit": "Audit log"
+    "audit": "Audit log",
+    "archived": "Project archived.",
+    "restored": "Project restored."
   },
   "members": {
     "title": "Members",
-    "description": "People who can open this project, and what they may do.",
     "you": "you",
     "role": "Role",
-    "roleFor": "Role of {email}",
     "remove": "Remove",
-    "removeFrom": "Remove {email}",
     "removeConfirmTitle": "Remove {email}?",
     "removeConfirm": "They lose access to {project} at once. You can add them again later.",
-    "removing": "Removing…",
     "addTitle": "Add a member",
     "addDescription": "The person needs a Studio account. An administrator invites new people.",
     "email": "Email",
@@ -168,12 +169,23 @@
     "inviteAndAdd": "Invite {email} to Studio and add them",
     "inviting": "Inviting…",
     "invitedAndAdded": "{email} was invited to Studio and added. They receive an email to choose their password.",
-    "noAccountAdmin": "No Studio account uses {email} yet. You can invite them and add them to the project in one step."
+    "noAccountAdmin": "No Studio account uses {email} yet. You can invite them and add them to the project in one step.",
+    "member": "Member",
+    "addedAt": "Added",
+    "emptyTitle": "No members",
+    "empty": "Add the people who work on this project.",
+    "roleChanged": "{email} is now {role}.",
+    "removed": "{email} was removed.",
+    "actionsFor": "Actions for {email}"
   },
   "nav": {
     "label": "Studio sections",
     "projects": "Projects",
-    "people": "People"
+    "people": "People",
+    "workspace": "Workspace",
+    "project": "Project",
+    "switchProject": "Switch project (current: {name})",
+    "allProjects": "All projects"
   },
   "people": {
     "title": "People",
@@ -195,19 +207,23 @@
     "pending": "Invited",
     "admin": "Administrator",
     "errorTitle": "We could not load the accounts",
-    "forbiddenTitle": "Only administrators see this page"
+    "forbiddenTitle": "Only administrators see this page",
+    "person": "Person",
+    "access": "Access",
+    "member": "Member",
+    "status": "Status",
+    "since": "Since",
+    "emptyTitle": "No accounts yet",
+    "empty": "Invite the people who build and approve decisions."
   },
   "audit": {
     "title": "Audit log",
-    "description": "Every change to this project, newest first. Times are in your time zone ({zone}).",
     "ownersOnly": "Only the project's owners can see its audit log.",
     "person": "Person",
     "everyone": "Everyone",
     "formerMember": "A former member",
     "action": "Action",
     "allActions": "All actions",
-    "from": "From",
-    "to": "To",
     "export": "Export CSV",
     "clearFilters": "Clear filters",
     "emptyRange": "The end date is before the start date.",
@@ -215,7 +231,18 @@
     "empty": "Nothing has been recorded for this project yet.",
     "emptyFiltered": "No change matches these filters.",
     "by": "by {email}",
-    "byStudio": "by Studio"
+    "byStudio": "by Studio",
+    "when": "When",
+    "what": "Change",
+    "who": "By",
+    "studio": "Studio",
+    "timeZone": "Times in {zone}",
+    "searchPerson": "Search a person…",
+    "noPerson": "No member matches.",
+    "dates": "Dates",
+    "anyDate": "Any date",
+    "emptyTitle": "Nothing recorded yet",
+    "emptyFilteredTitle": "No matching change"
   },
   "auditActions": {
     "user": {
@@ -247,5 +274,23 @@
     "memberAdded": "Added {person} as {role}",
     "memberRoleChanged": "Changed the role of {person} from {from} to {to}",
     "memberRemoved": "Removed {person} ({role})"
+  },
+  "ui": {
+    "close": "Close",
+    "more": "More",
+    "loading": "Loading",
+    "sidebar": "Navigation",
+    "sidebarDescription": "Studio sections and your account.",
+    "toggleSidebar": "Show or hide the sidebar"
+  },
+  "command": {
+    "open": "Search Studio",
+    "placeholder": "Search or jump to…",
+    "title": "Command menu",
+    "description": "Open a page or project, or change a preference.",
+    "empty": "Nothing matches.",
+    "goTo": "Go to",
+    "preferences": "Preferences",
+    "theme": "Theme: {theme}"
   }
 }

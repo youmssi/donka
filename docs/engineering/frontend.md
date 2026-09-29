@@ -11,8 +11,9 @@ TanStack Query, next-intl, `@gorules/jdm-editor`.
 ```
 apps/web/src/
 ├── app/[locale]/…            # routing only (static export)
-├── components/ui/            # shadcn/ui primitives (Radix), no business logic
+├── components/ui/            # shadcn/ui components from the registry, as published; no business logic
 ├── components/shared/        # cross-cutting helpers and types, used by 2+ modules
+├── modules/workspace/        # the signed-in shell: sidebar, breadcrumb, command menu (composes modules)
 ├── modules/<domain>/         # identity · project · decision · release · approval · audit · decision-log
 │   ├── schema.ts             # CONTRACT  — generated API types + Zod schemas
 │   ├── <domain>.service.ts   # SERVICE   — all calls for the domain; the ONLY place that looks at HTTP statuses
@@ -73,13 +74,17 @@ Dependencies go **one way only**: `app/ → Component → Cache hook → Service
 
 ## 4. Forms
 
-- **TanStack Form + Zod** for every form (ADR-005), the same engine Fieldkit uses. Shared field
-  components (label, hint, error, required marker) in `components/shared/form/`.
+- **TanStack Form + Zod** for every form (ADR-005), rendered with the shadcn `Field` family
+  (`FieldGroup`, `Field`, `FieldLabel`, `FieldDescription`, `FieldError`) as in shadcn's
+  TanStack Form guide. Small wrappers that bind a TanStack field to them live in
+  `components/shared/form/`; no form builds its own label/error markup.
 - The Zod schema is the single source of the form's rules; the server validates again.
 - Errors next to the field, in plain language, after blur or submit. The line under each field is
-  reserved (`TextField`), so an error that appears when the person leaves the last field does not
+  reserved, so an error that appears when the person leaves the last field does not
   move the submit button out from under their pointer (a missed click).
-- Submit disabled while pending; no double submission; never wipe what the user typed on error.
+- Submit disabled while pending, with a `Spinner` in the button; no double submission; never
+  wipe what the user typed on error. A success that leaves the screen as it was is confirmed by a
+  toast (`sonner`); an error stays on the screen, next to what caused it.
 
 ## 5. UI and UX
 
@@ -93,6 +98,32 @@ Studio is a desktop-first work tool (analysts at a desk), but every screen must 
   action), error (what happened, how to retry), success.
 - **Design tokens** (colours, radius, fonts) are CSS variables shared by the shadcn components and
   the antd theme used inside jdm-editor, so the editor matches the shell.
+- **Components come from the shadcn registry** (new-york-v4 sources in `components/ui/`, taken
+  as published; only import paths change). Check the registry before writing markup: a need
+  already covered by a component is built with it. The map below is the default per need:
+
+  | Need | Component |
+  |---|---|
+  | Navigation, sections of the open project | `Sidebar` (+ `Collapsible`), `Breadcrumb` in the header |
+  | Jump anywhere | `Command` dialog (Ctrl/⌘ K) with `Kbd` hints |
+  | Any list of records | data table: `Table` + TanStack Table (`components/shared/data-table`) |
+  | Nothing to show | `Empty` (icon, title, what to do next, the action) |
+  | Loading | `Skeleton` shaped like the content; `Spinner` inside a pending button |
+  | Row actions | `DropdownMenu` on a `…` icon button; destructive ones confirmed by `AlertDialog` |
+  | Create or edit in place | `Dialog` holding a form |
+  | Switch between views of one list | `Tabs` or `ToggleGroup` |
+  | Pick a date range | `Popover` + `Calendar` (`mode="range"`) |
+  | Pick among many (people) | `Popover` + `Command` (combobox) |
+  | Short confirmation | `sonner` toast |
+  | Icon-only button | `Button size="icon-sm"` + `Tooltip` with its name |
+
+- **Dates and times** go through `components/shared/format` only: "13 Nov" in the current year,
+  "13 Nov 2025" otherwise, times "14:05" in the viewer's locale and time zone, the full date and
+  time in a tooltip, relative ("2 h ago") only where recency matters (audit, activity).
+- **Links are short and readable:** a project is addressed by its key (`?p=credit-pme`), never by
+  an id in what a person sees or shares.
+- **Use the width.** Pages fill the space next to the sidebar; tables are compact; no decorative
+  description where the title says it.
 - **Verify visually** before a UI PR is ready: desktop and 390 px, English and French, light and
   dark; attach screenshots.
 

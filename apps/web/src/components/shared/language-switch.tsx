@@ -16,20 +16,25 @@ import {
 import { usePathname, useRouter } from '@/i18n/navigation';
 import { routing, type Locale } from '@/i18n/routing';
 
-const NAMES: Record<Locale, 'english' | 'french'> = { en: 'english', fr: 'french' };
+export const LOCALE_NAMES: Record<Locale, 'english' | 'french'> = { en: 'english', fr: 'french' };
 
-/** Switches language and stays on the same page, query string included. */
-export function LanguageSwitch() {
-  const t = useTranslations('common');
+/** The current language, and a way to change it that stays on the same page, query included. */
+export function useLocaleSwitch() {
   const locale = useLocale();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
-
-  function change(next: string) {
+  const change = (next: string) => {
     const query = searchParams.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { locale: next as Locale });
-  }
+  };
+  return { locale, change };
+}
+
+/** Switches language and stays on the same page, query string included. */
+export function LanguageSwitch() {
+  const t = useTranslations('common');
+  const { locale, change } = useLocaleSwitch();
 
   return (
     <DropdownMenu>
@@ -44,7 +49,7 @@ export function LanguageSwitch() {
         <DropdownMenuRadioGroup value={locale} onValueChange={change}>
           {routing.locales.map((code) => (
             <DropdownMenuRadioItem key={code} value={code} lang={code}>
-              {t(NAMES[code])}
+              {t(LOCALE_NAMES[code])}
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>

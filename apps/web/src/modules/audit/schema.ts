@@ -33,8 +33,9 @@ const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
 /** Midnight at the start of a day in the viewer's time zone, `days` later. */
 function startOfDay(day: string, days = 0): string | undefined {
   if (!DAY.test(day)) return undefined;
-  const [year, month, date] = day.split('-').map(Number) as [number, number, number];
-  return new Date(year, month - 1, date + days).toISOString();
+  const start = dateOf(day);
+  start.setDate(start.getDate() + days);
+  return start.toISOString();
 }
 
 export function toQuery(filters: AuditFilters): AuditQuery {
@@ -73,4 +74,16 @@ export function detail(event: AuditEvent, ...path: string[]): string {
     node = node && typeof node === 'object' ? (node as Record<string, unknown>)[key] : undefined;
   }
   return typeof node === 'string' ? node : '';
+}
+
+/** `YYYY-MM-DD` of a day in the viewer's time zone. */
+export function dayOf(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+/** Midnight of a `YYYY-MM-DD` day in the viewer's time zone. */
+export function dateOf(day: string): Date {
+  const [year, month, date] = day.split('-').map(Number) as [number, number, number];
+  return new Date(year, month - 1, date);
 }

@@ -35,6 +35,13 @@ export function getProject(id: string): Promise<ActionResult<Project>> {
   });
 }
 
+export function getProjectByKey(key: string): Promise<ActionResult<Project>> {
+  return attempt(async () => {
+    const response = await http.get(`projects/by-key/${encodeURIComponent(key)}`);
+    return response.ok ? success(await response.json<Project>()) : failure(response);
+  });
+}
+
 export function updateProject(id: string, values: ProjectDetailsValues): Promise<ActionResult<Project>> {
   return attempt(async () => {
     const response = await http.patch(`projects/${encodeURIComponent(id)}`, { json: values });

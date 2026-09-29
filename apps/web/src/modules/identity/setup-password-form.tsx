@@ -8,6 +8,7 @@ import { useState } from 'react';
 
 import type { ActionError } from '@/components/shared/api';
 import { ErrorAlert } from '@/components/shared/error-alert';
+import { SubmitButton } from '@/components/shared/form/submit-button';
 import { TextField } from '@/components/shared/form/text-field';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -48,8 +49,8 @@ export function SetupPasswordForm() {
     return (
       <Card>
         <CardContent className="grid gap-4">
-          <Alert variant="success" aria-live="polite">
-            <CircleCheck aria-hidden />
+          <Alert aria-live="polite">
+            <CircleCheck aria-hidden className="text-success" />
             <AlertTitle>{t('doneTitle')}</AlertTitle>
             <AlertDescription>{t('done')}</AlertDescription>
           </Alert>
@@ -71,7 +72,7 @@ export function SetupPasswordForm() {
         {token ? (
           <form
             noValidate
-            className="grid gap-2"
+            className="grid gap-4"
             onSubmit={(event) => {
               event.preventDefault();
               void form.handleSubmit();
@@ -100,9 +101,9 @@ export function SetupPasswordForm() {
             </form.Field>
             <form.Subscribe selector={(state) => state.isSubmitting}>
               {(isSubmitting) => (
-                <Button type="submit" disabled={isSubmitting} className="w-full">
-                  {isSubmitting ? t('submitting') : t('submit')}
-                </Button>
+                <SubmitButton pending={isSubmitting} pendingLabel={t('submitting')} className="w-full">
+                  {t('submit')}
+                </SubmitButton>
               )}
             </form.Subscribe>
           </form>

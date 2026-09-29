@@ -897,6 +897,48 @@
         ]
       }
     },
+    "/projects/by-key/{key}": {
+      "get": {
+        "operationId": "get_by_key",
+        "parameters": [
+          {
+            "description": "The project's key, e.g. `credit-pme`.",
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "No such project, or not a member (PROJECT_NOT_FOUND)"
+          }
+        },
+        "summary": "A project the signed-in user is a member of, found by its key: the web app\naddresses projects by key so its links stay short and readable.",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
     "/projects/{project_id}": {
       "get": {
         "operationId": "get",

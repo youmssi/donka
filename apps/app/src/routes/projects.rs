@@ -2,7 +2,7 @@ use crate::auth::CurrentUser;
 use crate::error::{ApiError, ErrorBody};
 use crate::extract::{ApiJson, MemberId, ProjectAccess};
 use crate::AppState;
-use axum::extract::{Query, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::{Extension, Json};
 use chrono::{DateTime, Utc};
@@ -238,6 +238,28 @@ pub async fn get(
     State(state): State<AppState>,
     ProjectAccess(access): ProjectAccess,
 ) -> Result<Json<ProjectResponse>, ApiError> {
+    let project = state.projects.get(&access).await?;
+    Ok(Json(ProjectResponse::new(project, access.role())))
+}
+
+/// A project the signed-in user is a member of, found by its key: the web app
+/// addresses projects by key so its links stay short and readable.
+#[utoipa::path(
+    get,
+    path = "/projects/by-key/{key}",
+    tag = "projects",
+    params(("key" = String, Path, description = "The project's key, e.g. `credit-pme`.")),
+    responses(
+        (status = 200, body = ProjectResponse),
+        (status = 404, description = "No such project, or not a member (PROJECT_NOT_FOUND)", body = ErrorBody),
+    )
+)]
+pub async fn get_by_key(
+    State(state): State<AppState>,
+    Extension(current): Extension<CurrentUser>,
+    Path(key): Path<String>,
+) -> Result<Json<ProjectResponse>, ApiError> {
+    let access = state.projects.access_by_key(current.user.id, &key).await?;
     let project = state.projects.get(&access).await?;
     Ok(Json(ProjectResponse::new(project, access.role())))
 }

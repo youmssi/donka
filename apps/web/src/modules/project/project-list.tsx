@@ -4,125 +4,137 @@ import { Archive, FolderOpen } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
+import { DataTable, type DataTableColumn } from '@/components/shared/data-table';
 import { ErrorAlert } from '@/components/shared/error-alert';
-import { PageSkeleton } from '@/components/shared/page-skeleton';
-import { Pager } from '@/components/shared/pager';
-import { cn } from '@/components/shared/utils';
-import { Badge } from '@/components/ui/badge';
+import { When } from '@/components/shared/format';
+import { PageHeader } from '@/components/shared/layout/page-header';
 import { Button } from '@/components/ui/button';
-import { Link } from '@/i18n/navigation';
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Link, useRouter } from '@/i18n/navigation';
 import { useCurrentUser } from '@/modules/identity';
 
 import { CreateProjectDialog } from './create-project-dialog';
+import { projectHref } from './links';
 import { PAGE_SIZE } from './project.service';
 import { RoleBadge } from './role-badge';
+import type { ProjectSummary } from './schema';
 import { useProjectList } from './useProjects';
+
+type View = 'active' | 'archived';
+
+const viewHref = (view: View, offset = 0) => {
+  const params = new URLSearchParams(view === 'archived' ? { view } : {});
+  if (offset) params.set('offset', String(offset));
+  const query = params.toString();
+  return query ? `/?${query}` : '/';
+};
 
 /** The projects the signed-in user belongs to (`?view=archived` for archived ones). */
 export function ProjectListPage() {
   const t = useTranslations('projects');
   const common = useTranslations('common');
   const user = useCurrentUser();
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const archived = searchParams.get('view') === 'archived';
+  const view: View = searchParams.get('view') === 'archived' ? 'archived' : 'active';
   const offset = Math.max(0, Number(searchParams.get('offset')) || 0);
-  const list = useProjectList(archived, offset);
+  const list = useProjectList(view === 'archived', offset);
   const result = list.data;
 
-  const view = (value: 'active' | 'archived') => (value === 'archived' ? '/?view=archived' : '/');
+  const columns: DataTableColumn<ProjectSummary>[] = [
+    {
+      id: 'project',
+      header: t('project'),
+      cell: ({ row }) => (
+        <div className="grid min-w-0 gap-0.5">
+          <Link
+            href={projectHref('members', row.original.key)}
+            className="w-fit font-medium underline-offset-4 hover:underline"
+          >
+            {row.original.name}
+          </Link>
+          {row.original.description ? (
+            <span className="line-clamp-1 max-w-xl text-sm text-muted-foreground">{row.original.description}</span>
+          ) : null}
+        </div>
+      ),
+      meta: { className: 'whitespace-normal' },
+    },
+    {
+      id: 'key',
+      header: t('key'),
+      cell: ({ row }) => <code className="font-mono text-xs text-muted-foreground">{row.original.key}</code>,
+      meta: { className: 'hidden sm:table-cell' },
+    },
+    ...(view === 'archived'
+      ? [
+          {
+            id: 'archivedAt',
+            header: t('archivedOn'),
+            cell: ({ row }) => (row.original.archivedAt ? <When value={row.original.archivedAt} /> : null),
+            meta: { className: 'hidden text-muted-foreground md:table-cell' },
+          } satisfies DataTableColumn<ProjectSummary>,
+        ]
+      : []),
+    {
+      id: 'role',
+      header: t('yourRole'),
+      cell: ({ row }) => <RoleBadge role={row.original.role} />,
+      meta: { className: 'w-32' },
+    },
+  ];
 
   return (
-    <div className="grid gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
-        {user.isAdmin ? <CreateProjectDialog /> : null}
-      </div>
-
-      <nav aria-label={t('title')} className="flex gap-1 border-b">
-        {(['active', 'archived'] as const).map((value) => {
-          const current = (value === 'archived') === archived;
-          return (
-            <Link
-              key={value}
-              href={view(value)}
-              aria-current={current ? 'page' : undefined}
-              className={cn(
-                '-mb-px border-b-2 px-3 py-2 text-sm font-medium',
-                current
-                  ? 'border-primary text-foreground'
-                  : 'border-transparent text-muted-foreground hover:text-foreground',
-              )}
-            >
-              {t(value)}
-            </Link>
-          );
-        })}
-      </nav>
-
-      {!result ? (
-        <PageSkeleton />
-      ) : !result.ok ? (
-        <ErrorAlert
-          error={result.error}
-          title={t('errorTitle')}
-          action={
-            <Button variant="outline" size="sm" className="mt-2" onClick={() => void list.refetch()}>
-              {common('retry')}
-            </Button>
-          }
-        />
-      ) : result.data.items.length === 0 ? (
-        <section className="grid place-items-center gap-3 rounded-xl border border-dashed px-6 py-12 text-center">
-          {archived ? (
-            <Archive className="size-8 text-muted-foreground" aria-hidden />
-          ) : (
-            <FolderOpen className="size-8 text-muted-foreground" aria-hidden />
-          )}
-          <h2 className="font-medium">{archived ? t('emptyArchivedTitle') : t('emptyTitle')}</h2>
-          <p className="max-w-md text-sm text-muted-foreground">
-            {archived ? t('emptyArchived') : user.isAdmin ? t('emptyAdmin') : t('emptyMember')}
-          </p>
-          {!archived && user.isAdmin ? <CreateProjectDialog /> : null}
-        </section>
-      ) : (
-        <>
-          <ul className="grid gap-3">
-            {result.data.items.map((project) => (
-              <li key={project.id}>
-                <Link
-                  href={`/projects/settings?id=${project.id}`}
-                  className="grid gap-1 rounded-xl border bg-card p-4 transition-colors hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-                >
-                  <span className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium">{project.name}</span>
-                    <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
-                      {project.key}
-                    </code>
-                    <span className="ml-auto flex items-center gap-2">
-                      {project.archivedAt ? <Badge variant="outline">{t('archivedBadge')}</Badge> : null}
-                      <span className="sr-only">{t('yourRole')}:</span>
-                      <RoleBadge role={project.role} />
-                    </span>
-                  </span>
-                  {project.description ? (
-                    <span className="line-clamp-2 text-sm text-muted-foreground">{project.description}</span>
-                  ) : null}
-                </Link>
-              </li>
-            ))}
-          </ul>
-          {result.data.total > PAGE_SIZE ? (
-            <Pager
-              hrefFor={(next) =>
-                `/?${new URLSearchParams({ ...(archived ? { view: 'archived' } : {}), offset: String(next) })}`
+    <div className="grid gap-4">
+      <PageHeader title={t('title')} actions={user.isAdmin ? <CreateProjectDialog /> : null} />
+      <Tabs value={view} onValueChange={(next) => router.replace(viewHref(next as View))}>
+        <TabsList>
+          <TabsTrigger value="active">{t('active')}</TabsTrigger>
+          <TabsTrigger value="archived">{t('archived')}</TabsTrigger>
+        </TabsList>
+        <TabsContent value={view} className="mt-2">
+          {result && !result.ok ? (
+            <ErrorAlert
+              error={result.error}
+              title={t('errorTitle')}
+              action={
+                <Button variant="outline" size="sm" className="mt-2" onClick={() => void list.refetch()}>
+                  {common('retry')}
+                </Button>
               }
-              offset={offset}
-              pageSize={PAGE_SIZE}
-              total={result.data.total}
             />
-          ) : null}
-        </>
-      )}
+          ) : (
+            <DataTable
+              label={t('title')}
+              columns={columns}
+              data={result?.data.items}
+              getRowId={(project) => project.id}
+              pagination={
+                result
+                  ? { offset, pageSize: PAGE_SIZE, total: result.data.total, hrefFor: (next) => viewHref(view, next) }
+                  : undefined
+              }
+              empty={
+                <Empty className="border border-dashed">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">{view === 'archived' ? <Archive /> : <FolderOpen />}</EmptyMedia>
+                    <EmptyTitle>{view === 'archived' ? t('emptyArchivedTitle') : t('emptyTitle')}</EmptyTitle>
+                    <EmptyDescription>
+                      {view === 'archived' ? t('emptyArchived') : user.isAdmin ? t('emptyAdmin') : t('emptyMember')}
+                    </EmptyDescription>
+                  </EmptyHeader>
+                  {view === 'active' && user.isAdmin ? (
+                    <EmptyContent>
+                      <CreateProjectDialog />
+                    </EmptyContent>
+                  ) : null}
+                </Empty>
+              }
+            />
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

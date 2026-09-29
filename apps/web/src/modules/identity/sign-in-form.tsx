@@ -8,10 +8,10 @@ import { useEffect, useState } from 'react';
 
 import type { ActionError } from '@/components/shared/api';
 import { ErrorAlert } from '@/components/shared/error-alert';
+import { SubmitButton } from '@/components/shared/form/submit-button';
 import { TextField } from '@/components/shared/form/text-field';
 import { PageSkeleton } from '@/components/shared/page-skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Link, useRouter } from '@/i18n/navigation';
 
@@ -54,15 +54,15 @@ export function SignInForm() {
       <CardContent>
         <form
           noValidate
-          className="grid gap-2"
+          className="grid gap-4"
           onSubmit={(event) => {
             event.preventDefault();
             void form.handleSubmit();
           }}
         >
           {searchParams.get('signedOut') && !error ? (
-            <Alert variant="success">
-              <CircleCheck aria-hidden />
+            <Alert>
+              <CircleCheck aria-hidden className="text-success" />
               <AlertDescription>{t('signedOut')}</AlertDescription>
             </Alert>
           ) : null}
@@ -79,9 +79,9 @@ export function SignInForm() {
           </form.Field>
           <form.Subscribe selector={(state) => state.isSubmitting}>
             {(isSubmitting) => (
-              <Button type="submit" disabled={isSubmitting} className="w-full">
-                {isSubmitting ? t('submitting') : t('submit')}
-              </Button>
+              <SubmitButton pending={isSubmitting} pendingLabel={t('submitting')} className="w-full">
+                {t('submit')}
+              </SubmitButton>
             )}
           </form.Subscribe>
           <Link

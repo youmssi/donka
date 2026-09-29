@@ -1,12 +1,13 @@
 'use client';
 
 import { useForm } from '@tanstack/react-form';
-import { CircleCheck } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
+import { toast } from 'sonner';
 
 import type { ActionError } from '@/components/shared/api';
 import { ErrorAlert } from '@/components/shared/error-alert';
+import { SubmitButton } from '@/components/shared/form/submit-button';
 import { TextField } from '@/components/shared/form/text-field';
 import {
   AlertDialog,
@@ -19,22 +20,23 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { FieldGroup } from '@/components/ui/field';
+import { Spinner } from '@/components/ui/spinner';
 
 import { ProjectFrame } from './project-frame';
 import { DESCRIPTION_MAX, NAME_MAX, projectDetailsSchema, type Project } from './schema';
 import { useSetArchived, useUpdateProject } from './useProjects';
 
 export function ProjectSettingsPage() {
-  return <ProjectFrame tab="settings">{(project) => <Settings project={project} />}</ProjectFrame>;
+  return <ProjectFrame section="settings">{(project) => <Settings project={project} />}</ProjectFrame>;
 }
 
 function Settings({ project }: { project: Project }) {
   const isOwner = project.role === 'owner';
   return (
-    <div className="grid gap-6">
+    <div className="grid items-start gap-6 lg:grid-cols-3">
       {/* Keyed by the archive state: archiving or restoring starts the form afresh. */}
       <Details key={project.archivedAt ?? 'active'} project={project} />
       {isOwner ? <ArchiveSection project={project} /> : null}
@@ -50,22 +52,20 @@ function Details({ project }: { project: Project }) {
   const common = useTranslations('common');
   const update = useUpdateProject(project.id);
   const [error, setError] = useState<ActionError | null>(null);
-  const [saved, setSaved] = useState(false);
 
   const form = useForm({
     defaultValues: { name: project.name, description: project.description },
     validators: { onBlur: projectDetailsSchema, onSubmit: projectDetailsSchema },
     onSubmit: async ({ value }) => {
       setError(null);
-      setSaved(false);
       const result = await update.mutateAsync(value);
-      if (result.ok) setSaved(true);
+      if (result.ok) toast.success(t('saved'));
       else setError(result.error);
     },
   });
 
   return (
-    <Card>
+    <Card className="lg:col-span-2">
       <CardHeader>
         <CardTitle>{t('detailsTitle')}</CardTitle>
         <CardDescription>
@@ -75,47 +75,43 @@ function Details({ project }: { project: Project }) {
       <CardContent>
         <form
           noValidate
-          className="grid max-w-xl gap-2"
+          className="grid gap-4"
           onSubmit={(event) => {
             event.preventDefault();
             void form.handleSubmit();
           }}
         >
           {error ? <ErrorAlert error={error} /> : null}
-          {saved ? (
-            <Alert variant="success" aria-live="polite">
-              <CircleCheck aria-hidden />
-              <AlertDescription>{t('saved')}</AlertDescription>
-            </Alert>
-          ) : null}
-          <form.Field name="name">
-            {(field) => (
-              <TextField
-                field={field}
-                label={fields('name')}
-                required
-                disabled={!editable}
-                messageValues={{ max: NAME_MAX }}
-              />
-            )}
-          </form.Field>
-          <form.Field name="description">
-            {(field) => (
-              <TextField
-                field={field}
-                label={fields('description')}
-                multiline
-                disabled={!editable}
-                messageValues={{ max: DESCRIPTION_MAX }}
-              />
-            )}
-          </form.Field>
+          <FieldGroup className="gap-2">
+            <form.Field name="name">
+              {(field) => (
+                <TextField
+                  field={field}
+                  label={fields('name')}
+                  required
+                  disabled={!editable}
+                  messageValues={{ max: NAME_MAX }}
+                />
+              )}
+            </form.Field>
+            <form.Field name="description">
+              {(field) => (
+                <TextField
+                  field={field}
+                  label={fields('description')}
+                  multiline
+                  disabled={!editable}
+                  messageValues={{ max: DESCRIPTION_MAX }}
+                />
+              )}
+            </form.Field>
+          </FieldGroup>
           {editable ? (
             <form.Subscribe selector={(state) => state.isSubmitting}>
               {(isSubmitting) => (
-                <Button type="submit" disabled={isSubmitting} className="w-fit">
-                  {isSubmitting ? common('saving') : common('save')}
-                </Button>
+                <SubmitButton pending={isSubmitting} pendingLabel={common('saving')} className="w-fit">
+                  {common('save')}
+                </SubmitButton>
               )}
             </form.Subscribe>
           ) : null}
@@ -135,7 +131,8 @@ function ArchiveSection({ project }: { project: Project }) {
   async function apply(next: boolean) {
     setError(null);
     const result = await setArchived.mutateAsync(next);
-    if (!result.ok) setError(result.error);
+    if (result.ok) toast.success(next ? t('archived') : t('restored'));
+    else setError(result.error);
   }
 
   return (
@@ -153,12 +150,14 @@ function ArchiveSection({ project }: { project: Project }) {
             disabled={setArchived.isPending}
             onClick={() => void apply(false)}
           >
+            {setArchived.isPending ? <Spinner /> : null}
             {setArchived.isPending ? t('restoring') : t('restore')}
           </Button>
         ) : (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="outline" className="w-fit" disabled={setArchived.isPending}>
+                {setArchived.isPending ? <Spinner /> : null}
                 {setArchived.isPending ? t('archiving') : t('archive')}
               </Button>
             </AlertDialogTrigger>

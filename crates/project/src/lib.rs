@@ -251,6 +251,25 @@ impl Projects {
         })
     }
 
+    /// The user's access to the project with this key; `NotFound` when there is
+    /// none or they are not a member, as for [`Self::access`].
+    pub async fn access_by_key(&self, user: Uuid, key: &str) -> Result<Access, ProjectError> {
+        let found: Option<(Uuid, Role)> = sqlx::query_as(
+            "SELECT m.project_id, m.role FROM project_members m \
+             JOIN projects p ON p.id = m.project_id WHERE p.key = $1 AND m.user_id = $2",
+        )
+        .bind(key)
+        .bind(user)
+        .fetch_optional(&self.pool)
+        .await?;
+        let (project_id, role) = found.ok_or(ProjectError::NotFound)?;
+        Ok(Access {
+            project_id,
+            user_id: user,
+            role,
+        })
+    }
+
     pub async fn get(&self, access: &Access) -> Result<Project, ProjectError> {
         sqlx::query_as(
             "SELECT id, key, name, description, created_at, archived_at FROM projects WHERE id = $1",

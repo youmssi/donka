@@ -208,6 +208,23 @@ async fn a_member_of_one_project_cannot_read_or_change_another(db: PgPool) {
     let reply = call(&app, "GET", "/projects/not-a-uuid", None, &grace).await;
     assert_error(&reply, StatusCode::NOT_FOUND, "PROJECT_NOT_FOUND");
 
+    // By key: a member finds their project, another project's key looks missing.
+    let by_key = call(&app, "GET", "/projects/by-key/project-a", None, &grace).await;
+    assert_eq!(by_key.status, StatusCode::OK, "{}", by_key.body);
+    assert_eq!(by_key.body["id"], a.as_str());
+    assert_eq!(by_key.body["role"], "owner");
+    for key in ["project-b", "no-such-project"] {
+        let reply = call(
+            &app,
+            "GET",
+            &format!("/projects/by-key/{key}"),
+            None,
+            &grace,
+        )
+        .await;
+        assert_error(&reply, StatusCode::NOT_FOUND, "PROJECT_NOT_FOUND");
+    }
+
     // B is untouched.
     let b_now = call(&app, "GET", &format!("/projects/{b}"), None, &admin).await;
     assert_eq!(b_now.body["name"], "Project project-b");

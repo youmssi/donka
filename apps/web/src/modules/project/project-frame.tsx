@@ -3,33 +3,50 @@
 import { Archive } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 
 import { ErrorAlert } from '@/components/shared/error-alert';
+import { PageHeader } from '@/components/shared/layout/page-header';
 import { PageSkeleton } from '@/components/shared/page-skeleton';
-import { cn } from '@/components/shared/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Link } from '@/i18n/navigation';
+import { Link, useRouter } from '@/i18n/navigation';
 
+import { projectHref, type ProjectSection } from './links';
 import { RoleBadge } from './role-badge';
 import type { Project } from './schema';
-import { useProject } from './useProjects';
+import { useOpenProject } from './useProjects';
 
-type Tab = 'settings' | 'members' | 'audit';
+interface ProjectFrameProps {
+  section: ProjectSection;
+  /** Buttons next to the page title (add a member, export…). */
+  actions?: (project: Project) => ReactNode;
+  children: (project: Project) => ReactNode;
+}
 
 /**
- * Header and tabs of a project page. The project comes from `?id=`; when it
- * cannot be shown (not a member, or gone), the page says so and links back.
+ * A page of one project. The project comes from `?p=<key>`; when it cannot be
+ * shown (not a member, or gone), the page says so and links back. The project's
+ * name and sections are in the sidebar and breadcrumb, so the title names the
+ * section.
  */
-export function ProjectFrame({ tab, children }: { tab: Tab; children: (project: Project) => ReactNode }) {
+export function ProjectFrame({ section, actions, children }: ProjectFrameProps) {
   const t = useTranslations('project');
   const common = useTranslations('common');
-  const id = useSearchParams().get('id') ?? '';
-  const query = useProject(id);
+  const { requested, legacyId, query } = useOpenProject();
   const result = query.data;
+  const params = useSearchParams();
+  const router = useRouter();
 
-  if (!id) return <Unavailable />;
+  // A link made with the project's id becomes the short one, filters kept.
+  const key = result?.ok ? result.data.key : null;
+  useEffect(() => {
+    if (!legacyId || !key) return;
+    const rest = Object.fromEntries([...params].filter(([name]) => name !== 'id'));
+    router.replace(projectHref(section, key, rest));
+  }, [legacyId, key, params, router, section]);
+
+  if (!requested) return <Unavailable />;
   if (!result) return <PageSkeleton />;
   if (!result.ok) {
     if (result.error.code === 'PROJECT_NOT_FOUND') return <Unavailable />;
@@ -48,50 +65,16 @@ export function ProjectFrame({ tab, children }: { tab: Tab; children: (project: 
   const project = result.data;
   return (
     <div className="grid gap-6">
-      <header className="grid gap-2">
-        <Link href="/" className="w-fit text-sm text-muted-foreground hover:text-foreground">
-          ← {t('backToProjects')}
-        </Link>
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">{project.name}</h1>
-          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
-            <span className="sr-only">{t('key')}: </span>
-            {project.key}
-          </code>
-          <RoleBadge role={project.role} />
-        </div>
-      </header>
+      <PageHeader title={t(section)} badges={<RoleBadge role={project.role} />} actions={actions?.(project)} />
       {project.archivedAt ? (
         <Alert>
           <Archive aria-hidden />
           <AlertDescription>{t('archivedNotice')}</AlertDescription>
         </Alert>
       ) : null}
-      <nav aria-label={project.name} className="flex gap-1 border-b">
-        {tabs(project).map((value) => (
-          <Link
-            key={value}
-            href={`/projects/${value}?id=${project.id}`}
-            aria-current={value === tab ? 'page' : undefined}
-            className={cn(
-              '-mb-px border-b-2 px-3 py-2 text-sm font-medium',
-              value === tab
-                ? 'border-primary text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground',
-            )}
-          >
-            {t(value)}
-          </Link>
-        ))}
-      </nav>
       {children(project)}
     </div>
   );
-}
-
-/** The audit log is for owners only. */
-function tabs(project: Project): Tab[] {
-  return project.role === 'owner' ? ['settings', 'members', 'audit'] : ['settings', 'members'];
 }
 
 function Unavailable() {

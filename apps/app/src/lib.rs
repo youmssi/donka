@@ -84,6 +84,7 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
         .routes(routes!(routes::users::list))
         .routes(routes!(routes::projects::list, routes::projects::create))
         .routes(routes!(routes::projects::get, routes::projects::update))
+        .routes(routes!(routes::projects::get_by_key))
         .routes(routes!(routes::projects::archive))
         .routes(routes!(routes::projects::restore))
         .routes(routes!(

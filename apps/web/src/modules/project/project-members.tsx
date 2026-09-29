@@ -1,15 +1,15 @@
 'use client';
 
-import { useForm } from '@tanstack/react-form';
-import { CircleCheck, UserPlus } from 'lucide-react';
+import { MoreHorizontal, UserMinus, Users } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useId, useState } from 'react';
+import { useState } from 'react';
+import { toast } from 'sonner';
 
 import type { ActionError } from '@/components/shared/api';
+import { DataTable, type DataTableColumn } from '@/components/shared/data-table';
 import { ErrorAlert } from '@/components/shared/error-alert';
-import { TextField } from '@/components/shared/form/text-field';
-import { PageSkeleton } from '@/components/shared/page-skeleton';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { When } from '@/components/shared/format';
+import { Person } from '@/components/shared/person';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,276 +19,189 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { useCurrentUser } from '@/modules/identity';
-import { useInvite } from '@/modules/people';
 
+import { AddMemberDialog } from './add-member-dialog';
 import { ProjectFrame } from './project-frame';
 import { RoleBadge } from './role-badge';
-import { addMemberSchema, ROLES, type AddMemberValues, type Member, type Project, type Role } from './schema';
-import { useAddMember, useChangeRole, useMembers, useRemoveMember } from './useProjects';
+import { ROLES, type Member, type Project, type Role } from './schema';
+import { useChangeRole, useMembers, useRemoveMember } from './useProjects';
 
 export function ProjectMembersPage() {
-  return <ProjectFrame tab="members">{(project) => <Members project={project} />}</ProjectFrame>;
+  return (
+    <ProjectFrame
+      section="members"
+      // Owners manage members of an active project; everyone else reads.
+      actions={(project) => (canManage(project) ? <AddMemberDialog project={project} /> : null)}
+    >
+      {(project) => <Members project={project} />}
+    </ProjectFrame>
+  );
+}
+
+function canManage(project: Project): boolean {
+  return project.role === 'owner' && !project.archivedAt;
 }
 
 function Members({ project }: { project: Project }) {
   const t = useTranslations('members');
   const common = useTranslations('common');
+  const me = useCurrentUser();
   const query = useMembers(project.id);
   const result = query.data;
-  // Owners manage members of an active project; everyone else reads.
-  const canManage = project.role === 'owner' && !project.archivedAt;
   const [error, setError] = useState<ActionError | null>(null);
+  const manage = canManage(project);
+
+  if (result && !result.ok) {
+    return (
+      <ErrorAlert
+        error={result.error}
+        title={t('errorTitle')}
+        action={
+          <Button variant="outline" size="sm" className="mt-2" onClick={() => void query.refetch()}>
+            {common('retry')}
+          </Button>
+        }
+      />
+    );
+  }
+
+  const columns: DataTableColumn<Member>[] = [
+    {
+      id: 'member',
+      header: t('member'),
+      cell: ({ row }) => (
+        <Person email={row.original.email} note={row.original.userId === me.id ? `(${t('you')})` : undefined} />
+      ),
+      // Takes the room left, and truncates the email on a phone so the actions stay visible.
+      meta: { className: 'w-full max-w-0' },
+    },
+    { id: 'role', header: t('role'), cell: ({ row }) => <RoleBadge role={row.original.role} /> },
+    {
+      id: 'added',
+      header: t('addedAt'),
+      cell: ({ row }) => <When value={row.original.addedAt} />,
+      meta: { className: 'hidden text-muted-foreground sm:table-cell' },
+    },
+    ...(manage
+      ? [
+          {
+            id: 'actions',
+            header: () => <span className="sr-only">{common('actions')}</span>,
+            cell: ({ row }) => <MemberActions project={project} member={row.original} onError={setError} />,
+            meta: { className: 'w-12 text-right' },
+          } satisfies DataTableColumn<Member>,
+        ]
+      : []),
+  ];
 
   return (
-    <div className="grid gap-6">
-      {canManage ? <AddMember project={project} /> : null}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('title')}</CardTitle>
-          <CardDescription>{canManage ? t('description') : t('readOnly')}</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          {error ? <ErrorAlert error={error} /> : null}
-          {!result ? (
-            <PageSkeleton />
-          ) : !result.ok ? (
-            <ErrorAlert
-              error={result.error}
-              title={t('errorTitle')}
-              action={
-                <Button variant="outline" size="sm" className="mt-2" onClick={() => void query.refetch()}>
-                  {common('retry')}
-                </Button>
-              }
-            />
-          ) : (
-            <ul className="divide-y">
-              {result.data.map((member) => (
-                <MemberRow
-                  key={member.userId}
-                  project={project}
-                  member={member}
-                  canManage={canManage}
-                  onError={setError}
-                />
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+    <div className="grid gap-4">
+      {manage ? null : <p className="text-sm text-muted-foreground">{t('readOnly')}</p>}
+      {error ? <ErrorAlert error={error} /> : null}
+      <DataTable
+        label={t('title')}
+        columns={columns}
+        data={result?.data}
+        getRowId={(member) => member.userId}
+        empty={
+          <Empty className="border">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Users />
+              </EmptyMedia>
+              <EmptyTitle>{t('emptyTitle')}</EmptyTitle>
+              <EmptyDescription>{t('empty')}</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        }
+      />
     </div>
   );
 }
 
-function MemberRow({
+function MemberActions({
   project,
   member,
-  canManage,
   onError,
 }: {
   project: Project;
   member: Member;
-  canManage: boolean;
   onError: (error: ActionError | null) => void;
 }) {
   const t = useTranslations('members');
   const roles = useTranslations('roles');
   const common = useTranslations('common');
-  const me = useCurrentUser();
   const changeRole = useChangeRole(project.id);
   const remove = useRemoveMember(project.id);
-  const isMe = member.userId === me.id;
+  const [confirming, setConfirming] = useState(false);
 
   async function onRole(role: string) {
+    if (role === member.role) return;
     onError(null);
     const result = await changeRole.mutateAsync({ userId: member.userId, role: role as Role });
-    if (!result.ok) onError(result.error);
+    if (result.ok) toast.success(t('roleChanged', { email: member.email, role: roles(role as Role) }));
+    else onError(result.error);
   }
 
   async function onRemove() {
     onError(null);
     const result = await remove.mutateAsync(member.userId);
-    if (!result.ok) onError(result.error);
+    if (result.ok) toast.success(t('removed', { email: member.email }));
+    else onError(result.error);
   }
 
   return (
-    <li className="flex flex-wrap items-center gap-3 py-3">
-      <span className="min-w-0 flex-1 truncate">
-        {member.email}
-        {isMe ? <span className="text-muted-foreground"> ({t('you')})</span> : null}
-      </span>
-      {canManage ? (
-        <>
-          <Select value={member.role} onValueChange={(role) => void onRole(role)} disabled={changeRole.isPending}>
-            <SelectTrigger className="w-36" aria-label={t('roleFor', { email: member.email })}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {ROLES.map((role) => (
-                <SelectItem key={role} value={role}>
-                  {roles(role)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={remove.isPending}
-                aria-label={t('removeFrom', { email: member.email })}
-              >
-                {remove.isPending ? t('removing') : t('remove')}
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>{t('removeConfirmTitle', { email: member.email })}</AlertDialogTitle>
-                <AlertDialogDescription>{t('removeConfirm', { project: project.name })}</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>{common('cancel')}</AlertDialogCancel>
-                <AlertDialogAction onClick={() => void onRemove()}>{t('remove')}</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </>
-      ) : (
-        <RoleBadge role={member.role} />
-      )}
-    </li>
-  );
-}
-
-function AddMember({ project }: { project: Project }) {
-  const t = useTranslations('members');
-  const roles = useTranslations('roles');
-  const me = useCurrentUser();
-  const add = useAddMember(project.id);
-  const invite = useInvite();
-  const roleId = useId();
-  const [error, setError] = useState<ActionError | null>(null);
-  const [added, setAdded] = useState<string | null>(null);
-  // What was last tried: an administrator can invite that unknown email and add it.
-  const [attempt, setAttempt] = useState<AddMemberValues | null>(null);
-
-  async function inviteAndAdd(values: AddMemberValues) {
-    setError(null);
-    const invited = await invite.mutateAsync({ email: values.email, locale: me.locale, isAdmin: false });
-    if (!invited.ok) {
-      setError(invited.error);
-      return;
-    }
-    const result = await add.mutateAsync(values);
-    if (result.ok) {
-      setAdded(t('invitedAndAdded', { email: result.data.email }));
-      setAttempt(null);
-      form.reset();
-    } else {
-      setError(result.error);
-    }
-  }
-
-  const form = useForm({
-    defaultValues: { email: '', role: 'viewer' } as AddMemberValues,
-    validators: { onSubmit: addMemberSchema },
-    onSubmit: async ({ value, formApi }) => {
-      setError(null);
-      setAdded(null);
-      setAttempt(value);
-      const result = await add.mutateAsync(value);
-      if (result.ok) {
-        setAdded(t('added', { email: result.data.email }));
-        formApi.reset();
-      } else {
-        setError(result.error);
-      }
-    },
-  });
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t('addTitle')}</CardTitle>
-        <CardDescription>{t('addDescription')}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form
-          noValidate
-          className="grid gap-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void form.handleSubmit();
-          }}
-        >
-          {error?.code === 'NO_SUCH_USER' && me.isAdmin && attempt ? (
-            // An administrator can fix this themselves: offer it instead of "ask an administrator".
-            <Alert>
-              <UserPlus aria-hidden />
-              <AlertDescription>
-                <p>{t('noAccountAdmin', { email: attempt.email.trim() })}</p>
-                <Button
-                  type="button"
-                  size="sm"
-                  className="mt-2"
-                  disabled={invite.isPending || add.isPending}
-                  onClick={() => void inviteAndAdd(attempt)}
-                >
-                  {invite.isPending ? t('inviting') : t('inviteAndAdd', { email: attempt.email.trim() })}
-                </Button>
-              </AlertDescription>
-            </Alert>
-          ) : error ? (
-            <ErrorAlert error={error} />
-          ) : null}
-          {added ? (
-            <Alert variant="success" aria-live="polite">
-              <CircleCheck aria-hidden />
-              <AlertDescription>{added}</AlertDescription>
-            </Alert>
-          ) : null}
-          <div className="grid gap-2 sm:grid-cols-[1fr_12rem_auto] sm:items-start">
-            <form.Field name="email">
-              {(field) => <TextField field={field} label={t('email')} type="email" autoComplete="off" required />}
-            </form.Field>
-            <form.Field name="role">
-              {(field) => (
-                <div className="grid gap-1.5">
-                  <Label htmlFor={roleId}>{t('role')}</Label>
-                  <Select value={field.state.value} onValueChange={(role) => field.handleChange(role as Role)}>
-                    <SelectTrigger id={roleId}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ROLES.map((role) => (
-                        <SelectItem key={role} value={role}>
-                          {roles(role)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="min-h-5 text-xs text-muted-foreground">{roles(`${field.state.value}Hint`)}</p>
-                </div>
-              )}
-            </form.Field>
-            <form.Subscribe selector={(state) => state.isSubmitting}>
-              {(isSubmitting) => (
-                <Button type="submit" disabled={isSubmitting} className="sm:mt-5.5">
-                  {isSubmitting ? t('adding') : t('add')}
-                </Button>
-              )}
-            </form.Subscribe>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon-sm" aria-label={t('actionsFor', { email: member.email })}>
+            <MoreHorizontal aria-hidden />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-52">
+          <DropdownMenuLabel>{t('role')}</DropdownMenuLabel>
+          <DropdownMenuRadioGroup value={member.role} onValueChange={(role) => void onRole(role)}>
+            {ROLES.map((role) => (
+              <DropdownMenuRadioItem key={role} value={role} disabled={changeRole.isPending}>
+                {roles(role)}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onSelect={() => setConfirming(true)}>
+            <UserMinus aria-hidden />
+            {t('remove')}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <AlertDialog open={confirming} onOpenChange={setConfirming}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('removeConfirmTitle', { email: member.email })}</AlertDialogTitle>
+            <AlertDialogDescription>{t('removeConfirm', { project: project.name })}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{common('cancel')}</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => void onRemove()}>
+              {t('remove')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

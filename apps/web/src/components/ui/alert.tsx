@@ -1,6 +1,5 @@
+import * as React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
-import type * as React from 'react';
-
 import { cn } from '@/components/shared/utils';
 
 const alertVariants = cva(
@@ -11,10 +10,11 @@ const alertVariants = cva(
         default: 'bg-card text-card-foreground',
         destructive:
           'bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90 [&>svg]:text-current',
-        success: 'bg-card text-success *:data-[slot=alert-description]:text-foreground [&>svg]:text-current',
       },
     },
-    defaultVariants: { variant: 'default' },
+    defaultVariants: {
+      variant: 'default',
+    },
   },
 );
 
@@ -45,4 +45,4 @@ function AlertDescription({ className, ...props }: React.ComponentProps<'div'>) 
   );
 }
 
-export { Alert, AlertDescription, AlertTitle };
+export { Alert, AlertTitle, AlertDescription };

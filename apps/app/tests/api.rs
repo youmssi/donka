@@ -270,6 +270,7 @@ async fn openapi_document_describes_the_endpoints() {
         ("/projects", "get"),
         ("/projects", "post"),
         ("/projects/{project_id}", "get"),
+        ("/projects/by-key/{key}", "get"),
         ("/projects/{project_id}", "patch"),
         ("/projects/{project_id}/archive", "post"),
         ("/projects/{project_id}/restore", "post"),
