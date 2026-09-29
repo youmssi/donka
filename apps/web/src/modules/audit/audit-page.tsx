@@ -1,24 +1,31 @@
 'use client';
 
-import { Download, History, ShieldAlert } from 'lucide-react';
+import { CalendarRange, Check, ChevronsUpDown, Download, History, ShieldAlert } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
-import { useId } from 'react';
+import { useState } from 'react';
+import type { DateRange } from 'react-day-picker';
+import { enGB, fr } from 'react-day-picker/locale';
 
+import { DataTable, type DataTableColumn } from '@/components/shared/data-table';
 import { ErrorAlert } from '@/components/shared/error-alert';
-import { PageSkeleton } from '@/components/shared/page-skeleton';
-import { Pager } from '@/components/shared/pager';
+import { useDateFormat, When } from '@/components/shared/format';
+import { Person } from '@/components/shared/person';
+import { cn } from '@/components/shared/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Calendar } from '@/components/ui/calendar';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Link, useRouter } from '@/i18n/navigation';
-import { ProjectFrame, useMembers, type Project, type Role } from '@/modules/project';
+import { ProjectFrame, projectHref, useMembers, type Project, type Role } from '@/modules/project';
 
 import { exportHref, PAGE_SIZE } from './audit.service';
 import {
+  dateOf,
+  dayOf,
   detail,
   isEmptyRange,
   PROJECT_ACTIONS,
@@ -33,8 +40,22 @@ import { useAuditLog } from './useAudit';
 const ALL = 'all';
 
 export function ProjectAuditPage() {
+  const t = useTranslations('audit');
+  const searchParams = useSearchParams();
   return (
-    <ProjectFrame tab="audit">
+    <ProjectFrame
+      section="audit"
+      actions={(project) =>
+        project.role === 'owner' ? (
+          <Button asChild variant="outline">
+            <a href={exportHref(project.id, toQuery(readFilters(searchParams)))} download>
+              <Download aria-hidden />
+              {t('export')}
+            </a>
+          </Button>
+        ) : null
+      }
+    >
       {(project) => (project.role === 'owner' ? <AuditLog project={project} /> : <OwnersOnly />)}
     </ProjectFrame>
   );
@@ -58,183 +79,258 @@ function AuditLog({ project }: { project: Project }) {
   const filters = readFilters(searchParams);
   const offset = Math.max(0, Number(searchParams.get('offset')) || 0);
   const emptyRange = isEmptyRange(filters);
-  const query = toQuery(filters);
-  const log = useAuditLog(project.id, query, offset, !emptyRange);
+  const log = useAuditLog(project.id, toQuery(filters), offset, !emptyRange);
   const result = log.data;
   const filtered = Boolean(filters.actor || filters.action || filters.from || filters.to);
 
   const href = (next: AuditFilters, nextOffset = 0) => {
-    const params = new URLSearchParams({ id: project.id });
-    for (const [name, value] of Object.entries(next)) if (value) params.set(name, value);
-    if (nextOffset) params.set('offset', String(nextOffset));
-    return `/projects/audit?${params}`;
+    const extra: Record<string, string> = {};
+    for (const [name, value] of Object.entries(next)) if (value) extra[name] = value;
+    if (nextOffset) extra.offset = String(nextOffset);
+    return projectHref('audit', project.key, extra);
   };
   const apply = (change: Partial<AuditFilters>) => router.replace(href({ ...filters, ...change }));
 
+  const columns: DataTableColumn<AuditEvent>[] = [
+    {
+      id: 'when',
+      header: t('when'),
+      cell: ({ row }) => <When value={row.original.occurredAt} as="ago" />,
+      meta: { className: 'w-32 text-muted-foreground' },
+    },
+    {
+      id: 'what',
+      header: t('what'),
+      cell: ({ row }) => <Change event={row.original} />,
+      meta: { className: 'whitespace-normal' },
+    },
+    {
+      id: 'who',
+      header: t('who'),
+      cell: ({ row }) => <Actor event={row.original} />,
+      meta: { className: 'hidden w-64 md:table-cell' },
+    },
+  ];
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t('title')}</CardTitle>
-        <CardDescription>{t('description', { zone: timeZone() })}</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-6">
-        <Filters project={project} filters={filters} onChange={apply} />
-        <div className="flex flex-wrap items-center gap-2">
-          <Button asChild variant="outline" size="sm">
-            <a href={exportHref(project.id, query)} download>
-              <Download aria-hidden />
-              {t('export')}
-            </a>
+    <div className="grid gap-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <PersonFilter project={project} value={filters.actor} onChange={(actor) => apply({ actor })} />
+        <ActionFilter value={filters.action} onChange={(action) => apply({ action })} />
+        <DateRangeFilter from={filters.from} to={filters.to} onChange={(from, to) => apply({ from, to })} />
+        {filtered ? (
+          <Button asChild variant="ghost" size="sm">
+            <Link href={href({})}>{t('clearFilters')}</Link>
           </Button>
-          {filtered ? (
-            <Button asChild variant="ghost" size="sm">
-              <Link href={href({})}>{t('clearFilters')}</Link>
+        ) : null}
+        <p className="ml-auto text-xs text-muted-foreground">{t('timeZone', { zone: timeZone() })}</p>
+      </div>
+
+      {emptyRange ? (
+        <ErrorAlert error={{ code: 'INVALID_REQUEST' }} title={t('emptyRange')} />
+      ) : result && !result.ok ? (
+        <ErrorAlert
+          error={result.error}
+          title={t('errorTitle')}
+          action={
+            <Button variant="outline" size="sm" className="mt-2" onClick={() => void log.refetch()}>
+              {common('retry')}
             </Button>
-          ) : null}
-        </div>
-
-        {emptyRange ? (
-          <ErrorAlert error={{ code: 'INVALID_REQUEST' }} title={t('emptyRange')} />
-        ) : !result ? (
-          <PageSkeleton />
-        ) : !result.ok ? (
-          <ErrorAlert
-            error={result.error}
-            title={t('errorTitle')}
-            action={
-              <Button variant="outline" size="sm" className="mt-2" onClick={() => void log.refetch()}>
-                {common('retry')}
-              </Button>
-            }
-          />
-        ) : result.data.items.length === 0 ? (
-          <section className="grid place-items-center gap-3 rounded-xl border border-dashed px-6 py-12 text-center">
-            <History className="size-8 text-muted-foreground" aria-hidden />
-            <p className="text-sm text-muted-foreground">{filtered ? t('emptyFiltered') : t('empty')}</p>
-          </section>
-        ) : (
-          <>
-            <ol className="divide-y">
-              {result.data.items.map((event) => (
-                <EventRow key={event.id} event={event} />
-              ))}
-            </ol>
-            {result.data.total > PAGE_SIZE ? (
-              <Pager
-                hrefFor={(next) => href(filters, next)}
-                offset={offset}
-                pageSize={PAGE_SIZE}
-                total={result.data.total}
-              />
-            ) : null}
-          </>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function Filters({
-  project,
-  filters,
-  onChange,
-}: {
-  project: Project;
-  filters: AuditFilters;
-  onChange: (change: Partial<AuditFilters>) => void;
-}) {
-  const t = useTranslations('audit');
-  const actions = useTranslations('auditActions');
-  const members = useMembers(project.id).data;
-  const people = members?.ok ? members.data : [];
-  const ids = { person: useId(), action: useId(), from: useId(), to: useId() };
-  // Someone who has left the project can still be the filter (from an older link).
-  const formerMember = filters.actor && !people.some((member) => member.userId === filters.actor);
-
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <div className="grid gap-2">
-        <Label htmlFor={ids.person}>{t('person')}</Label>
-        <Select
-          value={filters.actor ?? ALL}
-          onValueChange={(value) => onChange({ actor: value === ALL ? undefined : value })}
-        >
-          <SelectTrigger id={ids.person} className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>{t('everyone')}</SelectItem>
-            {people.map((member) => (
-              <SelectItem key={member.userId} value={member.userId}>
-                {member.email}
-              </SelectItem>
-            ))}
-            {formerMember ? <SelectItem value={filters.actor ?? ALL}>{t('formerMember')}</SelectItem> : null}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor={ids.action}>{t('action')}</Label>
-        <Select
-          value={filters.action ?? ALL}
-          onValueChange={(value) => onChange({ action: value === ALL ? undefined : (value as AuditAction) })}
-        >
-          <SelectTrigger id={ids.action} className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>{t('allActions')}</SelectItem>
-            {PROJECT_ACTIONS.map((action) => (
-              <SelectItem key={action} value={action}>
-                {actions(action)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor={ids.from}>{t('from')}</Label>
-        <Input
-          id={ids.from}
-          type="date"
-          value={filters.from ?? ''}
-          max={filters.to}
-          onChange={(event) => onChange({ from: event.target.value || undefined })}
+          }
         />
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor={ids.to}>{t('to')}</Label>
-        <Input
-          id={ids.to}
-          type="date"
-          value={filters.to ?? ''}
-          min={filters.from}
-          onChange={(event) => onChange({ to: event.target.value || undefined })}
+      ) : (
+        <DataTable
+          label={t('title')}
+          columns={columns}
+          data={result?.data.items}
+          getRowId={(event) => String(event.id)}
+          pagination={
+            result
+              ? { offset, pageSize: PAGE_SIZE, total: result.data.total, hrefFor: (next) => href(filters, next) }
+              : undefined
+          }
+          empty={
+            <Empty className="border border-dashed">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <History />
+                </EmptyMedia>
+                <EmptyTitle>{filtered ? t('emptyFilteredTitle') : t('emptyTitle')}</EmptyTitle>
+                <EmptyDescription>{filtered ? t('emptyFiltered') : t('empty')}</EmptyDescription>
+              </EmptyHeader>
+              {filtered ? (
+                <EmptyContent>
+                  <Button asChild variant="outline" size="sm">
+                    <Link href={href({})}>{t('clearFilters')}</Link>
+                  </Button>
+                </EmptyContent>
+              ) : null}
+            </Empty>
+          }
         />
-      </div>
+      )}
     </div>
   );
 }
 
-function EventRow({ event }: { event: AuditEvent }) {
+/** Who made the change; on phones the column is hidden and `Change` says it. */
+function Actor({ event }: { event: AuditEvent }) {
+  const t = useTranslations('audit');
+  return event.actor ? (
+    <Person email={event.actor.email} />
+  ) : (
+    <span className="text-muted-foreground">{t('studio')}</span>
+  );
+}
+
+function Change({ event }: { event: AuditEvent }) {
+  const t = useTranslations('audit');
+  const sentence = useSentence(event);
+  return (
+    <div className="grid gap-0.5">
+      <span>{sentence}</span>
+      <span className="text-xs text-muted-foreground md:hidden">
+        {event.actor ? t('by', { email: event.actor.email }) : t('byStudio')}
+      </span>
+    </div>
+  );
+}
+
+/** Pick a person among the project's members, searchable (Popover + Command). */
+function PersonFilter({
+  project,
+  value,
+  onChange,
+}: {
+  project: Project;
+  value: string | undefined;
+  onChange: (actor: string | undefined) => void;
+}) {
+  const t = useTranslations('audit');
+  const [open, setOpen] = useState(false);
+  const members = useMembers(project.id).data;
+  const people = members?.ok ? members.data : [];
+  const selected = people.find((member) => member.userId === value);
+  // Someone who has left the project can still be the filter (from an older link).
+  const label = value ? (selected?.email ?? t('formerMember')) : t('everyone');
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          role="combobox"
+          aria-expanded={open}
+          aria-label={t('person')}
+          className="w-56 justify-between font-normal"
+        >
+          <span className="truncate">{label}</span>
+          <ChevronsUpDown className="opacity-50" aria-hidden />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-0" align="start">
+        <Command>
+          <CommandInput placeholder={t('searchPerson')} />
+          <CommandList>
+            <CommandEmpty>{t('noPerson')}</CommandEmpty>
+            <CommandGroup>
+              {[{ userId: ALL, email: t('everyone') }, ...people].map((member) => {
+                const current = (value ?? ALL) === member.userId;
+                return (
+                  <CommandItem
+                    key={member.userId}
+                    value={member.email}
+                    onSelect={() => {
+                      onChange(member.userId === ALL ? undefined : member.userId);
+                      setOpen(false);
+                    }}
+                  >
+                    <Check className={cn(current ? 'opacity-100' : 'opacity-0')} aria-hidden />
+                    <span className="truncate">{member.email}</span>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function ActionFilter({
+  value,
+  onChange,
+}: {
+  value: AuditAction | undefined;
+  onChange: (action: AuditAction | undefined) => void;
+}) {
+  const t = useTranslations('audit');
+  const actions = useTranslations('auditActions');
+  return (
+    <Select value={value ?? ALL} onValueChange={(next) => onChange(next === ALL ? undefined : (next as AuditAction))}>
+      <SelectTrigger size="sm" className="w-56" aria-label={t('action')}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={ALL}>{t('allActions')}</SelectItem>
+        {PROJECT_ACTIONS.map((action) => (
+          <SelectItem key={action} value={action}>
+            {actions(action)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+/** Pick a range of days (Popover + Calendar); the last day is included. */
+function DateRangeFilter({
+  from,
+  to,
+  onChange,
+}: {
+  from: string | undefined;
+  to: string | undefined;
+  onChange: (from: string | undefined, to: string | undefined) => void;
+}) {
   const t = useTranslations('audit');
   const locale = useLocale();
-  const sentence = useSentence(event);
-  const when = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(
-    new Date(event.occurredAt),
-  );
+  const format = useDateFormat();
+  const [open, setOpen] = useState(false);
+  const selected: DateRange | undefined = from ? { from: dateOf(from), to: to ? dateOf(to) : undefined } : undefined;
+  const label = from
+    ? to && to !== from
+      ? `${format.date(dateOf(from))} – ${format.date(dateOf(to))}`
+      : format.date(dateOf(from))
+    : t('anyDate');
+
+  function select(range: DateRange | undefined) {
+    onChange(range?.from ? dayOf(range.from) : undefined, range?.to ? dayOf(range.to) : undefined);
+    if (range?.from && range.to) setOpen(false);
+  }
+
   return (
-    <li className="grid gap-1 py-3 sm:grid-cols-[12rem_1fr] sm:gap-4">
-      <time dateTime={event.occurredAt} className="text-sm text-muted-foreground tabular-nums">
-        {when}
-      </time>
-      <div className="min-w-0">
-        <p className="break-words">{sentence}</p>
-        <p className="truncate text-sm text-muted-foreground">
-          {event.actor ? t('by', { email: event.actor.email }) : t('byStudio')}
-        </p>
-      </div>
-    </li>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" aria-label={t('dates')} className="w-56 justify-start font-normal">
+          <CalendarRange className="opacity-60" aria-hidden />
+          <span className="truncate">{label}</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="range"
+          selected={selected}
+          onSelect={select}
+          defaultMonth={selected?.from}
+          numberOfMonths={2}
+          disabled={{ after: new Date() }}
+          locale={locale === 'fr' ? fr : enGB}
+        />
+      </PopoverContent>
+    </Popover>
   );
 }
 

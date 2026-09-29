@@ -5,8 +5,8 @@ import { LanguageSwitch } from '../language-switch';
 import { ThemeToggle } from '../theme-toggle';
 import { Brand } from './brand';
 
-/** Header with brand, optional navigation, language, theme and account; the page below. */
-export function AppShell({ nav, account, children }: { nav?: ReactNode; account?: ReactNode; children: ReactNode }) {
+/** Header with brand, language and theme, the page below: pages outside the signed-in workspace. */
+export function AppShell({ children }: { children: ReactNode }) {
   const t = useTranslations('app');
   return (
     <div className="flex min-h-dvh flex-col">
@@ -19,14 +19,12 @@ export function AppShell({ nav, account, children }: { nav?: ReactNode; account?
       <header className="border-b">
         <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-2 px-4">
           <Brand />
-          {nav}
           <div className="ml-auto flex items-center gap-1">
             {/* useSearchParams needs a boundary in a static export. */}
             <Suspense>
               <LanguageSwitch />
             </Suspense>
             <ThemeToggle />
-            {account}
           </div>
         </div>
       </header>

@@ -496,3 +496,33 @@ engine drift check skipped silently in CI because the runtime was never checked 
 - [ ] CI checks out donka-runtime (`develop`) and fails when its zen-engine differs from Studio's
 - [ ] The drift check fails instead of skipping when it cannot find the runtime
 
+---
+
+### DNK-34 — Studio works like a web app: sidebar shell and one component system
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-11 · **Size:** M
+
+#### Why
+Studio grew screen by screen with hand-made lists, tabs, pagers and empty states. It should feel
+like one web application: persistent navigation, breadcrumbs, a quick switcher, dense tables,
+short dates and readable links, built from the shadcn components instead of our own.
+
+#### Decisions (product owner, 2026-09-29)
+- Collapsible **sidebar** navigation (icons when collapsed, a sheet on phones), breadcrumb in the
+  page header, command palette (Ctrl/⌘ K).
+- **Data table** (TanStack Table) for every list: projects, members, people, audit.
+- Project links use the project **key** (`?p=credit-pme`), not its id.
+- shadcn components are taken from the official registry (new-york-v4) and not rewritten;
+  forms use TanStack Form + Zod through shadcn `Field`.
+
+#### Acceptance criteria
+- [x] Signed-in pages share one shell: sidebar (brand, Projects, People for administrators, the
+      open project's sections, account menu with language and theme), breadcrumb, command palette
+- [x] Every form uses `Field` with TanStack Form + Zod; submit buttons show a spinner; a
+      success is confirmed by a toast
+- [x] Projects, members, people and audit are data tables with loading skeleton, empty state
+      (`Empty`) with its next action, error with retry, and pagination
+- [x] Dates are short ("13 Nov", "13 Nov 2025" for another year, "14:05") with the full date and
+      time on hover; recent audit events read "2 h ago"
+- [x] Project pages open by key; `?id=` links keep working
+- [x] Checked at desktop and 390 px, English and French, light and dark

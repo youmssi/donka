@@ -4,8 +4,8 @@ import type { AnyFieldApi } from '@tanstack/react-form';
 import { useTranslations } from 'next-intl';
 import { useId, type ComponentProps } from 'react';
 
+import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 
 interface TextFieldProps extends Omit<ComponentProps<typeof Input>, 'name' | 'value' | 'onChange' | 'onBlur'> {
@@ -14,13 +14,14 @@ interface TextFieldProps extends Omit<ComponentProps<typeof Input>, 'name' | 'va
   hint?: string;
   /** Values for placeholders in validation messages, e.g. `{ min: 12 }`. */
   messageValues?: Record<string, number | string>;
-  /** Message key (under `validation`) sent back by the server for this field. */
+  /** Message sent back by the server for this field, already translated. */
   serverError?: string;
   /** A text area instead of a one-line input. */
   multiline?: boolean;
 }
 
-function firstMessage(errors: unknown[]): string | undefined {
+/** The message key of the first error: Zod issues carry a key under `validation`. */
+export function firstMessage(errors: unknown[]): string | undefined {
   for (const error of errors) {
     if (typeof error === 'string') return error;
     if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
@@ -31,8 +32,9 @@ function firstMessage(errors: unknown[]): string | undefined {
 }
 
 /**
- * Label, input, hint and error for a TanStack Form field. Errors appear after the
- * person leaves the field or submits, never while they are still typing.
+ * A text input bound to a TanStack Form field, laid out with shadcn `Field`.
+ * Errors appear after the person leaves the field or submits, never while they
+ * are still typing.
  */
 export function TextField({
   field,
@@ -49,45 +51,35 @@ export function TextField({
   const shown = meta.isBlurred || field.form.state.submissionAttempts > 0;
   const key = shown ? firstMessage(meta.errors) : undefined;
   const error = key ? t(key, messageValues) : serverError;
-  const describedBy = [hint ? `${id}-hint` : null, error ? `${id}-error` : null].filter(Boolean).join(' ') || undefined;
+  const describedBy = [hint ? `${id}-hint` : null, `${id}-error`].filter(Boolean).join(' ');
+  const control = {
+    id,
+    name: field.name,
+    value: String(field.state.value ?? ''),
+    onBlur: field.handleBlur,
+    'aria-invalid': error ? true : undefined,
+    'aria-describedby': describedBy,
+  };
 
   return (
-    <div className="grid gap-1.5">
-      <Label htmlFor={id}>{label}</Label>
+    <Field data-invalid={error ? true : undefined} className="gap-2">
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
       {multiline ? (
         <Textarea
-          id={id}
-          name={field.name}
-          value={String(field.state.value ?? '')}
+          {...control}
           onChange={(event) => field.handleChange(event.target.value)}
-          onBlur={field.handleBlur}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={describedBy}
           disabled={inputProps.disabled}
           required={inputProps.required}
         />
       ) : (
-        <Input
-          id={id}
-          name={field.name}
-          value={String(field.state.value ?? '')}
-          onChange={(event) => field.handleChange(event.target.value)}
-          onBlur={field.handleBlur}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={describedBy}
-          {...inputProps}
-        />
+        <Input {...inputProps} {...control} onChange={(event) => field.handleChange(event.target.value)} />
       )}
-      {hint ? (
-        <p id={`${id}-hint`} className="text-xs text-muted-foreground">
-          {hint}
-        </p>
-      ) : null}
-      {/* Always rendered with room for one line: a message appearing when the person leaves the
-          field must not push the submit button away from under their pointer. */}
-      <p id={`${id}-error`} className="min-h-5 text-sm text-destructive">
-        {error}
-      </p>
-    </div>
+      {hint ? <FieldDescription id={`${id}-hint`}>{hint}</FieldDescription> : null}
+      {/* The line is always there: a message appearing when the person leaves the field must not
+          push the submit button away from under their pointer. */}
+      <div id={`${id}-error`} className="min-h-5">
+        {error ? <FieldError>{error}</FieldError> : null}
+      </div>
+    </Field>
   );
 }

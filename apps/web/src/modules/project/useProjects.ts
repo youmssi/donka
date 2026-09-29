@@ -1,6 +1,7 @@
 'use client';
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'next/navigation';
 
 import type { ActionResult } from '@/components/shared/api';
 
@@ -9,6 +10,7 @@ import {
   changeRole,
   createProject,
   getProject,
+  getProjectByKey,
   listMembers,
   listProjects,
   removeMember,
@@ -21,19 +23,39 @@ const keys = {
   lists: ['projects'] as const,
   list: (archived: boolean, offset: number) => ['projects', { archived, offset }] as const,
   project: (id: string) => ['project', id] as const,
+  byKey: (key: string) => ['project-by-key', key] as const,
+  byKeyAll: ['project-by-key'] as const,
   members: (id: string) => ['project', id, 'members'] as const,
 };
 
-export function useProjectList(archived: boolean, offset: number) {
+export function useProjectList(archived: boolean, offset: number, enabled = true) {
   return useQuery({
     queryKey: keys.list(archived, offset),
     queryFn: () => listProjects(archived, offset),
     placeholderData: keepPreviousData,
+    enabled,
   });
 }
 
 export function useProject(id: string) {
   return useQuery({ queryKey: keys.project(id), queryFn: () => getProject(id), enabled: id !== '' });
+}
+
+export function useProjectByKey(key: string) {
+  return useQuery({ queryKey: keys.byKey(key), queryFn: () => getProjectByKey(key), enabled: key !== '' });
+}
+
+/**
+ * The project the page is about: `?p=<key>`, or `?id=<id>` from links made
+ * before projects were addressed by key.
+ */
+export function useOpenProject() {
+  const params = useSearchParams();
+  const key = params.get('p') ?? '';
+  const legacyId = key ? '' : (params.get('id') ?? '');
+  const byKey = useProjectByKey(key);
+  const byId = useProject(legacyId);
+  return { requested: Boolean(key || legacyId), legacyId, query: key ? byKey : byId };
 }
 
 export function useMembers(id: string) {
@@ -46,6 +68,8 @@ function useProjectChanged(id: string) {
   return (result: ActionResult<Project>) => {
     if (!result.ok) return;
     queryClient.setQueryData(keys.project(id), result);
+    // The key never changes, so the page opened by key shows the change at once.
+    queryClient.setQueryData(keys.byKey(result.data.key), result);
     void queryClient.invalidateQueries({ queryKey: keys.lists });
   };
 }
@@ -78,7 +102,10 @@ function useMembersChanged(id: string) {
   return (result: ActionResult<unknown>) => {
     if (result.ok) void queryClient.invalidateQueries({ queryKey: keys.members(id) });
     // Your own role may have changed: the project page shows it.
-    if (result.ok) void queryClient.invalidateQueries({ queryKey: keys.project(id), exact: true });
+    if (result.ok) {
+      void queryClient.invalidateQueries({ queryKey: keys.project(id), exact: true });
+      void queryClient.invalidateQueries({ queryKey: keys.byKeyAll });
+    }
   };
 }
 

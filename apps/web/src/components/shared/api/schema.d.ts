@@ -127,6 +127,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/projects/by-key/{key}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A project the signed-in user is a member of, found by its key: the web app
+     *     addresses projects by key so its links stay short and readable.
+     */
+    get: operations['get_by_key'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/projects/{project_id}': {
     parameters: {
       query?: never;
@@ -806,6 +826,37 @@ export interface operations {
       };
       /** @description Key already used (PROJECT_KEY_TAKEN) */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  get_by_key: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description The project's key, e.g. `credit-pme`. */
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ProjectResponse'];
+        };
+      };
+      /** @description No such project, or not a member (PROJECT_NOT_FOUND) */
+      404: {
         headers: {
           [name: string]: unknown;
         };

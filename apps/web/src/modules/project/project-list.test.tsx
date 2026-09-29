@@ -1,6 +1,7 @@
 import { screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
-import { search } from '@/test/navigation-mock';
+import { router, search } from '@/test/navigation-mock';
 import { renderWithProviders } from '@/test/render';
 
 import { ProjectListPage } from './project-list';
@@ -44,9 +45,13 @@ it('lists projects with the reader role and links to them', async () => {
     },
   });
   renderWithProviders(<ProjectListPage />);
-  const link = await screen.findByRole('link', { name: /Retail scoring/ });
-  expect(link).toHaveAttribute('href', '/projects/settings?id=p-1');
-  expect(link).toHaveTextContent('Editor');
+  const link = await screen.findByRole('link', { name: 'Retail scoring' });
+  // Projects open by key: the link is short and readable.
+  expect(link).toHaveAttribute('href', '/projects/members?p=retail');
+  const row = link.closest('tr');
+  expect(row).toHaveTextContent('retail');
+  expect(row).toHaveTextContent('Editor');
+  expect(screen.getByRole('table', { name: 'Projects' })).toBeInTheDocument();
   expect(listMock).toHaveBeenCalledWith(false, 0);
 });
 
@@ -56,7 +61,15 @@ it('shows archived projects on the archived tab', async () => {
   renderWithProviders(<ProjectListPage />);
   expect(await screen.findByText('No archived projects')).toBeInTheDocument();
   expect(listMock).toHaveBeenCalledWith(true, 0);
-  expect(screen.getByRole('link', { name: 'Archived' })).toHaveAttribute('aria-current', 'page');
+  expect(screen.getByRole('tab', { name: 'Archived' })).toHaveAttribute('aria-selected', 'true');
+});
+
+it('switches between active and archived through the address', async () => {
+  listMock.mockResolvedValue({ ok: true, data: { items: [], total: 0 } });
+  renderWithProviders(<ProjectListPage />);
+  await screen.findByText('No projects yet');
+  await userEvent.click(screen.getByRole('tab', { name: 'Archived' }));
+  expect(router.replace).toHaveBeenLastCalledWith('/?view=archived');
 });
 
 it('offers a retry when the list cannot load', async () => {

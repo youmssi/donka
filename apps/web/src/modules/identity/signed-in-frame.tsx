@@ -6,13 +6,11 @@ import { createContext, useContext, useEffect, type ReactNode } from 'react';
 
 import { ErrorAlert } from '@/components/shared/error-alert';
 import { AppShell } from '@/components/shared/layout/app-shell';
-import { MainNav } from '@/components/shared/layout/main-nav';
 import { PageSkeleton } from '@/components/shared/page-skeleton';
 import { Button } from '@/components/ui/button';
 import { usePathname, useRouter } from '@/i18n/navigation';
 
 import type { User } from './schema';
-import { UserMenu } from './user-menu';
 import { useSession } from './useSession';
 
 const CurrentUserContext = createContext<User | null>(null);
@@ -26,7 +24,7 @@ export function useCurrentUser(): User {
 
 /**
  * Frame of every signed-in page: sends visitors without a session to sign-in
- * (and back here afterwards), then shows the shell with the account menu.
+ * (and back here afterwards), then gives the page the signed-in user.
  */
 export function SignedInFrame({ children }: { children: ReactNode }) {
   const t = useTranslations();
@@ -61,13 +59,7 @@ export function SignedInFrame({ children }: { children: ReactNode }) {
   }
   // No session: the effect above is sending the visitor to sign-in.
   if (!result.data) return <Loading />;
-  return (
-    <CurrentUserContext value={result.data}>
-      <AppShell nav={<MainNav isAdmin={result.data.isAdmin} />} account={<UserMenu user={result.data} />}>
-        {children}
-      </AppShell>
-    </CurrentUserContext>
-  );
+  return <CurrentUserContext value={result.data}>{children}</CurrentUserContext>;
 }
 
 function Loading() {

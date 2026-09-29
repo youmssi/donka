@@ -22,7 +22,9 @@
     "saving": "Enregistrement…",
     "previous": "Précédent",
     "next": "Suivant",
-    "pageOf": "{from}–{to} sur {total}"
+    "pageOf": "{from}–{to} sur {total}",
+    "actions": "Actions",
+    "admin": "Administrateur"
   },
   "errors": {
     "INVALID_CREDENTIALS": "L'e-mail ou le mot de passe est incorrect.",
@@ -106,7 +108,6 @@
     "archived": "Archivés",
     "create": "Nouveau projet",
     "yourRole": "Votre rôle",
-    "archivedBadge": "Archivé",
     "emptyTitle": "Aucun projet pour l'instant",
     "emptyAdmin": "Créez le premier projet pour commencer à construire des décisions.",
     "emptyMember": "Vous n'êtes membre d'aucun projet. Demandez à un propriétaire de projet de vous ajouter.",
@@ -120,12 +121,14 @@
     "keyHint": "Utilisée dans les liens et les chemins des versions. Elle ne pourra plus changer.",
     "description": "Description",
     "descriptionHint": "Facultatif. Les décisions que ce projet contient.",
-    "creating": "Création…"
+    "creating": "Création…",
+    "project": "Projet",
+    "archivedOn": "Archivé le",
+    "created": "{name} a été créé."
   },
   "project": {
     "settings": "Paramètres",
     "members": "Membres",
-    "key": "Clé",
     "archivedNotice": "Ce projet est archivé : il est en lecture seule jusqu'à sa restauration par un propriétaire.",
     "detailsTitle": "Informations",
     "detailsDescription": "La clé ne peut pas changer : les versions et les liens en dépendent.",
@@ -144,19 +147,17 @@
     "restoring": "Restauration…",
     "notFoundTitle": "Projet indisponible",
     "backToProjects": "Retour aux projets",
-    "audit": "Journal d'audit"
+    "audit": "Journal d'audit",
+    "archived": "Projet archivé.",
+    "restored": "Projet restauré."
   },
   "members": {
     "title": "Membres",
-    "description": "Les personnes qui peuvent ouvrir ce projet, et ce qu'elles peuvent faire.",
     "you": "vous",
     "role": "Rôle",
-    "roleFor": "Rôle de {email}",
     "remove": "Retirer",
-    "removeFrom": "Retirer {email}",
     "removeConfirmTitle": "Retirer {email} ?",
     "removeConfirm": "Cette personne perd immédiatement l'accès à {project}. Vous pourrez l'ajouter à nouveau.",
-    "removing": "Retrait…",
     "addTitle": "Ajouter un membre",
     "addDescription": "La personne doit avoir un compte Studio. Un administrateur invite les nouvelles personnes.",
     "email": "E-mail",
@@ -168,12 +169,23 @@
     "inviteAndAdd": "Inviter {email} sur Studio et l'ajouter",
     "inviting": "Invitation…",
     "invitedAndAdded": "{email} a été invité(e) sur Studio et ajouté(e). Un e-mail lui permet de choisir son mot de passe.",
-    "noAccountAdmin": "Aucun compte Studio n'utilise encore {email}. Vous pouvez l'inviter et l'ajouter au projet en une seule étape."
+    "noAccountAdmin": "Aucun compte Studio n'utilise encore {email}. Vous pouvez l'inviter et l'ajouter au projet en une seule étape.",
+    "member": "Membre",
+    "addedAt": "Ajouté le",
+    "emptyTitle": "Aucun membre",
+    "empty": "Ajoutez les personnes qui travaillent sur ce projet.",
+    "roleChanged": "{email} est maintenant {role}.",
+    "removed": "{email} a été retiré.",
+    "actionsFor": "Actions pour {email}"
   },
   "nav": {
     "label": "Sections de Studio",
     "projects": "Projets",
-    "people": "Personnes"
+    "people": "Personnes",
+    "workspace": "Espace de travail",
+    "project": "Projet",
+    "switchProject": "Changer de projet (actuel : {name})",
+    "allProjects": "Tous les projets"
   },
   "people": {
     "title": "Personnes",
@@ -195,19 +207,23 @@
     "pending": "Invité",
     "admin": "Administrateur",
     "errorTitle": "Impossible de charger les comptes",
-    "forbiddenTitle": "Seuls les administrateurs voient cette page"
+    "forbiddenTitle": "Seuls les administrateurs voient cette page",
+    "person": "Personne",
+    "access": "Accès",
+    "member": "Membre",
+    "status": "Statut",
+    "since": "Depuis",
+    "emptyTitle": "Aucun compte pour l'instant",
+    "empty": "Invitez les personnes qui construisent et approuvent les décisions."
   },
   "audit": {
     "title": "Journal d'audit",
-    "description": "Toutes les modifications du projet, les plus récentes d'abord. Les heures sont dans votre fuseau horaire ({zone}).",
     "ownersOnly": "Seuls les propriétaires du projet peuvent consulter son journal d'audit.",
     "person": "Personne",
     "everyone": "Tout le monde",
     "formerMember": "Un ancien membre",
     "action": "Action",
     "allActions": "Toutes les actions",
-    "from": "Du",
-    "to": "Au",
     "export": "Exporter en CSV",
     "clearFilters": "Effacer les filtres",
     "emptyRange": "La date de fin précède la date de début.",
@@ -215,7 +231,18 @@
     "empty": "Rien n'a encore été enregistré pour ce projet.",
     "emptyFiltered": "Aucune modification ne correspond à ces filtres.",
     "by": "par {email}",
-    "byStudio": "par Studio"
+    "byStudio": "par Studio",
+    "when": "Quand",
+    "what": "Modification",
+    "who": "Par",
+    "studio": "Studio",
+    "timeZone": "Heures en {zone}",
+    "searchPerson": "Rechercher une personne…",
+    "noPerson": "Aucun membre ne correspond.",
+    "dates": "Dates",
+    "anyDate": "Toutes les dates",
+    "emptyTitle": "Rien d'enregistré",
+    "emptyFilteredTitle": "Aucune modification"
   },
   "auditActions": {
     "user": {
@@ -247,5 +274,23 @@
     "memberAdded": "A ajouté {person} comme {role}",
     "memberRoleChanged": "A changé le rôle de {person} de {from} à {to}",
     "memberRemoved": "A retiré {person} ({role})"
+  },
+  "ui": {
+    "close": "Fermer",
+    "more": "Plus",
+    "loading": "Chargement",
+    "sidebar": "Navigation",
+    "sidebarDescription": "Sections de Studio et votre compte.",
+    "toggleSidebar": "Afficher ou masquer la barre latérale"
+  },
+  "command": {
+    "open": "Rechercher dans Studio",
+    "placeholder": "Rechercher ou aller à…",
+    "title": "Menu de commandes",
+    "description": "Ouvrez une page ou un projet, ou changez une préférence.",
+    "empty": "Aucun résultat.",
+    "goTo": "Aller à",
+    "preferences": "Préférences",
+    "theme": "Thème : {theme}"
   }
 }

@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 
 import { router, search } from '@/test/navigation-mock';
 import { renderWithProviders } from '@/test/render';
-import { getProject, listMembers } from '@/modules/project/project.service';
+import { getProjectByKey, listMembers } from '@/modules/project/project.service';
 
 import { listAudit } from './audit.service';
 import { ProjectAuditPage } from './audit-page';
@@ -15,8 +15,13 @@ vi.mock('./audit.service', async (original) => ({
 }));
 const listAuditMock = vi.mocked(listAudit);
 
-vi.mock('@/modules/project/project.service', () => ({ getProject: vi.fn(), listMembers: vi.fn() }));
-const getProjectMock = vi.mocked(getProject);
+vi.mock('@/modules/project/project.service', () => ({
+  getProject: vi.fn(),
+  getProjectByKey: vi.fn(),
+  listMembers: vi.fn(),
+  listProjects: vi.fn(),
+}));
+const getProjectMock = vi.mocked(getProjectByKey);
 vi.mocked(listMembers).mockResolvedValue({
   ok: true,
   data: [{ userId: 'u-2', email: 'grace@bank.example', role: 'owner', addedAt: '2026-09-28T09:00:00Z' }],
@@ -60,7 +65,7 @@ const events: AuditEvent[] = [
 
 beforeEach(() => {
   vi.clearAllMocks();
-  search.params = new URLSearchParams({ id: 'p-1' });
+  search.params = new URLSearchParams({ p: 'retail' });
   getProjectMock.mockResolvedValue({ ok: true, data: project('owner') });
   listAuditMock.mockResolvedValue({ ok: true, data: { items: events, total: 3 } });
 });
@@ -71,13 +76,14 @@ it('tells an owner what changed, who did it and when', async () => {
   expect(screen.getByText('Renamed the project from “Retail” to “Retail scoring”')).toBeInTheDocument();
   expect(screen.getByText('Created the project “Retail”')).toBeInTheDocument();
   expect(screen.getByText('by grace@bank.example')).toBeInTheDocument();
-  expect(screen.getByRole('link', { name: 'Audit log' })).toHaveAttribute('aria-current', 'page');
-  expect(screen.getByText(/Times are in your time zone/)).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Audit log' })).toBeInTheDocument();
+  expect(screen.getByText(/^Times in /)).toBeInTheDocument();
+  // Short on screen, the full date and time on hover; the element keeps the exact instant.
   expect(document.querySelector('time')).toHaveAttribute('dateTime', '2026-09-29T10:00:00Z');
 });
 
 it('filters from the address and exports the same events', async () => {
-  search.params = new URLSearchParams({ id: 'p-1', actor: 'u-2', action: 'member.added', from: '2026-09-01' });
+  search.params = new URLSearchParams({ p: 'retail', actor: 'u-2', action: 'member.added', from: '2026-09-01' });
   renderWithProviders(<ProjectAuditPage />);
   await screen.findByText('Created the project “Retail”');
   const query = { actor: 'u-2', action: 'member.added', from: new Date(2026, 8, 1).toISOString(), until: undefined };
@@ -86,26 +92,29 @@ it('filters from the address and exports the same events', async () => {
   const url = new URL(href, 'http://studio.test');
   expect(url.pathname).toBe('/api/v1/projects/p-1/audit/export');
   expect(Object.fromEntries(url.searchParams)).toEqual({ actor: 'u-2', action: 'member.added', from: query.from });
-  expect(screen.getByRole('link', { name: 'Clear filters' })).toHaveAttribute('href', '/projects/audit?id=p-1');
+  expect(screen.getAllByRole('link', { name: 'Clear filters' })[0]).toHaveAttribute('href', '/projects/audit?p=retail');
+  expect(screen.getByRole('combobox', { name: 'Person' })).toHaveTextContent('grace@bank.example');
 });
 
 it('changes a filter through the address and starts from the first page', async () => {
-  search.params = new URLSearchParams({ id: 'p-1', offset: '50' });
+  search.params = new URLSearchParams({ p: 'retail', offset: '50' });
   renderWithProviders(<ProjectAuditPage />);
   await screen.findByText('Created the project “Retail”');
-  await userEvent.type(screen.getByLabelText('From', { exact: true }), '2026-09-01');
-  expect(router.replace).toHaveBeenLastCalledWith('/projects/audit?id=p-1&from=2026-09-01');
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('combobox', { name: 'Person' }));
+  await user.click(await screen.findByRole('option', { name: 'grace@bank.example' }));
+  expect(router.replace).toHaveBeenLastCalledWith('/projects/audit?p=retail&actor=u-2');
 });
 
 it('says when nothing matches, and when the dates cannot match', async () => {
   listAuditMock.mockResolvedValue({ ok: true, data: { items: [], total: 0 } });
-  search.params = new URLSearchParams({ id: 'p-1', action: 'member.removed' });
+  search.params = new URLSearchParams({ p: 'retail', action: 'member.removed' });
   const view = renderWithProviders(<ProjectAuditPage />);
   expect(await screen.findByText('No change matches these filters.')).toBeInTheDocument();
   view.unmount();
 
   listAuditMock.mockClear();
-  search.params = new URLSearchParams({ id: 'p-1', from: '2026-09-30', to: '2026-09-01' });
+  search.params = new URLSearchParams({ p: 'retail', from: '2026-09-30', to: '2026-09-01' });
   renderWithProviders(<ProjectAuditPage />);
   expect(await screen.findByText('The end date is before the start date.')).toBeInTheDocument();
   expect(listAuditMock).not.toHaveBeenCalled();
@@ -122,6 +131,6 @@ it('keeps the log and its tab from anyone but owners', async () => {
   getProjectMock.mockResolvedValue({ ok: true, data: project('editor') });
   renderWithProviders(<ProjectAuditPage />);
   expect(await screen.findByText("Only the project's owners can see its audit log.")).toBeInTheDocument();
-  expect(screen.queryByRole('link', { name: 'Audit log' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: 'Export CSV' })).not.toBeInTheDocument();
   expect(listAuditMock).not.toHaveBeenCalled();
 });
