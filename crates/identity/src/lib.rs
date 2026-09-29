@@ -10,6 +10,7 @@ use chrono::{DateTime, Duration, Utc};
 use donka_db::PgPool;
 use donka_mail::{Email, Mailer};
 use donka_shared::clock::Clock;
+use donka_shared::page::{Page, PageRequest};
 use emails::Kind;
 use serde::{Deserialize, Serialize};
 use sqlx::Acquire;
@@ -100,6 +101,18 @@ pub struct User {
     pub email: String,
     pub is_admin: bool,
     pub locale: Locale,
+}
+
+/// A Studio account as administrators see it.
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct Account {
+    pub id: Uuid,
+    pub email: String,
+    pub is_admin: bool,
+    pub locale: Locale,
+    /// False until the person has chosen a password (an invitation is pending).
+    pub active: bool,
+    pub created_at: DateTime<Utc>,
 }
 
 /// A secret handed to the browser (session cookie) or to a person (setup link).
@@ -527,6 +540,29 @@ impl Identity {
             is_admin: session.is_admin,
             locale: session.locale,
         })
+    }
+
+    /// Every Studio account, by email. Administrators only.
+    pub async fn list_accounts(
+        &self,
+        reader: &User,
+        page: PageRequest,
+    ) -> Result<Page<Account>, IdentityError> {
+        if !reader.is_admin {
+            return Err(IdentityError::Forbidden);
+        }
+        let items = sqlx::query_as(
+            "SELECT id, email, is_admin, locale, password_hash IS NOT NULL AS active, created_at \
+             FROM users ORDER BY email LIMIT $1 OFFSET $2",
+        )
+        .bind(page.limit)
+        .bind(page.offset)
+        .fetch_all(&self.pool)
+        .await?;
+        let (total,): (i64,) = sqlx::query_as("SELECT count(*) FROM users")
+            .fetch_one(&self.pool)
+            .await?;
+        Ok(Page { items, total })
     }
 
     /// The user with this email, if any. For callers that are already

@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 
 import { ErrorAlert } from '@/components/shared/error-alert';
 import { PageSkeleton } from '@/components/shared/page-skeleton';
+import { Pager } from '@/components/shared/pager';
 import { cn } from '@/components/shared/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -111,43 +112,17 @@ export function ProjectListPage() {
             ))}
           </ul>
           {result.data.total > PAGE_SIZE ? (
-            <Pager archived={archived} offset={offset} total={result.data.total} />
+            <Pager
+              hrefFor={(next) =>
+                `/?${new URLSearchParams({ ...(archived ? { view: 'archived' } : {}), offset: String(next) })}`
+              }
+              offset={offset}
+              pageSize={PAGE_SIZE}
+              total={result.data.total}
+            />
           ) : null}
         </>
       )}
     </div>
-  );
-}
-
-function Pager({ archived, offset, total }: { archived: boolean; offset: number; total: number }) {
-  const common = useTranslations('common');
-  const href = (next: number) =>
-    `/?${new URLSearchParams({ ...(archived ? { view: 'archived' } : {}), offset: String(next) })}`;
-  const from = offset + 1;
-  const to = Math.min(offset + PAGE_SIZE, total);
-  return (
-    <nav className="flex items-center justify-between gap-3 text-sm" aria-label={common('pageOf', { from, to, total })}>
-      <span className="text-muted-foreground">{common('pageOf', { from, to, total })}</span>
-      <span className="flex gap-2">
-        <Button
-          asChild
-          variant="outline"
-          size="sm"
-          aria-disabled={offset === 0}
-          className={cn(offset === 0 && 'pointer-events-none opacity-50')}
-        >
-          <Link href={href(Math.max(0, offset - PAGE_SIZE))}>{common('previous')}</Link>
-        </Button>
-        <Button
-          asChild
-          variant="outline"
-          size="sm"
-          aria-disabled={to >= total}
-          className={cn(to >= total && 'pointer-events-none opacity-50')}
-        >
-          <Link href={href(offset + PAGE_SIZE)}>{common('next')}</Link>
-        </Button>
-      </span>
-    </nav>
   );
 }

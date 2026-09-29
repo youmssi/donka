@@ -2,6 +2,7 @@ import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { search } from '@/test/navigation-mock';
+import { invite } from '@/modules/people/people.service';
 import { renderWithProviders } from '@/test/render';
 
 import { addMember, getProject, listMembers } from './project.service';
@@ -19,9 +20,11 @@ const getProjectMock = vi.mocked(getProject);
 const listMembersMock = vi.mocked(listMembers);
 const addMemberMock = vi.mocked(addMember);
 
-vi.mock('@/modules/identity', () => ({
-  useCurrentUser: () => ({ id: 'u-1', email: 'ada@bank.example', isAdmin: true, locale: 'en' }),
-}));
+vi.mock('@/modules/people/people.service', () => ({ invite: vi.fn(), listAccounts: vi.fn(), PAGE_SIZE: 50 }));
+const inviteMock = vi.mocked(invite);
+
+const me = { id: 'u-1', email: 'ada@bank.example', isAdmin: true, locale: 'en' as const };
+vi.mock('@/modules/identity', () => ({ useCurrentUser: () => me }));
 
 const project = (role: Project['role'], archivedAt: string | null = null): Project => ({
   id: 'p-1',
@@ -39,6 +42,7 @@ const members = [
 
 beforeEach(() => {
   vi.clearAllMocks();
+  me.isAdmin = true;
   search.params = new URLSearchParams({ id: 'p-1' });
   listMembersMock.mockResolvedValue({ ok: true, data: members });
 });
@@ -69,7 +73,8 @@ it('keeps an archived project read-only, even for its owner', async () => {
   expect(screen.queryByRole('heading', { name: 'Add a member' })).not.toBeInTheDocument();
 });
 
-it('explains that a person needs an account before being added', async () => {
+it('tells an owner who is not an administrator to ask one for an invitation', async () => {
+  me.isAdmin = false;
   getProjectMock.mockResolvedValue({ ok: true, data: project('owner') });
   addMemberMock.mockResolvedValue({ ok: false, error: { code: 'NO_SUCH_USER' } });
   renderWithProviders(<ProjectMembersPage />);
@@ -77,6 +82,7 @@ it('explains that a person needs an account before being added', async () => {
   await user.type(await screen.findByLabelText('Email'), 'nobody@bank.example');
   await user.click(screen.getByRole('button', { name: 'Add' }));
   expect(await screen.findByText(/Ask an administrator to invite them first/)).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /Invite nobody@bank.example/ })).not.toBeInTheDocument();
   expect(addMemberMock).toHaveBeenCalledWith('p-1', { email: 'nobody@bank.example', role: 'viewer' });
 });
 
@@ -86,4 +92,25 @@ it('says the project is not available to a non-member', async () => {
   expect(await screen.findByText('Project not available')).toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Back to projects' })).toHaveAttribute('href', '/');
   expect(listMembersMock).not.toHaveBeenCalled();
+});
+
+it('lets an administrator invite an unknown email and add it in one step', async () => {
+  getProjectMock.mockResolvedValue({ ok: true, data: project('owner') });
+  addMemberMock.mockResolvedValueOnce({ ok: false, error: { code: 'NO_SUCH_USER' } }).mockResolvedValueOnce({
+    ok: true,
+    data: { userId: 'u-3', email: 'alan@bank.example', role: 'viewer', addedAt: '2026-09-28T09:00:00Z' },
+  });
+  inviteMock.mockResolvedValue({
+    ok: true,
+    data: { id: 'u-3', email: 'alan@bank.example', isAdmin: false, locale: 'en' },
+  });
+  renderWithProviders(<ProjectMembersPage />);
+  const user = userEvent.setup();
+  await user.type(await screen.findByLabelText('Email'), 'alan@bank.example');
+  await user.click(screen.getByRole('button', { name: 'Add' }));
+  expect(await screen.findByText(/No Studio account uses alan@bank.example yet/)).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Invite alan@bank.example to Studio and add them' }));
+  expect(await screen.findByText(/alan@bank.example was invited to Studio and added/)).toBeInTheDocument();
+  expect(inviteMock).toHaveBeenCalledWith({ email: 'alan@bank.example', locale: 'en', isAdmin: false });
+  expect(addMemberMock).toHaveBeenLastCalledWith('p-1', { email: 'alan@bank.example', role: 'viewer' });
 });
