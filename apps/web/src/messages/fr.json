@@ -143,7 +143,8 @@
     "restore": "Restaurer le projet",
     "restoring": "Restauration…",
     "notFoundTitle": "Projet indisponible",
-    "backToProjects": "Retour aux projets"
+    "backToProjects": "Retour aux projets",
+    "audit": "Journal d'audit"
   },
   "members": {
     "title": "Membres",
@@ -195,5 +196,56 @@
     "admin": "Administrateur",
     "errorTitle": "Impossible de charger les comptes",
     "forbiddenTitle": "Seuls les administrateurs voient cette page"
+  },
+  "audit": {
+    "title": "Journal d'audit",
+    "description": "Toutes les modifications du projet, les plus récentes d'abord. Les heures sont dans votre fuseau horaire ({zone}).",
+    "ownersOnly": "Seuls les propriétaires du projet peuvent consulter son journal d'audit.",
+    "person": "Personne",
+    "everyone": "Tout le monde",
+    "formerMember": "Un ancien membre",
+    "action": "Action",
+    "allActions": "Toutes les actions",
+    "from": "Du",
+    "to": "Au",
+    "export": "Exporter en CSV",
+    "clearFilters": "Effacer les filtres",
+    "emptyRange": "La date de fin précède la date de début.",
+    "errorTitle": "Impossible de charger le journal d'audit",
+    "empty": "Rien n'a encore été enregistré pour ce projet.",
+    "emptyFiltered": "Aucune modification ne correspond à ces filtres.",
+    "by": "par {email}",
+    "byStudio": "par Studio"
+  },
+  "auditActions": {
+    "user": {
+      "signed_in": "Connexion",
+      "sign_in_failed": "Échec de connexion",
+      "signed_out": "Déconnexion",
+      "password_set": "Mot de passe défini",
+      "password_reset_requested": "Réinitialisation du mot de passe demandée",
+      "invited": "Invitation à Studio"
+    },
+    "project": {
+      "created": "Projet créé",
+      "updated": "Détails du projet modifiés",
+      "archived": "Projet archivé",
+      "restored": "Projet restauré"
+    },
+    "member": {
+      "added": "Membre ajouté",
+      "role_changed": "Rôle d'un membre modifié",
+      "removed": "Membre retiré"
+    }
+  },
+  "auditSentences": {
+    "projectCreated": "A créé le projet « {name} »",
+    "projectRenamed": "A renommé le projet de « {from} » en « {to} »",
+    "projectDescribed": "A modifié la description du projet",
+    "projectArchived": "A archivé le projet",
+    "projectRestored": "A restauré le projet",
+    "memberAdded": "A ajouté {person} comme {role}",
+    "memberRoleChanged": "A changé le rôle de {person} de {from} à {to}",
+    "memberRemoved": "A retiré {person} ({role})"
   }
 }

@@ -7,12 +7,14 @@ mod emails;
 mod secret;
 
 use chrono::{DateTime, Duration, Utc};
+use donka_audit::{Action, Event};
 use donka_db::PgPool;
 use donka_mail::{Email, Mailer};
 use donka_shared::clock::Clock;
 use donka_shared::page::{Page, PageRequest};
 use emails::Kind;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use sqlx::Acquire;
 use std::sync::Arc;
 use tokio::sync::Notify;
@@ -221,6 +223,13 @@ impl Identity {
         let token = self
             .issue_setup_token(&mut tx, user_id, now, self.policy.invitation_link_lifetime)
             .await?;
+        donka_audit::record(
+            &mut tx,
+            Event::new(now, None, Action::UserInvited)
+                .about_user(user_id)
+                .with_details(json!({ "isAdmin": true, "firstAdministrator": true })),
+        )
+        .await?;
         tx.commit().await?;
         Ok(Some(token))
     }
@@ -260,6 +269,11 @@ impl Identity {
             .await?;
         // ...and every other link still waiting in their inbox.
         revoke_setup_tokens(&mut tx, user_id, now).await?;
+        donka_audit::record(
+            &mut tx,
+            Event::new(now, Some(user_id), Action::UserPasswordSet),
+        )
+        .await?;
         tx.commit().await?;
         Ok(())
     }
@@ -322,6 +336,15 @@ impl Identity {
             }
         };
         queue_email(&mut tx, user_id, Kind::Invitation, now).await?;
+        donka_audit::record(
+            &mut tx,
+            Event::new(now, Some(inviter.id), Action::UserInvited)
+                .about_user(user_id)
+                .with_details(
+                    json!({ "isAdmin": is_admin, "locale": locale, "resent": existing.is_some() }),
+                ),
+        )
+        .await?;
         tx.commit().await?;
         self.outbox.notify_one();
         tracing::info!(inviter = %inviter.id, user_id = %user_id, "user invited");
@@ -371,7 +394,7 @@ impl Identity {
             let now = self.clock.now();
             let mut tx = self.pool.begin().await?;
             let due: Option<DueEmail> = sqlx::query_as(
-                "SELECT e.id, e.kind, e.attempts, e.user_id, u.email, u.locale \
+                "SELECT e.id, e.kind, e.attempts, e.user_id, e.created_at, u.email, u.locale \
                  FROM account_emails e JOIN users u ON u.id = e.user_id \
                  WHERE e.sent_at IS NULL AND e.abandoned_at IS NULL AND e.next_attempt_at <= $1 \
                  ORDER BY e.next_attempt_at LIMIT 1 \
@@ -413,6 +436,9 @@ impl Identity {
                     .bind(attempts)
                     .execute(&mut *tx)
                     .await?;
+                    if kind == Kind::PasswordReset {
+                        record_reset_request(&mut tx, due.user_id, due.created_at, true).await?;
+                    }
                     sent += 1;
                 }
                 Err(err) => {
@@ -435,6 +461,9 @@ impl Identity {
                     .bind(abandoned_at)
                     .execute(&mut *tx)
                     .await?;
+                    if kind == Kind::PasswordReset && abandoned_at.is_some() {
+                        record_reset_request(&mut tx, due.user_id, due.created_at, false).await?;
+                    }
                 }
             }
             tx.commit().await?;
@@ -499,6 +528,11 @@ impl Identity {
         .bind(account.id)
         .bind(now)
         .execute(&mut *tx)
+        .await?;
+        donka_audit::record(
+            &mut tx,
+            Event::new(now, Some(account.id), Action::UserSignedIn),
+        )
         .await?;
         tx.commit().await?;
         Ok((IssuedToken(token), account.into_user()))
@@ -589,10 +623,20 @@ impl Identity {
 
     /// Ends the session server-side. Unknown tokens are ignored.
     pub async fn sign_out(&self, token: &str) -> Result<(), IdentityError> {
-        sqlx::query("DELETE FROM sessions WHERE token_hash = $1")
-            .bind(secret::hash_token(token))
-            .execute(&self.pool)
+        let mut tx = self.pool.begin().await?;
+        let ended: Option<(Uuid,)> =
+            sqlx::query_as("DELETE FROM sessions WHERE token_hash = $1 RETURNING user_id")
+                .bind(secret::hash_token(token))
+                .fetch_optional(&mut *tx)
+                .await?;
+        if let Some((user_id,)) = ended {
+            donka_audit::record(
+                &mut tx,
+                Event::new(self.clock.now(), Some(user_id), Action::UserSignedOut),
+            )
             .await?;
+        }
+        tx.commit().await?;
         Ok(())
     }
 
@@ -635,7 +679,16 @@ impl Identity {
             (1, Some(now))
         };
         let max = i32::try_from(self.policy.max_failed_sign_ins).unwrap_or(i32::MAX);
-        if failures >= max {
+        let locks = failures >= max;
+        // Nobody is signed in yet: the event is about the account, with no actor.
+        donka_audit::record(
+            tx,
+            Event::new(now, None, Action::UserSignInFailed)
+                .about_user(account.id)
+                .with_details(json!({ "locked": locks })),
+        )
+        .await?;
+        if locks {
             tracing::warn!(user_id = %account.id, "account locked after repeated failed sign-ins");
             sqlx::query(
                 "UPDATE users SET failed_sign_ins = 0, failed_window_started_at = NULL, \
@@ -697,8 +750,28 @@ struct DueEmail {
     kind: String,
     attempts: i32,
     user_id: Uuid,
+    created_at: DateTime<Utc>,
     email: String,
     locale: Locale,
+}
+
+/// A reset request is recorded when its email reaches a final state (sent or
+/// abandoned), not when it is asked for: the request itself must take the same
+/// path for known and unknown addresses (see `request_password_reset`).
+async fn record_reset_request(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    user_id: Uuid,
+    requested_at: DateTime<Utc>,
+    delivered: bool,
+) -> Result<(), IdentityError> {
+    donka_audit::record(
+        tx,
+        Event::new(requested_at, None, Action::UserPasswordResetRequested)
+            .about_user(user_id)
+            .with_details(json!({ "delivered": delivered })),
+    )
+    .await?;
+    Ok(())
 }
 
 async fn queue_email(

@@ -928,6 +928,7 @@ dependencies = [
  "async-trait",
  "axum",
  "chrono",
+ "donka-audit",
  "donka-db",
  "donka-engine",
  "donka-identity",
@@ -946,6 +947,21 @@ dependencies = [
  "tracing-subscriber",
  "utoipa",
  "utoipa-axum",
+ "uuid",
+]
+
+[[package]]
+name = "donka-audit"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "donka-db",
+ "donka-shared",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 2.0.21",
+ "utoipa",
  "uuid",
 ]
 
@@ -978,11 +994,13 @@ dependencies = [
  "argon2",
  "base64 0.22.1",
  "chrono",
+ "donka-audit",
  "donka-db",
  "donka-mail",
  "donka-shared",
  "getrandom 0.3.4",
  "serde",
+ "serde_json",
  "sha2 0.10.9",
  "sqlx",
  "thiserror 2.0.21",
@@ -1007,9 +1025,11 @@ name = "donka-project"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "donka-audit",
  "donka-db",
  "donka-shared",
  "serde",
+ "serde_json",
  "sqlx",
  "thiserror 2.0.21",
  "tokio",

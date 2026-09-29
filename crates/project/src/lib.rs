@@ -6,10 +6,12 @@
 //! only through what is exported here.
 
 use chrono::{DateTime, Utc};
+use donka_audit::{Action, Event};
 use donka_db::PgPool;
 use donka_shared::clock::Clock;
 use donka_shared::page::{Page, PageRequest};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -188,6 +190,13 @@ impl Projects {
         .bind(now)
         .execute(&mut *tx)
         .await?;
+        donka_audit::record(
+            &mut tx,
+            Event::new(now, Some(creator), Action::ProjectCreated)
+                .in_project(project.id)
+                .with_details(json!({ "key": project.key, "name": project.name })),
+        )
+        .await?;
         tx.commit().await?;
         tracing::info!(project_id = %project.id, key = %project.key, creator = %creator, "project created");
         Ok(project)
@@ -263,7 +272,16 @@ impl Projects {
         let description = check_description(description)?;
         let mut tx = self.pool.begin().await?;
         lock_for_change(&mut tx, access, Role::Owner).await?;
-        let project = sqlx::query_as(
+        let before: Project = sqlx::query_as(
+            "SELECT id, key, name, description, created_at, archived_at FROM projects WHERE id = $1",
+        )
+        .bind(access.project_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        if before.name == name && before.description == description {
+            return Ok(before); // Nothing changed, nothing to record.
+        }
+        let project: Project = sqlx::query_as(
             "UPDATE projects SET name = $2, description = $3 WHERE id = $1 \
              RETURNING id, key, name, description, created_at, archived_at",
         )
@@ -271,6 +289,20 @@ impl Projects {
         .bind(&name)
         .bind(&description)
         .fetch_one(&mut *tx)
+        .await?;
+        donka_audit::record(
+            &mut tx,
+            Event::new(
+                self.clock.now(),
+                Some(access.user_id),
+                Action::ProjectUpdated,
+            )
+            .in_project(access.project_id)
+            .with_details(json!({
+                "from": { "name": before.name, "description": before.description },
+                "to": { "name": project.name, "description": project.description },
+            })),
+        )
         .await?;
         tx.commit().await?;
         Ok(project)
@@ -282,20 +314,33 @@ impl Projects {
         access: &Access,
         archived: bool,
     ) -> Result<Project, ProjectError> {
-        access.require(Role::Owner)?;
-        let archived_at = archived.then(|| self.clock.now());
-        // COALESCE keeps the original date when archiving an already archived project.
-        let project = sqlx::query_as(
+        let now = self.clock.now();
+        let mut tx = self.pool.begin().await?;
+        let was_archived = lock_project(&mut tx, access, Role::Owner).await?.is_some();
+        let project: Project = sqlx::query_as(
             "UPDATE projects SET archived_at = CASE WHEN $2 THEN COALESCE(archived_at, $3) END \
              WHERE id = $1 RETURNING id, key, name, description, created_at, archived_at",
         )
         .bind(access.project_id)
         .bind(archived)
-        .bind(archived_at)
-        .fetch_optional(&self.pool)
-        .await?
-        .ok_or(ProjectError::NotFound)?;
-        tracing::info!(project_id = %access.project_id, archived, "project archive state changed");
+        .bind(now)
+        .fetch_one(&mut *tx)
+        .await?;
+        // Archiving an archived project (or restoring an active one) changes nothing.
+        if was_archived != archived {
+            let action = if archived {
+                Action::ProjectArchived
+            } else {
+                Action::ProjectRestored
+            };
+            donka_audit::record(
+                &mut tx,
+                Event::new(now, Some(access.user_id), action).in_project(access.project_id),
+            )
+            .await?;
+            tracing::info!(project_id = %access.project_id, archived, "project archive state changed");
+        }
+        tx.commit().await?;
         Ok(project)
     }
 
@@ -331,6 +376,14 @@ impl Projects {
         .fetch_optional(&mut *tx)
         .await?;
         let member = member.ok_or(ProjectError::AlreadyMember)?;
+        donka_audit::record(
+            &mut tx,
+            Event::new(now, Some(access.user_id), Action::MemberAdded)
+                .in_project(access.project_id)
+                .about_user(user)
+                .with_details(json!({ "role": role })),
+        )
+        .await?;
         tx.commit().await?;
         tracing::info!(project_id = %access.project_id, user_id = %user, ?role, by = %access.user_id, "member added");
         Ok(member)
@@ -349,7 +402,7 @@ impl Projects {
         if current == Role::Owner && role != Role::Owner {
             ensure_another_owner(&mut tx, access.project_id).await?;
         }
-        let member = sqlx::query_as(
+        let member: Member = sqlx::query_as(
             "UPDATE project_members SET role = $3 WHERE project_id = $1 AND user_id = $2 \
              RETURNING user_id, role, added_at",
         )
@@ -358,6 +411,20 @@ impl Projects {
         .bind(role)
         .fetch_one(&mut *tx)
         .await?;
+        if current != role {
+            donka_audit::record(
+                &mut tx,
+                Event::new(
+                    self.clock.now(),
+                    Some(access.user_id),
+                    Action::MemberRoleChanged,
+                )
+                .in_project(access.project_id)
+                .about_user(user)
+                .with_details(json!({ "from": current, "to": role })),
+            )
+            .await?;
+        }
         tx.commit().await?;
         tracing::info!(project_id = %access.project_id, user_id = %user, ?role, by = %access.user_id, "member role changed");
         Ok(member)
@@ -367,7 +434,8 @@ impl Projects {
     pub async fn remove_member(&self, access: &Access, user: Uuid) -> Result<(), ProjectError> {
         let mut tx = self.pool.begin().await?;
         lock_for_change(&mut tx, access, Role::Owner).await?;
-        if current_role(&mut tx, access.project_id, user).await? == Role::Owner {
+        let role = current_role(&mut tx, access.project_id, user).await?;
+        if role == Role::Owner {
             ensure_another_owner(&mut tx, access.project_id).await?;
         }
         sqlx::query("DELETE FROM project_members WHERE project_id = $1 AND user_id = $2")
@@ -375,6 +443,18 @@ impl Projects {
             .bind(user)
             .execute(&mut *tx)
             .await?;
+        donka_audit::record(
+            &mut tx,
+            Event::new(
+                self.clock.now(),
+                Some(access.user_id),
+                Action::MemberRemoved,
+            )
+            .in_project(access.project_id)
+            .about_user(user)
+            .with_details(json!({ "role": role })),
+        )
+        .await?;
         tx.commit().await?;
         tracing::info!(project_id = %access.project_id, user_id = %user, by = %access.user_id, "member removed");
         Ok(())
@@ -384,30 +464,38 @@ impl Projects {
 type Tx<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
 
 /// Locks the project row so concurrent changes run one after the other (two
-/// owners demoting each other cannot leave the project without one), refuses
-/// changes to an archived project, and re-checks the actor's role under the lock:
-/// an owner demoted a moment ago cannot finish an owner-only change.
-async fn lock_for_change(
+/// owners demoting each other cannot leave the project without one), and
+/// re-checks the actor's role under the lock: an owner demoted a moment ago
+/// cannot finish an owner-only change. Returns when the project was archived.
+async fn lock_project(
     tx: &mut Tx<'_>,
     access: &Access,
     needed: Role,
-) -> Result<(), ProjectError> {
+) -> Result<Option<DateTime<Utc>>, ProjectError> {
     access.require(needed)?;
     let row: Option<(Option<DateTime<Utc>>,)> =
         sqlx::query_as("SELECT archived_at FROM projects WHERE id = $1 FOR UPDATE")
             .bind(access.project_id)
             .fetch_optional(&mut **tx)
             .await?;
-    match row {
-        None => return Err(ProjectError::NotFound),
-        Some((Some(_),)) => return Err(ProjectError::Archived),
-        Some((None,)) => {}
-    }
+    let (archived_at,) = row.ok_or(ProjectError::NotFound)?;
     match current_role(tx, access.project_id, access.user_id).await {
-        Ok(role) if role.includes(needed) => Ok(()),
+        Ok(role) if role.includes(needed) => Ok(archived_at),
         Ok(_) => Err(ProjectError::Forbidden),
         Err(ProjectError::MemberNotFound) => Err(ProjectError::NotFound),
         Err(other) => Err(other),
+    }
+}
+
+/// [`lock_project`], refusing changes to an archived project.
+async fn lock_for_change(
+    tx: &mut Tx<'_>,
+    access: &Access,
+    needed: Role,
+) -> Result<(), ProjectError> {
+    match lock_project(tx, access, needed).await? {
+        Some(_) => Err(ProjectError::Archived),
+        None => Ok(()),
     }
 }
 

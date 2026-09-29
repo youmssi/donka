@@ -7,6 +7,7 @@ use axum::Router;
 use chrono::{TimeZone, Utc};
 use donka_app::auth::{CookieSettings, CSRF_HEADER, SESSION_COOKIE};
 use donka_app::{router, AppState};
+use donka_audit::AuditLog;
 use donka_db::{DbOptions, PgPool};
 use donka_engine::{DecisionRuntime, ZenRuntime};
 use donka_identity::{Identity, Locale, Policy};
@@ -51,12 +52,14 @@ pub fn build_with_web(
     ));
     let identity = Identity::new(db.clone(), clock.clone(), policy());
     let projects = Projects::new(db.clone(), clock.clone());
+    let audit = AuditLog::new(db.clone());
     let router = router(
         AppState {
             runtime,
             db,
             identity: identity.clone(),
             projects,
+            audit,
             cookies: CookieSettings {
                 secure: true,
                 max_age_seconds: 8 * 3600,
