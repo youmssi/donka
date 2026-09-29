@@ -27,6 +27,7 @@ it('writes dates short, with the year only when it is not this one', () => {
 it('says how long ago within a day, then the date and time', () => {
   const en = formatIn('en');
   expect(en.ago(new Date(2026, 8, 29, 15, 58), now)).toBe('2 min ago');
+  expect(en.ago(new Date(2026, 8, 29, 15, 59, 40), now)).toBe('now');
   expect(en.ago(new Date(2026, 8, 29, 14, 0), now)).toBe('2 hr ago');
   expect(en.ago(new Date(2026, 8, 27, 9, 30), now)).toBe('27 Sept, 09:30');
   // French puts a no-break space between the number and its unit.

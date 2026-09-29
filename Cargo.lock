@@ -930,6 +930,7 @@ dependencies = [
  "chrono",
  "donka-audit",
  "donka-db",
+ "donka-decision",
  "donka-engine",
  "donka-identity",
  "donka-mail",
@@ -972,6 +973,23 @@ dependencies = [
  "sqlx",
  "thiserror 2.0.21",
  "tokio",
+]
+
+[[package]]
+name = "donka-decision"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "donka-audit",
+ "donka-db",
+ "donka-engine",
+ "donka-project",
+ "donka-shared",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 2.0.21",
+ "uuid",
 ]
 
 [[package]]

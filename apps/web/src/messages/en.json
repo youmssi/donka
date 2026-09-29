@@ -43,7 +43,12 @@
     "ALREADY_MEMBER": "This person is already a member of the project.",
     "MEMBER_NOT_FOUND": "This person is no longer a member of the project.",
     "LAST_OWNER": "A project needs at least one owner. Make someone else an owner first.",
-    "NO_SUCH_USER": "No Studio account uses this email. Ask an administrator to invite them first."
+    "NO_SUCH_USER": "No Studio account uses this email. Ask an administrator to invite them first.",
+    "DECISION_NOT_FOUND": "This decision does not exist in this project.",
+    "DECISION_KEY_TAKEN": "Another decision in this project already uses this key.",
+    "DECISION_CONFLICT": "Someone saved this decision since you opened it.",
+    "INVALID_DECISION": "This decision is not a valid model. Check its nodes and connections.",
+    "EVALUATION_FAILED": "The decision could not be evaluated with this input."
   },
   "validation": {
     "email": "Enter a valid email address.",
@@ -51,7 +56,8 @@
     "passwordLength": "Use {min} to {max} characters.",
     "passwordMismatch": "The passwords do not match.",
     "maxLength": "Use at most {max} characters.",
-    "projectKey": "Use {min} to {max} lowercase letters, digits and single hyphens, starting with a letter."
+    "projectKey": "Use {min} to {max} lowercase letters, digits and single hyphens, starting with a letter.",
+    "decisionKey": "Use lowercase words with single hyphens; separate folders with /. At most {max} characters."
   },
   "signIn": {
     "title": "Sign in",
@@ -149,7 +155,9 @@
     "backToProjects": "Back to projects",
     "audit": "Audit log",
     "archived": "Project archived.",
-    "restored": "Project restored."
+    "restored": "Project restored.",
+    "decisions": "Decisions",
+    "decision": "Decision"
   },
   "members": {
     "title": "Members",
@@ -263,6 +271,10 @@
       "added": "Member added",
       "role_changed": "Member role changed",
       "removed": "Member removed"
+    },
+    "decision": {
+      "created": "Decision created",
+      "deleted": "Decision deleted"
     }
   },
   "auditSentences": {
@@ -273,7 +285,9 @@
     "projectRestored": "Restored the project",
     "memberAdded": "Added {person} as {role}",
     "memberRoleChanged": "Changed the role of {person} from {from} to {to}",
-    "memberRemoved": "Removed {person} ({role})"
+    "memberRemoved": "Removed {person} ({role})",
+    "decisionCreated": "Created the decision {key}",
+    "decisionDeleted": "Deleted the decision {key}"
   },
   "ui": {
     "close": "Close",
@@ -292,5 +306,45 @@
     "goTo": "Go to",
     "preferences": "Preferences",
     "theme": "Theme: {theme}"
+  },
+  "decisions": {
+    "title": "Decisions",
+    "decision": "Decision",
+    "updated": "Updated",
+    "by": "By",
+    "create": "New decision",
+    "createTitle": "New decision",
+    "createDescription": "It opens empty in the editor. Other decisions call it by its key.",
+    "key": "Key",
+    "keyHint": "For example person-score, or bureau/normalize to keep it in a folder.",
+    "keyTaken": "Another decision in this project already uses this key.",
+    "creating": "Creating…",
+    "emptyTitle": "No decisions yet",
+    "empty": "Create the first decision of this project, then build it in the editor.",
+    "emptyReadOnly": "Editors and owners of this project create its decisions.",
+    "errorTitle": "We could not load the decisions",
+    "actionsFor": "Actions for {key}",
+    "delete": "Delete",
+    "deleteConfirmTitle": "Delete {key}?",
+    "deleteConfirm": "Its draft is deleted. Decisions that call it will fail until they call another one.",
+    "deleted": "{key} was deleted.",
+    "notFoundTitle": "Decision not found",
+    "notFound": "This project has no decision named {key}. It may have been deleted or renamed.",
+    "backToDecisions": "Back to decisions",
+    "simulator": "Simulator",
+    "saved": "Saved",
+    "saving": "Saving…",
+    "unsaved": "Unsaved changes",
+    "notSaved": "Not saved: {reason}",
+    "readOnly": "Read-only",
+    "conflictShort": "Saved by someone else",
+    "conflictTitle": "Someone else saved this decision",
+    "conflictBy": "{email} saved it <when></when> while you were editing. Load their version, or keep yours and replace theirs.",
+    "conflict": "It was saved while you were editing. Load the saved version, or keep yours and replace it.",
+    "loadTheirs": "Load their version",
+    "keepMine": "Keep mine",
+    "nodeName": "Decision",
+    "nodeDescription": "Call another decision of the project",
+    "nodeChoose": "Choose a decision"
   }
 }

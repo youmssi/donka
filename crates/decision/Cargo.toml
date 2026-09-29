@@ -1,0 +1,23 @@
+[package]
+name = "donka-decision"
+description = "Decisions of a project (JDM graphs) and their drafts"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+publish = false
+
+[dependencies]
+chrono = { workspace = true }
+donka-audit = { workspace = true }
+donka-db = { workspace = true }
+donka-engine = { workspace = true }
+donka-project = { workspace = true }
+donka-shared = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+
+[lints]
+workspace = true

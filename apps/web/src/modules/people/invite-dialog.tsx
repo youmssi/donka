@@ -42,7 +42,7 @@ export function InviteDialog() {
 
   const form = useForm({
     defaultValues: { email: '', locale, isAdmin: false } as InviteValues,
-    validators: { onBlur: inviteSchema, onSubmit: inviteSchema },
+    validators: { onChange: inviteSchema, onSubmit: inviteSchema },
     onSubmit: async ({ value }) => {
       setError(null);
       const result = await invite.mutateAsync(value);

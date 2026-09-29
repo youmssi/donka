@@ -8,6 +8,7 @@ use axum::extract::rejection::JsonRejection;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
+use donka_decision::DecisionError;
 use donka_engine::RuntimeError;
 use donka_identity::IdentityError;
 use donka_project::ProjectError;
@@ -45,6 +46,13 @@ pub enum ApiError {
     InvalidDecision { key: String, message: String },
     #[error("evaluation failed")]
     EvaluationFailed(Value),
+    #[error("decision missing")]
+    DecisionMissing,
+    #[error("decision key already used")]
+    DecisionKeyTaken,
+    /// Someone saved the draft since it was loaded; `details` says who and when.
+    #[error("draft conflict")]
+    DecisionConflict(Value),
     #[error("database unavailable")]
     DatabaseUnavailable,
     #[error("no such endpoint")]
@@ -82,6 +90,30 @@ pub enum ApiError {
     },
     #[error("internal error: {0}")]
     Internal(String),
+}
+
+impl From<DecisionError> for ApiError {
+    fn from(err: DecisionError) -> Self {
+        match err {
+            DecisionError::NotFound => Self::DecisionMissing,
+            DecisionError::InvalidKey => Self::InvalidField {
+                field: "key",
+                message: err.to_string(),
+            },
+            DecisionError::KeyTaken => Self::DecisionKeyTaken,
+            DecisionError::InvalidContent { key, message } => {
+                Self::InvalidDecision { key, message }
+            }
+            // The save route adds the email of who saved (routes::decisions::save).
+            DecisionError::Conflict { current } => Self::DecisionConflict(serde_json::json!({
+                "revision": current.revision,
+                "updatedAt": current.updated_at,
+                "updatedBy": { "id": current.updated_by },
+            })),
+            DecisionError::Project(err) => err.into(),
+            DecisionError::Database(err) => Self::Internal(err.to_string()),
+        }
+    }
 }
 
 impl From<RuntimeError> for ApiError {
@@ -176,6 +208,27 @@ impl IntoResponse for ApiError {
                 StatusCode::UNPROCESSABLE_ENTITY,
                 "EVALUATION_FAILED",
                 "The decision could not be evaluated with this input.".to_owned(),
+                None,
+                Some(details),
+            ),
+            Self::DecisionMissing => (
+                StatusCode::NOT_FOUND,
+                "DECISION_NOT_FOUND",
+                "This decision does not exist in this project.".to_owned(),
+                None,
+                None,
+            ),
+            Self::DecisionKeyTaken => (
+                StatusCode::CONFLICT,
+                "DECISION_KEY_TAKEN",
+                "Another decision in this project already uses this key.".to_owned(),
+                Some(BTreeMap::from([("key".to_owned(), "already used".to_owned())])),
+                None,
+            ),
+            Self::DecisionConflict(details) => (
+                StatusCode::CONFLICT,
+                "DECISION_CONFLICT",
+                "Someone saved this decision since you opened it.".to_owned(),
                 None,
                 Some(details),
             ),

@@ -36,6 +36,7 @@ apps/app        Studio backend service (Rust, Axum)
 apps/web        Studio web app (Next.js static export, shadcn/Radix, jdm-editor)
 crates/engine   The only code that calls zen-engine (DecisionRuntime trait + ZenRuntime)
 crates/audit    Append-only audit log of every state change
+crates/decision Decisions of a project and their drafts
 crates/db       PostgreSQL pool, migrations, readiness
 crates/identity Users, sign-in with lockout, sessions, invitations, password reset
 crates/mail     Mailer trait and its SMTP implementation

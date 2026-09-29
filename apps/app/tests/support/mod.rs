@@ -9,6 +9,7 @@ use donka_app::auth::{CookieSettings, CSRF_HEADER, SESSION_COOKIE};
 use donka_app::{router, AppState};
 use donka_audit::AuditLog;
 use donka_db::{DbOptions, PgPool};
+use donka_decision::Decisions;
 use donka_engine::{DecisionRuntime, ZenRuntime};
 use donka_identity::{Identity, Locale, Policy};
 use donka_mail::testing::RecordingMailer;
@@ -52,6 +53,7 @@ pub fn build_with_web(
     ));
     let identity = Identity::new(db.clone(), clock.clone(), policy());
     let projects = Projects::new(db.clone(), clock.clone());
+    let decisions = Decisions::new(db.clone(), clock.clone());
     let audit = AuditLog::new(db.clone());
     let router = router(
         AppState {
@@ -59,6 +61,7 @@ pub fn build_with_web(
             db,
             identity: identity.clone(),
             projects,
+            decisions,
             audit,
             cookies: CookieSettings {
                 secure: true,

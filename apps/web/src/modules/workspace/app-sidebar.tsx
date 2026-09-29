@@ -40,7 +40,7 @@ import { routing } from '@/i18n/routing';
 import { useCurrentUser, useSignOut } from '@/modules/identity';
 import { projectHref, useOpenProject, useProjectList, type Project, type ProjectSection } from '@/modules/project';
 
-import { PEOPLE_ICON, placeOf, PROJECTS_ICON, projectSections, type Place } from './sections';
+import { navSection, PEOPLE_ICON, placeOf, PROJECTS_ICON, projectSections, type Place } from './sections';
 
 /** Studio's navigation: sections, the open project, and the account. */
 export function AppSidebar() {
@@ -154,7 +154,7 @@ function OpenProjectGroup({
           </SidebarMenuItem>
           {projectSections(project).map(({ section, icon: Icon }) => (
             <SidebarMenuItem key={section}>
-              <SidebarMenuButton asChild isActive={place.section === section} tooltip={sections(section)}>
+              <SidebarMenuButton asChild isActive={navSection(place.section) === section} tooltip={sections(section)}>
                 <Link href={projectHref(section, project.key)} onClick={onNavigate}>
                   <Icon aria-hidden />
                   <span>{sections(section)}</span>
@@ -178,6 +178,7 @@ function ProjectSwitcher({
   onNavigate: () => void;
 }) {
   const t = useTranslations('nav');
+  const roles = useTranslations('roles');
   const router = useRouter();
   const { isMobile } = useSidebar();
   const list = useProjectList(false, 0).data;
@@ -195,7 +196,10 @@ function ProjectSwitcher({
           </span>
           <span className="grid min-w-0 flex-1 leading-tight">
             <span className="truncate font-medium">{project.name}</span>
-            <span className="truncate font-mono text-xs text-muted-foreground">{project.key}</span>
+            {/* Your role is about the project, so it sits with the project. */}
+            <span className="truncate text-xs text-muted-foreground">
+              <span className="font-mono">{project.key}</span> · {roles(project.role)}
+            </span>
           </span>
           <ChevronsUpDown className="ml-auto" aria-hidden />
         </SidebarMenuButton>
@@ -208,7 +212,8 @@ function ProjectSwitcher({
             onSelect={() => {
               onNavigate();
               // The same section in the other project, when the person may open it there.
-              const next = section === 'audit' && other.role !== 'owner' ? 'members' : section;
+              const same = navSection(section);
+              const next = same === 'audit' && other.role !== 'owner' ? 'decisions' : same;
               router.push(projectHref(next, other.key));
             }}
           >

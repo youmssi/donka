@@ -29,7 +29,7 @@ export function SetupPasswordForm() {
 
   const form = useForm({
     defaultValues: { password: '', confirm: '' } satisfies SetupPasswordValues,
-    validators: { onBlur: setupPasswordSchema, onSubmit: setupPasswordSchema },
+    validators: { onChange: setupPasswordSchema, onSubmit: setupPasswordSchema },
     onSubmit: async ({ value }) => {
       if (!token) return;
       setError(null);

@@ -23,7 +23,7 @@ import {
 import { FieldGroup } from '@/components/ui/field';
 import { useRouter } from '@/i18n/navigation';
 
-import { projectHref } from './links';
+import { projectHome } from './links';
 import {
   createProjectSchema,
   DESCRIPTION_MAX,
@@ -46,14 +46,14 @@ export function CreateProjectDialog() {
 
   const form = useForm({
     defaultValues: { name: '', key: '', description: '' } satisfies CreateProjectValues,
-    validators: { onBlur: createProjectSchema, onSubmit: createProjectSchema },
+    validators: { onChange: createProjectSchema, onSubmit: createProjectSchema },
     onSubmit: async ({ value }) => {
       setError(null);
       const result = await create.mutateAsync(value);
       if (result.ok) {
         setOpen(false);
         toast.success(t('created', { name: result.data.name }));
-        router.push(projectHref('members', result.data.key));
+        router.push(projectHome(result.data.key));
       } else {
         setError(result.error);
       }

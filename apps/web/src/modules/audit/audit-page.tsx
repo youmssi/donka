@@ -361,6 +361,10 @@ function useSentence(event: AuditEvent): string {
         from: role(detail(event, 'from')),
         to: role(detail(event, 'to')),
       });
+    case 'decision.created':
+      return t('decisionCreated', { key: detail(event, 'key') });
+    case 'decision.deleted':
+      return t('decisionDeleted', { key: detail(event, 'key') });
     case 'member.removed':
       return t('memberRemoved', { person, role: role(detail(event, 'role')) });
     default:

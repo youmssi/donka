@@ -70,7 +70,9 @@
           "project.restored",
           "member.added",
           "member.role_changed",
-          "member.removed"
+          "member.removed",
+          "decision.created",
+          "decision.deleted"
         ],
         "type": "string"
       },
@@ -168,6 +170,26 @@
         ],
         "type": "object"
       },
+      "CreateDecisionRequest": {
+        "properties": {
+          "content": {
+            "additionalProperties": true,
+            "description": "A JDM decision graph.",
+            "type": "object"
+          },
+          "key": {
+            "description": "Lowercase words with single hyphens; folders separated by `/`.",
+            "maxLength": 120,
+            "minLength": 1,
+            "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*(/[a-z][a-z0-9]*(-[a-z0-9]+)*)*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "type": "object"
+      },
       "CreateProjectRequest": {
         "properties": {
           "description": {
@@ -190,6 +212,72 @@
         "required": [
           "key",
           "name"
+        ],
+        "type": "object"
+      },
+      "DecisionListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionSummaryResponse"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "DecisionResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/DecisionSummaryResponse"
+          },
+          {
+            "properties": {
+              "content": {
+                "additionalProperties": true,
+                "description": "A JDM decision graph.",
+                "type": "object"
+              }
+            },
+            "required": [
+              "content"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "DecisionSummaryResponse": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "key": {
+            "description": "How graphs call this decision, e.g. `bureau/normalize`.",
+            "type": "string"
+          },
+          "revision": {
+            "description": "Grows by one on every save; send it back when saving.",
+            "format": "int32",
+            "type": "integer"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedBy": {
+            "$ref": "#/components/schemas/PersonRef"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "revision",
+          "updatedAt",
+          "updatedBy"
         ],
         "type": "object"
       },
@@ -454,6 +542,25 @@
         ],
         "type": "string"
       },
+      "SaveDecisionRequest": {
+        "properties": {
+          "content": {
+            "additionalProperties": true,
+            "description": "A JDM decision graph.",
+            "type": "object"
+          },
+          "revision": {
+            "description": "The revision this draft was loaded or last saved at.",
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "content",
+          "revision"
+        ],
+        "type": "object"
+      },
       "SignInRequest": {
         "properties": {
           "email": {
@@ -467,6 +574,20 @@
           "email",
           "password"
         ],
+        "type": "object"
+      },
+      "SimulateDecisionRequest": {
+        "properties": {
+          "content": {
+            "additionalProperties": true,
+            "description": "A JDM decision graph.",
+            "type": "object"
+          },
+          "context": {
+            "description": "Input passed to the decision.",
+            "type": "object"
+          }
+        },
         "type": "object"
       },
       "SimulateRequest": {
@@ -1344,6 +1465,411 @@
         "summary": "The project's audit log as CSV, with the same filters (owners). At most\n50,000 rows; narrow the dates for more.",
         "tags": [
           "audit"
+        ]
+      }
+    },
+    "/projects/{project_id}/decisions": {
+      "get": {
+        "operationId": "list",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionListResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND"
+          }
+        },
+        "summary": "The project's decisions, by key (any member).",
+        "tags": [
+          "decisions"
+        ]
+      },
+      "post": {
+        "operationId": "create",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid key (INVALID_REQUEST)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Viewers cannot create decisions (FORBIDDEN)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "DECISION_KEY_TAKEN or PROJECT_ARCHIVED"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The content is not a decision model (INVALID_DECISION)"
+          }
+        },
+        "summary": "A new decision, empty unless content is given (editors and owners).",
+        "tags": [
+          "decisions"
+        ]
+      }
+    },
+    "/projects/{project_id}/decisions/{decision_id}": {
+      "delete": {
+        "operationId": "delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "decision_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Viewers cannot delete (FORBIDDEN)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND or DECISION_NOT_FOUND"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_ARCHIVED"
+          }
+        },
+        "summary": "Deletes a decision and its draft (editors and owners).",
+        "tags": [
+          "decisions"
+        ]
+      },
+      "get": {
+        "operationId": "get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "decision_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND or DECISION_NOT_FOUND"
+          }
+        },
+        "summary": "One decision with its draft (any member).",
+        "tags": [
+          "decisions"
+        ]
+      },
+      "put": {
+        "operationId": "save",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "decision_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionSummaryResponse"
+                }
+              }
+            },
+            "description": "Saved; the new revision"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Viewers cannot save (FORBIDDEN)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND or DECISION_NOT_FOUND"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "DECISION_CONFLICT (details: revision, updatedAt, updatedBy) or PROJECT_ARCHIVED"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The content is not a decision model (INVALID_DECISION)"
+          }
+        },
+        "summary": "Saves the draft (editors and owners). Send the revision the draft was loaded\nat: when someone saved since, the answer is `409 DECISION_CONFLICT` with who\nand when in `details`, and nothing is overwritten.",
+        "tags": [
+          "decisions"
+        ]
+      }
+    },
+    "/projects/{project_id}/decisions/{decision_id}/simulate": {
+      "post": {
+        "operationId": "simulate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "decision_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulateDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulateResponse"
+                }
+              }
+            },
+            "description": "Result and per-node trace"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND or DECISION_NOT_FOUND"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A decision of the project is not a valid model (INVALID_DECISION), or the evaluation failed (EVALUATION_FAILED, trace in details)"
+          }
+        },
+        "summary": "Evaluates this decision with every other decision of the project, as a\nrelease would, and returns the result with a per-node trace (any member:\nviewers simulate too). Nothing is saved.",
+        "tags": [
+          "decisions"
         ]
       }
     },

@@ -219,6 +219,68 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/projects/{project_id}/decisions': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The project's decisions, by key (any member). */
+    get: operations['list'];
+    put?: never;
+    /** A new decision, empty unless content is given (editors and owners). */
+    post: operations['create'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/decisions/{decision_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** One decision with its draft (any member). */
+    get: operations['get'];
+    /**
+     * Saves the draft (editors and owners). Send the revision the draft was loaded
+     *     at: when someone saved since, the answer is `409 DECISION_CONFLICT` with who
+     *     and when in `details`, and nothing is overwritten.
+     */
+    put: operations['save'];
+    post?: never;
+    /** Deletes a decision and its draft (editors and owners). */
+    delete: operations['delete'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/decisions/{decision_id}/simulate': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Evaluates this decision with every other decision of the project, as a
+     *     release would, and returns the result with a per-node trace (any member:
+     *     viewers simulate too). Nothing is saved.
+     */
+    post: operations['simulate'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/projects/{project_id}/members': {
     parameters: {
       query?: never;
@@ -400,7 +462,9 @@ export interface components {
       | 'project.restored'
       | 'member.added'
       | 'member.role_changed'
-      | 'member.removed';
+      | 'member.removed'
+      | 'decision.created'
+      | 'decision.deleted';
     AddMemberRequest: {
       /** @description Email of an existing Studio account. */
       email: string;
@@ -428,10 +492,41 @@ export interface components {
     ChangeRoleRequest: {
       role: components['schemas']['Role'];
     };
+    CreateDecisionRequest: {
+      /** @description A JDM decision graph. */
+      content?: {
+        [key: string]: unknown;
+      };
+      /** @description Lowercase words with single hyphens; folders separated by `/`. */
+      key: string;
+    };
     CreateProjectRequest: {
       description?: string;
       key: string;
       name: string;
+    };
+    DecisionListResponse: {
+      items: components['schemas']['DecisionSummaryResponse'][];
+    };
+    DecisionResponse: components['schemas']['DecisionSummaryResponse'] & {
+      /** @description A JDM decision graph. */
+      content: {
+        [key: string]: unknown;
+      };
+    };
+    DecisionSummaryResponse: {
+      /** Format: uuid */
+      id: string;
+      /** @description How graphs call this decision, e.g. `bureau/normalize`. */
+      key: string;
+      /**
+       * Format: int32
+       * @description Grows by one on every save; send it back when saving.
+       */
+      revision: number;
+      /** Format: date-time */
+      updatedAt: string;
+      updatedBy: components['schemas']['PersonRef'];
     };
     ErrorBody: {
       /** @description Stable, machine-readable code, e.g. `DECISION_NOT_FOUND`. */
@@ -521,9 +616,28 @@ export interface components {
      * @enum {string}
      */
     Role: 'viewer' | 'editor' | 'owner';
+    SaveDecisionRequest: {
+      /** @description A JDM decision graph. */
+      content: {
+        [key: string]: unknown;
+      };
+      /**
+       * Format: int32
+       * @description The revision this draft was loaded or last saved at.
+       */
+      revision: number;
+    };
     SignInRequest: {
       email: string;
       password: string;
+    };
+    SimulateDecisionRequest: {
+      /** @description A JDM decision graph. */
+      content?: {
+        [key: string]: unknown;
+      };
+      /** @description Input passed to the decision. */
+      context?: Record<string, never>;
     };
     /**
      * @description Design-time evaluation from the editor. The editor sends the whole draft
@@ -1099,6 +1213,293 @@ export interface operations {
       };
       /** @description PROJECT_NOT_FOUND */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  list: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DecisionListResponse'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateDecisionRequest'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DecisionResponse'];
+        };
+      };
+      /** @description Invalid key (INVALID_REQUEST) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Viewers cannot create decisions (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description DECISION_KEY_TAKEN or PROJECT_ARCHIVED */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description The content is not a decision model (INVALID_DECISION) */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        decision_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DecisionResponse'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or DECISION_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  save: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        decision_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SaveDecisionRequest'];
+      };
+    };
+    responses: {
+      /** @description Saved; the new revision */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DecisionSummaryResponse'];
+        };
+      };
+      /** @description Viewers cannot save (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or DECISION_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description DECISION_CONFLICT (details: revision, updatedAt, updatedBy) or PROJECT_ARCHIVED */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description The content is not a decision model (INVALID_DECISION) */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        decision_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Deleted */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Viewers cannot delete (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or DECISION_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_ARCHIVED */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  simulate: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        decision_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SimulateDecisionRequest'];
+      };
+    };
+    responses: {
+      /** @description Result and per-node trace */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SimulateResponse'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or DECISION_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description A decision of the project is not a valid model (INVALID_DECISION), or the evaluation failed (EVALUATION_FAILED, trace in details) */
+      422: {
         headers: {
           [name: string]: unknown;
         };

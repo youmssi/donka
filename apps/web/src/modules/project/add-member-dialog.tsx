@@ -71,7 +71,7 @@ export function AddMemberDialog({ project }: { project: Project }) {
 
   const form = useForm({
     defaultValues: EMPTY,
-    validators: { onBlur: addMemberSchema, onSubmit: addMemberSchema },
+    validators: { onChange: addMemberSchema, onSubmit: addMemberSchema },
     onSubmit: async ({ value }) => {
       setError(null);
       setAttempt(value);

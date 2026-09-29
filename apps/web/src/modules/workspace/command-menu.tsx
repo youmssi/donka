@@ -20,7 +20,7 @@ import { Kbd, KbdGroup } from '@/components/ui/kbd';
 import { usePathname, useRouter } from '@/i18n/navigation';
 import { routing } from '@/i18n/routing';
 import { useCurrentUser } from '@/modules/identity';
-import { projectHref, useOpenProject, useProjectList } from '@/modules/project';
+import { projectHome, projectHref, useOpenProject, useProjectList } from '@/modules/project';
 
 import { PEOPLE_ICON, placeOf, PROJECTS_ICON, projectSections } from './sections';
 
@@ -111,7 +111,7 @@ export function CommandMenu() {
                 <CommandItem
                   key={item.id}
                   value={`${item.name} ${item.key}`}
-                  onSelect={() => run(() => router.push(projectHref('members', item.key)))}
+                  onSelect={() => run(() => router.push(projectHome(item.key)))}
                 >
                   <FolderOpen aria-hidden />
                   <span className="truncate">{item.name}</span>

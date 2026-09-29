@@ -482,6 +482,37 @@ impl Projects {
 
 type Tx<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
 
+/// For other modules changing something inside a project (a decision…), in their
+/// own transaction: fails unless the member still has `needed` and the project is
+/// not archived. A shared lock on the project row holds until that transaction
+/// ends, so an archive or a role change waits for it, while changes to different
+/// things in the project still run side by side.
+pub async fn authorize_change(
+    conn: &mut sqlx::PgConnection,
+    access: &Access,
+    needed: Role,
+) -> Result<(), ProjectError> {
+    access.require(needed)?;
+    let row: Option<(Option<DateTime<Utc>>,)> =
+        sqlx::query_as("SELECT archived_at FROM projects WHERE id = $1 FOR SHARE")
+            .bind(access.project_id)
+            .fetch_optional(&mut *conn)
+            .await?;
+    let (archived_at,) = row.ok_or(ProjectError::NotFound)?;
+    let role: Option<(Role,)> =
+        sqlx::query_as("SELECT role FROM project_members WHERE project_id = $1 AND user_id = $2")
+            .bind(access.project_id)
+            .bind(access.user_id)
+            .fetch_optional(&mut *conn)
+            .await?;
+    match role {
+        None => Err(ProjectError::NotFound),
+        Some((role,)) if !role.includes(needed) => Err(ProjectError::Forbidden),
+        Some(_) if archived_at.is_some() => Err(ProjectError::Archived),
+        Some(_) => Ok(()),
+    }
+}
+
 /// Locks the project row so concurrent changes run one after the other (two
 /// owners demoting each other cannot leave the project without one), and
 /// re-checks the actor's role under the lock: an owner demoted a moment ago

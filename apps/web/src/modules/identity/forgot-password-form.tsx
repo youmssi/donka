@@ -23,7 +23,7 @@ export function ForgotPasswordForm() {
 
   const form = useForm({
     defaultValues: { email: '' } satisfies ForgotPasswordValues,
-    validators: { onBlur: forgotPasswordSchema, onSubmit: forgotPasswordSchema },
+    validators: { onChange: forgotPasswordSchema, onSubmit: forgotPasswordSchema },
     onSubmit: async ({ value }) => {
       setError(null);
       const result = await requestPasswordReset(value);

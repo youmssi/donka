@@ -13,12 +13,13 @@ import { Button } from '@/components/ui/button';
 import { Link, useRouter } from '@/i18n/navigation';
 
 import { projectHref, type ProjectSection } from './links';
-import { RoleBadge } from './role-badge';
 import type { Project } from './schema';
 import { useOpenProject } from './useProjects';
 
 interface ProjectFrameProps {
   section: ProjectSection;
+  /** In place of the title line (the decision editor has its own toolbar). */
+  header?: (project: Project) => ReactNode;
   /** Buttons next to the page title (add a member, export…). */
   actions?: (project: Project) => ReactNode;
   children: (project: Project) => ReactNode;
@@ -27,10 +28,10 @@ interface ProjectFrameProps {
 /**
  * A page of one project. The project comes from `?p=<key>`; when it cannot be
  * shown (not a member, or gone), the page says so and links back. The project's
- * name and sections are in the sidebar and breadcrumb, so the title names the
- * section.
+ * name, your role in it and its sections are in the sidebar and breadcrumb, so
+ * the title names the section.
  */
-export function ProjectFrame({ section, actions, children }: ProjectFrameProps) {
+export function ProjectFrame({ section, header, actions, children }: ProjectFrameProps) {
   const t = useTranslations('project');
   const common = useTranslations('common');
   const { requested, legacyId, query } = useOpenProject();
@@ -65,7 +66,7 @@ export function ProjectFrame({ section, actions, children }: ProjectFrameProps) 
   const project = result.data;
   return (
     <div className="grid gap-6">
-      <PageHeader title={t(section)} badges={<RoleBadge role={project.role} />} actions={actions?.(project)} />
+      {header ? header(project) : <PageHeader title={t(section)} actions={actions?.(project)} />}
       {project.archivedAt ? (
         <Alert>
           <Archive aria-hidden />

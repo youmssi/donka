@@ -48,7 +48,15 @@ Dependencies go **one way only**: `app/ → Component → Cache hook → Service
   - No server actions or route handlers. The security goal of a BFF is met by the same-origin
     httpOnly session cookie set by `apps/app` (§3).
 - `@gorules/jdm-editor` (antd + WASM) is loaded with `next/dynamic` and `ssr: false`, only on the
-  editor page (ADR-004).
+  editor page (ADR-004). It is used unchanged, extended only through its props:
+  - its theme comes from Studio's tokens, read at runtime and converted from `oklch()`
+    (`modules/decision/jdm-graph.tsx`);
+  - the node that calls another decision (`decisionNode`) is given through `components`, with the
+    project's decisions to choose from;
+  - a pnpm override lifts its antd to the last 5.x release, which has the official React 19 patch.
+- **Nothing loads from a CDN at runtime.** A self-hosted installation runs in networks that block
+  the internet, and code must come from the image. Monaco (the editor's code panels) defaults to
+  a CDN; `monaco-setup.ts` bundles it and its workers instead. Check any new library for this.
 
 ## 3. Talking to the backend
 
@@ -79,7 +87,10 @@ Dependencies go **one way only**: `app/ → Component → Cache hook → Service
   TanStack Form guide. Small wrappers that bind a TanStack field to them live in
   `components/shared/form/`; no form builds its own label/error markup.
 - The Zod schema is the single source of the form's rules; the server validates again.
-- Errors next to the field, in plain language, after blur or submit. The line under each field is
+- Errors next to the field, in plain language, once the person has left it or submitted; a
+  corrected value clears its error at once. Forms validate on `onChange` and `onSubmit` (an
+  `onBlur` validator would keep a stale error until the next blur); the field shows errors only
+  once left or submitted, so nobody is told off while still typing. The line under each field is
   reserved, so an error that appears when the person leaves the last field does not
   move the submit button out from under their pointer (a missed click).
 - Submit disabled while pending, with a `Spinner` in the button; no double submission; never

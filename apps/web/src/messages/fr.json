@@ -43,7 +43,12 @@
     "ALREADY_MEMBER": "Cette personne est déjà membre du projet.",
     "MEMBER_NOT_FOUND": "Cette personne n'est plus membre du projet.",
     "LAST_OWNER": "Un projet doit garder au moins un propriétaire. Nommez d'abord quelqu'un d'autre propriétaire.",
-    "NO_SUCH_USER": "Aucun compte Studio n'utilise cet e-mail. Demandez à un administrateur de l'inviter d'abord."
+    "NO_SUCH_USER": "Aucun compte Studio n'utilise cet e-mail. Demandez à un administrateur de l'inviter d'abord.",
+    "DECISION_NOT_FOUND": "Cette décision n'existe pas dans ce projet.",
+    "DECISION_KEY_TAKEN": "Une autre décision de ce projet utilise déjà cette clé.",
+    "DECISION_CONFLICT": "Quelqu'un a enregistré cette décision depuis que vous l'avez ouverte.",
+    "INVALID_DECISION": "Cette décision n'est pas un modèle valide. Vérifiez ses nœuds et ses liens.",
+    "EVALUATION_FAILED": "La décision n'a pas pu être évaluée avec cette entrée."
   },
   "validation": {
     "email": "Saisissez une adresse e-mail valide.",
@@ -51,7 +56,8 @@
     "passwordLength": "Utilisez entre {min} et {max} caractères.",
     "passwordMismatch": "Les mots de passe ne correspondent pas.",
     "maxLength": "Utilisez au plus {max} caractères.",
-    "projectKey": "Utilisez entre {min} et {max} lettres minuscules, chiffres et tirets simples, en commençant par une lettre."
+    "projectKey": "Utilisez entre {min} et {max} lettres minuscules, chiffres et tirets simples, en commençant par une lettre.",
+    "decisionKey": "Utilisez des mots en minuscules avec des tirets simples ; séparez les dossiers par /. {max} caractères au plus."
   },
   "signIn": {
     "title": "Connexion",
@@ -149,7 +155,9 @@
     "backToProjects": "Retour aux projets",
     "audit": "Journal d'audit",
     "archived": "Projet archivé.",
-    "restored": "Projet restauré."
+    "restored": "Projet restauré.",
+    "decisions": "Décisions",
+    "decision": "Décision"
   },
   "members": {
     "title": "Membres",
@@ -263,6 +271,10 @@
       "added": "Membre ajouté",
       "role_changed": "Rôle d'un membre modifié",
       "removed": "Membre retiré"
+    },
+    "decision": {
+      "created": "Décision créée",
+      "deleted": "Décision supprimée"
     }
   },
   "auditSentences": {
@@ -273,7 +285,9 @@
     "projectRestored": "A restauré le projet",
     "memberAdded": "A ajouté {person} comme {role}",
     "memberRoleChanged": "A changé le rôle de {person} de {from} à {to}",
-    "memberRemoved": "A retiré {person} ({role})"
+    "memberRemoved": "A retiré {person} ({role})",
+    "decisionCreated": "A créé la décision {key}",
+    "decisionDeleted": "A supprimé la décision {key}"
   },
   "ui": {
     "close": "Fermer",
@@ -292,5 +306,45 @@
     "goTo": "Aller à",
     "preferences": "Préférences",
     "theme": "Thème : {theme}"
+  },
+  "decisions": {
+    "title": "Décisions",
+    "decision": "Décision",
+    "updated": "Modifiée",
+    "by": "Par",
+    "create": "Nouvelle décision",
+    "createTitle": "Nouvelle décision",
+    "createDescription": "Elle s'ouvre vide dans l'éditeur. Les autres décisions l'appellent par sa clé.",
+    "key": "Clé",
+    "keyHint": "Par exemple person-score, ou bureau/normalize pour la ranger dans un dossier.",
+    "keyTaken": "Une autre décision de ce projet utilise déjà cette clé.",
+    "creating": "Création…",
+    "emptyTitle": "Aucune décision pour l'instant",
+    "empty": "Créez la première décision de ce projet, puis construisez-la dans l'éditeur.",
+    "emptyReadOnly": "Les éditeurs et propriétaires du projet créent ses décisions.",
+    "errorTitle": "Impossible de charger les décisions",
+    "actionsFor": "Actions pour {key}",
+    "delete": "Supprimer",
+    "deleteConfirmTitle": "Supprimer {key} ?",
+    "deleteConfirm": "Son brouillon est supprimé. Les décisions qui l'appellent échoueront tant qu'elles n'en appellent pas une autre.",
+    "deleted": "{key} a été supprimée.",
+    "notFoundTitle": "Décision introuvable",
+    "notFound": "Ce projet n'a pas de décision nommée {key}. Elle a peut-être été supprimée ou renommée.",
+    "backToDecisions": "Retour aux décisions",
+    "simulator": "Simulateur",
+    "saved": "Enregistré",
+    "saving": "Enregistrement…",
+    "unsaved": "Modifications non enregistrées",
+    "notSaved": "Non enregistré : {reason}",
+    "readOnly": "Lecture seule",
+    "conflictShort": "Enregistré par quelqu'un d'autre",
+    "conflictTitle": "Quelqu'un d'autre a enregistré cette décision",
+    "conflictBy": "{email} l'a enregistrée <when></when> pendant que vous la modifiiez. Chargez sa version, ou gardez la vôtre et remplacez la sienne.",
+    "conflict": "Elle a été enregistrée pendant que vous la modifiiez. Chargez la version enregistrée, ou gardez la vôtre et remplacez-la.",
+    "loadTheirs": "Charger sa version",
+    "keepMine": "Garder la mienne",
+    "nodeName": "Décision",
+    "nodeDescription": "Appeler une autre décision du projet",
+    "nodeChoose": "Choisir une décision"
   }
 }

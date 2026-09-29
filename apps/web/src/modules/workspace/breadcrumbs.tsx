@@ -1,5 +1,6 @@
 'use client';
 
+import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Fragment } from 'react';
 
@@ -13,7 +14,7 @@ import {
 } from '@/components/ui/breadcrumb';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Link, usePathname } from '@/i18n/navigation';
-import { projectHref, useOpenProject } from '@/modules/project';
+import { projectHome, useOpenProject } from '@/modules/project';
 
 import { placeOf } from './sections';
 
@@ -28,6 +29,7 @@ export function Breadcrumbs() {
   const sections = useTranslations('project');
   const place = placeOf(usePathname());
   const open = useOpenProject();
+  const decisionKey = useSearchParams().get('d') ?? '';
   const project = place.kind === 'project' && open.query.data?.ok ? open.query.data.data : null;
 
   let crumbs: Crumb[] | null;
@@ -42,8 +44,10 @@ export function Breadcrumbs() {
       crumbs = project
         ? [
             { label: t('projects'), href: '/' },
-            { label: project.name, href: projectHref('members', project.key) },
-            { label: sections(place.section) },
+            { label: project.name, href: projectHome(project.key) },
+            ...(place.section === 'decision'
+              ? [{ label: sections('decisions'), href: projectHome(project.key) }, { label: decisionKey }]
+              : [{ label: sections(place.section) }]),
           ]
         : null;
       break;
@@ -58,7 +62,7 @@ export function Breadcrumbs() {
         {crumbs.map((crumb, index) => {
           const last = index === crumbs.length - 1;
           return (
-            <Fragment key={crumb.label}>
+            <Fragment key={index}>
               {/* On phones only the page itself is shown; the sidebar has the rest. */}
               <BreadcrumbItem className={last ? 'min-w-0' : 'hidden md:inline-flex'}>
                 {last || !crumb.href ? (

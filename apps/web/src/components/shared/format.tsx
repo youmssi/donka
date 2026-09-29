@@ -36,11 +36,13 @@ export function useDateFormat() {
     const time = (value: Date) => clock.format(value);
     /** "13 Nov, 14:05". */
     const dateTime = (value: Date, now = new Date()) => `${date(value, now)}, ${time(value)}`;
-    /** "2 hr ago" within a day, then as `dateTime`. */
+    /** "now", "5 min ago", "2 hr ago" within a day, then as `dateTime`. */
     const ago = (value: Date, now = new Date()) => {
       const elapsed = now.getTime() - value.getTime();
-      if (elapsed < 0 || elapsed >= DAY) return dateTime(value, now);
-      if (elapsed < HOUR) return relative.format(-Math.max(1, Math.round(elapsed / MINUTE)), 'minute');
+      if (elapsed >= DAY || elapsed < -MINUTE) return dateTime(value, now);
+      // A clock a few seconds ahead of the server's still reads "now".
+      if (elapsed < MINUTE) return relative.format(0, 'second');
+      if (elapsed < HOUR) return relative.format(-Math.round(elapsed / MINUTE), 'minute');
       return relative.format(-Math.floor(elapsed / HOUR), 'hour');
     };
     return { date, time, dateTime, ago, full: (value: Date) => full.format(value) };
