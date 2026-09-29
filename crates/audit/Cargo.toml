@@ -1,17 +1,16 @@
 [package]
-name = "donka-project"
-description = "Projects, their members and roles"
+name = "donka-audit"
+description = "Append-only audit log: one event per state change, in the same transaction"
 version.workspace = true
 edition.workspace = true
 license-file.workspace = true
 publish = false
 
 [features]
-# Describes public types (Role) in the API's OpenAPI document.
+# Describes public types (Action) in the API's OpenAPI document.
 openapi = ["dep:utoipa"]
 
 [dependencies]
-donka-audit = { workspace = true }
 chrono = { workspace = true }
 donka-db = { workspace = true }
 donka-shared = { workspace = true }
@@ -19,12 +18,8 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 sqlx = { workspace = true }
 thiserror = { workspace = true }
-tracing = { workspace = true }
 utoipa = { workspace = true, optional = true }
 uuid = { workspace = true }
-
-[dev-dependencies]
-tokio = { workspace = true }
 
 [lints]
 workspace = true

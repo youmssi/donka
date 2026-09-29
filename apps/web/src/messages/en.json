@@ -143,7 +143,8 @@
     "restore": "Restore the project",
     "restoring": "Restoring…",
     "notFoundTitle": "Project not available",
-    "backToProjects": "Back to projects"
+    "backToProjects": "Back to projects",
+    "audit": "Audit log"
   },
   "members": {
     "title": "Members",
@@ -195,5 +196,56 @@
     "admin": "Administrator",
     "errorTitle": "We could not load the accounts",
     "forbiddenTitle": "Only administrators see this page"
+  },
+  "audit": {
+    "title": "Audit log",
+    "description": "Every change to this project, newest first. Times are in your time zone ({zone}).",
+    "ownersOnly": "Only the project's owners can see its audit log.",
+    "person": "Person",
+    "everyone": "Everyone",
+    "formerMember": "A former member",
+    "action": "Action",
+    "allActions": "All actions",
+    "from": "From",
+    "to": "To",
+    "export": "Export CSV",
+    "clearFilters": "Clear filters",
+    "emptyRange": "The end date is before the start date.",
+    "errorTitle": "We could not load the audit log",
+    "empty": "Nothing has been recorded for this project yet.",
+    "emptyFiltered": "No change matches these filters.",
+    "by": "by {email}",
+    "byStudio": "by Studio"
+  },
+  "auditActions": {
+    "user": {
+      "signed_in": "Signed in",
+      "sign_in_failed": "Sign-in failed",
+      "signed_out": "Signed out",
+      "password_set": "Password set",
+      "password_reset_requested": "Password reset requested",
+      "invited": "Invited to Studio"
+    },
+    "project": {
+      "created": "Project created",
+      "updated": "Project details changed",
+      "archived": "Project archived",
+      "restored": "Project restored"
+    },
+    "member": {
+      "added": "Member added",
+      "role_changed": "Member role changed",
+      "removed": "Member removed"
+    }
+  },
+  "auditSentences": {
+    "projectCreated": "Created the project “{name}”",
+    "projectRenamed": "Renamed the project from “{from}” to “{to}”",
+    "projectDescribed": "Changed the project description",
+    "projectArchived": "Archived the project",
+    "projectRestored": "Restored the project",
+    "memberAdded": "Added {person} as {role}",
+    "memberRoleChanged": "Changed the role of {person} from {from} to {to}",
+    "memberRemoved": "Removed {person} ({role})"
   }
 }

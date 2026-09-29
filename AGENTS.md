@@ -138,6 +138,7 @@ CI (`.github/workflows/ci.yml`) runs the same commands and blocks the merge when
 apps/app/            Studio backend service (Axum). Routes, config, error model, wiring.
 apps/web/            Studio web app (Next.js static export, served by apps/app)
 crates/engine/       DecisionRuntime trait + ZenRuntime (the only zen_engine user)
+crates/audit/        append-only audit log: `record` in the change's transaction; list, export
 crates/db/           PostgreSQL pool, migrations, readiness (shared by every module)
 crates/identity/     users, sign-in with lockout, sessions, invitations, password reset
 crates/mail/         Mailer trait + SMTP implementation (shared by modules that send email)

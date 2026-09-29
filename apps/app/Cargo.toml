@@ -13,6 +13,7 @@ path = "src/main.rs"
 [dependencies]
 anyhow = { workspace = true }
 axum = { workspace = true }
+donka-audit = { workspace = true, features = ["openapi"] }
 donka-db = { workspace = true }
 donka-engine = { workspace = true }
 donka-identity = { workspace = true, features = ["openapi"] }

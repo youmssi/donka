@@ -16,7 +16,7 @@ import { RoleBadge } from './role-badge';
 import type { Project } from './schema';
 import { useProject } from './useProjects';
 
-type Tab = 'settings' | 'members';
+type Tab = 'settings' | 'members' | 'audit';
 
 /**
  * Header and tabs of a project page. The project comes from `?id=`; when it
@@ -68,7 +68,7 @@ export function ProjectFrame({ tab, children }: { tab: Tab; children: (project: 
         </Alert>
       ) : null}
       <nav aria-label={project.name} className="flex gap-1 border-b">
-        {(['settings', 'members'] as const).map((value) => (
+        {tabs(project).map((value) => (
           <Link
             key={value}
             href={`/projects/${value}?id=${project.id}`}
@@ -87,6 +87,11 @@ export function ProjectFrame({ tab, children }: { tab: Tab; children: (project: 
       {children(project)}
     </div>
   );
+}
+
+/** The audit log is for owners only. */
+function tabs(project: Project): Tab[] {
+  return project.role === 'owner' ? ['settings', 'members', 'audit'] : ['settings', 'members'];
 }
 
 function Unavailable() {

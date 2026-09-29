@@ -162,6 +162,43 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/projects/{project_id}/audit': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The project's audit log, newest first (owners). */
+    get: operations['list'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/audit/export': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The project's audit log as CSV, with the same filters (owners). At most
+     *     50,000 rows; narrow the dates for more.
+     */
+    get: operations['export'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/projects/{project_id}/members': {
     parameters: {
       query?: never;
@@ -325,10 +362,48 @@ export interface components {
       isAdmin: boolean;
       locale: components['schemas']['Locale'];
     };
+    /**
+     * @description Every kind of state change. The stored text is part of the audit record:
+     *     never rename a value, only add new ones.
+     * @enum {string}
+     */
+    Action:
+      | 'user.signed_in'
+      | 'user.sign_in_failed'
+      | 'user.signed_out'
+      | 'user.password_set'
+      | 'user.password_reset_requested'
+      | 'user.invited'
+      | 'project.created'
+      | 'project.updated'
+      | 'project.archived'
+      | 'project.restored'
+      | 'member.added'
+      | 'member.role_changed'
+      | 'member.removed';
     AddMemberRequest: {
       /** @description Email of an existing Studio account. */
       email: string;
       role: components['schemas']['Role'];
+    };
+    AuditEventResponse: {
+      action: components['schemas']['Action'];
+      actor?: null | components['schemas']['PersonRef'];
+      /** @description What changed, e.g. `{ "from": "viewer", "to": "editor" }`. */
+      details: unknown;
+      /** Format: int64 */
+      id: number;
+      /** Format: date-time */
+      occurredAt: string;
+      target?: null | components['schemas']['PersonRef'];
+    };
+    AuditListResponse: {
+      items: components['schemas']['AuditEventResponse'][];
+      /**
+       * Format: int64
+       * @description Events matching the filter, across all pages.
+       */
+      total: number;
     };
     ChangeRoleRequest: {
       role: components['schemas']['Role'];
@@ -379,6 +454,11 @@ export interface components {
       password: string;
       /** @description The token from the password-setup link. */
       token: string;
+    };
+    PersonRef: {
+      email: string;
+      /** Format: uuid */
+      id: string;
     };
     ProjectListResponse: {
       items: components['schemas']['ProjectSummaryResponse'][];
@@ -843,6 +923,118 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['ProjectResponse'];
+        };
+      };
+      /** @description Not an owner (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  list: {
+    parameters: {
+      query?: {
+        /** @description Only events by this person. */
+        actor?: string;
+        /** @description Only this kind of change. */
+        action?: components['schemas']['Action'];
+        /** @description From this instant, inclusive (ISO-8601). */
+        from?: string;
+        /** @description Until this instant, exclusive (ISO-8601). */
+        until?: string;
+        /** @description Page size, 1 to 100 (default 50). Ignored by the export. */
+        limit?: number;
+        offset?: number;
+      };
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AuditListResponse'];
+        };
+      };
+      /** @description Invalid filter (INVALID_REQUEST) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Not an owner (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  export: {
+    parameters: {
+      query?: {
+        /** @description Only events by this person. */
+        actor?: string;
+        /** @description Only this kind of change. */
+        action?: components['schemas']['Action'];
+        /** @description From this instant, inclusive (ISO-8601). */
+        from?: string;
+        /** @description Until this instant, exclusive (ISO-8601). */
+        until?: string;
+        /** @description Page size, 1 to 100 (default 50). Ignored by the export. */
+        limit?: number;
+        offset?: number;
+      };
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description CSV: occurred_at, actor, action, target, details */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'text/csv': string;
         };
       };
       /** @description Not an owner (FORBIDDEN) */

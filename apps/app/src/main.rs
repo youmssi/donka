@@ -1,6 +1,7 @@
 use chrono::Duration;
 use donka_app::auth::CookieSettings;
 use donka_app::{config::Config, router, AppState};
+use donka_audit::AuditLog;
 use donka_db::DbOptions;
 use donka_engine::ZenRuntime;
 use donka_identity::{Identity, Policy};
@@ -60,6 +61,7 @@ async fn main() -> anyhow::Result<()> {
     let clock = Arc::new(SystemClock);
     let identity = Identity::new(db.clone(), clock.clone(), policy);
     let projects = Projects::new(db.clone(), clock);
+    let audit = AuditLog::new(db.clone());
 
     if let Some(email) = &config.bootstrap_admin_email {
         match identity.bootstrap_admin(email, config.default_locale).await {
@@ -95,6 +97,7 @@ async fn main() -> anyhow::Result<()> {
             db,
             identity,
             projects,
+            audit,
             cookies,
         },
         &config.api_base_path,

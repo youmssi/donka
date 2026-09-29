@@ -100,6 +100,11 @@ One shape for the whole API:
   **after commit**, through an outbox table processed by a background worker, so a rollback
   never publishes a release that was not recorded.
 - Handlers of events and outbox jobs are **idempotent** (dedupe key or state check).
+- Every state change records **exactly one** audit event with `donka_audit::record`, on the
+  change's own transaction, so the change and its record commit or roll back together. A request
+  that changes nothing records nothing. Details hold what changed (`from`/`to`), never a secret.
+  The `audit_events` table is append-only: the application's database role cannot update, delete
+  or truncate it. A new action is a new `Action` variant; an existing name never changes.
 
 ## 6. External providers
 
@@ -170,6 +175,7 @@ check, coverage gate, `cargo audit`, container image build.
 - [ ] Authorization declared (session / `ProjectAccess` + role)
 - [ ] Expected failures mapped to specific statuses and codes
 - [ ] Transaction in the service; side effects through the outbox
+- [ ] A state change records one audit event in that transaction
 - [ ] Pagination for lists
 - [ ] Integration test: happy path, validation error, forbidden, other project, conflict/limit
 - [ ] OpenAPI regenerated; web types regenerated in the same PR

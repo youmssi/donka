@@ -204,9 +204,9 @@ An approver who only sees a diff is rubber-stamping. Tests make the four-eyes ru
 **Type:** feature · **Repos:** S · **Dependencies:** DNK-7 · **Size:** S
 
 #### Acceptance criteria
-- [ ] Every state change (sign-in, member change, save, release, deploy, approval, rollback) writes exactly one audit event in the same transaction
-- [ ] Audit events cannot be updated or deleted, by the API or the application database role
-- [ ] Owners can filter the project's audit log by person, action and date; export as CSV
+- [x] Every state change (sign-in, member change, save, release, deploy, approval, rollback) writes exactly one audit event in the same transaction — done for every change that exists today (account and project changes); save, release, deploy, approval and rollback record theirs in their own stories (backend guide §5 and the endpoint checklist)
+- [x] Audit events cannot be updated or deleted, by the API or the application database role
+- [x] Owners can filter the project's audit log by person, action and date; export as CSV
 
 ---
 
