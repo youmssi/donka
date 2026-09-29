@@ -265,6 +265,7 @@ async fn openapi_document_describes_the_endpoints() {
         ("/auth/password-setup", "post"),
         ("/auth/password-reset", "post"),
         ("/users/invitations", "post"),
+        ("/users", "get"),
         ("/version", "get"),
         ("/projects", "get"),
         ("/projects", "post"),

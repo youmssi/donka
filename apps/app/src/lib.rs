@@ -79,6 +79,7 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
         .routes(routes!(routes::auth::sign_out))
         .routes(routes!(routes::simulate::simulate))
         .routes(routes!(routes::users::invite))
+        .routes(routes!(routes::users::list))
         .routes(routes!(routes::projects::list, routes::projects::create))
         .routes(routes!(routes::projects::get, routes::projects::update))
         .routes(routes!(routes::projects::archive))

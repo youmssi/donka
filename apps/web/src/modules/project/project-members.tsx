@@ -1,7 +1,7 @@
 'use client';
 
 import { useForm } from '@tanstack/react-form';
-import { CircleCheck } from 'lucide-react';
+import { CircleCheck, UserPlus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useId, useState } from 'react';
 
@@ -26,6 +26,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useCurrentUser } from '@/modules/identity';
+import { useInvite } from '@/modules/people';
 
 import { ProjectFrame } from './project-frame';
 import { RoleBadge } from './role-badge';
@@ -170,10 +171,31 @@ function MemberRow({
 function AddMember({ project }: { project: Project }) {
   const t = useTranslations('members');
   const roles = useTranslations('roles');
+  const me = useCurrentUser();
   const add = useAddMember(project.id);
+  const invite = useInvite();
   const roleId = useId();
   const [error, setError] = useState<ActionError | null>(null);
   const [added, setAdded] = useState<string | null>(null);
+  // What was last tried: an administrator can invite that unknown email and add it.
+  const [attempt, setAttempt] = useState<AddMemberValues | null>(null);
+
+  async function inviteAndAdd(values: AddMemberValues) {
+    setError(null);
+    const invited = await invite.mutateAsync({ email: values.email, locale: me.locale, isAdmin: false });
+    if (!invited.ok) {
+      setError(invited.error);
+      return;
+    }
+    const result = await add.mutateAsync(values);
+    if (result.ok) {
+      setAdded(t('invitedAndAdded', { email: result.data.email }));
+      setAttempt(null);
+      form.reset();
+    } else {
+      setError(result.error);
+    }
+  }
 
   const form = useForm({
     defaultValues: { email: '', role: 'viewer' } as AddMemberValues,
@@ -181,9 +203,10 @@ function AddMember({ project }: { project: Project }) {
     onSubmit: async ({ value, formApi }) => {
       setError(null);
       setAdded(null);
+      setAttempt(value);
       const result = await add.mutateAsync(value);
       if (result.ok) {
-        setAdded(result.data.email);
+        setAdded(t('added', { email: result.data.email }));
         formApi.reset();
       } else {
         setError(result.error);
@@ -206,11 +229,30 @@ function AddMember({ project }: { project: Project }) {
             void form.handleSubmit();
           }}
         >
-          {error ? <ErrorAlert error={error} /> : null}
+          {error?.code === 'NO_SUCH_USER' && me.isAdmin && attempt ? (
+            // An administrator can fix this themselves: offer it instead of "ask an administrator".
+            <Alert>
+              <UserPlus aria-hidden />
+              <AlertDescription>
+                <p>{t('noAccountAdmin', { email: attempt.email.trim() })}</p>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="mt-2"
+                  disabled={invite.isPending || add.isPending}
+                  onClick={() => void inviteAndAdd(attempt)}
+                >
+                  {invite.isPending ? t('inviting') : t('inviteAndAdd', { email: attempt.email.trim() })}
+                </Button>
+              </AlertDescription>
+            </Alert>
+          ) : error ? (
+            <ErrorAlert error={error} />
+          ) : null}
           {added ? (
             <Alert variant="success" aria-live="polite">
               <CircleCheck aria-hidden />
-              <AlertDescription>{t('added', { email: added })}</AlertDescription>
+              <AlertDescription>{added}</AlertDescription>
             </Alert>
           ) : null}
           <div className="grid gap-2 sm:grid-cols-[1fr_12rem_auto] sm:items-start">

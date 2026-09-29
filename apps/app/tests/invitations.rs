@@ -378,3 +378,62 @@ async fn an_email_the_server_refuses_is_not_retried(db: PgPool) {
     assert!(abandoned);
     assert!(error.contains("550"), "{error}");
 }
+
+// --- people ------------------------------------------------------------------------
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn administrators_see_every_account_and_whether_it_is_active(db: PgPool) {
+    let app = with_database(db);
+    let admin = signed_in_admin(&app).await;
+    invite(&app, &admin, json!({ "email": INVITEE, "locale": "fr" })).await;
+    invite(
+        &app,
+        &admin,
+        json!({ "email": "alan@bank.example", "isAdmin": true }),
+    )
+    .await;
+
+    let reply = send(&app.router, get(&format!("{BASE}/users"), Some(&admin))).await;
+    assert_eq!(reply.status, StatusCode::OK, "{}", reply.body);
+    assert_eq!(reply.body["total"], 3);
+    let accounts: Vec<(&str, bool, bool, &str)> = reply.body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|a| {
+            (
+                a["email"].as_str().unwrap(),
+                a["active"].as_bool().unwrap(),
+                a["isAdmin"].as_bool().unwrap(),
+                a["locale"].as_str().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        accounts,
+        [
+            (ADMIN_EMAIL, true, true, "en"),
+            ("alan@bank.example", false, true, "en"),
+            (INVITEE, false, false, "fr"),
+        ]
+    );
+
+    let page = send(
+        &app.router,
+        get(&format!("{BASE}/users?limit=1&offset=1"), Some(&admin)),
+    )
+    .await;
+    assert_eq!(page.body["total"], 3);
+    assert_eq!(page.body["items"][0]["email"], "alan@bank.example");
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn only_administrators_see_accounts(db: PgPool) {
+    let app = with_database(db);
+    let admin = signed_in_admin(&app).await;
+    let member = signed_in_member(&app, &admin).await;
+    let reply = send(&app.router, get(&format!("{BASE}/users"), Some(&member))).await;
+    assert_error(&reply, StatusCode::FORBIDDEN, "FORBIDDEN");
+    let anonymous = send(&app.router, get(&format!("{BASE}/users"), None)).await;
+    assert_error(&anonymous, StatusCode::UNAUTHORIZED, "UNAUTHENTICATED");
+}

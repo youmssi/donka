@@ -476,10 +476,10 @@ Invitations exist in the API (DNK-5) but not in the web app, and owners can only
 already have an account (found in DNK-7).
 
 #### Acceptance criteria
-- [ ] Administrators see Studio's accounts (email, administrator or not, invited or active) on a People page
-- [ ] Administrators invite a person (email, language, administrator or not) and resend a pending invitation
-- [ ] In a project's members screen, an administrator adding an unknown email is offered to invite them
-- [ ] English and French; checked at 390 px and desktop
+- [x] Administrators see Studio's accounts (email, administrator or not, invited or active) on a People page
+- [x] Administrators invite a person (email, language, administrator or not) and resend a pending invitation
+- [x] In a project's members screen, an administrator adding an unknown email is offered to invite them
+- [x] English and French; checked at 390 px and desktop
 
 ---
 

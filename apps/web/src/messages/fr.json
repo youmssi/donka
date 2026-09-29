@@ -163,6 +163,37 @@
     "adding": "Ajout…",
     "added": "{email} a été ajouté(e).",
     "readOnly": "Seuls les propriétaires peuvent modifier les membres.",
-    "errorTitle": "Impossible de charger les membres"
+    "errorTitle": "Impossible de charger les membres",
+    "inviteAndAdd": "Inviter {email} sur Studio et l'ajouter",
+    "inviting": "Invitation…",
+    "invitedAndAdded": "{email} a été invité(e) sur Studio et ajouté(e). Un e-mail lui permet de choisir son mot de passe.",
+    "noAccountAdmin": "Aucun compte Studio n'utilise encore {email}. Vous pouvez l'inviter et l'ajouter au projet en une seule étape."
+  },
+  "nav": {
+    "label": "Sections de Studio",
+    "projects": "Projets",
+    "people": "Personnes"
+  },
+  "people": {
+    "title": "Personnes",
+    "description": "Toutes les personnes ayant un compte Studio. Invitez-les ici, puis ajoutez-les aux projets.",
+    "invite": "Inviter une personne",
+    "inviteTitle": "Inviter une personne",
+    "inviteDescription": "Elle reçoit un e-mail pour choisir son mot de passe. Le lien ne fonctionne qu'une fois et expire.",
+    "email": "E-mail",
+    "language": "Langue de ses e-mails",
+    "isAdmin": "Administrateur",
+    "isAdminHint": "Les administrateurs créent des projets et invitent des personnes.",
+    "sending": "Envoi…",
+    "send": "Envoyer l'invitation",
+    "invited": "Une invitation est en route vers {email}.",
+    "resend": "Renvoyer",
+    "resendFor": "Renvoyer l'invitation à {email}",
+    "resent": "Une nouvelle invitation est en route vers {email}. L'ancien lien ne fonctionne plus.",
+    "active": "Actif",
+    "pending": "Invité",
+    "admin": "Administrateur",
+    "errorTitle": "Impossible de charger les comptes",
+    "forbiddenTitle": "Seuls les administrateurs voient cette page"
   }
 }

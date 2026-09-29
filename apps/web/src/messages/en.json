@@ -163,6 +163,37 @@
     "adding": "Adding…",
     "added": "{email} was added.",
     "readOnly": "Only owners can change members.",
-    "errorTitle": "We could not load the members"
+    "errorTitle": "We could not load the members",
+    "inviteAndAdd": "Invite {email} to Studio and add them",
+    "inviting": "Inviting…",
+    "invitedAndAdded": "{email} was invited to Studio and added. They receive an email to choose their password.",
+    "noAccountAdmin": "No Studio account uses {email} yet. You can invite them and add them to the project in one step."
+  },
+  "nav": {
+    "label": "Studio sections",
+    "projects": "Projects",
+    "people": "People"
+  },
+  "people": {
+    "title": "People",
+    "description": "Everyone with a Studio account. Invite people here, then add them to projects.",
+    "invite": "Invite a person",
+    "inviteTitle": "Invite a person",
+    "inviteDescription": "They receive an email to choose their password. The link works once and expires.",
+    "email": "Email",
+    "language": "Language of their emails",
+    "isAdmin": "Administrator",
+    "isAdminHint": "Administrators create projects and invite people.",
+    "sending": "Sending…",
+    "send": "Send the invitation",
+    "invited": "An invitation is on its way to {email}.",
+    "resend": "Resend",
+    "resendFor": "Resend the invitation to {email}",
+    "resent": "A new invitation is on its way to {email}. The previous link no longer works.",
+    "active": "Active",
+    "pending": "Invited",
+    "admin": "Administrator",
+    "errorTitle": "We could not load the accounts",
+    "forbiddenTitle": "Only administrators see this page"
   }
 }

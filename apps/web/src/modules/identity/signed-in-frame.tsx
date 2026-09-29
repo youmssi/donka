@@ -6,6 +6,7 @@ import { createContext, useContext, useEffect, type ReactNode } from 'react';
 
 import { ErrorAlert } from '@/components/shared/error-alert';
 import { AppShell } from '@/components/shared/layout/app-shell';
+import { MainNav } from '@/components/shared/layout/main-nav';
 import { PageSkeleton } from '@/components/shared/page-skeleton';
 import { Button } from '@/components/ui/button';
 import { usePathname, useRouter } from '@/i18n/navigation';
@@ -62,7 +63,9 @@ export function SignedInFrame({ children }: { children: ReactNode }) {
   if (!result.data) return <Loading />;
   return (
     <CurrentUserContext value={result.data}>
-      <AppShell account={<UserMenu user={result.data} />}>{children}</AppShell>
+      <AppShell nav={<MainNav isAdmin={result.data.isAdmin} />} account={<UserMenu user={result.data} />}>
+        {children}
+      </AppShell>
     </CurrentUserContext>
   );
 }

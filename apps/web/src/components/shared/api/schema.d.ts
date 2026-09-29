@@ -248,6 +248,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/users': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Every Studio account, by email (administrators only). */
+    get: operations['list'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/users/invitations': {
     parameters: {
       query?: never;
@@ -289,6 +306,25 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    AccountListResponse: {
+      items: components['schemas']['AccountResponse'][];
+      /**
+       * Format: int64
+       * @description Accounts across all pages.
+       */
+      total: number;
+    };
+    AccountResponse: {
+      /** @description False while the invitation is pending (no password chosen yet). */
+      active: boolean;
+      /** Format: date-time */
+      createdAt: string;
+      email: string;
+      /** Format: uuid */
+      id: string;
+      isAdmin: boolean;
+      locale: components['schemas']['Locale'];
+    };
     AddMemberRequest: {
       /** @description Email of an existing Studio account. */
       email: string;
@@ -1132,6 +1168,47 @@ export interface operations {
       };
       /** @description Invalid decision model (INVALID_DECISION) or evaluation error (EVALUATION_FAILED) */
       422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  list: {
+    parameters: {
+      query?: {
+        /** @description Page size, 1 to 100 (default 50). */
+        limit?: number;
+        offset?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AccountListResponse'];
+        };
+      };
+      /** @description Not signed in (UNAUTHENTICATED) */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Not an administrator (FORBIDDEN) */
+      403: {
         headers: {
           [name: string]: unknown;
         };
