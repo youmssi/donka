@@ -163,12 +163,19 @@ handling.
 
 **Type:** feature · **Repos:** S · **Dependencies:** DNK-7 · **Size:** L
 
+#### Decisions (taken in the story)
+- The draft is a working copy: autosaves are not audit events; creating and deleting a decision
+  are. Immutable versions, and their audit trail, come with DNK-9.
+- On a conflict the editor stops autosaving and asks: load their version, or keep mine (which
+  replaces theirs, knowingly). Nothing is overwritten silently.
+- Projects open on their decisions.
+
 #### Acceptance criteria
-- [ ] Decisions (JDM graphs) are stored per project under a key (`person-score`, `bureau/normalize`)
-- [ ] The editor page loads jdm-editor client-only, themed with Studio's tokens
-- [ ] Changes autosave as a draft; two people editing the same decision get a conflict (`409`) instead of silently overwriting
-- [ ] Simulate evaluates the draft with every sibling decision of the project, returns result + trace
-- [ ] Viewers can open and simulate but not save
+- [x] Decisions (JDM graphs) are stored per project under a key (`person-score`, `bureau/normalize`)
+- [x] The editor page loads jdm-editor client-only, themed with Studio's tokens
+- [x] Changes autosave as a draft; two people editing the same decision get a conflict (`409`) instead of silently overwriting
+- [x] Simulate evaluates the draft with every sibling decision of the project, returns result + trace
+- [x] Viewers can open and simulate but not save
 
 ---
 

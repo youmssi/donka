@@ -23,9 +23,10 @@ export function StudioShell({ children }: { children: ReactNode }) {
             <CommandMenu />
           </div>
         </header>
-        <main id="main" className="flex-1 px-4 py-6 lg:px-6">
+        {/* SidebarInset is the page's <main>; this is where the skip link lands. */}
+        <div id="main" className="flex-1 px-4 py-6 lg:px-6">
           {children}
-        </main>
+        </div>
       </SidebarInset>
     </SidebarProvider>
   );

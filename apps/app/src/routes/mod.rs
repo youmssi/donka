@@ -1,6 +1,8 @@
 pub mod audit;
 pub mod auth;
+pub mod decisions;
 pub mod health;
+pub mod people;
 pub mod projects;
 pub mod simulate;
 pub mod users;

@@ -15,7 +15,7 @@ import { Link, useRouter } from '@/i18n/navigation';
 import { useCurrentUser } from '@/modules/identity';
 
 import { CreateProjectDialog } from './create-project-dialog';
-import { projectHref } from './links';
+import { projectHome } from './links';
 import { PAGE_SIZE } from './project.service';
 import { RoleBadge } from './role-badge';
 import type { ProjectSummary } from './schema';
@@ -48,10 +48,7 @@ export function ProjectListPage() {
       header: t('project'),
       cell: ({ row }) => (
         <div className="grid min-w-0 gap-0.5">
-          <Link
-            href={projectHref('members', row.original.key)}
-            className="w-fit font-medium underline-offset-4 hover:underline"
-          >
+          <Link href={projectHome(row.original.key)} className="w-fit font-medium underline-offset-4 hover:underline">
             {row.original.name}
           </Link>
           {row.original.description ? (

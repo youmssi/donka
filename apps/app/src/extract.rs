@@ -51,6 +51,20 @@ impl FromRequestParts<AppState> for MemberId {
     }
 }
 
+/// The decision in the `{decision_id}` path segment; a malformed id is `404 DECISION_NOT_FOUND`.
+pub struct DecisionId(pub Uuid);
+
+impl FromRequestParts<AppState> for DecisionId {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, ApiError> {
+        path_id(parts, state, "decision_id")
+            .await
+            .map(Self)
+            .ok_or(ApiError::DecisionMissing)
+    }
+}
+
 async fn path_id(parts: &mut Parts, state: &AppState, name: &str) -> Option<Uuid> {
     let Path(params) = Path::<HashMap<String, String>>::from_request_parts(parts, state)
         .await

@@ -7,7 +7,7 @@ export type AuditList = ApiSchemas['AuditListResponse'];
 
 /** The actions a project's log holds; account events (`user.*`) belong to no project. */
 export const PROJECT_ACTIONS = (openapi.components.schemas.Action.enum as AuditAction[]).filter(
-  (action) => action.startsWith('project.') || action.startsWith('member.'),
+  (action) => !action.startsWith('user.'),
 );
 
 /** The filters as the page's address holds them: dates are days in the viewer's time zone. */

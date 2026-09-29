@@ -14,6 +14,9 @@
     "api:generate": "openapi-typescript openapi.json -o src/components/shared/api/schema.d.ts && prettier --write src/components/shared/api/schema.d.ts"
   },
   "dependencies": {
+    "@ant-design/v5-patch-for-react-19": "1.0.3",
+    "@gorules/jdm-editor": "1.52.0",
+    "@monaco-editor/react": "4.7.0",
     "@tanstack/react-form": "^1.33.5",
     "@tanstack/react-query": "^5.104.0",
     "@tanstack/react-table": "^9.2.4",
@@ -24,6 +27,7 @@
     "geist": "^1.7.2",
     "ky": "^2.1.0",
     "lucide-react": "^1.48.0",
+    "monaco-editor": "^0.52.2",
     "next": "16.3.6",
     "next-intl": "^4.14.7",
     "next-themes": "^0.4.6",

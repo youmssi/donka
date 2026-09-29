@@ -1,4 +1,4 @@
-export { projectHref, type ProjectSection } from './links';
+export { decisionHref, projectHome, projectHref, type ProjectSection } from './links';
 export { ProjectFrame } from './project-frame';
 export { ProjectListPage } from './project-list';
 export { ProjectMembersPage } from './project-members';

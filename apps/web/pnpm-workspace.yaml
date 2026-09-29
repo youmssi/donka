@@ -1,3 +1,7 @@
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
+overrides:
+  # jdm-editor pins antd 5.21.2, which cannot render its toasts on React 19. The last antd 5
+  # release is compatible and has the official React 19 patch (see decision-editor.tsx).
+  '@gorules/jdm-editor>antd': 5.29.3

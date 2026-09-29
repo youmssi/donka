@@ -55,7 +55,7 @@ function Details({ project }: { project: Project }) {
 
   const form = useForm({
     defaultValues: { name: project.name, description: project.description },
-    validators: { onBlur: projectDetailsSchema, onSubmit: projectDetailsSchema },
+    validators: { onChange: projectDetailsSchema, onSubmit: projectDetailsSchema },
     onSubmit: async ({ value }) => {
       setError(null);
       const result = await update.mutateAsync(value);

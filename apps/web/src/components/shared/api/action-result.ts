@@ -19,6 +19,11 @@ export const KNOWN_ERROR_CODES = [
   'MEMBER_NOT_FOUND',
   'LAST_OWNER',
   'NO_SUCH_USER',
+  'DECISION_NOT_FOUND',
+  'DECISION_KEY_TAKEN',
+  'DECISION_CONFLICT',
+  'INVALID_DECISION',
+  'EVALUATION_FAILED',
   'NETWORK',
   'UNEXPECTED',
 ] as const;
@@ -32,6 +37,8 @@ export interface ActionError {
   requestId?: string;
   /** Fields the server refused, by field name. */
   fieldErrors?: Record<string, string>;
+  /** Machine-readable context of some errors (who saved first, the engine's error…). */
+  details?: unknown;
 }
 
 /** What every service call returns: expected failures are values, never exceptions. */
@@ -53,6 +60,7 @@ export async function failure(response: Response): Promise<{ ok: false; error: A
       code,
       requestId: body?.requestId ?? response.headers.get('x-request-id') ?? undefined,
       fieldErrors: body?.fields ?? undefined,
+      details: body?.details ?? undefined,
     },
   };
 }

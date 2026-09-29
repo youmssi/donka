@@ -21,6 +21,7 @@ use axum::routing::get;
 use axum::{middleware, Json, Router};
 use donka_audit::AuditLog;
 use donka_db::PgPool;
+use donka_decision::Decisions;
 use donka_engine::DecisionRuntime;
 use donka_identity::Identity;
 use donka_project::Projects;
@@ -52,6 +53,7 @@ pub struct AppState {
     pub db: PgPool,
     pub identity: Identity,
     pub projects: Projects,
+    pub decisions: Decisions,
     pub audit: AuditLog,
     pub cookies: CookieSettings,
 }
@@ -95,6 +97,13 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
             routes::projects::change_role,
             routes::projects::remove_member
         ))
+        .routes(routes!(routes::decisions::list, routes::decisions::create))
+        .routes(routes!(
+            routes::decisions::get,
+            routes::decisions::save,
+            routes::decisions::delete
+        ))
+        .routes(routes!(routes::decisions::simulate))
         .routes(routes!(routes::audit::list))
         .routes(routes!(routes::audit::export))
         .route_layer(middleware::from_fn_with_state(

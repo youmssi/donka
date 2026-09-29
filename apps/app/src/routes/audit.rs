@@ -1,17 +1,17 @@
 use crate::error::{ApiError, ErrorBody};
 use crate::extract::ProjectAccess;
+use crate::routes::people::{emails, person, PersonRef};
 use crate::AppState;
 use axum::extract::{Query, State};
 use axum::http::header;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use chrono::{DateTime, Utc};
-use donka_audit::{Action, Entry, Filter};
+use donka_audit::{Action, Filter};
 use donka_project::Role;
 use donka_shared::page::PageRequest;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
@@ -40,12 +40,6 @@ impl AuditQuery {
             until: self.until,
         }
     }
-}
-
-#[derive(Serialize, ToSchema)]
-pub struct PersonRef {
-    pub id: Uuid,
-    pub email: String,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -97,7 +91,13 @@ pub async fn list(
         )
         .await
         .map_err(|err| ApiError::Internal(err.to_string()))?;
-    let emails = emails(&state, &page.items).await?;
+    let emails = emails(
+        &state,
+        page.items
+            .iter()
+            .flat_map(|entry| [entry.actor_id, entry.target_user_id]),
+    )
+    .await?;
     Ok(Json(AuditListResponse {
         items: page
             .items
@@ -140,7 +140,13 @@ pub async fn export(
         .export(access.project_id(), &query.filter())
         .await
         .map_err(|err| ApiError::Internal(err.to_string()))?;
-    let emails = emails(&state, &entries).await?;
+    let emails = emails(
+        &state,
+        entries
+            .iter()
+            .flat_map(|entry| [entry.actor_id, entry.target_user_id]),
+    )
+    .await?;
     let email = |id: Option<Uuid>| {
         id.and_then(|id| emails.get(&id).cloned())
             .unwrap_or_default()
@@ -182,31 +188,6 @@ fn csv_cell(value: &str) -> String {
         value.to_owned()
     };
     format!("\"{}\"", guarded.replace('"', "\"\""))
-}
-
-async fn emails(state: &AppState, entries: &[Entry]) -> Result<HashMap<Uuid, String>, ApiError> {
-    let mut ids: Vec<Uuid> = entries
-        .iter()
-        .flat_map(|entry| [entry.actor_id, entry.target_user_id])
-        .flatten()
-        .collect();
-    ids.sort_unstable();
-    ids.dedup();
-    Ok(state
-        .identity
-        .users_by_ids(&ids)
-        .await?
-        .into_iter()
-        .map(|user| (user.id, user.email))
-        .collect())
-}
-
-fn person(emails: &HashMap<Uuid, String>, id: Option<Uuid>) -> Option<PersonRef> {
-    let id = id?;
-    Some(PersonRef {
-        id,
-        email: emails.get(&id).cloned().unwrap_or_default(),
-    })
 }
 
 #[cfg(test)]

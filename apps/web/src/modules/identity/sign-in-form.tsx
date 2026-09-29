@@ -35,7 +35,7 @@ export function SignInForm() {
 
   const form = useForm({
     defaultValues: { email: '', password: '' } satisfies SignInValues,
-    validators: { onBlur: signInSchema, onSubmit: signInSchema },
+    validators: { onChange: signInSchema, onSubmit: signInSchema },
     onSubmit: async ({ value }) => {
       setError(null);
       const result = await signIn.mutateAsync(value);

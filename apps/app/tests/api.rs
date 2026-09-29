@@ -278,6 +278,15 @@ async fn openapi_document_describes_the_endpoints() {
         ("/projects/{project_id}/members", "post"),
         ("/projects/{project_id}/members/{user_id}", "patch"),
         ("/projects/{project_id}/members/{user_id}", "delete"),
+        ("/projects/{project_id}/decisions", "get"),
+        ("/projects/{project_id}/decisions", "post"),
+        ("/projects/{project_id}/decisions/{decision_id}", "get"),
+        ("/projects/{project_id}/decisions/{decision_id}", "put"),
+        ("/projects/{project_id}/decisions/{decision_id}", "delete"),
+        (
+            "/projects/{project_id}/decisions/{decision_id}/simulate",
+            "post",
+        ),
         ("/projects/{project_id}/audit", "get"),
         ("/projects/{project_id}/audit/export", "get"),
     ] {

@@ -47,7 +47,7 @@ it('lists projects with the reader role and links to them', async () => {
   renderWithProviders(<ProjectListPage />);
   const link = await screen.findByRole('link', { name: 'Retail scoring' });
   // Projects open by key: the link is short and readable.
-  expect(link).toHaveAttribute('href', '/projects/members?p=retail');
+  expect(link).toHaveAttribute('href', '/projects/decisions?p=retail');
   const row = link.closest('tr');
   expect(row).toHaveTextContent('retail');
   expect(row).toHaveTextContent('Editor');

@@ -5,6 +5,7 @@ it('knows where the person is from the address', () => {
   expect(placeOf('/people')).toEqual({ kind: 'people' });
   expect(placeOf('/projects/audit')).toEqual({ kind: 'project', section: 'audit' });
   expect(placeOf('/projects/members/')).toEqual({ kind: 'project', section: 'members' });
+  expect(placeOf('/projects/decision')).toEqual({ kind: 'project', section: 'decision' });
   expect(placeOf('/sign-in')).toEqual({ kind: 'other' });
 });
 
@@ -18,6 +19,6 @@ it('offers the audit log to owners only', () => {
     archivedAt: null,
   };
   const sections = (role: 'owner' | 'editor') => projectSections({ ...project, role }).map(({ section }) => section);
-  expect(sections('owner')).toEqual(['members', 'settings', 'audit']);
-  expect(sections('editor')).toEqual(['members', 'settings']);
+  expect(sections('owner')).toEqual(['decisions', 'members', 'settings', 'audit']);
+  expect(sections('editor')).toEqual(['decisions', 'members', 'settings']);
 });
