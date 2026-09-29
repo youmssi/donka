@@ -15,7 +15,14 @@
     "themeSystem": "System",
     "account": "Account",
     "signOut": "Sign out",
-    "signingOut": "Signing out…"
+    "signingOut": "Signing out…",
+    "close": "Close",
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving…",
+    "previous": "Previous",
+    "next": "Next",
+    "pageOf": "{from}–{to} of {total}"
   },
   "errors": {
     "INVALID_CREDENTIALS": "Email or password is incorrect.",
@@ -27,13 +34,22 @@
     "INVALID_REQUEST": "Some fields need your attention.",
     "NETWORK": "Studio could not be reached. Check your connection and try again.",
     "UNEXPECTED": "Something went wrong on our side. Try again.",
-    "withRequestId": "Reference: {requestId}"
+    "withRequestId": "Reference: {requestId}",
+    "PROJECT_NOT_FOUND": "This project does not exist, or you are not one of its members.",
+    "PROJECT_KEY_TAKEN": "Another project already uses this key.",
+    "PROJECT_ARCHIVED": "This project is archived. Restore it to make changes.",
+    "ALREADY_MEMBER": "This person is already a member of the project.",
+    "MEMBER_NOT_FOUND": "This person is no longer a member of the project.",
+    "LAST_OWNER": "A project needs at least one owner. Make someone else an owner first.",
+    "NO_SUCH_USER": "No Studio account uses this email. Ask an administrator to invite them first."
   },
   "validation": {
     "email": "Enter a valid email address.",
     "required": "This field is required.",
     "passwordLength": "Use {min} to {max} characters.",
-    "passwordMismatch": "The passwords do not match."
+    "passwordMismatch": "The passwords do not match.",
+    "maxLength": "Use at most {max} characters.",
+    "projectKey": "Use {min} to {max} lowercase letters, digits and single hyphens, starting with a letter."
   },
   "signIn": {
     "title": "Sign in",
@@ -68,13 +84,6 @@
     "done": "Sign in with your email and new password.",
     "signIn": "Sign in"
   },
-  "home": {
-    "title": "Home",
-    "welcome": "Welcome",
-    "signedInAs": "You are signed in as {email}.",
-    "emptyTitle": "No projects yet",
-    "empty": "Projects will appear here once they are available in Studio."
-  },
   "session": {
     "errorTitle": "We could not check your session"
   },
@@ -82,5 +91,78 @@
     "title": "Page not found",
     "description": "This page does not exist or has moved.",
     "home": "Go to Studio home"
+  },
+  "roles": {
+    "owner": "Owner",
+    "editor": "Editor",
+    "viewer": "Viewer",
+    "ownerHint": "Everything, including settings and members",
+    "editorHint": "Changes decisions, tests and releases",
+    "viewerHint": "Reads everything"
+  },
+  "projects": {
+    "title": "Projects",
+    "active": "Active",
+    "archived": "Archived",
+    "create": "New project",
+    "yourRole": "Your role",
+    "archivedBadge": "Archived",
+    "emptyTitle": "No projects yet",
+    "emptyAdmin": "Create the first project to start building decisions.",
+    "emptyMember": "You are not a member of any project yet. Ask a project owner to add you.",
+    "emptyArchivedTitle": "No archived projects",
+    "emptyArchived": "Projects you archive appear here and can be restored.",
+    "errorTitle": "We could not load your projects",
+    "createTitle": "New project",
+    "createDescription": "You become the project's owner and can add members afterwards.",
+    "name": "Name",
+    "key": "Key",
+    "keyHint": "Used in links and release paths. It cannot change later.",
+    "description": "Description",
+    "descriptionHint": "Optional. What decisions this project holds.",
+    "creating": "Creating…"
+  },
+  "project": {
+    "settings": "Settings",
+    "members": "Members",
+    "key": "Key",
+    "archivedNotice": "This project is archived: it is read-only until an owner restores it.",
+    "detailsTitle": "Details",
+    "detailsDescription": "The key cannot change: releases and links depend on it.",
+    "readOnlyDetails": "Only owners can change these details.",
+    "archivedDetails": "Restore the project to change these details.",
+    "saved": "Changes saved.",
+    "archiveTitle": "Archive",
+    "archiveDescription": "Archived projects are read-only and hidden from the project list. You can restore them.",
+    "archive": "Archive the project",
+    "archiving": "Archiving…",
+    "archiveConfirmTitle": "Archive {name}?",
+    "archiveConfirm": "Nobody can change it until an owner restores it. Nothing is deleted.",
+    "restoreTitle": "Restore",
+    "restoreDescription": "Make the project editable again and show it in the project list.",
+    "restore": "Restore the project",
+    "restoring": "Restoring…",
+    "notFoundTitle": "Project not available",
+    "backToProjects": "Back to projects"
+  },
+  "members": {
+    "title": "Members",
+    "description": "People who can open this project, and what they may do.",
+    "you": "you",
+    "role": "Role",
+    "roleFor": "Role of {email}",
+    "remove": "Remove",
+    "removeFrom": "Remove {email}",
+    "removeConfirmTitle": "Remove {email}?",
+    "removeConfirm": "They lose access to {project} at once. You can add them again later.",
+    "removing": "Removing…",
+    "addTitle": "Add a member",
+    "addDescription": "The person needs a Studio account. An administrator invites new people.",
+    "email": "Email",
+    "add": "Add",
+    "adding": "Adding…",
+    "added": "{email} was added.",
+    "readOnly": "Only owners can change members.",
+    "errorTitle": "We could not load the members"
   }
 }

@@ -141,7 +141,9 @@ crates/engine/       DecisionRuntime trait + ZenRuntime (the only zen_engine use
 crates/db/           PostgreSQL pool, migrations, readiness (shared by every module)
 crates/identity/     users, sign-in with lockout, sessions, invitations, password reset
 crates/mail/         Mailer trait + SMTP implementation (shared by modules that send email)
-crates/<module>/     one crate per business module (project next, in DNK-7)
+crates/project/      projects, members and roles; `Access` proves membership (DNK-7)
+crates/shared/       cross-cutting code only: clock, pagination
+crates/<module>/     one crate per business module
 migrations/          PostgreSQL migrations (sqlx), forward-only; <UTC timestamp>_<what>.sql
 scripts/             repo scripts (engine version drift check)
 docs/adr/            architecture decision records

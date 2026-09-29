@@ -6,6 +6,7 @@ import { useId, type ComponentProps } from 'react';
 
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
 interface TextFieldProps extends Omit<ComponentProps<typeof Input>, 'name' | 'value' | 'onChange' | 'onBlur'> {
   field: AnyFieldApi;
@@ -15,6 +16,8 @@ interface TextFieldProps extends Omit<ComponentProps<typeof Input>, 'name' | 'va
   messageValues?: Record<string, number | string>;
   /** Message key (under `validation`) sent back by the server for this field. */
   serverError?: string;
+  /** A text area instead of a one-line input. */
+  multiline?: boolean;
 }
 
 function firstMessage(errors: unknown[]): string | undefined {
@@ -31,7 +34,15 @@ function firstMessage(errors: unknown[]): string | undefined {
  * Label, input, hint and error for a TanStack Form field. Errors appear after the
  * person leaves the field or submits, never while they are still typing.
  */
-export function TextField({ field, label, hint, messageValues, serverError, ...inputProps }: TextFieldProps) {
+export function TextField({
+  field,
+  label,
+  hint,
+  messageValues,
+  serverError,
+  multiline,
+  ...inputProps
+}: TextFieldProps) {
   const t = useTranslations('validation');
   const id = useId();
   const meta = field.state.meta;
@@ -43,16 +54,30 @@ export function TextField({ field, label, hint, messageValues, serverError, ...i
   return (
     <div className="grid gap-1.5">
       <Label htmlFor={id}>{label}</Label>
-      <Input
-        id={id}
-        name={field.name}
-        value={String(field.state.value ?? '')}
-        onChange={(event) => field.handleChange(event.target.value)}
-        onBlur={field.handleBlur}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={describedBy}
-        {...inputProps}
-      />
+      {multiline ? (
+        <Textarea
+          id={id}
+          name={field.name}
+          value={String(field.state.value ?? '')}
+          onChange={(event) => field.handleChange(event.target.value)}
+          onBlur={field.handleBlur}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={describedBy}
+          disabled={inputProps.disabled}
+          required={inputProps.required}
+        />
+      ) : (
+        <Input
+          id={id}
+          name={field.name}
+          value={String(field.state.value ?? '')}
+          onChange={(event) => field.handleChange(event.target.value)}
+          onBlur={field.handleBlur}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={describedBy}
+          {...inputProps}
+        />
+      )}
       {hint ? (
         <p id={`${id}-hint`} className="text-xs text-muted-foreground">
           {hint}

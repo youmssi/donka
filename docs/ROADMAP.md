@@ -22,6 +22,7 @@ docker-compose for PostgreSQL, MinIO and Mailpit.
 | 6 | DNK-5 Invitations and password reset | S |
 | 7 | DNK-6 Web foundation | S |
 | 8 | DNK-7 Projects and members | S |
+| 8b | DNK-33 People: invite and manage accounts | S |
 | 9 | DNK-11 Audit log | S |
 | 10 | DNK-8 Edit and simulate | S |
 | 11 | DNK-9 Versions and diff | S |

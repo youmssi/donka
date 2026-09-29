@@ -3,14 +3,13 @@
 //!
 //! Other modules use it only through [`Identity`] and the types exported here.
 
-pub mod clock;
 mod emails;
 mod secret;
 
 use chrono::{DateTime, Duration, Utc};
-use clock::Clock;
 use donka_db::PgPool;
 use donka_mail::{Email, Mailer};
+use donka_shared::clock::Clock;
 use emails::Kind;
 use serde::{Deserialize, Serialize};
 use sqlx::Acquire;
@@ -95,7 +94,7 @@ impl std::str::FromStr for Locale {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, sqlx::FromRow)]
 pub struct User {
     pub id: Uuid,
     pub email: String,
@@ -528,6 +527,28 @@ impl Identity {
             is_admin: session.is_admin,
             locale: session.locale,
         })
+    }
+
+    /// The user with this email, if any. For callers that are already
+    /// authorized to know (e.g. a project owner adding a member).
+    pub async fn find_by_email(&self, email: &str) -> Result<Option<User>, IdentityError> {
+        let email = normalize_email(email)?;
+        Ok(
+            sqlx::query_as("SELECT id, email, is_admin, locale FROM users WHERE email = $1")
+                .bind(email)
+                .fetch_optional(&self.pool)
+                .await?,
+        )
+    }
+
+    /// The users with these ids, in no particular order; unknown ids are skipped.
+    pub async fn users_by_ids(&self, ids: &[Uuid]) -> Result<Vec<User>, IdentityError> {
+        Ok(
+            sqlx::query_as("SELECT id, email, is_admin, locale FROM users WHERE id = ANY($1)")
+                .bind(ids)
+                .fetch_all(&self.pool)
+                .await?,
+        )
     }
 
     /// Ends the session server-side. Unknown tokens are ignored.

@@ -28,4 +28,5 @@
 | Pricing structure | Annual license per deployment, tiered by environments and features |
 | Workflow | Tickets `DNK-<n>`; story PRs squash-merged by their author once CI is green |
 | Releases | release-please on `main` generates versions and changelogs (DNK-30); nothing published to registries under GoRules names |
+| Projects | Administrators create projects and become owner; they are not implicit members of others; keys are immutable (DNK-7) |
 | Repository visibility | `donka` is public until launch (free CI minutes), then made private; `donka-runtime` and `donka-cli` stay public (MIT) |

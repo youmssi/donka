@@ -109,6 +109,112 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/projects': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Projects the signed-in user is a member of, by name. */
+    get: operations['list'];
+    put?: never;
+    /** Creates a project (administrators only). The creator becomes its owner. */
+    post: operations['create'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** A project the signed-in user is a member of. */
+    get: operations['get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Renames the project or changes its description (owners). The key never changes. */
+    patch: operations['update'];
+    trace?: never;
+  };
+  '/projects/{project_id}/archive': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Archives the project: read-only and hidden from the default list (owners). */
+    post: operations['archive'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/members': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Members of the project, owners first, then by email (any member). */
+    get: operations['members'];
+    put?: never;
+    /** Adds an existing Studio user to the project (owners). */
+    post: operations['add_member'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/members/{user_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Removes a member; the last owner cannot be removed (owners). */
+    delete: operations['remove_member'];
+    options?: never;
+    head?: never;
+    /** Changes a member's role; a project always keeps an owner (owners). */
+    patch: operations['change_role'];
+    trace?: never;
+  };
+  '/projects/{project_id}/restore': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Restores an archived project (owners). */
+    post: operations['restore'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/ready': {
     parameters: {
       query?: never;
@@ -183,6 +289,19 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    AddMemberRequest: {
+      /** @description Email of an existing Studio account. */
+      email: string;
+      role: components['schemas']['Role'];
+    };
+    ChangeRoleRequest: {
+      role: components['schemas']['Role'];
+    };
+    CreateProjectRequest: {
+      description?: string;
+      key: string;
+      name: string;
+    };
     ErrorBody: {
       /** @description Stable, machine-readable code, e.g. `DECISION_NOT_FOUND`. */
       code: string;
@@ -206,6 +325,17 @@ export interface components {
      * @enum {string}
      */
     Locale: 'en' | 'fr';
+    MemberListResponse: {
+      items: components['schemas']['MemberResponse'][];
+    };
+    MemberResponse: {
+      /** Format: date-time */
+      addedAt: string;
+      email: string;
+      role: components['schemas']['Role'];
+      /** Format: uuid */
+      userId: string;
+    };
     PasswordResetRequest: {
       email: string;
     };
@@ -214,6 +344,47 @@ export interface components {
       /** @description The token from the password-setup link. */
       token: string;
     };
+    ProjectListResponse: {
+      items: components['schemas']['ProjectSummaryResponse'][];
+      /**
+       * Format: int64
+       * @description Projects matching the filter, across all pages.
+       */
+      total: number;
+    };
+    ProjectResponse: {
+      /**
+       * Format: date-time
+       * @description Set when the project is archived (read-only).
+       */
+      archivedAt?: string | null;
+      /** Format: date-time */
+      createdAt: string;
+      description: string;
+      /** Format: uuid */
+      id: string;
+      /** @description Immutable, URL-safe identifier. */
+      key: string;
+      name: string;
+      /** @description The reader's role in the project. */
+      role: components['schemas']['Role'];
+    };
+    ProjectSummaryResponse: {
+      /** Format: date-time */
+      archivedAt?: string | null;
+      description: string;
+      /** Format: uuid */
+      id: string;
+      key: string;
+      name: string;
+      role: components['schemas']['Role'];
+    };
+    /**
+     * @description What a member may do in a project. Each role includes the ones below it;
+     *     variants are declared from least to most, so `Ord` follows that order.
+     * @enum {string}
+     */
+    Role: 'viewer' | 'editor' | 'owner';
     SignInRequest: {
       email: string;
       password: string;
@@ -236,6 +407,10 @@ export interface components {
       result: Record<string, never>;
       /** @description Per-node trace: inputs, outputs and timing of each node. */
       trace: Record<string, never>;
+    };
+    UpdateProjectRequest: {
+      description?: string;
+      name: string;
     };
     UserResponse: {
       email: string;
@@ -436,6 +611,451 @@ export interface operations {
         content: {
           /** @example ok */
           'text/plain': string;
+        };
+      };
+    };
+  };
+  list: {
+    parameters: {
+      query?: {
+        /** @description `true` lists archived projects instead of active ones. */
+        archived?: boolean;
+        /** @description Page size, 1 to 100 (default 50). */
+        limit?: number;
+        offset?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ProjectListResponse'];
+        };
+      };
+      /** @description Not signed in (UNAUTHENTICATED) */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateProjectRequest'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ProjectResponse'];
+        };
+      };
+      /** @description Invalid key, name or description (INVALID_REQUEST) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Not an administrator (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Key already used (PROJECT_KEY_TAKEN) */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ProjectResponse'];
+        };
+      };
+      /** @description No such project, or not a member (PROJECT_NOT_FOUND) */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  update: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateProjectRequest'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ProjectResponse'];
+        };
+      };
+      /** @description Invalid name or description (INVALID_REQUEST) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Not an owner (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Archived (PROJECT_ARCHIVED) */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  archive: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ProjectResponse'];
+        };
+      };
+      /** @description Not an owner (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  members: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['MemberListResponse'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  add_member: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AddMemberRequest'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['MemberResponse'];
+        };
+      };
+      /** @description Not an owner (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Already a member (ALREADY_MEMBER) or archived (PROJECT_ARCHIVED) */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description No account with this email (NO_SUCH_USER) */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  remove_member: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        user_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Removed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Not an owner (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or MEMBER_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Last owner (LAST_OWNER) or archived (PROJECT_ARCHIVED) */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  change_role: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        user_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ChangeRoleRequest'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['MemberResponse'];
+        };
+      };
+      /** @description Not an owner (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or MEMBER_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Last owner (LAST_OWNER) or archived (PROJECT_ARCHIVED) */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  restore: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ProjectResponse'];
+        };
+      };
+      /** @description Not an owner (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
         };
       };
     };
