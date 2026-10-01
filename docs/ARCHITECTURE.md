@@ -23,6 +23,8 @@ One zip per project and environment, the format the Runtime already understands:
 └── bureau/normalize.json      sub-decisions keep their folder path
 ```
 
+The format of `.config/project.json` and the token rules: [`artifact-format.md`](artifact-format.md).
+
 Studio writes `staging/<project>` and `production/<project>` in the bucket. The Runtime polls
 every 5 s and reloads on change. Releases are immutable. Rollback means redeploying an older
 artifact.

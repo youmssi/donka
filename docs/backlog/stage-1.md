@@ -270,10 +270,20 @@ An approver who only sees a diff is rubber-stamping. Tests make the four-eyes ru
 
 **Type:** feature · **Repos:** R, S · **Dependencies:** DNK-12 · **Size:** S
 
+#### Decisions (taken in the story)
+- Format version 2 adds `accessTokenHashes`: per token its id, environment, algorithm
+  (`sha256`) and lowercase hex digest. Tokens are long random secrets (at least 32 random
+  bytes), so an unsalted SHA-256 is enough; the Runtime compares in constant time.
+- An artifact deployed to an environment accepts only entries issued for that environment.
+- A malformed entry is skipped, never the whole file: a file that fails to parse turns token
+  checks off in the Runtime, so a bad entry must not be able to do that.
+- The Runtime ships the change; Studio documents the format (`docs/artifact-format.md`) and
+  starts writing it when it issues tokens and deploys releases (DNK-14).
+
 #### Acceptance criteria
-- [ ] `.config/project.json` carries token hashes, never plain tokens; the artifact format is versioned and documented
-- [ ] A token issued for staging is refused by the production runtime
-- [ ] Artifacts in the old format keep working (additive change)
+- [x] `.config/project.json` carries token hashes, never plain tokens; the artifact format is versioned and documented
+- [x] A token issued for staging is refused by the production runtime
+- [x] Artifacts in the old format keep working (additive change)
 
 ---
 
