@@ -50,7 +50,9 @@
     "INVALID_DECISION": "This decision is not a valid model. Check its nodes and connections.",
     "EVALUATION_FAILED": "The decision could not be evaluated with this input.",
     "VERSION_NOT_FOUND": "This version does not exist.",
-    "VERSION_UNCHANGED": "Nothing changed since the last version."
+    "VERSION_UNCHANGED": "Nothing changed since the last version.",
+    "SCENARIO_NOT_FOUND": "This test scenario does not exist.",
+    "SCENARIO_NAME_TAKEN": "Another scenario of this decision has this name."
   },
   "validation": {
     "email": "Enter a valid email address.",
@@ -59,7 +61,8 @@
     "passwordMismatch": "The passwords do not match.",
     "maxLength": "Use at most {max} characters.",
     "projectKey": "Use {min} to {max} lowercase letters, digits and single hyphens, starting with a letter.",
-    "decisionKey": "Use lowercase words with single hyphens; separate folders with /. At most {max} characters."
+    "decisionKey": "Use lowercase words with single hyphens; separate folders with /. At most {max} characters.",
+    "jsonObject": "Enter a JSON object, e.g. '{'\"income\": 150000'}'."
   },
   "signIn": {
     "title": "Sign in",
@@ -159,7 +162,8 @@
     "archived": "Project archived.",
     "restored": "Project restored.",
     "decisions": "Decisions",
-    "decision": "Decision"
+    "decision": "Decision",
+    "scenarios": "Test scenarios"
   },
   "members": {
     "title": "Members",
@@ -279,6 +283,11 @@
       "deleted": "Decision deleted",
       "version_saved": "Version saved",
       "version_restored": "Version restored"
+    },
+    "scenario": {
+      "created": "Scenario created",
+      "updated": "Scenario changed",
+      "deleted": "Scenario deleted"
     }
   },
   "auditSentences": {
@@ -293,7 +302,10 @@
     "decisionCreated": "Created the decision {key}",
     "decisionDeleted": "Deleted the decision {key}",
     "decisionVersionSaved": "Saved version {version} of {key}: “{message}”",
-    "decisionVersionRestored": "Restored version {from} of {key} as version {version}"
+    "decisionVersionRestored": "Restored version {from} of {key} as version {version}",
+    "scenarioCreated": "Created the scenario “{name}” of {key}",
+    "scenarioUpdated": "Changed the scenario “{name}” of {key}",
+    "scenarioDeleted": "Deleted the scenario “{name}” of {key}"
   },
   "ui": {
     "close": "Close",
@@ -388,5 +400,63 @@
     "restoreTitle": "Restore version {number}?",
     "restoreConfirm": "Its content replaces the draft and is saved as version {number}. Draft changes that were not saved as a version are lost.",
     "restored": "Version {from} restored as version {number}"
+  },
+  "scenarios": {
+    "title": "Test scenarios",
+    "create": "New scenario",
+    "createTitle": "New test scenario",
+    "editTitle": "Edit test scenario",
+    "dialogDescription": "An input to a decision and the output it should give. Every version saved runs all of the project's scenarios.",
+    "decision": "Decision",
+    "chooseDecision": "Choose a decision",
+    "name": "Name",
+    "namePlaceholder": "Income above the threshold",
+    "nameTaken": "Another scenario of this decision has this name.",
+    "input": "Input",
+    "inputHint": "The JSON the decision receives.",
+    "expected": "Expected output",
+    "expectedHint": "The JSON it should return.",
+    "match": "Match",
+    "partial": "Partial",
+    "exact": "Exact",
+    "partialHint": "Passes when every expected field has its value; other fields of the output are free.",
+    "exactHint": "Passes only when the output is exactly the expected JSON.",
+    "saving": "Saving…",
+    "save": "Save",
+    "created": "Scenario “{name}” created",
+    "updated": "Scenario “{name}” saved",
+    "deleted": "Scenario “{name}” deleted",
+    "errorTitle": "The scenarios could not be loaded",
+    "changed": "Changed",
+    "by": "By",
+    "emptyTitle": "No test scenarios yet",
+    "empty": "Write what a decision should answer for a given input; every version saved will check it.",
+    "emptyReadOnly": "An editor has not written a scenario yet.",
+    "emptyNoDecision": "Create a decision first, then write what it should answer.",
+    "actionsFor": "Actions for {name}",
+    "edit": "Edit",
+    "delete": "Delete",
+    "deleteConfirmTitle": "Delete “{name}”?",
+    "deleteConfirm": "Versions already tested keep their results. New versions will not run it.",
+    "saveRun": "Save as scenario"
+  },
+  "tests": {
+    "summary": "{passed} passed · {failed} failed · {errors} could not run",
+    "failing": "{failing} of {total} failing",
+    "passing": "{total} passed",
+    "title": "Tests on version {number}",
+    "description": "How every scenario of the project went when this version was saved.",
+    "none": "No scenario ran on this version.",
+    "passed": "Passed",
+    "failed": "Failed",
+    "error": "Could not run",
+    "couldNotRun": "Could not run: {reason}",
+    "field": "Field",
+    "expected": "Expected",
+    "actual": "Actual",
+    "wholeOutput": "(whole output)",
+    "missing": "missing",
+    "noVersion": "Could not run: {key} has no saved version yet.",
+    "engineFailed": "the evaluation failed"
   }
 }

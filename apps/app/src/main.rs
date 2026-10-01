@@ -4,7 +4,7 @@ use donka_app::{config::Config, router, AppState};
 use donka_audit::AuditLog;
 use donka_db::DbOptions;
 use donka_decision::Decisions;
-use donka_engine::ZenRuntime;
+use donka_engine::{DecisionRuntime, ZenRuntime};
 use donka_identity::{Identity, Policy};
 use donka_mail::SmtpMailer;
 use donka_project::Projects;
@@ -27,10 +27,10 @@ async fn main() -> anyhow::Result<()> {
         Ok(config) => config,
         Err(err) => exit_with(&format!("invalid configuration: {err}")),
     };
-    let runtime = match config.engine_workers {
+    let runtime: Arc<dyn DecisionRuntime> = Arc::new(match config.engine_workers {
         Some(n) => ZenRuntime::new(n),
         None => ZenRuntime::default(),
-    };
+    });
     let db_options = DbOptions {
         max_connections: config.db_max_connections,
         ..DbOptions::default()
@@ -62,7 +62,7 @@ async fn main() -> anyhow::Result<()> {
     let clock = Arc::new(SystemClock);
     let identity = Identity::new(db.clone(), clock.clone(), policy);
     let projects = Projects::new(db.clone(), clock.clone());
-    let decisions = Decisions::new(db.clone(), clock);
+    let decisions = Decisions::new(db.clone(), clock, runtime.clone());
     let audit = AuditLog::new(db.clone());
 
     if let Some(email) = &config.bootstrap_admin_email {
@@ -95,7 +95,7 @@ async fn main() -> anyhow::Result<()> {
     }
     let app = router(
         AppState {
-            runtime: Arc::new(runtime),
+            runtime,
             db,
             identity,
             projects,

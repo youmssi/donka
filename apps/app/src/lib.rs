@@ -107,6 +107,13 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
         .routes(routes!(routes::versions::list, routes::versions::save))
         .routes(routes!(routes::versions::get))
         .routes(routes!(routes::versions::restore))
+        .routes(routes!(routes::scenarios::test_results))
+        .routes(routes!(routes::scenarios::list, routes::scenarios::create))
+        .routes(routes!(
+            routes::scenarios::get,
+            routes::scenarios::update,
+            routes::scenarios::delete
+        ))
         .routes(routes!(routes::audit::list))
         .routes(routes!(routes::audit::export))
         .route_layer(middleware::from_fn_with_state(

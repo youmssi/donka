@@ -303,6 +303,18 @@ async fn openapi_document_describes_the_endpoints() {
             "/projects/{project_id}/decisions/{decision_id}/versions/{number}/restore",
             "post",
         ),
+        (
+            "/projects/{project_id}/decisions/{decision_id}/versions/{number}/test-results",
+            "get",
+        ),
+        ("/projects/{project_id}/test-scenarios", "get"),
+        ("/projects/{project_id}/test-scenarios", "post"),
+        ("/projects/{project_id}/test-scenarios/{scenario_id}", "get"),
+        ("/projects/{project_id}/test-scenarios/{scenario_id}", "put"),
+        (
+            "/projects/{project_id}/test-scenarios/{scenario_id}",
+            "delete",
+        ),
         ("/projects/{project_id}/audit", "get"),
         ("/projects/{project_id}/audit/export", "get"),
     ] {

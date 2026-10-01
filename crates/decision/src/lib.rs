@@ -9,11 +9,14 @@
 //! "Save version" snapshots the draft as an immutable, numbered version
 //! ([`versions`]); restoring an old version adds a new one. Deleting a decision
 //! keeps its history.
+//!
+//! Test scenarios ([`scenarios`]) pin what a decision should answer; every
+//! version saved runs all of the project's and keeps the results ([`testing`]).
 
 use chrono::{DateTime, Utc};
 use donka_audit::{Action, Event};
 use donka_db::PgPool;
-use donka_engine::{Bundle, RuntimeError};
+use donka_engine::{Bundle, DecisionRuntime, RuntimeError};
 use donka_project::{authorize_change, Access, ProjectError, Role};
 use donka_shared::clock::Clock;
 use serde_json::{json, Value};
@@ -21,7 +24,13 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 use uuid::Uuid;
 
+mod compare;
+mod scenarios;
+mod testing;
 mod versions;
+pub use compare::{Match, Mismatch};
+pub use scenarios::{Scenario, ScenarioFields, MAX_SCENARIO_NAME_CHARS};
+pub use testing::{TestResult, TestStatus, TestSummary};
 pub use versions::{Version, VersionSummary, MAX_MESSAGE_CHARS};
 
 pub const MAX_KEY_CHARS: usize = 120;
@@ -83,6 +92,15 @@ pub enum DecisionError {
     /// The draft is the same as the latest version: there is nothing to save.
     #[error("nothing changed since version {0}")]
     Unchanged(i32),
+    /// No such scenario in this project.
+    #[error("scenario not found")]
+    ScenarioNotFound,
+    #[error("another scenario of this decision has this name")]
+    ScenarioNameTaken,
+    /// The named field of a scenario is invalid: a name of 1 to
+    /// {MAX_SCENARIO_NAME_CHARS} characters, an input and an expected output that are objects.
+    #[error("invalid scenario {0}")]
+    InvalidScenario(&'static str),
     #[error(transparent)]
     Project(#[from] ProjectError),
     #[error(transparent)]
@@ -93,11 +111,17 @@ pub enum DecisionError {
 pub struct Decisions {
     pool: PgPool,
     clock: Arc<dyn Clock>,
+    /// Runs the test scenarios when a version is saved.
+    runtime: Arc<dyn DecisionRuntime>,
 }
 
 impl Decisions {
-    pub fn new(pool: PgPool, clock: Arc<dyn Clock>) -> Self {
-        Self { pool, clock }
+    pub fn new(pool: PgPool, clock: Arc<dyn Clock>, runtime: Arc<dyn DecisionRuntime>) -> Self {
+        Self {
+            pool,
+            clock,
+            runtime,
+        }
     }
 
     /// Every decision of the project, by key (any member).

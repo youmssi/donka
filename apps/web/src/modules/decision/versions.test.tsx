@@ -30,9 +30,24 @@ const decision: Decision = {
   content: { nodes: [], edges: [] },
 };
 const ada = { id: 'u-1', email: 'ada@bank.example' };
+const noTests = { passed: 0, failed: 0, errors: 0 };
 const [v2, v1] = [
-  { number: 2, message: 'Raise the threshold', createdAt: '2026-09-29T08:00:00Z', createdBy: ada, restoredFrom: null },
-  { number: 1, message: 'First table', createdAt: '2026-09-28T08:00:00Z', createdBy: ada, restoredFrom: null },
+  {
+    number: 2,
+    message: 'Raise the threshold',
+    createdAt: '2026-09-29T08:00:00Z',
+    createdBy: ada,
+    restoredFrom: null,
+    tests: noTests,
+  },
+  {
+    number: 1,
+    message: 'First table',
+    createdAt: '2026-09-28T08:00:00Z',
+    createdBy: ada,
+    restoredFrom: null,
+    tests: noTests,
+  },
 ];
 const history = [v2, v1];
 

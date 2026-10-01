@@ -4,7 +4,7 @@ import { CircleAlert, Eye, FileQuestion } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { ErrorAlert } from '@/components/shared/error-alert';
 import { When } from '@/components/shared/format';
@@ -31,6 +31,8 @@ import { simulateDecision } from './decision.service';
 import { splitKey, type Decision } from './schema';
 import { useDecision, useDecisionList, useDecisionSaved } from './useDecisions';
 import { useDraft, type DraftStatus } from './useDraft';
+import type { SimulatorRun } from './jdm-graph';
+import { jsonText, ScenarioDialog } from './scenario-dialog';
 import { HistorySheet, SaveVersionDialog, VersionChip } from './versions';
 
 // antd and the engine's WASM load only here, and only in the browser (ADR-004).
@@ -112,6 +114,14 @@ function Editor({ project, decision, others }: { project: Project; decision: Dec
     [t],
   );
 
+  const scenarios = useTranslations('scenarios');
+  // A simulator run the person keeps as a test scenario.
+  const [keeping, setKeeping] = useState<SimulatorRun | null>(null);
+  const saveRun = useMemo(
+    () => (editable ? { label: scenarios('saveRun'), onSave: setKeeping } : undefined),
+    [editable, scenarios],
+  );
+
   const simulate = useCallback(
     (graph: unknown, context: unknown) => simulateDecision(project.id, decision.id, graph, context),
     [project.id, decision.id],
@@ -148,8 +158,25 @@ function Editor({ project, decision, others }: { project: Project; decision: Dec
           decisionNodeLabels={decisionNodeLabels}
           simulate={simulate}
           failureMessage={(result) => errors(result.error.code)}
+          saveRun={saveRun}
         />
       </div>
+      {keeping ? (
+        <ScenarioDialog
+          projectId={project.id}
+          decisions={[{ id: decision.id, key: decision.key }]}
+          initial={{
+            decisionId: decision.id,
+            name: '',
+            input: jsonText(keeping.input),
+            expected: jsonText(keeping.output),
+            match: 'partial',
+          }}
+          fixedDecision
+          open
+          onOpenChange={(open) => (open ? null : setKeeping(null))}
+        />
+      ) : null}
       <ConflictDialog status={draft.status} onKeepMine={draft.keepMine} onLoadTheirs={draft.loadTheirs} />
     </div>
   );

@@ -10,6 +10,12 @@ export type Version = ApiSchemas['DecisionVersionResponse'];
 export type VersionDetail = ApiSchemas['DecisionVersionDetailResponse'];
 export type VersionList = ApiSchemas['DecisionVersionListResponse'];
 export type Restored = ApiSchemas['RestoreResponse'];
+export type Scenario = ApiSchemas['ScenarioResponse'];
+export type ScenarioList = ApiSchemas['ScenarioListResponse'];
+export type MatchMode = Scenario['match'];
+export type TestSummary = ApiSchemas['TestSummaryResponse'];
+export type TestResult = ApiSchemas['TestResultResponse'];
+export type TestResultList = ApiSchemas['TestResultListResponse'];
 
 // The message rule comes from the API contract too.
 const messageField = openapi.components.schemas.SaveVersionRequest.properties.message;
@@ -32,6 +38,30 @@ export const createDecisionSchema = z.object({
     .refine((key) => key.length <= KEY_RULES.max && KEY_RULES.pattern.test(key), 'decisionKey'),
 });
 export type CreateDecisionValues = z.infer<typeof createDecisionSchema>;
+
+export const SCENARIO_NAME_MAX = openapi.components.schemas.CreateScenarioRequest.properties.name.maxLength;
+
+/** Text that parses as a JSON object, as scenarios take their input and expected output. */
+export function parseObject(text: string): Record<string, unknown> | null {
+  try {
+    const value: unknown = JSON.parse(text);
+    return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+const jsonObject = z.string().refine((text) => parseObject(text) !== null, 'jsonObject');
+
+/** A scenario as the form edits it: input and expected output as JSON text. */
+export const scenarioSchema = z.object({
+  decisionId: z.string().min(1, 'required'),
+  name: z.string().trim().min(1, 'required').max(SCENARIO_NAME_MAX, 'maxLength'),
+  input: jsonObject,
+  expected: jsonObject,
+  match: z.enum(['exact', 'partial']),
+});
+export type ScenarioValues = z.infer<typeof scenarioSchema>;
 
 /** `bureau/normalize` → `{ folder: 'bureau/', name: 'normalize' }`. */
 export function splitKey(key: string): { folder: string; name: string } {

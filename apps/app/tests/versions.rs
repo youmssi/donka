@@ -276,7 +276,8 @@ async fn versions_cannot_be_changed_or_deleted(db: PgPool) {
     for statement in [
         "UPDATE decision_versions SET message = 'rewritten'",
         "DELETE FROM decision_versions",
-        "TRUNCATE decision_versions",
+        // CASCADE: test results reference versions, which alone refuses a plain TRUNCATE.
+        "TRUNCATE decision_versions CASCADE",
     ] {
         let err = sqlx::query(statement).execute(&db).await.unwrap_err();
         let code = err.as_database_error().and_then(|e| e.code()).unwrap();

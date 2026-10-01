@@ -6,8 +6,10 @@ import {
   createDecision,
   deleteDecision,
   getDecision,
+  getTestResults,
   getVersion,
   listDecisions,
+  listScenarios,
   listVersions,
   VERSIONS_PAGE_SIZE,
 } from './decision.service';
@@ -19,7 +21,34 @@ const keys = {
   versions: (projectId: string, id: string) => ['project', projectId, 'decisions', id, 'versions'] as const,
   version: (projectId: string, id: string, number: number) =>
     ['project', projectId, 'decisions', id, 'versions', number] as const,
+  testResults: (projectId: string, id: string, number: number) =>
+    ['project', projectId, 'decisions', id, 'versions', number, 'tests'] as const,
+  scenarios: (projectId: string) => ['project', projectId, 'scenarios'] as const,
 };
+
+/** The project's scenarios, a page at a time. */
+export function useScenarioList(projectId: string, offset: number) {
+  return useQuery({
+    queryKey: [...keys.scenarios(projectId), offset],
+    queryFn: () => listScenarios(projectId, offset),
+  });
+}
+
+/** After a scenario is created, changed or deleted, the lists show it. */
+export function useScenariosChanged(projectId: string) {
+  const queryClient = useQueryClient();
+  return () => void queryClient.invalidateQueries({ queryKey: keys.scenarios(projectId) });
+}
+
+/** How the scenarios went on one version; results never change, so they are fetched once. */
+export function useTestResults(projectId: string, id: string, number: number | null) {
+  return useQuery({
+    queryKey: keys.testResults(projectId, id, number ?? 0),
+    queryFn: () => getTestResults(projectId, id, number ?? 0),
+    enabled: number !== null,
+    staleTime: Infinity,
+  });
+}
 
 /** The decision's history, newest first, a page at a time ("Load more"). */
 export function useVersions(projectId: string, id: string, enabled: boolean) {

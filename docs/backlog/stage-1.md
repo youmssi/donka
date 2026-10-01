@@ -216,11 +216,30 @@ handling.
 #### Why
 An approver who only sees a diff is rubber-stamping. Tests make the four-eyes rule mean something.
 
+#### Decisions (taken in the story)
+- A scenario targets one decision of the project: a name (unique per decision, any case), an
+  input object, an expected output object, and a match. **Partial**: every expected field has
+  its value, other output fields are free. **Exact**: the output is exactly the expected
+  document. Objects compare field by field, arrays and values as a whole, numbers by value.
+- Saving or restoring any version runs **every** scenario of the project, because decisions
+  call each other. A version is tested as a release would hold it: that decision at the new
+  version, every other decision at its latest version. A scenario that needs a decision without
+  a saved version is reported as "could not run", naming that decision.
+- Results never block saving; they are kept with the version, never change, and copy the
+  scenario as it ran, so editing or deleting a scenario later does not rewrite what was tested.
+  Approvals (DNK-14) will read them.
+- Mismatches (path, expected, actual) are computed by the server, so API clients get the same
+  per-field explanation as the web app.
+- Editors and owners write scenarios; viewers read them and the results. Creating, changing and
+  deleting a scenario are audit events.
+- "Save as scenario" in the simulator keeps the last run's input and output (partial match by
+  default) for the person to name and trim.
+
 #### Acceptance criteria
-- [ ] A scenario = decision key + input + expected output (exact or partial match)
-- [ ] All scenarios of a project run when a version is saved; results stored with the version
-- [ ] A failing scenario shows expected vs actual per field
-- [ ] Scenarios can be created from a simulator run in one click
+- [x] A scenario = decision key + input + expected output (exact or partial match)
+- [x] All scenarios of a project run when a version is saved; results stored with the version
+- [x] A failing scenario shows expected vs actual per field
+- [x] Scenarios can be created from a simulator run in one click
 
 ---
 

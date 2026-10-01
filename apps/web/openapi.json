@@ -74,7 +74,10 @@
           "decision.created",
           "decision.deleted",
           "decision.version_saved",
-          "decision.version_restored"
+          "decision.version_restored",
+          "scenario.created",
+          "scenario.updated",
+          "scenario.deleted"
         ],
         "type": "string"
       },
@@ -214,6 +217,42 @@
         "required": [
           "key",
           "name"
+        ],
+        "type": "object"
+      },
+      "CreateScenarioRequest": {
+        "properties": {
+          "decisionId": {
+            "description": "The decision the scenario evaluates.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "expected": {
+            "additionalProperties": true,
+            "description": "A JSON object.",
+            "type": "object"
+          },
+          "input": {
+            "additionalProperties": true,
+            "description": "A JSON object.",
+            "type": "object"
+          },
+          "match": {
+            "$ref": "#/components/schemas/MatchMode"
+          },
+          "name": {
+            "description": "Unique among the decision's scenarios (any case).",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "decisionId",
+          "name",
+          "input",
+          "expected",
+          "match"
         ],
         "type": "object"
       },
@@ -360,13 +399,18 @@
               "integer",
               "null"
             ]
+          },
+          "tests": {
+            "$ref": "#/components/schemas/TestSummaryResponse",
+            "description": "How the project's test scenarios went when this version was saved."
           }
         },
         "required": [
           "number",
           "message",
           "createdAt",
-          "createdBy"
+          "createdBy",
+          "tests"
         ],
         "type": "object"
       },
@@ -440,6 +484,14 @@
         ],
         "type": "string"
       },
+      "MatchMode": {
+        "description": "How much of the output a scenario pins down.",
+        "enum": [
+          "exact",
+          "partial"
+        ],
+        "type": "string"
+      },
       "MemberListResponse": {
         "properties": {
           "items": {
@@ -476,6 +528,20 @@
           "email",
           "role",
           "addedAt"
+        ],
+        "type": "object"
+      },
+      "MismatchResponse": {
+        "description": "One field where the output differs: `path` is dotted (`decision.limit`),\nempty for the whole output; a side is absent when the field is missing there.",
+        "properties": {
+          "actual": {},
+          "expected": {},
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
         ],
         "type": "object"
       },
@@ -700,6 +766,85 @@
         ],
         "type": "object"
       },
+      "ScenarioListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ScenarioResponse"
+            },
+            "type": "array"
+          },
+          "total": {
+            "description": "Scenarios across all pages.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "type": "object"
+      },
+      "ScenarioResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/PersonRef"
+          },
+          "decisionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "decisionKey": {
+            "type": "string"
+          },
+          "expected": {
+            "additionalProperties": true,
+            "description": "A JSON object.",
+            "type": "object"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "input": {
+            "additionalProperties": true,
+            "description": "A JSON object.",
+            "type": "object"
+          },
+          "match": {
+            "$ref": "#/components/schemas/MatchMode"
+          },
+          "name": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedBy": {
+            "$ref": "#/components/schemas/PersonRef"
+          }
+        },
+        "required": [
+          "id",
+          "decisionId",
+          "decisionKey",
+          "name",
+          "input",
+          "expected",
+          "match",
+          "createdAt",
+          "createdBy",
+          "updatedAt",
+          "updatedBy"
+        ],
+        "type": "object"
+      },
       "SignInRequest": {
         "properties": {
           "email": {
@@ -772,6 +917,122 @@
         ],
         "type": "object"
       },
+      "TestResultListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TestResultResponse"
+            },
+            "type": "array"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/TestSummaryResponse"
+          }
+        },
+        "required": [
+          "summary",
+          "items"
+        ],
+        "type": "object"
+      },
+      "TestResultResponse": {
+        "description": "A scenario as it ran on the version, and what happened.",
+        "properties": {
+          "actual": {
+            "description": "What the decision returned; absent when it could not run."
+          },
+          "decisionKey": {
+            "type": "string"
+          },
+          "error": {
+            "description": "It could not run: the engine's message.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expected": {
+            "additionalProperties": true,
+            "description": "A JSON object.",
+            "type": "object"
+          },
+          "input": {
+            "additionalProperties": true,
+            "description": "A JSON object.",
+            "type": "object"
+          },
+          "match": {
+            "$ref": "#/components/schemas/MatchMode"
+          },
+          "mismatches": {
+            "description": "Empty when it passed.",
+            "items": {
+              "$ref": "#/components/schemas/MismatchResponse"
+            },
+            "type": "array"
+          },
+          "missingDecision": {
+            "description": "It could not run because this decision has no saved version.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "scenarioId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TestStatusResponse"
+          }
+        },
+        "required": [
+          "scenarioId",
+          "name",
+          "decisionKey",
+          "input",
+          "expected",
+          "match",
+          "status",
+          "mismatches"
+        ],
+        "type": "object"
+      },
+      "TestStatusResponse": {
+        "enum": [
+          "passed",
+          "failed",
+          "error"
+        ],
+        "type": "string"
+      },
+      "TestSummaryResponse": {
+        "description": "How the project's scenarios went on a version.",
+        "properties": {
+          "errors": {
+            "description": "Scenarios that could not run (a decision without a version, an evaluation error).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "failed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "passed": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "passed",
+          "failed",
+          "errors"
+        ],
+        "type": "object"
+      },
       "UpdateProjectRequest": {
         "properties": {
           "description": {
@@ -787,6 +1048,36 @@
         },
         "required": [
           "name"
+        ],
+        "type": "object"
+      },
+      "UpdateScenarioRequest": {
+        "properties": {
+          "expected": {
+            "additionalProperties": true,
+            "description": "A JSON object.",
+            "type": "object"
+          },
+          "input": {
+            "additionalProperties": true,
+            "description": "A JSON object.",
+            "type": "object"
+          },
+          "match": {
+            "$ref": "#/components/schemas/MatchMode"
+          },
+          "name": {
+            "description": "Unique among the decision's scenarios (any case).",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "input",
+          "expected",
+          "match"
         ],
         "type": "object"
       },
@@ -2333,6 +2624,66 @@
         ]
       }
     },
+    "/projects/{project_id}/decisions/{decision_id}/versions/{number}/test-results": {
+      "get": {
+        "operationId": "test_results",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "decision_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "number",
+            "required": true,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestResultListResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND, DECISION_NOT_FOUND or VERSION_NOT_FOUND"
+          }
+        },
+        "summary": "How every scenario of the project went when this version was saved (any member).",
+        "tags": [
+          "scenarios"
+        ]
+      }
+    },
     "/projects/{project_id}/members": {
       "get": {
         "operationId": "members",
@@ -2647,6 +2998,361 @@
         "summary": "Restores an archived project (owners).",
         "tags": [
           "projects"
+        ]
+      }
+    },
+    "/projects/{project_id}/test-scenarios": {
+      "get": {
+        "operationId": "list",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only the scenarios of this decision.",
+            "in": "query",
+            "name": "decisionId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size, 1 to 100 (default 50).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScenarioListResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND"
+          }
+        },
+        "summary": "The project's scenarios, by decision and name (any member).",
+        "tags": [
+          "scenarios"
+        ]
+      },
+      "post": {
+        "operationId": "create",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateScenarioRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScenarioResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid name, input or expected output (INVALID_REQUEST, fields)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Viewers cannot change scenarios (FORBIDDEN)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND or DECISION_NOT_FOUND"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "SCENARIO_NAME_TAKEN or PROJECT_ARCHIVED"
+          }
+        },
+        "summary": "A new scenario for one of the project's decisions (editors and owners).",
+        "tags": [
+          "scenarios"
+        ]
+      }
+    },
+    "/projects/{project_id}/test-scenarios/{scenario_id}": {
+      "delete": {
+        "operationId": "delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "scenario_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Viewers cannot change scenarios (FORBIDDEN)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND or SCENARIO_NOT_FOUND"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_ARCHIVED"
+          }
+        },
+        "summary": "Deletes a scenario (editors and owners). Results already recorded stay.",
+        "tags": [
+          "scenarios"
+        ]
+      },
+      "get": {
+        "operationId": "get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "scenario_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScenarioResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND or SCENARIO_NOT_FOUND"
+          }
+        },
+        "summary": "One scenario (any member).",
+        "tags": [
+          "scenarios"
+        ]
+      },
+      "put": {
+        "operationId": "update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "scenario_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateScenarioRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScenarioResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid name, input or expected output (INVALID_REQUEST, fields)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Viewers cannot change scenarios (FORBIDDEN)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND or SCENARIO_NOT_FOUND"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "SCENARIO_NAME_TAKEN or PROJECT_ARCHIVED"
+          }
+        },
+        "summary": "Changes a scenario (editors and owners). Results already recorded keep it as it ran.",
+        "tags": [
+          "scenarios"
         ]
       }
     },

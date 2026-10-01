@@ -4,8 +4,12 @@ import type {
   CreateDecisionValues,
   Decision,
   DecisionSummary,
+  MatchMode,
   Restored,
+  Scenario,
+  ScenarioList,
   SimulationResult,
+  TestResultList,
   Version,
   VersionDetail,
   VersionList,
@@ -109,5 +113,58 @@ export function restoreVersion(
   return attempt(async () => {
     const response = await http.post(`${one(projectId, id)}/versions/${number}/restore`, { json: { revision } });
     return response.ok ? success(await response.json<Restored>()) : failure(response);
+  });
+}
+
+const scenarios = (projectId: string) => `projects/${encodeURIComponent(projectId)}/test-scenarios`;
+
+export const SCENARIOS_PAGE_SIZE = 100;
+
+/** The project's scenarios by decision and name, a page at a time. */
+export function listScenarios(projectId: string, offset: number): Promise<ActionResult<ScenarioList>> {
+  return attempt(async () => {
+    const response = await http.get(scenarios(projectId), { searchParams: { limit: SCENARIOS_PAGE_SIZE, offset } });
+    return response.ok ? success(await response.json<ScenarioList>()) : failure(response);
+  });
+}
+
+/** What the API takes for a scenario: the form's JSON text parsed. */
+export interface ScenarioInput {
+  name: string;
+  input: Record<string, unknown>;
+  expected: Record<string, unknown>;
+  match: MatchMode;
+}
+
+export function createScenario(
+  projectId: string,
+  decisionId: string,
+  values: ScenarioInput,
+): Promise<ActionResult<Scenario>> {
+  return attempt(async () => {
+    const response = await http.post(scenarios(projectId), { json: { decisionId, ...values } });
+    return response.ok ? success(await response.json<Scenario>()) : failure(response);
+  });
+}
+
+export function updateScenario(projectId: string, id: string, values: ScenarioInput): Promise<ActionResult<Scenario>> {
+  return attempt(async () => {
+    const response = await http.put(`${scenarios(projectId)}/${encodeURIComponent(id)}`, { json: values });
+    return response.ok ? success(await response.json<Scenario>()) : failure(response);
+  });
+}
+
+export function deleteScenario(projectId: string, id: string): Promise<ActionResult<null>> {
+  return attempt(async () => {
+    const response = await http.delete(`${scenarios(projectId)}/${encodeURIComponent(id)}`);
+    return response.ok ? success(null) : failure(response);
+  });
+}
+
+/** How every scenario of the project went when this version was saved. */
+export function getTestResults(projectId: string, id: string, number: number): Promise<ActionResult<TestResultList>> {
+  return attempt(async () => {
+    const response = await http.get(`${one(projectId, id)}/versions/${number}/test-results`);
+    return response.ok ? success(await response.json<TestResultList>()) : failure(response);
   });
 }

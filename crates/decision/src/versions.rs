@@ -3,6 +3,7 @@
 //! "Save version" snapshots the draft, numbered 1, 2, 3… per decision, with its
 //! author, time and message. Nothing ever changes a version: restoring an old
 //! one adds a new version with its content and puts that content in the draft.
+//! Each new version runs the project's test scenarios ([`crate::testing`]).
 
 use chrono::{DateTime, Utc};
 use donka_audit::{Action, Event};
@@ -11,7 +12,10 @@ use donka_shared::page::{Page, PageRequest};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
-use crate::{fetch, lock_at, write_draft, Decision, DecisionError, DecisionSummary, Decisions, Tx};
+use crate::testing::{TestSummary, SUMMARY_JOIN};
+use crate::{
+    fetch, lock_at, sql, write_draft, Decision, DecisionError, DecisionSummary, Decisions, Tx,
+};
 
 pub const MAX_MESSAGE_CHARS: usize = 500;
 
@@ -24,7 +28,14 @@ pub struct VersionSummary {
     pub created_by: Uuid,
     /// The older version this one restores, when it does.
     pub restored_from: Option<i32>,
+    /// How the project's test scenarios went on this version.
+    #[sqlx(flatten)]
+    pub tests: TestSummary,
 }
+
+/// A version's columns with its test counts (`v` is the version).
+const VERSION_COLUMNS: &str = "v.number, v.message, v.created_at, v.created_by, v.restored_from, \
+     coalesce(t.passed, 0) AS passed, coalesce(t.failed, 0) AS failed, coalesce(t.errors, 0) AS errors";
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct Version {
@@ -55,8 +66,11 @@ impl Decisions {
             .bind(id)
             .fetch_one(&mut *tx)
             .await?;
-        let version = self
+        let mut version = self
             .insert_version(&mut tx, access, &current, &content, &message, None)
+            .await?;
+        version.tests = self
+            .run_tests(&mut tx, access, &current, version.number, &content)
             .await?;
         donka_audit::record(
             &mut tx,
@@ -85,10 +99,10 @@ impl Decisions {
         let mut conn = self.pool.acquire().await?;
         // The decision must exist in this project; its history is read with it.
         fetch(&mut conn, access, id).await?;
-        let items = sqlx::query_as(
-            "SELECT number, message, created_at, created_by, restored_from FROM decision_versions \
-             WHERE decision_id = $1 ORDER BY number DESC LIMIT $2 OFFSET $3",
-        )
+        let items = sqlx::query_as(sql(format!(
+            "SELECT {VERSION_COLUMNS} FROM decision_versions v {SUMMARY_JOIN} \
+             WHERE v.decision_id = $1 ORDER BY v.number DESC LIMIT $2 OFFSET $3"
+        )))
         .bind(id)
         .bind(page.limit)
         .bind(page.offset)
@@ -111,10 +125,10 @@ impl Decisions {
     ) -> Result<Version, DecisionError> {
         let mut conn = self.pool.acquire().await?;
         fetch(&mut conn, access, id).await?;
-        sqlx::query_as(
-            "SELECT number, message, created_at, created_by, restored_from, content \
-             FROM decision_versions WHERE decision_id = $1 AND number = $2",
-        )
+        sqlx::query_as(sql(format!(
+            "SELECT {VERSION_COLUMNS}, v.content FROM decision_versions v {SUMMARY_JOIN} \
+             WHERE v.decision_id = $1 AND v.number = $2"
+        )))
         .bind(id)
         .bind(number)
         .fetch_optional(&mut *conn)
@@ -149,8 +163,11 @@ impl Decisions {
         write_draft(&mut tx, access, id, &content, now).await?;
         let draft = fetch(&mut tx, access, id).await?.summary;
         let message = format!("Restored version {number}");
-        let version = self
+        let mut version = self
             .insert_version(&mut tx, access, &draft, &content, &message, Some(number))
+            .await?;
+        version.tests = self
+            .run_tests(&mut tx, access, &draft, version.number, &content)
             .await?;
         donka_audit::record(
             &mut tx,
@@ -199,6 +216,7 @@ impl Decisions {
             created_at,
             created_by: access.user_id(),
             restored_from,
+            tests: TestSummary::default(),
         })
     }
 }

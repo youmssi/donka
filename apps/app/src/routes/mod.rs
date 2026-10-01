@@ -4,6 +4,7 @@ pub mod decisions;
 pub mod health;
 pub mod people;
 pub mod projects;
+pub mod scenarios;
 pub mod simulate;
 pub mod users;
 pub mod versions;
