@@ -173,7 +173,10 @@ Prettier (`printWidth: 120`, `singleQuote: true`, as in donka-cli) and ESLint se
 ## 11. Tooling notes
 
 - shadcn components live in `components/ui` and follow the new-york v4 sources on the `radix-ui`
-  package; `components.json` makes `pnpm dlx shadcn add <name>` work.
+  package; `components.json` makes `pnpm shadcn add <name>` work (the `shadcn` CLI is a dev
+  dependency, so everyone runs the same version).
+- `apps/web/.mcp.json` declares the shadcn MCP server (`shadcn mcp`), so coding assistants
+  started in `apps/web` can browse and add registry components. It reaches `ui.shadcn.com`.
 - Next.js 16 ships its own docs in `node_modules/next/dist/docs/`: read them before relying on
   memory. `next dev` writes `AGENTS.md`/`CLAUDE.md` into `apps/web` when it detects a coding
   agent; they are ignored by git.
