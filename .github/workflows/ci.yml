@@ -101,15 +101,17 @@ jobs:
           repository: youmssi/donka-runtime
           ref: develop
           path: donka-runtime
+      # Next to Studio, as in development: inside it, Cargo would take it for a workspace member.
+      - run: mv donka-runtime ../donka-runtime
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: |
             .
-            donka-runtime
+            ../donka-runtime
       - run: cargo build --locked -p donka-app
       - run: cargo build --locked
-        working-directory: donka-runtime
+        working-directory: ../donka-runtime
       # A service container cannot take the server command, so MinIO starts here.
       - name: MinIO with the release bucket
         run: |
@@ -133,7 +135,7 @@ jobs:
           PROVIDER__TYPE=S3 PROVIDER__BUCKET=donka-releases PROVIDER__REGION=us-east-1 \
           PROVIDER__ENDPOINT=http://127.0.0.1:9000 PROVIDER__FORCE_PATH_STYLE=true \
           PROVIDER__PREFIX=staging/ AWS_ACCESS_KEY_ID=donka AWS_SECRET_ACCESS_KEY=donka-secret \
-            nohup donka-runtime/target/debug/donka-runtime > runtime.log 2>&1 &
+            nohup ../donka-runtime/target/debug/donka-runtime > runtime.log 2>&1 &
           for _ in $(seq 1 60); do
             curl -sf localhost:8181/api/v1/health >/dev/null && curl -sf localhost:3000/api/health >/dev/null && exit 0
             sleep 1
