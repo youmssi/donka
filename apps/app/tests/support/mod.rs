@@ -53,7 +53,7 @@ pub fn build_with_web(
     ));
     let identity = Identity::new(db.clone(), clock.clone(), policy());
     let projects = Projects::new(db.clone(), clock.clone());
-    let decisions = Decisions::new(db.clone(), clock.clone());
+    let decisions = Decisions::new(db.clone(), clock.clone(), runtime.clone());
     let audit = AuditLog::new(db.clone());
     let router = router(
         AppState {

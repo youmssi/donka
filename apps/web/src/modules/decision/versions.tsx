@@ -48,6 +48,7 @@ import { Spinner } from '@/components/ui/spinner';
 import type { DecisionNodeLabels } from './decision-node';
 import { restoreVersion, saveVersion } from './decision.service';
 import { MESSAGE_MAX, saveVersionSchema, type Decision, type SaveVersionValues, type Version } from './schema';
+import { TestBadge, TestResultsDialog, useAnnounceVersion } from './test-results';
 import { useVersion, useVersions, useVersionsChanged } from './useDecisions';
 import type { useDraft } from './useDraft';
 
@@ -88,6 +89,7 @@ export function SaveVersionDialog({
   const t = useTranslations('versions');
   const common = useTranslations('common');
   const changedVersions = useVersionsChanged(projectId, decision.id);
+  const announce = useAnnounceVersion();
   const [open, setOpen] = useState(false);
   // Fixed when the dialog opens, so its title holds while it closes after the save.
   const [next, setNext] = useState(1);
@@ -108,7 +110,7 @@ export function SaveVersionDialog({
       if (result.ok) {
         draft.versionSaved(result.data.number);
         changedVersions();
-        toast.success(t('saved', { number: result.data.number }));
+        announce(t('saved', { number: result.data.number }), result.data.tests);
         onOpenChange(false);
       } else {
         setError(result.error);
@@ -194,6 +196,7 @@ export function HistorySheet(props: VersionsProps) {
   const history = useVersions(projectId, decision.id, open);
   const [compare, setCompare] = useState<{ from: number; to: number | 'draft' } | null>(null);
   const [restoring, setRestoring] = useState<Version | null>(null);
+  const [resultsFor, setResultsFor] = useState<number | null>(null);
   const pages = history.data?.pages ?? [];
   const failed = pages.find((page) => !page.ok);
   const versions = pages.flatMap((page) => (page.ok ? page.data.items : []));
@@ -288,6 +291,9 @@ export function HistorySheet(props: VersionsProps) {
                     <p className="text-sm break-words whitespace-pre-line">
                       {version.restoredFrom ? t('restoredFrom', { number: version.restoredFrom }) : version.message}
                     </p>
+                    <div className="flex">
+                      <TestBadge summary={version.tests} onClick={() => setResultsFor(version.number)} />
+                    </div>
                   </li>
                 ))}
               </ol>
@@ -316,6 +322,14 @@ export function HistorySheet(props: VersionsProps) {
         />
       ) : null}
       {restoring ? <RestoreDialog {...props} version={restoring} onClose={() => setRestoring(null)} /> : null}
+      {resultsFor !== null ? (
+        <TestResultsDialog
+          projectId={projectId}
+          decisionId={decision.id}
+          number={resultsFor}
+          onClose={() => setResultsFor(null)}
+        />
+      ) : null}
     </>
   );
 }
@@ -436,6 +450,7 @@ function RestoreDialog({
   const common = useTranslations('common');
   const errors = useTranslations('errors');
   const changedVersions = useVersionsChanged(projectId, decision.id);
+  const announce = useAnnounceVersion();
   const [pending, setPending] = useState(false);
   // The version the restore will add, as it was when the dialog opened.
   const [next] = useState(() => (draft.version.latest ?? 0) + 1);
@@ -453,7 +468,7 @@ function RestoreDialog({
     }
     draft.replace(result.data.decision);
     changedVersions();
-    toast.success(t('restored', { from: number, number: result.data.version.number }));
+    announce(t('restored', { from: number, number: result.data.version.number }), result.data.version.tests);
     onClose();
   }
 

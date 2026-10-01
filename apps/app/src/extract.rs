@@ -65,6 +65,20 @@ impl FromRequestParts<AppState> for DecisionId {
     }
 }
 
+/// The scenario in the `{scenario_id}` path segment; a malformed id is `404 SCENARIO_NOT_FOUND`.
+pub struct ScenarioId(pub Uuid);
+
+impl FromRequestParts<AppState> for ScenarioId {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, ApiError> {
+        path_id(parts, state, "scenario_id")
+            .await
+            .map(Self)
+            .ok_or(ApiError::ScenarioNotFound)
+    }
+}
+
 /// The version in the `{number}` path segment; anything but a number is `404 VERSION_NOT_FOUND`.
 pub struct VersionNumber(pub i32);
 

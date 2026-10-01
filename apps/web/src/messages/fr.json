@@ -50,7 +50,9 @@
     "INVALID_DECISION": "Cette décision n'est pas un modèle valide. Vérifiez ses nœuds et ses liens.",
     "EVALUATION_FAILED": "La décision n'a pas pu être évaluée avec cette entrée.",
     "VERSION_NOT_FOUND": "Cette version n'existe pas.",
-    "VERSION_UNCHANGED": "Rien n'a changé depuis la dernière version."
+    "VERSION_UNCHANGED": "Rien n'a changé depuis la dernière version.",
+    "SCENARIO_NOT_FOUND": "Ce scénario de test n'existe pas.",
+    "SCENARIO_NAME_TAKEN": "Un autre scénario de cette décision porte ce nom."
   },
   "validation": {
     "email": "Saisissez une adresse e-mail valide.",
@@ -59,7 +61,8 @@
     "passwordMismatch": "Les mots de passe ne correspondent pas.",
     "maxLength": "Utilisez au plus {max} caractères.",
     "projectKey": "Utilisez entre {min} et {max} lettres minuscules, chiffres et tirets simples, en commençant par une lettre.",
-    "decisionKey": "Utilisez des mots en minuscules avec des tirets simples ; séparez les dossiers par /. {max} caractères au plus."
+    "decisionKey": "Utilisez des mots en minuscules avec des tirets simples ; séparez les dossiers par /. {max} caractères au plus.",
+    "jsonObject": "Saisissez un objet JSON, par ex. '{'\"income\": 150000'}'."
   },
   "signIn": {
     "title": "Connexion",
@@ -159,7 +162,8 @@
     "archived": "Projet archivé.",
     "restored": "Projet restauré.",
     "decisions": "Décisions",
-    "decision": "Décision"
+    "decision": "Décision",
+    "scenarios": "Scénarios de test"
   },
   "members": {
     "title": "Membres",
@@ -279,6 +283,11 @@
       "deleted": "Décision supprimée",
       "version_saved": "Version enregistrée",
       "version_restored": "Version restaurée"
+    },
+    "scenario": {
+      "created": "Scénario créé",
+      "updated": "Scénario modifié",
+      "deleted": "Scénario supprimé"
     }
   },
   "auditSentences": {
@@ -293,7 +302,10 @@
     "decisionCreated": "A créé la décision {key}",
     "decisionDeleted": "A supprimé la décision {key}",
     "decisionVersionSaved": "A enregistré la version {version} de {key} : « {message} »",
-    "decisionVersionRestored": "A restauré la version {from} de {key} comme version {version}"
+    "decisionVersionRestored": "A restauré la version {from} de {key} comme version {version}",
+    "scenarioCreated": "A créé le scénario « {name} » de {key}",
+    "scenarioUpdated": "A modifié le scénario « {name} » de {key}",
+    "scenarioDeleted": "A supprimé le scénario « {name} » de {key}"
   },
   "ui": {
     "close": "Fermer",
@@ -388,5 +400,63 @@
     "restoreTitle": "Restaurer la version {number} ?",
     "restoreConfirm": "Son contenu remplace le brouillon et est enregistré comme version {number}. Les modifications du brouillon non enregistrées comme version sont perdues.",
     "restored": "Version {from} restaurée comme version {number}"
+  },
+  "scenarios": {
+    "title": "Scénarios de test",
+    "create": "Nouveau scénario",
+    "createTitle": "Nouveau scénario de test",
+    "editTitle": "Modifier le scénario de test",
+    "dialogDescription": "Une entrée d'une décision et la sortie qu'elle doit donner. Chaque version enregistrée exécute tous les scénarios du projet.",
+    "decision": "Décision",
+    "chooseDecision": "Choisir une décision",
+    "name": "Nom",
+    "namePlaceholder": "Revenu au-dessus du seuil",
+    "nameTaken": "Un autre scénario de cette décision porte ce nom.",
+    "input": "Entrée",
+    "inputHint": "Le JSON que reçoit la décision.",
+    "expected": "Sortie attendue",
+    "expectedHint": "Le JSON qu'elle doit renvoyer.",
+    "match": "Correspondance",
+    "partial": "Partielle",
+    "exact": "Exacte",
+    "partialHint": "Réussit quand chaque champ attendu a sa valeur ; les autres champs de la sortie sont libres.",
+    "exactHint": "Réussit seulement quand la sortie est exactement le JSON attendu.",
+    "saving": "Enregistrement…",
+    "save": "Enregistrer",
+    "created": "Scénario « {name} » créé",
+    "updated": "Scénario « {name} » enregistré",
+    "deleted": "Scénario « {name} » supprimé",
+    "errorTitle": "Les scénarios n'ont pas pu être chargés",
+    "changed": "Modifié",
+    "by": "Par",
+    "emptyTitle": "Aucun scénario de test",
+    "empty": "Écrivez ce qu'une décision doit répondre pour une entrée donnée ; chaque version enregistrée le vérifiera.",
+    "emptyReadOnly": "Aucun éditeur n'a encore écrit de scénario.",
+    "emptyNoDecision": "Créez d'abord une décision, puis écrivez ce qu'elle doit répondre.",
+    "actionsFor": "Actions pour {name}",
+    "edit": "Modifier",
+    "delete": "Supprimer",
+    "deleteConfirmTitle": "Supprimer « {name} » ?",
+    "deleteConfirm": "Les versions déjà testées gardent leurs résultats. Les nouvelles versions ne l'exécuteront plus.",
+    "saveRun": "Enregistrer comme scénario"
+  },
+  "tests": {
+    "summary": "{passed} réussi(s) · {failed} en échec · {errors} non exécuté(s)",
+    "failing": "{failing} sur {total} en échec",
+    "passing": "{total} réussi(s)",
+    "title": "Tests de la version {number}",
+    "description": "Le résultat de chaque scénario du projet quand cette version a été enregistrée.",
+    "none": "Aucun scénario n'a été exécuté sur cette version.",
+    "passed": "Réussi",
+    "failed": "En échec",
+    "error": "Non exécuté",
+    "couldNotRun": "Non exécuté : {reason}",
+    "field": "Champ",
+    "expected": "Attendu",
+    "actual": "Obtenu",
+    "wholeOutput": "(sortie entière)",
+    "missing": "absent",
+    "noVersion": "Non exécuté : {key} n'a pas encore de version enregistrée.",
+    "engineFailed": "l'évaluation a échoué"
   }
 }

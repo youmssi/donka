@@ -16,8 +16,9 @@ interface TextFieldProps extends Omit<ComponentProps<typeof Input>, 'name' | 'va
   messageValues?: Record<string, number | string>;
   /** Message sent back by the server for this field, already translated. */
   serverError?: string;
-  /** A text area instead of a one-line input. */
+  /** A text area instead of a one-line input, this many lines high. */
   multiline?: boolean;
+  rows?: number;
 }
 
 /** The message key of the first error: Zod issues carry a key under `validation`. */
@@ -43,6 +44,7 @@ export function TextField({
   messageValues,
   serverError,
   multiline,
+  rows,
   ...inputProps
 }: TextFieldProps) {
   const t = useTranslations('validation');
@@ -70,6 +72,9 @@ export function TextField({
           onChange={(event) => field.handleChange(event.target.value)}
           disabled={inputProps.disabled}
           required={inputProps.required}
+          className={inputProps.className}
+          spellCheck={inputProps.spellCheck}
+          rows={rows}
         />
       ) : (
         <Input {...inputProps} {...control} onChange={(event) => field.handleChange(event.target.value)} />

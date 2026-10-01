@@ -339,6 +339,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/projects/{project_id}/decisions/{decision_id}/versions/{number}/test-results': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** How every scenario of the project went when this version was saved (any member). */
+    get: operations['test_results'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/projects/{project_id}/members': {
     parameters: {
       query?: never;
@@ -387,6 +404,43 @@ export interface paths {
     /** Restores an archived project (owners). */
     post: operations['restore'];
     delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/test-scenarios': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The project's scenarios, by decision and name (any member). */
+    get: operations['list'];
+    put?: never;
+    /** A new scenario for one of the project's decisions (editors and owners). */
+    post: operations['create'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/test-scenarios/{scenario_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** One scenario (any member). */
+    get: operations['get'];
+    /** Changes a scenario (editors and owners). Results already recorded keep it as it ran. */
+    put: operations['update'];
+    post?: never;
+    /** Deletes a scenario (editors and owners). Results already recorded stay. */
+    delete: operations['delete'];
     options?: never;
     head?: never;
     patch?: never;
@@ -524,7 +578,10 @@ export interface components {
       | 'decision.created'
       | 'decision.deleted'
       | 'decision.version_saved'
-      | 'decision.version_restored';
+      | 'decision.version_restored'
+      | 'scenario.created'
+      | 'scenario.updated'
+      | 'scenario.deleted';
     AddMemberRequest: {
       /** @description Email of an existing Studio account. */
       email: string;
@@ -563,6 +620,24 @@ export interface components {
     CreateProjectRequest: {
       description?: string;
       key: string;
+      name: string;
+    };
+    CreateScenarioRequest: {
+      /**
+       * Format: uuid
+       * @description The decision the scenario evaluates.
+       */
+      decisionId: string;
+      /** @description A JSON object. */
+      expected: {
+        [key: string]: unknown;
+      };
+      /** @description A JSON object. */
+      input: {
+        [key: string]: unknown;
+      };
+      match: components['schemas']['MatchMode'];
+      /** @description Unique among the decision's scenarios (any case). */
       name: string;
     };
     DecisionListResponse: {
@@ -624,6 +699,8 @@ export interface components {
        * @description The older version this one restores, when it does.
        */
       restoredFrom?: number | null;
+      /** @description How the project's test scenarios went when this version was saved. */
+      tests: components['schemas']['TestSummaryResponse'];
     };
     ErrorBody: {
       /** @description Stable, machine-readable code, e.g. `DECISION_NOT_FOUND`. */
@@ -648,6 +725,11 @@ export interface components {
      * @enum {string}
      */
     Locale: 'en' | 'fr';
+    /**
+     * @description How much of the output a scenario pins down.
+     * @enum {string}
+     */
+    MatchMode: 'exact' | 'partial';
     MemberListResponse: {
       items: components['schemas']['MemberResponse'][];
     };
@@ -658,6 +740,15 @@ export interface components {
       role: components['schemas']['Role'];
       /** Format: uuid */
       userId: string;
+    };
+    /**
+     * @description One field where the output differs: `path` is dotted (`decision.limit`),
+     *     empty for the whole output; a side is absent when the field is missing there.
+     */
+    MismatchResponse: {
+      actual?: unknown;
+      expected?: unknown;
+      path: string;
     };
     PasswordResetRequest: {
       email: string;
@@ -746,6 +837,37 @@ export interface components {
        */
       revision: number;
     };
+    ScenarioListResponse: {
+      items: components['schemas']['ScenarioResponse'][];
+      /**
+       * Format: int64
+       * @description Scenarios across all pages.
+       */
+      total: number;
+    };
+    ScenarioResponse: {
+      /** Format: date-time */
+      createdAt: string;
+      createdBy: components['schemas']['PersonRef'];
+      /** Format: uuid */
+      decisionId: string;
+      decisionKey: string;
+      /** @description A JSON object. */
+      expected: {
+        [key: string]: unknown;
+      };
+      /** Format: uuid */
+      id: string;
+      /** @description A JSON object. */
+      input: {
+        [key: string]: unknown;
+      };
+      match: components['schemas']['MatchMode'];
+      name: string;
+      /** Format: date-time */
+      updatedAt: string;
+      updatedBy: components['schemas']['PersonRef'];
+    };
     SignInRequest: {
       email: string;
       password: string;
@@ -777,8 +899,64 @@ export interface components {
       /** @description Per-node trace: inputs, outputs and timing of each node. */
       trace: Record<string, never>;
     };
+    TestResultListResponse: {
+      items: components['schemas']['TestResultResponse'][];
+      summary: components['schemas']['TestSummaryResponse'];
+    };
+    /** @description A scenario as it ran on the version, and what happened. */
+    TestResultResponse: {
+      /** @description What the decision returned; absent when it could not run. */
+      actual?: unknown;
+      decisionKey: string;
+      /** @description It could not run: the engine's message. */
+      error?: string | null;
+      /** @description A JSON object. */
+      expected: {
+        [key: string]: unknown;
+      };
+      /** @description A JSON object. */
+      input: {
+        [key: string]: unknown;
+      };
+      match: components['schemas']['MatchMode'];
+      /** @description Empty when it passed. */
+      mismatches: components['schemas']['MismatchResponse'][];
+      /** @description It could not run because this decision has no saved version. */
+      missingDecision?: string | null;
+      name: string;
+      /** Format: uuid */
+      scenarioId: string;
+      status: components['schemas']['TestStatusResponse'];
+    };
+    /** @enum {string} */
+    TestStatusResponse: 'passed' | 'failed' | 'error';
+    /** @description How the project's scenarios went on a version. */
+    TestSummaryResponse: {
+      /**
+       * Format: int64
+       * @description Scenarios that could not run (a decision without a version, an evaluation error).
+       */
+      errors: number;
+      /** Format: int64 */
+      failed: number;
+      /** Format: int64 */
+      passed: number;
+    };
     UpdateProjectRequest: {
       description?: string;
+      name: string;
+    };
+    UpdateScenarioRequest: {
+      /** @description A JSON object. */
+      expected: {
+        [key: string]: unknown;
+      };
+      /** @description A JSON object. */
+      input: {
+        [key: string]: unknown;
+      };
+      match: components['schemas']['MatchMode'];
+      /** @description Unique among the decision's scenarios (any case). */
       name: string;
     };
     UserResponse: {
@@ -1820,6 +1998,38 @@ export interface operations {
       };
     };
   };
+  test_results: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        decision_id: string;
+        number: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['TestResultListResponse'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND, DECISION_NOT_FOUND or VERSION_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
   members: {
     parameters: {
       query?: never;
@@ -2042,6 +2252,244 @@ export interface operations {
       };
       /** @description PROJECT_NOT_FOUND */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  list: {
+    parameters: {
+      query?: {
+        /** @description Only the scenarios of this decision. */
+        decisionId?: string;
+        /** @description Page size, 1 to 100 (default 50). */
+        limit?: number;
+        offset?: number;
+      };
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ScenarioListResponse'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateScenarioRequest'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ScenarioResponse'];
+        };
+      };
+      /** @description Invalid name, input or expected output (INVALID_REQUEST, fields) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Viewers cannot change scenarios (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or DECISION_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description SCENARIO_NAME_TAKEN or PROJECT_ARCHIVED */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        scenario_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ScenarioResponse'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or SCENARIO_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  update: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        scenario_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateScenarioRequest'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ScenarioResponse'];
+        };
+      };
+      /** @description Invalid name, input or expected output (INVALID_REQUEST, fields) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Viewers cannot change scenarios (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or SCENARIO_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description SCENARIO_NAME_TAKEN or PROJECT_ARCHIVED */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        scenario_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Deleted */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Viewers cannot change scenarios (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or SCENARIO_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_ARCHIVED */
+      409: {
         headers: {
           [name: string]: unknown;
         };

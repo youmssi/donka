@@ -1,4 +1,4 @@
-import { conflictOf, createDecisionSchema, splitKey } from './schema';
+import { conflictOf, createDecisionSchema, parseObject, scenarioSchema, splitKey } from './schema';
 
 it('splits a key into its folder and name', () => {
   expect(splitKey('bureau/normalize')).toEqual({ folder: 'bureau/', name: 'normalize' });
@@ -25,4 +25,13 @@ it('reads who saved first from a conflict', () => {
   expect(conflictOf({ revision: 4, updatedAt: '2026-09-29T10:00:00Z', updatedBy: null })?.updatedBy).toBeNull();
   expect(conflictOf(undefined)).toBeNull();
   expect(conflictOf({ nope: true })).toBeNull();
+});
+
+it('takes JSON objects only for scenario input and expected output', () => {
+  expect(parseObject('{"income": 150000}')).toEqual({ income: 150000 });
+  for (const bad of ['[1]', '10', 'null', '{', '']) expect(parseObject(bad)).toBeNull();
+  const valid = { decisionId: 'd-1', name: ' Big ', input: '{}', expected: '{"ok": true}', match: 'exact' };
+  expect(scenarioSchema.safeParse(valid).success).toBe(true);
+  expect(scenarioSchema.safeParse({ ...valid, input: '[]' }).success).toBe(false);
+  expect(scenarioSchema.safeParse({ ...valid, name: '  ' }).success).toBe(false);
 });

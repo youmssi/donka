@@ -377,6 +377,12 @@ function useSentence(event: AuditEvent): string {
         version: detail(event, 'version'),
         from: detail(event, 'from'),
       });
+    case 'scenario.created':
+      return t('scenarioCreated', { name: detail(event, 'name'), key: detail(event, 'key') });
+    case 'scenario.updated':
+      return t('scenarioUpdated', { name: detail(event, 'name'), key: detail(event, 'key') });
+    case 'scenario.deleted':
+      return t('scenarioDeleted', { name: detail(event, 'name'), key: detail(event, 'key') });
     case 'member.removed':
       return t('memberRemoved', { person, role: role(detail(event, 'role')) });
     default:

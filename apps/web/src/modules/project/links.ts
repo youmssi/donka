@@ -1,5 +1,5 @@
 /** A project's pages; `decision` is the editor of one decision. */
-export type ProjectSection = 'decisions' | 'decision' | 'members' | 'settings' | 'audit';
+export type ProjectSection = 'decisions' | 'decision' | 'scenarios' | 'members' | 'settings' | 'audit';
 
 /** A project page's address: by key, short and readable (`/projects/members?p=credit-pme`). */
 export function projectHref(section: ProjectSection, key: string, extra?: Record<string, string>): string {

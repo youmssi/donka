@@ -2,6 +2,7 @@ use crate::error::{ApiError, ErrorBody};
 use crate::extract::{ApiJson, DecisionId, ProjectAccess, VersionNumber};
 use crate::routes::decisions::{conflict_or, full, graph_schema, DecisionResponse};
 use crate::routes::people::{emails, PersonRef};
+use crate::routes::scenarios::TestSummaryResponse;
 use crate::AppState;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
@@ -27,6 +28,8 @@ pub struct DecisionVersionResponse {
     pub created_by: PersonRef,
     /// The older version this one restores, when it does.
     pub restored_from: Option<i32>,
+    /// How the project's test scenarios went when this version was saved.
+    pub tests: TestSummaryResponse,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -218,5 +221,6 @@ fn response(emails: &HashMap<Uuid, String>, version: VersionSummary) -> Decision
             email: emails.get(&version.created_by).cloned().unwrap_or_default(),
         },
         restored_from: version.restored_from,
+        tests: version.tests.into(),
     }
 }

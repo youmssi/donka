@@ -8,7 +8,7 @@ use axum::extract::rejection::JsonRejection;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-use donka_decision::DecisionError;
+use donka_decision::{DecisionError, MAX_SCENARIO_NAME_CHARS};
 use donka_engine::RuntimeError;
 use donka_identity::IdentityError;
 use donka_project::ProjectError;
@@ -57,6 +57,10 @@ pub enum ApiError {
     VersionNotFound,
     #[error("nothing changed since version {0}")]
     VersionUnchanged(i32),
+    #[error("scenario not found")]
+    ScenarioNotFound,
+    #[error("scenario name already used")]
+    ScenarioNameTaken,
     #[error("database unavailable")]
     DatabaseUnavailable,
     #[error("no such endpoint")]
@@ -120,6 +124,15 @@ impl From<DecisionError> for ApiError {
                 message: err.to_string(),
             },
             DecisionError::Unchanged(version) => Self::VersionUnchanged(version),
+            DecisionError::ScenarioNotFound => Self::ScenarioNotFound,
+            DecisionError::ScenarioNameTaken => Self::ScenarioNameTaken,
+            DecisionError::InvalidScenario(field) => Self::InvalidField {
+                field,
+                message: match field {
+                    "name" => format!("1 to {MAX_SCENARIO_NAME_CHARS} characters"),
+                    _ => "must be a JSON object".to_owned(),
+                },
+            },
             DecisionError::Project(err) => err.into(),
             DecisionError::Database(err) => Self::Internal(err.to_string()),
         }
@@ -255,6 +268,20 @@ impl IntoResponse for ApiError {
                 format!("Nothing changed since version {version}."),
                 None,
                 Some(serde_json::json!({ "version": version })),
+            ),
+            Self::ScenarioNotFound => (
+                StatusCode::NOT_FOUND,
+                "SCENARIO_NOT_FOUND",
+                "This project has no such test scenario.".to_owned(),
+                None,
+                None,
+            ),
+            Self::ScenarioNameTaken => (
+                StatusCode::CONFLICT,
+                "SCENARIO_NAME_TAKEN",
+                "Another scenario of this decision already has this name.".to_owned(),
+                Some(BTreeMap::from([("name".to_owned(), "already used".to_owned())])),
+                None,
             ),
             Self::DatabaseUnavailable => (
                 StatusCode::SERVICE_UNAVAILABLE,

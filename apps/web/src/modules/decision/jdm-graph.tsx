@@ -12,11 +12,12 @@ import {
   JdmConfigProvider,
   type Simulation,
 } from '@gorules/jdm-editor';
-import { PlayCircle } from 'lucide-react';
+import { FlaskConical, PlayCircle } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useMemo, useState } from 'react';
 
 import type { ActionResult } from '@/components/shared/api';
+import { Button } from '@/components/ui/button';
 
 import { decisionNodeSpecification, type DecisionNodeLabels } from './decision-node';
 import type { SimulationResult } from './schema';
@@ -35,6 +36,14 @@ export interface JdmGraphProps {
   simulate: (graph: unknown, context: unknown) => Promise<ActionResult<SimulationResult>>;
   /** Text for a failed run, in the reader's language. */
   failureMessage: (result: Extract<ActionResult<SimulationResult>, { ok: false }>) => string;
+  /** Keeps the last successful run as a test scenario; absent when the person cannot. */
+  saveRun?: { label: string; onSave: (run: SimulatorRun) => void };
+}
+
+/** A simulator run: the input it was given and the output it gave. */
+export interface SimulatorRun {
+  input: unknown;
+  output: unknown;
 }
 
 /**
@@ -87,6 +96,7 @@ export function JdmGraph({
   decisionNodeLabels,
   simulate,
   failureMessage,
+  saveRun,
 }: JdmGraphProps) {
   const theme = useEditorTheme();
   const [simulation, setSimulation] = useState<Simulation>();
@@ -95,11 +105,13 @@ export function JdmGraph({
     [callable, decisionNodeLabels],
   );
   const [running, setRunning] = useState(false);
+  const [lastRun, setLastRun] = useState<SimulatorRun | null>(null);
 
   async function run({ graph, context }: { graph: Graph; context: unknown }) {
     setRunning(true);
     const result = await simulate(graph, context);
     setRunning(false);
+    setLastRun(result.ok ? { input: context, output: result.data.result } : null);
     if (result.ok) {
       setSimulation({
         result: {
@@ -140,7 +152,31 @@ export function JdmGraph({
             title: simulatorTitle,
             icon: <PlayCircle size={16} aria-hidden />,
             renderPanel: () => (
-              <GraphSimulator loading={running} onClear={() => setSimulation(undefined)} onRun={(p) => void run(p)} />
+              <div className="flex h-full flex-col">
+                {saveRun ? (
+                  <div className="flex justify-end border-b px-2 py-1.5">
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      disabled={!lastRun}
+                      onClick={() => (lastRun ? saveRun.onSave(lastRun) : undefined)}
+                    >
+                      <FlaskConical aria-hidden />
+                      {saveRun.label}
+                    </Button>
+                  </div>
+                ) : null}
+                <div className="min-h-0 flex-1">
+                  <GraphSimulator
+                    loading={running}
+                    onClear={() => {
+                      setSimulation(undefined);
+                      setLastRun(null);
+                    }}
+                    onRun={(p) => void run(p)}
+                  />
+                </div>
+              </div>
             ),
           },
         ]}
