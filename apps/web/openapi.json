@@ -72,7 +72,9 @@
           "member.role_changed",
           "member.removed",
           "decision.created",
-          "decision.deleted"
+          "decision.deleted",
+          "decision.version_saved",
+          "decision.version_restored"
         ],
         "type": "string"
       },
@@ -251,6 +253,10 @@
       },
       "DecisionSummaryResponse": {
         "properties": {
+          "changedSinceVersion": {
+            "description": "Whether the draft has changed since that version (true before the first).",
+            "type": "boolean"
+          },
           "id": {
             "format": "uuid",
             "type": "string"
@@ -258,6 +264,14 @@
           "key": {
             "description": "How graphs call this decision, e.g. `bureau/normalize`.",
             "type": "string"
+          },
+          "latestVersion": {
+            "description": "The number of its latest version; absent before the first \"Save version\".",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "revision": {
             "description": "Grows by one on every save; send it back when saving.",
@@ -277,7 +291,82 @@
           "key",
           "revision",
           "updatedAt",
-          "updatedBy"
+          "updatedBy",
+          "changedSinceVersion"
+        ],
+        "type": "object"
+      },
+      "DecisionVersionDetailResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/DecisionVersionResponse"
+          },
+          {
+            "properties": {
+              "content": {
+                "additionalProperties": true,
+                "description": "A JDM decision graph.",
+                "type": "object"
+              }
+            },
+            "required": [
+              "content"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "DecisionVersionListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionVersionResponse"
+            },
+            "type": "array"
+          },
+          "total": {
+            "description": "Versions of the decision, across all pages.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "type": "object"
+      },
+      "DecisionVersionResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/PersonRef"
+          },
+          "message": {
+            "type": "string"
+          },
+          "number": {
+            "description": "1, 2, 3… per decision.",
+            "format": "int32",
+            "type": "integer"
+          },
+          "restoredFrom": {
+            "description": "The older version this one restores, when it does.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "number",
+          "message",
+          "createdAt",
+          "createdBy"
         ],
         "type": "object"
       },
@@ -533,6 +622,36 @@
         ],
         "type": "object"
       },
+      "RestoreRequest": {
+        "properties": {
+          "revision": {
+            "description": "The draft revision the editor shows; `409 DECISION_CONFLICT` when it moved on.",
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "revision"
+        ],
+        "type": "object"
+      },
+      "RestoreResponse": {
+        "properties": {
+          "decision": {
+            "$ref": "#/components/schemas/DecisionResponse",
+            "description": "The decision, its draft now the restored content."
+          },
+          "version": {
+            "$ref": "#/components/schemas/DecisionVersionResponse",
+            "description": "The new version the restore created."
+          }
+        },
+        "required": [
+          "decision",
+          "version"
+        ],
+        "type": "object"
+      },
       "Role": {
         "description": "What a member may do in a project. Each role includes the ones below it;\nvariants are declared from least to most, so `Ord` follows that order.",
         "enum": [
@@ -557,6 +676,26 @@
         },
         "required": [
           "content",
+          "revision"
+        ],
+        "type": "object"
+      },
+      "SaveVersionRequest": {
+        "properties": {
+          "message": {
+            "description": "What changed and why, for the history.",
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "revision": {
+            "description": "The draft revision the editor shows: the version is exactly that draft.",
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "message",
           "revision"
         ],
         "type": "object"
@@ -1658,7 +1797,7 @@
             "description": "PROJECT_ARCHIVED"
           }
         },
-        "summary": "Deletes a decision and its draft (editors and owners).",
+        "summary": "Deletes a decision (editors and owners): it leaves the project and its key\nis free again; its versions stay in the history.",
         "tags": [
           "decisions"
         ]
@@ -1870,6 +2009,327 @@
         "summary": "Evaluates this decision with every other decision of the project, as a\nrelease would, and returns the result with a per-node trace (any member:\nviewers simulate too). Nothing is saved.",
         "tags": [
           "decisions"
+        ]
+      }
+    },
+    "/projects/{project_id}/decisions/{decision_id}/versions": {
+      "get": {
+        "operationId": "list",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "decision_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size, 1 to 100 (default 50).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionVersionListResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND or DECISION_NOT_FOUND"
+          }
+        },
+        "summary": "The decision's versions, newest first (any member).",
+        "tags": [
+          "versions"
+        ]
+      },
+      "post": {
+        "operationId": "save",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "decision_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveVersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionVersionResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Missing or too long message (INVALID_REQUEST)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Viewers cannot save versions (FORBIDDEN)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND or DECISION_NOT_FOUND"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "DECISION_CONFLICT (the draft moved on) or PROJECT_ARCHIVED"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Nothing changed since the latest version (VERSION_UNCHANGED, details: version)"
+          }
+        },
+        "summary": "Saves the draft as the next version (editors and owners).",
+        "tags": [
+          "versions"
+        ]
+      }
+    },
+    "/projects/{project_id}/decisions/{decision_id}/versions/{number}": {
+      "get": {
+        "operationId": "get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "decision_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "number",
+            "required": true,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionVersionDetailResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND, DECISION_NOT_FOUND or VERSION_NOT_FOUND"
+          }
+        },
+        "summary": "One version with its content, to compare or restore (any member).",
+        "tags": [
+          "versions"
+        ]
+      }
+    },
+    "/projects/{project_id}/decisions/{decision_id}/versions/{number}/restore": {
+      "post": {
+        "operationId": "restore",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "decision_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "number",
+            "required": true,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestoreResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Viewers cannot restore (FORBIDDEN)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND, DECISION_NOT_FOUND or VERSION_NOT_FOUND"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "DECISION_CONFLICT (the draft moved on) or PROJECT_ARCHIVED"
+          }
+        },
+        "summary": "Restores a version (editors and owners): its content becomes the draft and a\nnew version; the history only grows.",
+        "tags": [
+          "versions"
         ]
       }
     },

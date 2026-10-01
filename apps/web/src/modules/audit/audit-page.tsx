@@ -365,6 +365,18 @@ function useSentence(event: AuditEvent): string {
       return t('decisionCreated', { key: detail(event, 'key') });
     case 'decision.deleted':
       return t('decisionDeleted', { key: detail(event, 'key') });
+    case 'decision.version_saved':
+      return t('decisionVersionSaved', {
+        key: detail(event, 'key'),
+        version: detail(event, 'version'),
+        message: detail(event, 'message'),
+      });
+    case 'decision.version_restored':
+      return t('decisionVersionRestored', {
+        key: detail(event, 'key'),
+        version: detail(event, 'version'),
+        from: detail(event, 'from'),
+      });
     case 'member.removed':
       return t('memberRemoved', { person, role: role(detail(event, 'role')) });
     default:

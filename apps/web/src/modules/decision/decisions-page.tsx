@@ -32,6 +32,7 @@ import { decisionHref, ProjectFrame, type Project } from '@/modules/project';
 
 import { CreateDecisionDialog } from './create-decision-dialog';
 import { splitKey, type DecisionSummary } from './schema';
+import { VersionChip } from './versions';
 import { useDecisionList, useDeleteDecision } from './useDecisions';
 
 /** Editors and owners change decisions of an active project; viewers open and simulate them. */
@@ -88,6 +89,14 @@ function Decisions({ project }: { project: Project }) {
         );
       },
       meta: { className: 'w-full max-w-0 truncate' },
+    },
+    {
+      id: 'version',
+      header: t('version'),
+      cell: ({ row }) => (
+        <VersionChip latest={row.original.latestVersion ?? null} changed={row.original.changedSinceVersion} />
+      ),
+      meta: { className: 'hidden sm:table-cell' },
     },
     {
       id: 'updated',

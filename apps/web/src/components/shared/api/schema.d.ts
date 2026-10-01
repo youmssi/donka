@@ -253,7 +253,10 @@ export interface paths {
      */
     put: operations['save'];
     post?: never;
-    /** Deletes a decision and its draft (editors and owners). */
+    /**
+     * Deletes a decision (editors and owners): it leaves the project and its key
+     *     is free again; its versions stay in the history.
+     */
     delete: operations['delete'];
     options?: never;
     head?: never;
@@ -275,6 +278,61 @@ export interface paths {
      *     viewers simulate too). Nothing is saved.
      */
     post: operations['simulate'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/decisions/{decision_id}/versions': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The decision's versions, newest first (any member). */
+    get: operations['list'];
+    put?: never;
+    /** Saves the draft as the next version (editors and owners). */
+    post: operations['save'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/decisions/{decision_id}/versions/{number}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** One version with its content, to compare or restore (any member). */
+    get: operations['get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/decisions/{decision_id}/versions/{number}/restore': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Restores a version (editors and owners): its content becomes the draft and a
+     *     new version; the history only grows.
+     */
+    post: operations['restore'];
     delete?: never;
     options?: never;
     head?: never;
@@ -464,7 +522,9 @@ export interface components {
       | 'member.role_changed'
       | 'member.removed'
       | 'decision.created'
-      | 'decision.deleted';
+      | 'decision.deleted'
+      | 'decision.version_saved'
+      | 'decision.version_restored';
     AddMemberRequest: {
       /** @description Email of an existing Studio account. */
       email: string;
@@ -515,10 +575,17 @@ export interface components {
       };
     };
     DecisionSummaryResponse: {
+      /** @description Whether the draft has changed since that version (true before the first). */
+      changedSinceVersion: boolean;
       /** Format: uuid */
       id: string;
       /** @description How graphs call this decision, e.g. `bureau/normalize`. */
       key: string;
+      /**
+       * Format: int32
+       * @description The number of its latest version; absent before the first "Save version".
+       */
+      latestVersion?: number | null;
       /**
        * Format: int32
        * @description Grows by one on every save; send it back when saving.
@@ -527,6 +594,36 @@ export interface components {
       /** Format: date-time */
       updatedAt: string;
       updatedBy: components['schemas']['PersonRef'];
+    };
+    DecisionVersionDetailResponse: components['schemas']['DecisionVersionResponse'] & {
+      /** @description A JDM decision graph. */
+      content: {
+        [key: string]: unknown;
+      };
+    };
+    DecisionVersionListResponse: {
+      items: components['schemas']['DecisionVersionResponse'][];
+      /**
+       * Format: int64
+       * @description Versions of the decision, across all pages.
+       */
+      total: number;
+    };
+    DecisionVersionResponse: {
+      /** Format: date-time */
+      createdAt: string;
+      createdBy: components['schemas']['PersonRef'];
+      message: string;
+      /**
+       * Format: int32
+       * @description 1, 2, 3… per decision.
+       */
+      number: number;
+      /**
+       * Format: int32
+       * @description The older version this one restores, when it does.
+       */
+      restoredFrom?: number | null;
     };
     ErrorBody: {
       /** @description Stable, machine-readable code, e.g. `DECISION_NOT_FOUND`. */
@@ -610,6 +707,19 @@ export interface components {
       name: string;
       role: components['schemas']['Role'];
     };
+    RestoreRequest: {
+      /**
+       * Format: int32
+       * @description The draft revision the editor shows; `409 DECISION_CONFLICT` when it moved on.
+       */
+      revision: number;
+    };
+    RestoreResponse: {
+      /** @description The decision, its draft now the restored content. */
+      decision: components['schemas']['DecisionResponse'];
+      /** @description The new version the restore created. */
+      version: components['schemas']['DecisionVersionResponse'];
+    };
     /**
      * @description What a member may do in a project. Each role includes the ones below it;
      *     variants are declared from least to most, so `Ord` follows that order.
@@ -624,6 +734,15 @@ export interface components {
       /**
        * Format: int32
        * @description The revision this draft was loaded or last saved at.
+       */
+      revision: number;
+    };
+    SaveVersionRequest: {
+      /** @description What changed and why, for the history. */
+      message: string;
+      /**
+       * Format: int32
+       * @description The draft revision the editor shows: the version is exactly that draft.
        */
       revision: number;
     };
@@ -1500,6 +1619,198 @@ export interface operations {
       };
       /** @description A decision of the project is not a valid model (INVALID_DECISION), or the evaluation failed (EVALUATION_FAILED, trace in details) */
       422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  list: {
+    parameters: {
+      query?: {
+        /** @description Page size, 1 to 100 (default 50). */
+        limit?: number;
+        offset?: number;
+      };
+      header?: never;
+      path: {
+        project_id: string;
+        decision_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DecisionVersionListResponse'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or DECISION_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  save: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        decision_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SaveVersionRequest'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DecisionVersionResponse'];
+        };
+      };
+      /** @description Missing or too long message (INVALID_REQUEST) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Viewers cannot save versions (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or DECISION_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description DECISION_CONFLICT (the draft moved on) or PROJECT_ARCHIVED */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Nothing changed since the latest version (VERSION_UNCHANGED, details: version) */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        decision_id: string;
+        number: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DecisionVersionDetailResponse'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND, DECISION_NOT_FOUND or VERSION_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  restore: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        decision_id: string;
+        number: number;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RestoreRequest'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['RestoreResponse'];
+        };
+      };
+      /** @description Viewers cannot restore (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND, DECISION_NOT_FOUND or VERSION_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description DECISION_CONFLICT (the draft moved on) or PROJECT_ARCHIVED */
+      409: {
         headers: {
           [name: string]: unknown;
         };

@@ -70,6 +70,12 @@ pub enum Action {
     #[serde(rename = "decision.deleted")]
     #[sqlx(rename = "decision.deleted")]
     DecisionDeleted,
+    #[serde(rename = "decision.version_saved")]
+    #[sqlx(rename = "decision.version_saved")]
+    DecisionVersionSaved,
+    #[serde(rename = "decision.version_restored")]
+    #[sqlx(rename = "decision.version_restored")]
+    DecisionVersionRestored,
 }
 
 impl Action {
@@ -91,6 +97,8 @@ impl Action {
             Self::MemberRemoved => "member.removed",
             Self::DecisionCreated => "decision.created",
             Self::DecisionDeleted => "decision.deleted",
+            Self::DecisionVersionSaved => "decision.version_saved",
+            Self::DecisionVersionRestored => "decision.version_restored",
         }
     }
 }
@@ -260,6 +268,8 @@ mod tests {
             Action::MemberRemoved,
             Action::DecisionCreated,
             Action::DecisionDeleted,
+            Action::DecisionVersionSaved,
+            Action::DecisionVersionRestored,
         ] {
             assert_eq!(
                 serde_json::to_value(action).unwrap(),

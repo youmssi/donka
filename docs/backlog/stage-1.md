@@ -183,11 +183,29 @@ handling.
 
 **Type:** feature · **Repos:** S · **Dependencies:** DNK-8 · **Size:** M
 
+#### Decisions (taken in the story)
+- Versions are numbered per decision (v1, v2…) and hold the whole graph. The database refuses
+  any change to a version, as it does for the audit log.
+- A version needs a message (up to 500 characters). Saving when the draft equals the latest
+  version is refused (`VERSION_UNCHANGED`): no empty versions. "Equal" compares the graphs, not
+  revisions, so a save that changes nothing leaves the draft unchanged.
+- A version is taken of the draft the editor shows: pending autosaves are sent first, and the
+  request names the draft revision, so a concurrent edit is a conflict, not a surprise.
+- Restoring version N puts its graph in the draft and adds a new version ("Restored version N")
+  in one transaction, with the same revision check. Draft changes not saved as a version are
+  replaced; the confirmation says so.
+- Deleting a decision is now a soft delete: its versions stay (a release will point at them);
+  its key is free for a new decision.
+- The editor and the decisions list show the latest version and whether the draft changed
+  since. Saving and restoring a version are audit events.
+- Compare: any two versions, or a version and the draft, in jdm-editor's diff view (added,
+  removed, modified nodes). Viewers can compare but not save or restore.
+
 #### Acceptance criteria
-- [ ] "Save version" creates an immutable version with author, time and message
-- [ ] History lists versions newest first, paginated
-- [ ] Comparing two versions shows jdm-editor's diff view
-- [ ] Restoring an old version creates a new version (history is never rewritten)
+- [x] "Save version" creates an immutable version with author, time and message
+- [x] History lists versions newest first, paginated
+- [x] Comparing two versions shows jdm-editor's diff view
+- [x] Restoring an old version creates a new version (history is never rewritten)
 
 ---
 

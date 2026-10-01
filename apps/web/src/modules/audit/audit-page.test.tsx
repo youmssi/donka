@@ -40,6 +40,20 @@ const ada = { id: 'u-1', email: 'ada@bank.example' };
 const grace = { id: 'u-2', email: 'grace@bank.example' };
 const events: AuditEvent[] = [
   {
+    id: 5,
+    occurredAt: '2026-09-29T11:00:00Z',
+    actor: ada,
+    action: 'decision.version_restored',
+    details: { key: 'person-score', version: 3, from: 1 },
+  },
+  {
+    id: 4,
+    occurredAt: '2026-09-29T10:30:00Z',
+    actor: ada,
+    action: 'decision.version_saved',
+    details: { key: 'person-score', version: 2, message: 'Raise the threshold' },
+  },
+  {
     id: 3,
     occurredAt: '2026-09-29T10:00:00Z',
     actor: grace,
@@ -67,7 +81,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   search.params = new URLSearchParams({ p: 'retail' });
   getProjectMock.mockResolvedValue({ ok: true, data: project('owner') });
-  listAuditMock.mockResolvedValue({ ok: true, data: { items: events, total: 3 } });
+  listAuditMock.mockResolvedValue({ ok: true, data: { items: events, total: 5 } });
 });
 
 it('tells an owner what changed, who did it and when', async () => {
@@ -75,11 +89,13 @@ it('tells an owner what changed, who did it and when', async () => {
   expect(await screen.findByText('Changed the role of ada@bank.example from Owner to Editor')).toBeInTheDocument();
   expect(screen.getByText('Renamed the project from “Retail” to “Retail scoring”')).toBeInTheDocument();
   expect(screen.getByText('Created the project “Retail”')).toBeInTheDocument();
+  expect(screen.getByText('Saved version 2 of person-score: “Raise the threshold”')).toBeInTheDocument();
+  expect(screen.getByText('Restored version 1 of person-score as version 3')).toBeInTheDocument();
   expect(screen.getByText('by grace@bank.example')).toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Audit log' })).toBeInTheDocument();
   expect(screen.getByText(/^Times in /)).toBeInTheDocument();
   // Short on screen, the full date and time on hover; the element keeps the exact instant.
-  expect(document.querySelector('time')).toHaveAttribute('dateTime', '2026-09-29T10:00:00Z');
+  expect(document.querySelector('time')).toHaveAttribute('dateTime', '2026-09-29T11:00:00Z');
 });
 
 it('filters from the address and exports the same events', async () => {

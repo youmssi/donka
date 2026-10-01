@@ -18,6 +18,12 @@ export type DraftStatus =
   | { kind: 'error'; error: ActionError }
   | { kind: 'readOnly' };
 
+/** The draft against its latest version: what "Save version" would add. */
+export interface VersionState {
+  latest: number | null;
+  changed: boolean;
+}
+
 /**
  * The draft being edited, saved automatically after each pause. One save runs at
  * a time and names the revision it started from: when someone else saved in
@@ -29,8 +35,14 @@ export function useDraft(projectId: string, decision: Decision, editable: boolea
   const [status, setStatus] = useState<DraftStatus>(
     editable ? { kind: 'saved', at: decision.updatedAt } : { kind: 'readOnly' },
   );
+  const [version, setVersion] = useState<VersionState>({
+    latest: decision.latestVersion ?? null,
+    changed: decision.changedSinceVersion,
+  });
   const revision = useRef(decision.revision);
-  const saved = useRef(JSON.stringify(decision.content));
+  // The save loop running now, so others can wait for it.
+  const running = useRef<Promise<void> | null>(null);
+  const saved = useRef(canonical(decision.content));
   // The newest content not yet sent, and whether a save is on its way.
   const pending = useRef<unknown>(null);
   const inFlight = useRef(false);
@@ -42,9 +54,7 @@ export function useDraft(projectId: string, decision: Decision, editable: boolea
     savedCallback.current = onSaved;
   }, [onSaved]);
 
-  const flush = useCallback(async () => {
-    clearTimeout(timer.current);
-    if (inFlight.current || blocked.current) return;
+  const drain = useCallback(async () => {
     inFlight.current = true;
     // Changes made while a save runs are sent right after it, one save at a time.
     while (pending.current !== null) {
@@ -54,7 +64,8 @@ export function useDraft(projectId: string, decision: Decision, editable: boolea
       const result = await saveDecision(projectId, decision.id, content, revision.current);
       if (result.ok) {
         revision.current = result.data.revision;
-        saved.current = JSON.stringify(content);
+        saved.current = canonical(content);
+        setVersion({ latest: result.data.latestVersion ?? null, changed: result.data.changedSinceVersion });
         savedCallback.current();
         if (pending.current === null) setStatus({ kind: 'saved', at: result.data.updatedAt });
         continue;
@@ -72,12 +83,45 @@ export function useDraft(projectId: string, decision: Decision, editable: boolea
     inFlight.current = false;
   }, [projectId, decision.id]);
 
+  const flush = useCallback(async () => {
+    clearTimeout(timer.current);
+    if (inFlight.current || blocked.current) return;
+    running.current = drain();
+    await running.current;
+    running.current = null;
+  }, [drain]);
+
+  /**
+   * Sends what is pending now and waits until nothing is: true when the draft on
+   * the server is exactly what the editor shows (so a version can be taken of it).
+   */
+  const settle = useCallback(async (): Promise<boolean> => {
+    while (running.current) await running.current;
+    if (pending.current !== null) await flush();
+    return pending.current === null && !blocked.current && !inFlight.current;
+  }, [flush]);
+
+  /** The draft as the server now has it, after a restore replaced it. */
+  const replace = useCallback((next: Decision) => {
+    clearTimeout(timer.current);
+    pending.current = null;
+    blocked.current = false;
+    revision.current = next.revision;
+    saved.current = canonical(next.content);
+    setGraph(next.content);
+    setVersion({ latest: next.latestVersion ?? null, changed: next.changedSinceVersion });
+    setStatus({ kind: 'saved', at: next.updatedAt });
+  }, []);
+
+  /** A version was just taken of the draft. */
+  const versionSaved = useCallback((number: number) => setVersion({ latest: number, changed: false }), []);
+
   const change = useCallback(
     (next: unknown) => {
       setGraph(next);
       if (!editable) return;
       // The editor reports its first render too; only real changes are saved.
-      if (pending.current === null && !inFlight.current && JSON.stringify(next) === saved.current) return;
+      if (pending.current === null && !inFlight.current && canonical(next) === saved.current) return;
       pending.current = next;
       if (blocked.current) return;
       setStatus({ kind: 'dirty' });
@@ -105,8 +149,9 @@ export function useDraft(projectId: string, decision: Decision, editable: boolea
     pending.current = null;
     blocked.current = false;
     revision.current = latest.data.revision;
-    saved.current = JSON.stringify(latest.data.content);
+    saved.current = canonical(latest.data.content);
     setGraph(latest.data.content);
+    setVersion({ latest: latest.data.latestVersion ?? null, changed: latest.data.changedSinceVersion });
     setStatus({ kind: 'saved', at: latest.data.updatedAt });
   }, [projectId, decision.id]);
 
@@ -129,5 +174,31 @@ export function useDraft(projectId: string, decision: Decision, editable: boolea
     };
   }, []);
 
-  return { graph, status, change, keepMine, loadTheirs, retry };
+  const currentRevision = useCallback(() => revision.current, []);
+
+  return {
+    graph,
+    status,
+    version,
+    change,
+    keepMine,
+    loadTheirs,
+    retry,
+    settle,
+    replace,
+    versionSaved,
+    currentRevision,
+  };
+}
+
+/**
+ * A graph as text with its object keys sorted: the server stores graphs as
+ * `jsonb`, which reorders keys, so the same graph must read the same either way.
+ */
+export function canonical(value: unknown): string {
+  return JSON.stringify(value, (_key, node: unknown) =>
+    node && typeof node === 'object' && !Array.isArray(node)
+      ? Object.fromEntries(Object.entries(node).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
+      : node,
+  );
 }

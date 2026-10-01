@@ -53,6 +53,10 @@ pub enum ApiError {
     /// Someone saved the draft since it was loaded; `details` says who and when.
     #[error("draft conflict")]
     DecisionConflict(Value),
+    #[error("version not found")]
+    VersionNotFound,
+    #[error("nothing changed since version {0}")]
+    VersionUnchanged(i32),
     #[error("database unavailable")]
     DatabaseUnavailable,
     #[error("no such endpoint")]
@@ -110,6 +114,12 @@ impl From<DecisionError> for ApiError {
                 "updatedAt": current.updated_at,
                 "updatedBy": { "id": current.updated_by },
             })),
+            DecisionError::VersionNotFound => Self::VersionNotFound,
+            DecisionError::InvalidMessage => Self::InvalidField {
+                field: "message",
+                message: err.to_string(),
+            },
+            DecisionError::Unchanged(version) => Self::VersionUnchanged(version),
             DecisionError::Project(err) => err.into(),
             DecisionError::Database(err) => Self::Internal(err.to_string()),
         }
@@ -231,6 +241,20 @@ impl IntoResponse for ApiError {
                 "Someone saved this decision since you opened it.".to_owned(),
                 None,
                 Some(details),
+            ),
+            Self::VersionNotFound => (
+                StatusCode::NOT_FOUND,
+                "VERSION_NOT_FOUND",
+                "This decision has no such version.".to_owned(),
+                None,
+                None,
+            ),
+            Self::VersionUnchanged(version) => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "VERSION_UNCHANGED",
+                format!("Nothing changed since version {version}."),
+                None,
+                Some(serde_json::json!({ "version": version })),
             ),
             Self::DatabaseUnavailable => (
                 StatusCode::SERVICE_UNAVAILABLE,

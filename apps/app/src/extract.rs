@@ -65,6 +65,24 @@ impl FromRequestParts<AppState> for DecisionId {
     }
 }
 
+/// The version in the `{number}` path segment; anything but a number is `404 VERSION_NOT_FOUND`.
+pub struct VersionNumber(pub i32);
+
+impl FromRequestParts<AppState> for VersionNumber {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, ApiError> {
+        let Path(params) = Path::<HashMap<String, String>>::from_request_parts(parts, state)
+            .await
+            .map_err(|_| ApiError::VersionNotFound)?;
+        params
+            .get("number")
+            .and_then(|number| number.parse().ok())
+            .map(Self)
+            .ok_or(ApiError::VersionNotFound)
+    }
+}
+
 async fn path_id(parts: &mut Parts, state: &AppState, name: &str) -> Option<Uuid> {
     let Path(params) = Path::<HashMap<String, String>>::from_request_parts(parts, state)
         .await
