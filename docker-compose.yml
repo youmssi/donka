@@ -47,11 +47,15 @@ services:
     environment:
       DATABASE_URL: postgres://donka:donka@postgres:5432/donka
       DONKA_SMTP_URL: smtp://mailpit:1025
+      DONKA_STORAGE_URL: s3://donka-releases
+      DONKA_STORAGE_ENDPOINT: http://minio:9000
     depends_on:
       postgres: { condition: service_healthy }
       mailpit: { condition: service_started }
+      minio-init: { condition: service_completed_successfully }
     ports: ["8080:8080"]
 
+  # One Runtime per environment; this one serves staging (PROVIDER__PREFIX picks the environment).
   runtime:
     profiles: [full]
     build: ../donka-runtime
@@ -61,7 +65,7 @@ services:
       PROVIDER__REGION: us-east-1
       PROVIDER__ENDPOINT: http://minio:9000
       PROVIDER__FORCE_PATH_STYLE: "true"
-      PROVIDER__PREFIX: production/
+      PROVIDER__PREFIX: staging/
       AWS_ACCESS_KEY_ID: donka
       AWS_SECRET_ACCESS_KEY: donka-secret
     depends_on: [minio-init]

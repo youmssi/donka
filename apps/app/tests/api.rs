@@ -307,6 +307,35 @@ async fn openapi_document_describes_the_endpoints() {
             "/projects/{project_id}/decisions/{decision_id}/versions/{number}/test-results",
             "get",
         ),
+        ("/projects/{project_id}/releases", "get"),
+        ("/projects/{project_id}/releases", "post"),
+        ("/projects/{project_id}/releases/preview", "get"),
+        ("/projects/{project_id}/releases/{release_id}", "get"),
+        ("/projects/{project_id}/environments", "get"),
+        (
+            "/projects/{project_id}/environments/{environment}/deployments",
+            "get",
+        ),
+        (
+            "/projects/{project_id}/environments/{environment}/deployments",
+            "post",
+        ),
+        (
+            "/projects/{project_id}/environments/{environment}/deployments/{deployment_id}/retry",
+            "post",
+        ),
+        (
+            "/projects/{project_id}/environments/{environment}/tokens",
+            "get",
+        ),
+        (
+            "/projects/{project_id}/environments/{environment}/tokens",
+            "post",
+        ),
+        (
+            "/projects/{project_id}/environments/{environment}/tokens/{token_id}",
+            "delete",
+        ),
         ("/projects/{project_id}/test-scenarios", "get"),
         ("/projects/{project_id}/test-scenarios", "post"),
         ("/projects/{project_id}/test-scenarios/{scenario_id}", "get"),

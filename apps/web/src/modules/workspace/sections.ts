@@ -1,5 +1,15 @@
 import type { LucideIcon } from 'lucide-react';
-import { FlaskConical, FolderKanban, History, Settings, Users, UsersRound, Workflow } from 'lucide-react';
+import {
+  FlaskConical,
+  FolderKanban,
+  History,
+  Package,
+  Server,
+  Settings,
+  Users,
+  UsersRound,
+  Workflow,
+} from 'lucide-react';
 
 import type { Project, ProjectSection } from '@/modules/project';
 
@@ -10,7 +20,9 @@ export type Place =
 export function placeOf(pathname: string): Place {
   if (pathname === '/') return { kind: 'projects' };
   if (pathname.startsWith('/people')) return { kind: 'people' };
-  const match = /^\/projects\/(decisions|decision|scenarios|settings|members|audit)\/?$/.exec(pathname);
+  const match = /^\/projects\/(decisions|decision|scenarios|releases|environments|settings|members|audit)\/?$/.exec(
+    pathname,
+  );
   if (match) return { kind: 'project', section: match[1] as ProjectSection };
   return { kind: 'other' };
 }
@@ -28,6 +40,8 @@ export function projectSections(project: Project): { section: ProjectSection; ic
   return [
     { section: 'decisions', icon: Workflow },
     { section: 'scenarios', icon: FlaskConical },
+    { section: 'releases', icon: Package },
+    { section: 'environments', icon: Server },
     { section: 'members', icon: Users },
     { section: 'settings', icon: Settings },
     ...(project.role === 'owner' ? [{ section: 'audit' as const, icon: History }] : []),

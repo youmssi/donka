@@ -20,7 +20,9 @@ donka-engine = { workspace = true }
 donka-identity = { workspace = true, features = ["openapi"] }
 donka-mail = { workspace = true }
 donka-project = { workspace = true, features = ["openapi"] }
+donka-release = { workspace = true }
 donka-shared = { workspace = true }
+donka-storage = { workspace = true }
 chrono = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -39,6 +41,9 @@ uuid = { workspace = true }
 sqlx = { workspace = true }
 async-trait = { workspace = true }
 donka-mail = { workspace = true, features = ["testing"] }
+donka-storage = { workspace = true, features = ["testing"] }
+zip = { workspace = true }
+sha2 = { workspace = true }
 http-body-util = "0.1"
 
 [lints]

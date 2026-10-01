@@ -8,7 +8,9 @@ use donka_engine::{DecisionRuntime, ZenRuntime};
 use donka_identity::{Identity, Policy};
 use donka_mail::SmtpMailer;
 use donka_project::Projects;
+use donka_release::Releases;
 use donka_shared::clock::SystemClock;
+use donka_storage::ObjectStorage;
 use std::sync::Arc;
 use tracing_subscriber::EnvFilter;
 
@@ -62,7 +64,17 @@ async fn main() -> anyhow::Result<()> {
     let clock = Arc::new(SystemClock);
     let identity = Identity::new(db.clone(), clock.clone(), policy);
     let projects = Projects::new(db.clone(), clock.clone());
-    let decisions = Decisions::new(db.clone(), clock, runtime.clone());
+    let decisions = Decisions::new(db.clone(), clock.clone(), runtime.clone());
+    let storage = ObjectStorage::from_url(&config.storage_url, config.storage_options.clone())
+        .unwrap_or_else(|err| exit_with(&format!("DONKA_STORAGE_URL: {err}")));
+    let releases = Releases::new(
+        db.clone(),
+        clock,
+        decisions.clone(),
+        projects.clone(),
+        Arc::new(storage),
+        config.publish_max_attempts,
+    );
     let audit = AuditLog::new(db.clone());
 
     if let Some(email) = &config.bootstrap_admin_email {
@@ -84,6 +96,7 @@ async fn main() -> anyhow::Result<()> {
 
     let mailer = SmtpMailer::new(&config.smtp_url, &config.smtp_from)
         .unwrap_or_else(|err| exit_with(&format!("DONKA_SMTP_URL / DONKA_SMTP_FROM: {err}")));
+    tokio::spawn(donka_app::publish_worker::run(releases.clone()));
     tokio::spawn(donka_app::email_worker::run(
         identity.clone(),
         Arc::new(mailer),
@@ -100,6 +113,7 @@ async fn main() -> anyhow::Result<()> {
             identity,
             projects,
             decisions,
+            releases,
             audit,
             cookies,
         },

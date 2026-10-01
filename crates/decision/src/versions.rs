@@ -229,3 +229,68 @@ fn check_message(message: &str) -> Result<String, DecisionError> {
         Ok(message.to_owned())
     }
 }
+
+/// A decision's latest version as a release freezes it.
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct FrozenVersion {
+    pub decision_id: Uuid,
+    pub key: String,
+    pub number: i32,
+    pub content: Value,
+    /// How the project's scenarios went on this version.
+    #[sqlx(flatten)]
+    pub tests: TestSummary,
+}
+
+/// What a release would freeze now: every decision's latest version, and the
+/// decisions that have none yet (which block a release).
+#[derive(Debug, Clone, Default)]
+pub struct ReleaseSnapshot {
+    pub versions: Vec<FrozenVersion>,
+    pub unversioned: Vec<String>,
+}
+
+#[derive(sqlx::FromRow)]
+struct SnapshotRow {
+    decision_id: Uuid,
+    key: String,
+    number: Option<i32>,
+    content: Option<Value>,
+    #[sqlx(flatten)]
+    tests: TestSummary,
+}
+
+impl Decisions {
+    /// The latest version of every decision of the project, by key (any member).
+    pub async fn release_snapshot(
+        &self,
+        access: &Access,
+    ) -> Result<ReleaseSnapshot, DecisionError> {
+        let rows: Vec<SnapshotRow> = sqlx::query_as(sql(format!(
+            "SELECT d.id AS decision_id, d.key, v.number, v.content, \
+             coalesce(t.passed, 0) AS passed, coalesce(t.failed, 0) AS failed, \
+             coalesce(t.errors, 0) AS errors \
+             FROM decisions d LEFT JOIN LATERAL (\
+             SELECT decision_id, number, content FROM decision_versions WHERE decision_id = d.id \
+             ORDER BY number DESC LIMIT 1) v ON true {SUMMARY_JOIN} \
+             WHERE d.project_id = $1 AND d.deleted_at IS NULL ORDER BY d.key"
+        )))
+        .bind(access.project_id())
+        .fetch_all(&self.pool)
+        .await?;
+        let mut snapshot = ReleaseSnapshot::default();
+        for row in rows {
+            match (row.number, row.content) {
+                (Some(number), Some(content)) => snapshot.versions.push(FrozenVersion {
+                    decision_id: row.decision_id,
+                    key: row.key,
+                    number,
+                    content,
+                    tests: row.tests,
+                }),
+                _ => snapshot.unversioned.push(row.key),
+            }
+        }
+        Ok(snapshot)
+    }
+}

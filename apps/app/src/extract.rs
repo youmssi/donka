@@ -4,6 +4,7 @@ use crate::AppState;
 use axum::extract::{FromRequest, FromRequestParts, Path};
 use axum::http::request::Parts;
 use donka_project::Access;
+use donka_release::Environment;
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -94,6 +95,67 @@ impl FromRequestParts<AppState> for VersionNumber {
             .and_then(|number| number.parse().ok())
             .map(Self)
             .ok_or(ApiError::VersionNotFound)
+    }
+}
+
+/// The release in the `{release_id}` path segment; a malformed id is `404 RELEASE_NOT_FOUND`.
+pub struct ReleaseId(pub Uuid);
+
+impl FromRequestParts<AppState> for ReleaseId {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, ApiError> {
+        path_id(parts, state, "release_id")
+            .await
+            .map(Self)
+            .ok_or(ApiError::ReleaseNotFound)
+    }
+}
+
+/// The deployment in the `{deployment_id}` path segment; a malformed id is `404 DEPLOYMENT_NOT_FOUND`.
+pub struct DeploymentId(pub Uuid);
+
+impl FromRequestParts<AppState> for DeploymentId {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, ApiError> {
+        path_id(parts, state, "deployment_id")
+            .await
+            .map(Self)
+            .ok_or(ApiError::DeploymentNotFound)
+    }
+}
+
+/// The token in the `{token_id}` path segment; a malformed id is `404 TOKEN_NOT_FOUND`.
+pub struct TokenId(pub Uuid);
+
+impl FromRequestParts<AppState> for TokenId {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, ApiError> {
+        path_id(parts, state, "token_id")
+            .await
+            .map(Self)
+            .ok_or(ApiError::TokenNotFound)
+    }
+}
+
+/// The environment in the `{environment}` path segment (`staging` or
+/// `production`); anything else is `404 ENVIRONMENT_NOT_FOUND`.
+pub struct EnvironmentKey(pub Environment);
+
+impl FromRequestParts<AppState> for EnvironmentKey {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, ApiError> {
+        let Path(params) = Path::<HashMap<String, String>>::from_request_parts(parts, state)
+            .await
+            .map_err(|_| ApiError::EnvironmentNotFound)?;
+        params
+            .get("environment")
+            .and_then(|key| Environment::parse(key))
+            .map(Self)
+            .ok_or(ApiError::EnvironmentNotFound)
     }
 }
 

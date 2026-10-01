@@ -21,6 +21,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Link, useRouter } from '@/i18n/navigation';
 import { ProjectFrame, projectHref, useMembers, type Project, type Role } from '@/modules/project';
+import type { EnvironmentName } from '@/modules/release';
 
 import { exportHref, PAGE_SIZE } from './audit.service';
 import {
@@ -339,6 +340,7 @@ function useSentence(event: AuditEvent): string {
   const t = useTranslations('auditSentences');
   const actions = useTranslations('auditActions');
   const roles = useTranslations('roles');
+  const environments = useTranslations('environments');
   const person = event.target?.email ?? '';
   const role = (value: string) => (value ? roles(value as Role) : value);
   switch (event.action) {
@@ -383,6 +385,23 @@ function useSentence(event: AuditEvent): string {
       return t('scenarioUpdated', { name: detail(event, 'name'), key: detail(event, 'key') });
     case 'scenario.deleted':
       return t('scenarioDeleted', { name: detail(event, 'name'), key: detail(event, 'key') });
+    case 'release.created':
+      return t('releaseCreated', { version: detail(event, 'version') });
+    case 'release.deployed':
+      return t('releaseDeployed', {
+        version: detail(event, 'version'),
+        environment: environments(detail(event, 'environment') as EnvironmentName),
+      });
+    case 'token.issued':
+      return t('tokenIssued', {
+        name: detail(event, 'name'),
+        environment: environments(detail(event, 'environment') as EnvironmentName),
+      });
+    case 'token.revoked':
+      return t('tokenRevoked', {
+        name: detail(event, 'name'),
+        environment: environments(detail(event, 'environment') as EnvironmentName),
+      });
     case 'member.removed':
       return t('memberRemoved', { person, role: role(detail(event, 'role')) });
     default:

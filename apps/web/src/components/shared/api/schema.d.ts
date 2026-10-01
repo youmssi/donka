@@ -356,6 +356,101 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/projects/{project_id}/environments': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Both environments: what is live, what was last asked for, how many tokens (any member). */
+    get: operations['environments'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/environments/{environment}/deployments': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** An environment's deployments, newest first (any member). */
+    get: operations['deployments'];
+    put?: never;
+    /**
+     * Deploys a release to staging (editors and owners). The artifact is
+     *     written after the request, retried on failure; follow it on the
+     *     environment. Production is published through an approval.
+     */
+    post: operations['deploy'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/environments/{environment}/deployments/{deployment_id}/retry': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Tries a deployment that gave up again now (editors and owners). */
+    post: operations['retry'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/environments/{environment}/tokens': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** An environment's Runtime tokens, live ones first; never their value (any member). */
+    get: operations['tokens'];
+    put?: never;
+    /**
+     * Issues a Runtime token for the environment (owners). The token is in this
+     *     response only; the environment's release is published again so the
+     *     Runtime accepts it.
+     */
+    post: operations['issue_token'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/environments/{environment}/tokens/{token_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Revokes a Runtime token (owners); the environment's release is published again without it. */
+    delete: operations['revoke_token'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/projects/{project_id}/members': {
     parameters: {
       query?: never;
@@ -390,6 +485,58 @@ export interface paths {
     head?: never;
     /** Changes a member's role; a project always keeps an owner (owners). */
     patch: operations['change_role'];
+    trace?: never;
+  };
+  '/projects/{project_id}/releases': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The project's releases, newest first (any member). */
+    get: operations['list'];
+    put?: never;
+    /** Freezes the latest version of every decision as a new release (editors and owners). */
+    post: operations['create'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/releases/preview': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** What a release made now would hold, and the version each bump would give (any member). */
+    get: operations['preview'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/releases/{release_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** One release with the version of each decision it froze (any member). */
+    get: operations['get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
     trace?: never;
   };
   '/projects/{project_id}/restore': {
@@ -581,7 +728,11 @@ export interface components {
       | 'decision.version_restored'
       | 'scenario.created'
       | 'scenario.updated'
-      | 'scenario.deleted';
+      | 'scenario.deleted'
+      | 'release.created'
+      | 'release.deployed'
+      | 'token.issued'
+      | 'token.revoked';
     AddMemberRequest: {
       /** @description Email of an existing Studio account. */
       email: string;
@@ -606,6 +757,11 @@ export interface components {
        */
       total: number;
     };
+    /**
+     * @description Which part of the version the release raises.
+     * @enum {string}
+     */
+    BumpRequest: 'major' | 'minor' | 'patch';
     ChangeRoleRequest: {
       role: components['schemas']['Role'];
     };
@@ -621,6 +777,11 @@ export interface components {
       description?: string;
       key: string;
       name: string;
+    };
+    CreateReleaseRequest: {
+      bump: components['schemas']['BumpRequest'];
+      /** @description What the release changes, for approvers and the history. */
+      notes: string;
     };
     CreateScenarioRequest: {
       /**
@@ -702,6 +863,67 @@ export interface components {
       /** @description How the project's test scenarios went when this version was saved. */
       tests: components['schemas']['TestSummaryResponse'];
     };
+    DeployRequest: {
+      /** Format: uuid */
+      releaseId: string;
+    };
+    DeploymentListResponse: {
+      items: components['schemas']['DeploymentResponse'][];
+      /** Format: int64 */
+      total: number;
+    };
+    /**
+     * @description Why a deployment exists.
+     * @enum {string}
+     */
+    DeploymentReasonResponse: 'deploy' | 'tokens';
+    DeploymentResponse: {
+      /**
+       * Format: int32
+       * @description Writes tried so far.
+       */
+      attempts: number;
+      environment: components['schemas']['EnvironmentName'];
+      /** Format: uuid */
+      id: string;
+      /** @description Why the last write failed. */
+      lastError?: string | null;
+      /**
+       * Format: date-time
+       * @description When the next write is tried, while it waits.
+       */
+      nextAttemptAt?: string | null;
+      /** Format: date-time */
+      publishedAt?: string | null;
+      reason: components['schemas']['DeploymentReasonResponse'];
+      /** Format: uuid */
+      releaseId: string;
+      releaseVersion: string;
+      /** Format: date-time */
+      requestedAt: string;
+      requestedBy: components['schemas']['PersonRef'];
+      status: components['schemas']['DeploymentStatusResponse'];
+    };
+    /** @enum {string} */
+    DeploymentStatusResponse: 'pending' | 'retrying' | 'failed' | 'published' | 'superseded';
+    EnvironmentListResponse: {
+      items: components['schemas']['EnvironmentResponse'][];
+    };
+    /**
+     * @description One of the two environments every project has.
+     * @enum {string}
+     */
+    EnvironmentName: 'staging' | 'production';
+    EnvironmentResponse: {
+      environment: components['schemas']['EnvironmentName'];
+      latest?: null | components['schemas']['DeploymentResponse'];
+      live?: null | components['schemas']['DeploymentResponse'];
+      /**
+       * Format: int64
+       * @description Live Runtime tokens.
+       */
+      tokens: number;
+    };
     ErrorBody: {
       /** @description Stable, machine-readable code, e.g. `DECISION_NOT_FOUND`. */
       code: string;
@@ -719,6 +941,14 @@ export interface components {
       email: string;
       isAdmin?: boolean;
       locale?: null | components['schemas']['Locale'];
+    };
+    IssueTokenRequest: {
+      /** @description Who uses the token, e.g. the loan origination system. */
+      name: string;
+    };
+    IssuedTokenResponse: components['schemas']['TokenResponse'] & {
+      /** @description The token. Shown this once: Studio keeps only its hash. */
+      token: string;
     };
     /**
      * @description Language of a user's emails and screens.
@@ -749,6 +979,12 @@ export interface components {
       actual?: unknown;
       expected?: unknown;
       path: string;
+    };
+    /** @description The version each bump would give the next release. */
+    NextVersionsResponse: {
+      major: string;
+      minor: string;
+      patch: string;
     };
     PasswordResetRequest: {
       email: string;
@@ -797,6 +1033,57 @@ export interface components {
       key: string;
       name: string;
       role: components['schemas']['Role'];
+    };
+    ReleaseListResponse: {
+      items: components['schemas']['ReleaseSummaryResponse'][];
+      /**
+       * Format: int64
+       * @description Releases across all pages.
+       */
+      total: number;
+    };
+    /** @description What a release made now would hold. */
+    ReleasePreviewResponse: {
+      decisions: components['schemas']['ReleasedDecisionResponse'][];
+      /** @description The latest release's version; none before the first release. */
+      latest?: string | null;
+      next: components['schemas']['NextVersionsResponse'];
+      /** @description Decisions without a version: a release cannot be made while any remain. */
+      unversioned: string[];
+    };
+    ReleaseResponse: components['schemas']['ReleaseSummaryResponse'] & {
+      decisions: components['schemas']['ReleasedDecisionResponse'][];
+    };
+    ReleaseSummaryResponse: {
+      /** Format: date-time */
+      createdAt: string;
+      createdBy: components['schemas']['PersonRef'];
+      /**
+       * Format: int64
+       * @description How many decisions it froze.
+       */
+      decisions: number;
+      /** Format: uuid */
+      id: string;
+      /** @description The environments this release is live in. */
+      liveIn: components['schemas']['EnvironmentName'][];
+      notes: string;
+      /** @description The scenarios' results on the frozen versions, added up. */
+      tests: components['schemas']['TestSummaryResponse'];
+      /** @description Semantic version, e.g. `1.4.0`. */
+      version: string;
+    };
+    ReleasedDecisionResponse: {
+      /** Format: uuid */
+      decisionId: string;
+      key: string;
+      /** @description How the project's scenarios went on that version. */
+      tests: components['schemas']['TestSummaryResponse'];
+      /**
+       * Format: int32
+       * @description The version of the decision the release froze.
+       */
+      version: number;
     };
     RestoreRequest: {
       /**
@@ -941,6 +1228,22 @@ export interface components {
       failed: number;
       /** Format: int64 */
       passed: number;
+    };
+    TokenListResponse: {
+      items: components['schemas']['TokenResponse'][];
+    };
+    TokenResponse: {
+      /** Format: date-time */
+      createdAt: string;
+      createdBy: components['schemas']['PersonRef'];
+      /** @description The token's last characters, to tell tokens apart. */
+      hint: string;
+      /** Format: uuid */
+      id: string;
+      name: string;
+      /** Format: date-time */
+      revokedAt?: string | null;
+      revokedBy?: null | components['schemas']['PersonRef'];
     };
     UpdateProjectRequest: {
       description?: string;
@@ -2030,6 +2333,327 @@ export interface operations {
       };
     };
   };
+  environments: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['EnvironmentListResponse'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  deployments: {
+    parameters: {
+      query?: {
+        /** @description Page size, 1 to 100 (default 50). */
+        limit?: number;
+        offset?: number;
+      };
+      header?: never;
+      path: {
+        project_id: string;
+        environment: components['schemas']['EnvironmentName'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DeploymentListResponse'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or ENVIRONMENT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  deploy: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        environment: components['schemas']['EnvironmentName'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['DeployRequest'];
+      };
+    };
+    responses: {
+      /** @description Queued; published shortly */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DeploymentResponse'];
+        };
+      };
+      /** @description Viewers cannot deploy (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND, ENVIRONMENT_NOT_FOUND or RELEASE_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_ARCHIVED */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description APPROVAL_REQUIRED (production) */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  retry: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        environment: components['schemas']['EnvironmentName'];
+        deployment_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Queued again */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DeploymentResponse'];
+        };
+      };
+      /** @description Viewers cannot retry (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND, ENVIRONMENT_NOT_FOUND or DEPLOYMENT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description NOT_RETRYABLE (it did not give up) or PROJECT_ARCHIVED */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  tokens: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        environment: components['schemas']['EnvironmentName'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['TokenListResponse'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or ENVIRONMENT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  issue_token: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        environment: components['schemas']['EnvironmentName'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['IssueTokenRequest'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['IssuedTokenResponse'];
+        };
+      };
+      /** @description Missing or too long name (INVALID_REQUEST) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Only owners manage tokens (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or ENVIRONMENT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_ARCHIVED */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  revoke_token: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        environment: components['schemas']['EnvironmentName'];
+        token_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Revoked */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Only owners manage tokens (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND, ENVIRONMENT_NOT_FOUND or TOKEN_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_ARCHIVED */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
   members: {
     parameters: {
       query?: never;
@@ -2213,6 +2837,171 @@ export interface operations {
       };
       /** @description Last owner (LAST_OWNER) or archived (PROJECT_ARCHIVED) */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  list: {
+    parameters: {
+      query?: {
+        /** @description Page size, 1 to 100 (default 50). */
+        limit?: number;
+        offset?: number;
+      };
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ReleaseListResponse'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateReleaseRequest'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ReleaseResponse'];
+        };
+      };
+      /** @description Missing or too long notes (INVALID_REQUEST) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Viewers cannot release (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description RELEASE_CONFLICT (someone released at the same moment) or PROJECT_ARCHIVED */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description UNVERSIONED_DECISIONS (details: keys) or NOTHING_TO_RELEASE */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  preview: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ReleasePreviewResponse'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        release_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ReleaseResponse'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or RELEASE_NOT_FOUND */
+      404: {
         headers: {
           [name: string]: unknown;
         };

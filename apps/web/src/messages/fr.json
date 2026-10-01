@@ -52,7 +52,16 @@
     "VERSION_NOT_FOUND": "Cette version n'existe pas.",
     "VERSION_UNCHANGED": "Rien n'a changé depuis la dernière version.",
     "SCENARIO_NOT_FOUND": "Ce scénario de test n'existe pas.",
-    "SCENARIO_NAME_TAKEN": "Un autre scénario de cette décision porte ce nom."
+    "SCENARIO_NAME_TAKEN": "Un autre scénario de cette décision porte ce nom.",
+    "RELEASE_NOT_FOUND": "Cette release n’existe pas dans ce projet.",
+    "RELEASE_CONFLICT": "Quelqu’un a créé une release avec ce numéro au même moment. Rouvrez la fenêtre.",
+    "UNVERSIONED_DECISIONS": "Certaines décisions n’ont pas encore de version enregistrée. Enregistrez une version de chacune avant la release.",
+    "NOTHING_TO_RELEASE": "Ce projet n’a aucune décision à publier.",
+    "APPROVAL_REQUIRED": "Un déploiement en production demande une approbation, pas encore disponible.",
+    "NOT_RETRYABLE": "Seul un déploiement abandonné peut être relancé.",
+    "DEPLOYMENT_NOT_FOUND": "Ce déploiement n’existe pas.",
+    "ENVIRONMENT_NOT_FOUND": "Cet environnement n’existe pas.",
+    "TOKEN_NOT_FOUND": "Ce jeton n’existe pas."
   },
   "validation": {
     "email": "Saisissez une adresse e-mail valide.",
@@ -163,7 +172,9 @@
     "restored": "Projet restauré.",
     "decisions": "Décisions",
     "decision": "Décision",
-    "scenarios": "Scénarios de test"
+    "scenarios": "Scénarios de test",
+    "releases": "Releases",
+    "environments": "Environnements"
   },
   "members": {
     "title": "Membres",
@@ -288,6 +299,14 @@
       "created": "Scénario créé",
       "updated": "Scénario modifié",
       "deleted": "Scénario supprimé"
+    },
+    "release": {
+      "created": "Release créée",
+      "deployed": "Release déployée"
+    },
+    "token": {
+      "issued": "Jeton Runtime créé",
+      "revoked": "Jeton Runtime révoqué"
     }
   },
   "auditSentences": {
@@ -305,7 +324,11 @@
     "decisionVersionRestored": "A restauré la version {from} de {key} comme version {version}",
     "scenarioCreated": "A créé le scénario « {name} » de {key}",
     "scenarioUpdated": "A modifié le scénario « {name} » de {key}",
-    "scenarioDeleted": "A supprimé le scénario « {name} » de {key}"
+    "scenarioDeleted": "A supprimé le scénario « {name} » de {key}",
+    "releaseCreated": "A créé la release {version}",
+    "releaseDeployed": "A déployé la release {version} en {environment}",
+    "tokenIssued": "A créé le jeton {environment} « {name} »",
+    "tokenRevoked": "A révoqué le jeton {environment} « {name} »"
   },
   "ui": {
     "close": "Fermer",
@@ -458,5 +481,88 @@
     "missing": "absent",
     "noVersion": "Non exécuté : {key} n'a pas encore de version enregistrée.",
     "engineFailed": "l'évaluation a échoué"
+  },
+  "releases": {
+    "title": "Releases",
+    "errorTitle": "Impossible de charger les releases",
+    "create": "Nouvelle release",
+    "createTitle": "Nouvelle release",
+    "createDescription": "Une release fige la dernière version enregistrée de chaque décision. Elle ne change plus ensuite.",
+    "createVersion": "Créer {version}",
+    "creating": "Création…",
+    "created": "Release {version} créée.",
+    "version": "Version",
+    "notes": "Notes",
+    "notesHint": "Ce qui change et pourquoi, pour ceux qui la déploient et l’auditent.",
+    "live": "En service",
+    "tests": "Tests",
+    "createdAt": "Créée",
+    "by": "Par",
+    "major": "majeure",
+    "minor": "mineure",
+    "patch": "correctif",
+    "release": "Release",
+    "view": "Voir",
+    "actionsFor": "Actions pour {version}",
+    "deployStaging": "Déployer en staging",
+    "deployTitle": "Déployer {version} en staging ?",
+    "deployConfirm": "Le Runtime de staging passe à cette release en moins d’une minute.",
+    "deploying": "Déploiement de {version} en staging…",
+    "emptyTitle": "Aucune release",
+    "empty": "Enregistrez une version de chaque décision, puis créez une release pour la déployer.",
+    "emptyReadOnly": "Les éditeurs et propriétaires créent les releases.",
+    "unversionedTitle": "Des décisions n’ont pas de version",
+    "unversioned": "Une release ne contient que des versions enregistrées. Enregistrez d’abord une version de ces décisions :",
+    "nothingTitle": "Rien à publier",
+    "nothing": "Ce projet n’a pas encore de décision.",
+    "failingTitle": "Des tests échouent",
+    "failing": "Vous pouvez quand même créer la release ; les résultats sont conservés avec elle.",
+    "frozen": "{count, plural, one {# décision} other {# décisions}}",
+    "latest": "Dernière release : {version}.",
+    "firstRelease": "La première release d’un projet est la 1.0.0."
+  },
+  "environments": {
+    "title": "Environnements",
+    "errorTitle": "Impossible de charger les environnements",
+    "staging": "Staging",
+    "production": "Production",
+    "stagingDescription": "Où une release est essayée avant la production.",
+    "productionDescription": "Ce qu’appellent vos systèmes pour les vraies décisions.",
+    "live": "En service",
+    "nothingLive": "Aucune release déployée.",
+    "publishedBy": "par {email}",
+    "productionApproval": "Déployer en production demande l’approbation d’une deuxième personne (bientôt disponible).",
+    "deployLabel": "Release",
+    "deploy": "Déployer",
+    "noRelease": "Créez une release pour la déployer ici.",
+    "deployingVersion": "Déploiement de {version}…",
+    "republishing": "Mise à jour des jetons de {version}…",
+    "retrying": "La tentative {attempts} a échoué : {error}. Prochain essai à <when></when>.",
+    "failedTitle": "Le déploiement de {version} a échoué",
+    "failed": "Abandon après {attempts} tentatives : {error}",
+    "retry": "Relancer"
+  },
+  "tokens": {
+    "title": "Jetons Runtime",
+    "create": "Nouveau jeton",
+    "creating": "Création…",
+    "createTitle": "Nouveau jeton {environment}",
+    "createDescription": "Vos systèmes l’envoient au Runtime pour appeler les décisions de ce projet.",
+    "name": "Nom",
+    "nameHint": "Qui ou quoi l’utilise, pour le retrouver.",
+    "namePlaceholder": "Octroi de crédit",
+    "shownOnce": "Copiez-le maintenant : il n’est affiché qu’une fois. Studio n’en garde qu’une empreinte.",
+    "header": "Envoyez-le dans l’en-tête X-Access-Token. Il fonctionne en moins d’une minute.",
+    "copy": "Copier le jeton",
+    "copied": "Jeton copié.",
+    "copyFailed": "La copie a échoué. Sélectionnez le jeton et copiez-le.",
+    "done": "Terminé",
+    "empty": "Aucun jeton. Créez-en un pour chaque système qui appelle le Runtime.",
+    "emptyReadOnly": "Aucun jeton. Les propriétaires les créent.",
+    "revoke": "Révoquer",
+    "revokedBadge": "Révoqué",
+    "revokeTitle": "Révoquer « {name} » ?",
+    "revokeConfirm": "Les appels avec ce jeton sont refusés en moins d’une minute. Action irréversible.",
+    "revoked": "Jeton « {name} » révoqué."
   }
 }

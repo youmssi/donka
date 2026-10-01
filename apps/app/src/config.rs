@@ -36,6 +36,14 @@ pub struct Config {
     pub email_max_attempts: u32,
     /// Static export of the web app to serve on the same origin; API only when unset.
     pub web_dir: Option<PathBuf>,
+    /// Where release artifacts are written: `s3://bucket[/prefix]` (S3, MinIO)
+    /// or `file:///path` (a folder, e.g. on a single server).
+    pub storage_url: String,
+    /// Settings of an S3 store as `object_store` names them (`aws_endpoint`,
+    /// `aws_region`, keys…). The secret key is a credential: never log them.
+    pub storage_options: Vec<(String, String)>,
+    /// Failed writes after which a deployment is given up (it can be retried by hand).
+    pub publish_max_attempts: u32,
 }
 
 /// The web app calls the API here (apps/web `API_BASE`).
@@ -105,6 +113,33 @@ impl Config {
             ));
         }
 
+        let storage_url = required(
+            &get,
+            "DONKA_STORAGE_URL",
+            "is required, e.g. s3://donka-releases or file:///var/lib/donka/releases",
+        )?;
+        if !(storage_url.starts_with("s3://") || storage_url.starts_with("file:///")) {
+            return Err(invalid(
+                "DONKA_STORAGE_URL",
+                "must start with s3:// (S3, MinIO) or file:/// (a folder)",
+            ));
+        }
+        let mut storage_options = Vec::new();
+        for (var, option) in [
+            ("DONKA_STORAGE_ENDPOINT", "aws_endpoint"),
+            ("DONKA_STORAGE_REGION", "aws_region"),
+            ("DONKA_STORAGE_ACCESS_KEY_ID", "aws_access_key_id"),
+            ("DONKA_STORAGE_SECRET_ACCESS_KEY", "aws_secret_access_key"),
+        ] {
+            if let Some(value) = get(var).filter(|v| !v.trim().is_empty()) {
+                if option == "aws_endpoint" && value.starts_with("http://") {
+                    // A local MinIO usually listens on plain HTTP.
+                    storage_options.push(("aws_allow_http".to_owned(), "true".to_owned()));
+                }
+                storage_options.push((option.to_owned(), value));
+            }
+        }
+
         Ok(Self {
             listen,
             engine_workers: positive(&get, "DONKA_ENGINE_WORKERS")?,
@@ -127,6 +162,9 @@ impl Config {
             smtp_from,
             email_max_attempts: positive(&get, "DONKA_EMAIL_MAX_ATTEMPTS")?.unwrap_or(10),
             web_dir,
+            storage_url,
+            storage_options,
+            publish_max_attempts: positive(&get, "DONKA_PUBLISH_MAX_ATTEMPTS")?.unwrap_or(10),
         })
     }
 }
@@ -200,10 +238,11 @@ mod tests {
     use super::*;
     use std::collections::HashMap;
 
-    const REQUIRED: [(&str, &str); 3] = [
+    const REQUIRED: [(&str, &str); 4] = [
         ("DATABASE_URL", "postgres://donka@localhost/donka"),
         ("DONKA_SMTP_URL", "smtp://localhost:1025"),
         ("DONKA_SMTP_FROM", "donka@bank.example"),
+        ("DONKA_STORAGE_URL", "s3://donka-releases"),
     ];
 
     /// Loads with the required variables set, unless the test overrides them.
@@ -235,6 +274,43 @@ mod tests {
         assert_eq!(config.password_reset_link_minutes, 30);
         assert_eq!(config.email_max_attempts, 10);
         assert_eq!(config.web_dir, None);
+    }
+
+    #[test]
+    fn storage_is_required_and_takes_s3_settings() {
+        let config = load(&[]).unwrap();
+        assert_eq!(config.storage_url, "s3://donka-releases");
+        assert!(config.storage_options.is_empty());
+        assert_eq!(config.publish_max_attempts, 10);
+        for bad in [" ", "https://bucket", "/var/lib/releases"] {
+            assert_eq!(
+                load(&[("DONKA_STORAGE_URL", bad)]).unwrap_err().var,
+                "DONKA_STORAGE_URL",
+                "{bad}"
+            );
+        }
+        let minio = load(&[
+            ("DONKA_STORAGE_ENDPOINT", "http://localhost:9000"),
+            ("DONKA_STORAGE_REGION", "us-east-1"),
+            ("DONKA_STORAGE_ACCESS_KEY_ID", "donka"),
+            ("DONKA_STORAGE_SECRET_ACCESS_KEY", "donka-secret"),
+            ("DONKA_PUBLISH_MAX_ATTEMPTS", "3"),
+        ])
+        .unwrap();
+        assert!(minio
+            .storage_options
+            .contains(&("aws_allow_http".into(), "true".into())));
+        assert!(minio
+            .storage_options
+            .contains(&("aws_endpoint".into(), "http://localhost:9000".into())));
+        assert_eq!(minio.storage_options.len(), 5);
+        assert_eq!(minio.publish_max_attempts, 3);
+        assert_eq!(
+            load(&[("DONKA_PUBLISH_MAX_ATTEMPTS", "0")])
+                .unwrap_err()
+                .var,
+            "DONKA_PUBLISH_MAX_ATTEMPTS"
+        );
     }
 
     #[test]

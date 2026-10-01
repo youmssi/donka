@@ -11,9 +11,12 @@ extension):
 
 ```
 .config/project.json       release metadata and the tokens it accepts
-person-score.json          a JDM decision graph, named by its key
-bureau/normalize.json      decisions in folders keep their path
+person-score               a JDM decision graph, named by its key (no extension)
+bureau/normalize           decisions in folders keep their path
 ```
+
+An entry is named exactly by the decision key, so a decision node that calls `bureau/normalize`
+and a client that evaluates `/api/projects/<project>/evaluate/bureau/normalize` both find it.
 
 ## `.config/project.json`
 

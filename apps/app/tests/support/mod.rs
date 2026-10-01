@@ -15,7 +15,9 @@ use donka_identity::{Identity, Locale, Policy};
 use donka_mail::testing::RecordingMailer;
 use donka_mail::Email;
 use donka_project::Projects;
+use donka_release::Releases;
 use donka_shared::clock::ManualClock;
+use donka_storage::MemoryStore;
 use http_body_util::BodyExt;
 use serde_json::Value;
 use std::sync::Arc;
@@ -32,7 +34,14 @@ pub struct TestApp {
     pub identity: Identity,
     pub clock: Arc<ManualClock>,
     pub mailer: Arc<RecordingMailer>,
+    /// The bucket deployments write to.
+    pub store: Arc<MemoryStore>,
+    /// Runs the publisher (`publish_due`) on demand.
+    pub releases: Releases,
 }
+
+/// Failed writes before a deployment is given up, in tests.
+pub const PUBLISH_MAX_ATTEMPTS: u32 = 3;
 
 pub fn policy() -> Policy {
     Policy::default()
@@ -54,6 +63,15 @@ pub fn build_with_web(
     let identity = Identity::new(db.clone(), clock.clone(), policy());
     let projects = Projects::new(db.clone(), clock.clone());
     let decisions = Decisions::new(db.clone(), clock.clone(), runtime.clone());
+    let store = Arc::new(MemoryStore::default());
+    let releases = Releases::new(
+        db.clone(),
+        clock.clone(),
+        decisions.clone(),
+        projects.clone(),
+        store.clone(),
+        PUBLISH_MAX_ATTEMPTS,
+    );
     let audit = AuditLog::new(db.clone());
     let router = router(
         AppState {
@@ -62,6 +80,7 @@ pub fn build_with_web(
             identity: identity.clone(),
             projects,
             decisions,
+            releases: releases.clone(),
             audit,
             cookies: CookieSettings {
                 secure: true,
@@ -76,6 +95,8 @@ pub fn build_with_web(
         identity,
         clock,
         mailer: Arc::new(RecordingMailer::default()),
+        store,
+        releases,
     }
 }
 

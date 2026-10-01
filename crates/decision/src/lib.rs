@@ -31,7 +31,7 @@ mod versions;
 pub use compare::{Match, Mismatch};
 pub use scenarios::{Scenario, ScenarioFields, MAX_SCENARIO_NAME_CHARS};
 pub use testing::{TestResult, TestStatus, TestSummary};
-pub use versions::{Version, VersionSummary, MAX_MESSAGE_CHARS};
+pub use versions::{FrozenVersion, ReleaseSnapshot, Version, VersionSummary, MAX_MESSAGE_CHARS};
 
 pub const MAX_KEY_CHARS: usize = 120;
 /// The key rule as a regular expression, for API clients: lowercase words with
