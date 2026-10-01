@@ -291,12 +291,30 @@ An approver who only sees a diff is rubber-stamping. Tests make the four-eyes ru
 
 **Type:** feature · **Repos:** S · **Dependencies:** DNK-10, DNK-11, DNK-13 · **Size:** L
 
+#### Decisions (product owner)
+- A decision with no saved version blocks the release; the dialog names it with a link to fix it.
+- Editors and owners create releases and deploy to staging; owners manage Runtime tokens.
+  Production waits for DNK-15's approval.
+- The person picks a major, minor or patch bump; the first release of a project is 1.0.0.
+- Failing tests warn but do not block; each frozen version keeps its test results.
+
+#### Technical choices
+- A release copies the frozen content (`release_decisions`, append-only), so a later version or a
+  deleted decision never changes what was released.
+- Each deployment row is its own outbox entry: published after commit by a worker
+  (`FOR UPDATE SKIP LOCKED`, backoff from 30 s to 1 h, `DONKA_PUBLISH_MAX_ATTEMPTS`), then marked
+  published, retrying or failed with the last error; a failed one is retried by hand.
+- A newer deployment of the same environment supersedes the unpublished ones, so the bucket
+  always ends with the latest request.
+- Issuing or revoking a token republishes the live release with the new hash list.
+- Storage is `object_store` behind `ArtifactStore`: `s3://` (AWS, MinIO, Ceph) or `file:///`.
+
 #### Acceptance criteria
-- [ ] Each project has exactly two environments: staging and production
-- [ ] A release freezes one version of every decision in the project, with a semantic version and notes
-- [ ] Deploying to staging writes the artifact to `staging/<project-key>` in the bucket after commit (outbox); a storage failure is retried and visible
-- [ ] Studio issues, lists and revokes Runtime tokens per environment; a token is shown once
-- [ ] An end-to-end test: release → deploy to staging → a Runtime reads it and evaluates
+- [x] Each project has exactly two environments: staging and production
+- [x] A release freezes one version of every decision in the project, with a semantic version and notes
+- [x] Deploying to staging writes the artifact to `staging/<project-key>` in the bucket after commit (outbox); a storage failure is retried and visible
+- [x] Studio issues, lists and revokes Runtime tokens per environment; a token is shown once
+- [x] An end-to-end test: release → deploy to staging → a Runtime reads it and evaluates (`scripts/e2e.sh`, CI job `e2e`)
 
 ---
 

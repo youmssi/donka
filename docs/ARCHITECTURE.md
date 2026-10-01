@@ -18,9 +18,9 @@ One zip per project and environment, the format the Runtime already understands:
 ```
 <project-key>                  (object name, no extension)
 ├── .config/project.json       release id + version, environment, hashed access tokens
-├── person-score.json          JDM graph
-├── sme-treasury.json
-└── bureau/normalize.json      sub-decisions keep their folder path
+├── person-score               JDM graph, named by its decision key
+├── sme-treasury
+└── bureau/normalize           sub-decisions keep their folder path
 ```
 
 The format of `.config/project.json` and the token rules: [`artifact-format.md`](artifact-format.md).

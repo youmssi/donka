@@ -1,0 +1,23 @@
+[package]
+name = "donka-storage"
+description = "Object storage for release artifacts: the ArtifactStore interface over S3, MinIO or a folder"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+publish = false
+
+[features]
+# Exposes MemoryStore to other crates' tests.
+testing = []
+
+[dependencies]
+async-trait = { workspace = true }
+object_store = { workspace = true }
+thiserror = { workspace = true }
+url = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+
+[lints]
+workspace = true

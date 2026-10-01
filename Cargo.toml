@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/shared", "crates/engine", "crates/db", "crates/audit", "crates/identity", "crates/mail", "crates/project", "crates/decision", "apps/app"]
+members = ["crates/shared", "crates/engine", "crates/db", "crates/audit", "crates/identity", "crates/mail", "crates/project", "crates/decision", "crates/storage", "crates/release", "apps/app"]
 
 [workspace.package]
 version = "0.1.0"
@@ -33,6 +33,10 @@ lettre = { version = "0.11", default-features = false, features = ["builder", "h
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "macros", "migrate", "uuid", "chrono"] }
 # One engine version for Studio, Runtime and the editor's WASM linting.
 # scripts/check-engine-version.sh fails CI if any of them drift apart.
+# Release artifacts: S3, MinIO or a local folder behind one interface.
+object_store = { version = "0.14", features = ["aws"] }
+url = "2"
+zip = { version = "8", default-features = false, features = ["deflate"] }
 zen-engine = { version = "=2.0.1", features = ["arbitrary_precision"] }
 
 donka-engine = { path = "crates/engine" }
@@ -43,6 +47,8 @@ donka-identity = { path = "crates/identity" }
 donka-project = { path = "crates/project" }
 donka-shared = { path = "crates/shared" }
 donka-mail = { path = "crates/mail" }
+donka-storage = { path = "crates/storage" }
+donka-release = { path = "crates/release" }
 
 # Adopted from gorules/zen: no unsafe code, no unwrap() outside tests (clippy.toml allows it there).
 [workspace.lints.rust]

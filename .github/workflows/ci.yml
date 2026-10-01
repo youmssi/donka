@@ -77,3 +77,75 @@ jobs:
       # The typed client must match apps/web/openapi.json (kept in step by the Rust tests).
       - run: pnpm api:generate && git diff --exit-code -- src/components/shared/api/schema.d.ts
       - run: pnpm build
+
+  # A release made in Studio reaches Donka Runtime through MinIO and answers with its token.
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: donka
+          POSTGRES_PASSWORD: donka
+          POSTGRES_DB: donka
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U donka"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: youmssi/donka-runtime
+          ref: develop
+          path: donka-runtime
+      # Next to Studio, as in development: inside it, Cargo would take it for a workspace member.
+      - run: mv donka-runtime ../donka-runtime
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            .
+            ../donka-runtime
+      - run: cargo build --locked -p donka-app
+      - run: cargo build --locked
+        working-directory: ../donka-runtime
+      # A service container cannot take the server command, so MinIO starts here.
+      - name: MinIO with the release bucket
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=donka -e MINIO_ROOT_PASSWORD=donka-secret \
+            pgsty/minio:RELEASE.2026-08-04T00-00-00Z server /data
+          docker run --rm --network host --entrypoint sh pgsty/mc:RELEASE.2026-09-16T00-00-00Z -c \
+            "until mc alias set local http://127.0.0.1:9000 donka donka-secret; do sleep 1; done;
+             mc mb local/donka-releases"
+      - name: Studio and Runtime
+        run: |
+          DATABASE_URL=postgres://donka:donka@localhost:5432/donka DONKA_LISTEN=127.0.0.1:8181 \
+          DONKA_PUBLIC_URL=http://localhost:8181 DONKA_COOKIE_SECURE=false \
+          DONKA_BOOTSTRAP_ADMIN_EMAIL=ada@bank.example \
+          DONKA_SMTP_URL=smtp://127.0.0.1:1025 DONKA_SMTP_FROM="Donka <donka@localhost>" \
+          DONKA_STORAGE_URL=s3://donka-releases DONKA_STORAGE_ENDPOINT=http://127.0.0.1:9000 \
+          DONKA_STORAGE_REGION=us-east-1 DONKA_STORAGE_ACCESS_KEY_ID=donka \
+          DONKA_STORAGE_SECRET_ACCESS_KEY=donka-secret \
+            nohup target/debug/donka-app > studio.log 2>&1 &
+          # A debug Runtime listens on 127.0.0.1:3000.
+          PROVIDER__TYPE=S3 PROVIDER__BUCKET=donka-releases PROVIDER__REGION=us-east-1 \
+          PROVIDER__ENDPOINT=http://127.0.0.1:9000 PROVIDER__FORCE_PATH_STYLE=true \
+          PROVIDER__PREFIX=staging/ AWS_ACCESS_KEY_ID=donka AWS_SECRET_ACCESS_KEY=donka-secret \
+            nohup ../donka-runtime/target/debug/donka-runtime > runtime.log 2>&1 &
+          for _ in $(seq 1 60); do
+            curl -sf localhost:8181/api/v1/health >/dev/null && curl -sf localhost:3000/api/health >/dev/null && exit 0
+            sleep 1
+          done
+          exit 1
+      - run: scripts/e2e.sh
+        env:
+          STUDIO_URL: http://localhost:8181
+          RUNTIME_URL: http://localhost:3000
+          STUDIO_LOG: studio.log
+      - name: Logs
+        if: failure()
+        run: tail -n 100 studio.log runtime.log

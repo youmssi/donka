@@ -12,6 +12,7 @@ use donka_decision::{DecisionError, MAX_SCENARIO_NAME_CHARS};
 use donka_engine::RuntimeError;
 use donka_identity::IdentityError;
 use donka_project::ProjectError;
+use donka_release::{ReleaseError, MAX_NOTES_CHARS, MAX_TOKEN_NAME_CHARS};
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -61,6 +62,25 @@ pub enum ApiError {
     ScenarioNotFound,
     #[error("scenario name already used")]
     ScenarioNameTaken,
+    #[error("release not found")]
+    ReleaseNotFound,
+    #[error("deployment not found")]
+    DeploymentNotFound,
+    #[error("token not found")]
+    TokenNotFound,
+    #[error("environment not found")]
+    EnvironmentNotFound,
+    /// Decisions that need a version before a release (their keys in details).
+    #[error("decisions without a version")]
+    UnversionedDecisions(Vec<String>),
+    #[error("nothing to release")]
+    NothingToRelease,
+    #[error("production needs approval")]
+    ApprovalRequired,
+    #[error("release version taken")]
+    ReleaseConflict(String),
+    #[error("deployment not retryable")]
+    NotRetryable,
     #[error("database unavailable")]
     DatabaseUnavailable,
     #[error("no such endpoint")]
@@ -135,6 +155,33 @@ impl From<DecisionError> for ApiError {
             },
             DecisionError::Project(err) => err.into(),
             DecisionError::Database(err) => Self::Internal(err.to_string()),
+        }
+    }
+}
+
+impl From<ReleaseError> for ApiError {
+    fn from(err: ReleaseError) -> Self {
+        match err {
+            ReleaseError::NotFound => Self::ReleaseNotFound,
+            ReleaseError::DeploymentNotFound => Self::DeploymentNotFound,
+            ReleaseError::TokenNotFound => Self::TokenNotFound,
+            ReleaseError::Unversioned(keys) => Self::UnversionedDecisions(keys),
+            ReleaseError::NothingToRelease => Self::NothingToRelease,
+            ReleaseError::InvalidNotes => Self::InvalidField {
+                field: "notes",
+                message: format!("1 to {MAX_NOTES_CHARS} characters"),
+            },
+            ReleaseError::InvalidTokenName => Self::InvalidField {
+                field: "name",
+                message: format!("1 to {MAX_TOKEN_NAME_CHARS} characters"),
+            },
+            ReleaseError::ApprovalRequired => Self::ApprovalRequired,
+            ReleaseError::VersionTaken(version) => Self::ReleaseConflict(version.to_string()),
+            ReleaseError::NotRetryable => Self::NotRetryable,
+            ReleaseError::Random => Self::Internal("random token could not be generated".into()),
+            ReleaseError::Project(err) => err.into(),
+            ReleaseError::Decision(err) => err.into(),
+            ReleaseError::Database(err) => Self::Internal(err.to_string()),
         }
     }
 }
@@ -281,6 +328,69 @@ impl IntoResponse for ApiError {
                 "SCENARIO_NAME_TAKEN",
                 "Another scenario of this decision already has this name.".to_owned(),
                 Some(BTreeMap::from([("name".to_owned(), "already used".to_owned())])),
+                None,
+            ),
+            Self::ReleaseNotFound => (
+                StatusCode::NOT_FOUND,
+                "RELEASE_NOT_FOUND",
+                "This project has no such release.".to_owned(),
+                None,
+                None,
+            ),
+            Self::DeploymentNotFound => (
+                StatusCode::NOT_FOUND,
+                "DEPLOYMENT_NOT_FOUND",
+                "This environment has no such deployment.".to_owned(),
+                None,
+                None,
+            ),
+            Self::TokenNotFound => (
+                StatusCode::NOT_FOUND,
+                "TOKEN_NOT_FOUND",
+                "This environment has no such live token.".to_owned(),
+                None,
+                None,
+            ),
+            Self::EnvironmentNotFound => (
+                StatusCode::NOT_FOUND,
+                "ENVIRONMENT_NOT_FOUND",
+                "Environments are staging and production.".to_owned(),
+                None,
+                None,
+            ),
+            Self::UnversionedDecisions(keys) => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "UNVERSIONED_DECISIONS",
+                "Save a version of every decision before making a release.".to_owned(),
+                None,
+                Some(serde_json::json!({ "keys": keys })),
+            ),
+            Self::NothingToRelease => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "NOTHING_TO_RELEASE",
+                "This project has no decision to release yet.".to_owned(),
+                None,
+                None,
+            ),
+            Self::ApprovalRequired => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "APPROVAL_REQUIRED",
+                "Production is published after a second person approves the release.".to_owned(),
+                None,
+                None,
+            ),
+            Self::ReleaseConflict(version) => (
+                StatusCode::CONFLICT,
+                "RELEASE_CONFLICT",
+                format!("Release {version} was just created by someone else. Try again."),
+                None,
+                Some(serde_json::json!({ "version": version })),
+            ),
+            Self::NotRetryable => (
+                StatusCode::CONFLICT,
+                "NOT_RETRYABLE",
+                "Only a deployment that gave up can be retried.".to_owned(),
+                None,
                 None,
             ),
             Self::DatabaseUnavailable => (

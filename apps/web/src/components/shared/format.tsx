@@ -50,7 +50,7 @@ export function useDateFormat() {
 }
 
 /** A date written short, with the full date, time and zone on hover. */
-export function When({ value, as = 'date' }: { value: string; as?: 'date' | 'dateTime' | 'ago' }) {
+export function When({ value, as = 'date' }: { value: string; as?: 'date' | 'time' | 'dateTime' | 'ago' }) {
   const format = useDateFormat();
   const at = new Date(value);
   return (

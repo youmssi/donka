@@ -52,7 +52,16 @@
     "VERSION_NOT_FOUND": "This version does not exist.",
     "VERSION_UNCHANGED": "Nothing changed since the last version.",
     "SCENARIO_NOT_FOUND": "This test scenario does not exist.",
-    "SCENARIO_NAME_TAKEN": "Another scenario of this decision has this name."
+    "SCENARIO_NAME_TAKEN": "Another scenario of this decision has this name.",
+    "RELEASE_NOT_FOUND": "This release does not exist in this project.",
+    "RELEASE_CONFLICT": "Someone created a release with this version at the same time. Open the dialog again.",
+    "UNVERSIONED_DECISIONS": "Some decisions have no saved version yet. Save a version of each before releasing.",
+    "NOTHING_TO_RELEASE": "This project has no decisions to release.",
+    "APPROVAL_REQUIRED": "Production deployments need an approval, which is not available yet.",
+    "NOT_RETRYABLE": "Only a deployment that gave up can be retried.",
+    "DEPLOYMENT_NOT_FOUND": "This deployment does not exist.",
+    "ENVIRONMENT_NOT_FOUND": "This environment does not exist.",
+    "TOKEN_NOT_FOUND": "This token does not exist."
   },
   "validation": {
     "email": "Enter a valid email address.",
@@ -163,7 +172,9 @@
     "restored": "Project restored.",
     "decisions": "Decisions",
     "decision": "Decision",
-    "scenarios": "Test scenarios"
+    "scenarios": "Test scenarios",
+    "releases": "Releases",
+    "environments": "Environments"
   },
   "members": {
     "title": "Members",
@@ -288,6 +299,14 @@
       "created": "Scenario created",
       "updated": "Scenario changed",
       "deleted": "Scenario deleted"
+    },
+    "release": {
+      "created": "Release created",
+      "deployed": "Release deployed"
+    },
+    "token": {
+      "issued": "Runtime token created",
+      "revoked": "Runtime token revoked"
     }
   },
   "auditSentences": {
@@ -305,7 +324,11 @@
     "decisionVersionRestored": "Restored version {from} of {key} as version {version}",
     "scenarioCreated": "Created the scenario “{name}” of {key}",
     "scenarioUpdated": "Changed the scenario “{name}” of {key}",
-    "scenarioDeleted": "Deleted the scenario “{name}” of {key}"
+    "scenarioDeleted": "Deleted the scenario “{name}” of {key}",
+    "releaseCreated": "Created release {version}",
+    "releaseDeployed": "Deployed release {version} to {environment}",
+    "tokenIssued": "Created the {environment} token “{name}”",
+    "tokenRevoked": "Revoked the {environment} token “{name}”"
   },
   "ui": {
     "close": "Close",
@@ -458,5 +481,88 @@
     "missing": "missing",
     "noVersion": "Could not run: {key} has no saved version yet.",
     "engineFailed": "the evaluation failed"
+  },
+  "releases": {
+    "title": "Releases",
+    "errorTitle": "Releases could not be loaded",
+    "create": "New release",
+    "createTitle": "New release",
+    "createDescription": "A release freezes the latest saved version of every decision. It never changes afterwards.",
+    "createVersion": "Create {version}",
+    "creating": "Creating…",
+    "created": "Release {version} created.",
+    "version": "Version",
+    "notes": "Notes",
+    "notesHint": "What changed and why, for the people who deploy and audit it.",
+    "live": "Live",
+    "tests": "Tests",
+    "createdAt": "Created",
+    "by": "By",
+    "major": "major",
+    "minor": "minor",
+    "patch": "patch",
+    "release": "Release",
+    "view": "View",
+    "actionsFor": "Actions for {version}",
+    "deployStaging": "Deploy to staging",
+    "deployTitle": "Deploy {version} to staging?",
+    "deployConfirm": "The Runtime serving staging switches to this release within a minute.",
+    "deploying": "Deploying {version} to staging…",
+    "emptyTitle": "No releases yet",
+    "empty": "Save a version of each decision, then create a release to deploy it.",
+    "emptyReadOnly": "Editors and owners create releases.",
+    "unversionedTitle": "Some decisions have no version",
+    "unversioned": "A release only contains saved versions. Save a version of these decisions first:",
+    "nothingTitle": "Nothing to release",
+    "nothing": "This project has no decisions yet.",
+    "failingTitle": "Some tests fail",
+    "failing": "You can still release; the results are kept with the release.",
+    "frozen": "{count, plural, one {# decision} other {# decisions}}",
+    "latest": "Latest release: {version}.",
+    "firstRelease": "A project’s first release is 1.0.0."
+  },
+  "environments": {
+    "title": "Environments",
+    "errorTitle": "Environments could not be loaded",
+    "staging": "Staging",
+    "production": "Production",
+    "stagingDescription": "Where a release is tried before production.",
+    "productionDescription": "What your systems call for real decisions.",
+    "live": "Live",
+    "nothingLive": "No release deployed yet.",
+    "publishedBy": "by {email}",
+    "productionApproval": "Deploying to production needs an approval by a second person (coming soon).",
+    "deployLabel": "Release",
+    "deploy": "Deploy",
+    "noRelease": "Create a release to deploy it here.",
+    "deployingVersion": "Deploying {version}…",
+    "republishing": "Updating tokens of {version}…",
+    "retrying": "Attempt {attempts} failed: {error}. Next try at <when></when>.",
+    "failedTitle": "Deploying {version} failed",
+    "failed": "Gave up after {attempts} attempts: {error}",
+    "retry": "Retry"
+  },
+  "tokens": {
+    "title": "Runtime tokens",
+    "create": "New token",
+    "creating": "Creating…",
+    "createTitle": "New {environment} token",
+    "createDescription": "Your systems send it to the Runtime to call this project’s decisions.",
+    "name": "Name",
+    "nameHint": "Who or what uses it, to find it later.",
+    "namePlaceholder": "Loan origination",
+    "shownOnce": "Copy it now: it is shown only once. Studio keeps only a fingerprint.",
+    "header": "Send it in the X-Access-Token header. It works within a minute.",
+    "copy": "Copy the token",
+    "copied": "Token copied.",
+    "copyFailed": "Copy failed. Select the token and copy it.",
+    "done": "Done",
+    "empty": "No tokens. Create one for each system that calls the Runtime.",
+    "emptyReadOnly": "No tokens. Owners create them.",
+    "revoke": "Revoke",
+    "revokedBadge": "Revoked",
+    "revokeTitle": "Revoke “{name}”?",
+    "revokeConfirm": "Calls with this token are refused within a minute. This cannot be undone.",
+    "revoked": "Token “{name}” revoked."
   }
 }

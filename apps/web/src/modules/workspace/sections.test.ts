@@ -19,6 +19,14 @@ it('offers the audit log to owners only', () => {
     archivedAt: null,
   };
   const sections = (role: 'owner' | 'editor') => projectSections({ ...project, role }).map(({ section }) => section);
-  expect(sections('owner')).toEqual(['decisions', 'scenarios', 'members', 'settings', 'audit']);
-  expect(sections('editor')).toEqual(['decisions', 'scenarios', 'members', 'settings']);
+  expect(sections('owner')).toEqual([
+    'decisions',
+    'scenarios',
+    'releases',
+    'environments',
+    'members',
+    'settings',
+    'audit',
+  ]);
+  expect(sections('editor')).toEqual(['decisions', 'scenarios', 'releases', 'environments', 'members', 'settings']);
 });

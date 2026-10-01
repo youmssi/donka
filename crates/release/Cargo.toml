@@ -1,0 +1,30 @@
+[package]
+name = "donka-release"
+description = "Releases, environments, Runtime tokens and deployments of a project"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+publish = false
+
+[dependencies]
+base64 = { workspace = true }
+chrono = { workspace = true }
+donka-audit = { workspace = true }
+donka-db = { workspace = true }
+donka-decision = { workspace = true }
+donka-project = { workspace = true }
+donka-shared = { workspace = true }
+donka-storage = { workspace = true }
+getrandom = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+sqlx = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+zip = { workspace = true }
+
+[lints]
+workspace = true

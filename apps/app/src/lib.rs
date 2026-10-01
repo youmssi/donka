@@ -8,6 +8,7 @@ pub mod config;
 pub mod email_worker;
 pub mod error;
 pub mod extract;
+pub mod publish_worker;
 pub mod request_id;
 pub mod routes;
 pub mod web;
@@ -25,6 +26,7 @@ use donka_decision::Decisions;
 use donka_engine::DecisionRuntime;
 use donka_identity::Identity;
 use donka_project::Projects;
+use donka_release::Releases;
 use std::path::Path;
 use std::sync::Arc;
 use tower_http::compression::CompressionLayer;
@@ -54,6 +56,7 @@ pub struct AppState {
     pub identity: Identity,
     pub projects: Projects,
     pub decisions: Decisions,
+    pub releases: Releases,
     pub audit: AuditLog,
     pub cookies: CookieSettings,
 }
@@ -108,6 +111,20 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
         .routes(routes!(routes::versions::get))
         .routes(routes!(routes::versions::restore))
         .routes(routes!(routes::scenarios::test_results))
+        .routes(routes!(routes::releases::list, routes::releases::create))
+        .routes(routes!(routes::releases::preview))
+        .routes(routes!(routes::releases::get))
+        .routes(routes!(routes::releases::environments))
+        .routes(routes!(
+            routes::releases::deployments,
+            routes::releases::deploy
+        ))
+        .routes(routes!(routes::releases::retry))
+        .routes(routes!(
+            routes::releases::tokens,
+            routes::releases::issue_token
+        ))
+        .routes(routes!(routes::releases::revoke_token))
         .routes(routes!(routes::scenarios::list, routes::scenarios::create))
         .routes(routes!(
             routes::scenarios::get,
