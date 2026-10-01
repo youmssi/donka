@@ -225,11 +225,10 @@ async fn history_lists_versions_newest_first_a_page_at_a_time(db: PgPool) {
     let admin = signed_in_admin(&app).await;
     let (p, id) = setup(&app, &admin).await;
     let base = format!("/projects/{p}/decisions/{id}");
-    let mut revision = 1;
+    // Each round versions the draft at revision n, then moves it to n + 1.
     for n in 1..=3 {
-        save_version(&app, &admin, &base, revision, &format!("Version {n}")).await;
-        save_draft(&app, &admin, &base, calling(&format!("d{n}")), revision).await;
-        revision += 1;
+        save_version(&app, &admin, &base, n, &format!("Version {n}")).await;
+        save_draft(&app, &admin, &base, calling(&format!("d{n}")), n).await;
     }
 
     let first = call(
