@@ -5,7 +5,13 @@ import '@ant-design/v5-patch-for-react-19';
 import './monaco-setup';
 import '@gorules/jdm-editor/dist/style.css';
 
-import { DecisionGraph, GraphSimulator, JdmConfigProvider, type Simulation } from '@gorules/jdm-editor';
+import {
+  calculateDiffGraph,
+  DecisionGraph,
+  GraphSimulator,
+  JdmConfigProvider,
+  type Simulation,
+} from '@gorules/jdm-editor';
 import { PlayCircle } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useMemo, useState } from 'react';
@@ -139,6 +145,36 @@ export function JdmGraph({
           },
         ]}
       />
+    </JdmConfigProvider>
+  );
+}
+
+export interface JdmDiffGraphProps {
+  /** The newer side of the comparison. */
+  current: unknown;
+  /** The older side. */
+  previous: unknown;
+  callable: string[];
+  decisionNodeLabels: DecisionNodeLabels;
+}
+
+/**
+ * Two versions of a decision compared: the newer graph, read-only, with each
+ * node marked added, removed, modified or moved (jdm-editor's diff view).
+ */
+export function JdmDiffGraph({ current, previous, callable, decisionNodeLabels }: JdmDiffGraphProps) {
+  const theme = useEditorTheme();
+  const components = useMemo(
+    () => [decisionNodeSpecification(callable, decisionNodeLabels)],
+    [callable, decisionNodeLabels],
+  );
+  const diff = useMemo(
+    () => calculateDiffGraph(current as Graph, previous as Graph, { components, customNodes: [] }),
+    [current, previous, components],
+  );
+  return (
+    <JdmConfigProvider theme={theme}>
+      <DecisionGraph value={diff} disabled components={components} reactFlowProOptions={{ hideAttribution: true }} />
     </JdmConfigProvider>
   );
 }

@@ -6,3 +6,4 @@ pub mod people;
 pub mod projects;
 pub mod simulate;
 pub mod users;
+pub mod versions;

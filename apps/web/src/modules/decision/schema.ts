@@ -6,6 +6,19 @@ import openapi from '../../../openapi.json';
 export type DecisionSummary = ApiSchemas['DecisionSummaryResponse'];
 export type Decision = ApiSchemas['DecisionResponse'];
 export type SimulationResult = ApiSchemas['SimulateResponse'];
+export type Version = ApiSchemas['DecisionVersionResponse'];
+export type VersionDetail = ApiSchemas['DecisionVersionDetailResponse'];
+export type VersionList = ApiSchemas['DecisionVersionListResponse'];
+export type Restored = ApiSchemas['RestoreResponse'];
+
+// The message rule comes from the API contract too.
+const messageField = openapi.components.schemas.SaveVersionRequest.properties.message;
+export const MESSAGE_MAX = messageField.maxLength;
+
+export const saveVersionSchema = z.object({
+  message: z.string().trim().min(1, 'required').max(MESSAGE_MAX, 'maxLength'),
+});
+export type SaveVersionValues = z.infer<typeof saveVersionSchema>;
 
 // The key rule comes from the API contract, so the form and the server never disagree.
 const keyField = openapi.components.schemas.CreateDecisionRequest.properties.key;

@@ -48,7 +48,9 @@
     "DECISION_KEY_TAKEN": "Une autre décision de ce projet utilise déjà cette clé.",
     "DECISION_CONFLICT": "Quelqu'un a enregistré cette décision depuis que vous l'avez ouverte.",
     "INVALID_DECISION": "Cette décision n'est pas un modèle valide. Vérifiez ses nœuds et ses liens.",
-    "EVALUATION_FAILED": "La décision n'a pas pu être évaluée avec cette entrée."
+    "EVALUATION_FAILED": "La décision n'a pas pu être évaluée avec cette entrée.",
+    "VERSION_NOT_FOUND": "Cette version n'existe pas.",
+    "VERSION_UNCHANGED": "Rien n'a changé depuis la dernière version."
   },
   "validation": {
     "email": "Saisissez une adresse e-mail valide.",
@@ -274,7 +276,9 @@
     },
     "decision": {
       "created": "Décision créée",
-      "deleted": "Décision supprimée"
+      "deleted": "Décision supprimée",
+      "version_saved": "Version enregistrée",
+      "version_restored": "Version restaurée"
     }
   },
   "auditSentences": {
@@ -287,7 +291,9 @@
     "memberRoleChanged": "A changé le rôle de {person} de {from} à {to}",
     "memberRemoved": "A retiré {person} ({role})",
     "decisionCreated": "A créé la décision {key}",
-    "decisionDeleted": "A supprimé la décision {key}"
+    "decisionDeleted": "A supprimé la décision {key}",
+    "decisionVersionSaved": "A enregistré la version {version} de {key} : « {message} »",
+    "decisionVersionRestored": "A restauré la version {from} de {key} comme version {version}"
   },
   "ui": {
     "close": "Fermer",
@@ -345,6 +351,42 @@
     "keepMine": "Garder la mienne",
     "nodeName": "Décision",
     "nodeDescription": "Appeler une autre décision du projet",
-    "nodeChoose": "Choisir une décision"
+    "nodeChoose": "Choisir une décision",
+    "version": "Version"
+  },
+  "versions": {
+    "none": "Aucune version",
+    "changedSince": "modifié depuis",
+    "save": "Enregistrer une version",
+    "saveTitle": "Enregistrer la version {number}",
+    "saveDescription": "Conserve le brouillon tel qu'il est. Les versions ne changent jamais ; vous pourrez les comparer ou les restaurer.",
+    "message": "Ce qui a changé",
+    "messageHint": "Une courte note pour les relecteurs, par ex. « Seuil de revenu porté à 150 000 ».",
+    "saving": "Enregistrement…",
+    "saved": "Version {number} enregistrée",
+    "unchanged": "Rien n'a changé depuis la dernière version",
+    "history": "Historique",
+    "historyTitle": "Historique des versions",
+    "emptyTitle": "Aucune version",
+    "empty": "Enregistrez une version pour conserver le brouillon tel qu'il est.",
+    "emptyReadOnly": "Aucun éditeur n'a encore enregistré de version.",
+    "compareWithDraft": "Comparer la version {number} au brouillon",
+    "actionsFor": "Actions pour la version {number}",
+    "compareWithPrevious": "Comparer à la version {number}",
+    "restore": "Restaurer",
+    "restoredFrom": "Version {number} restaurée",
+    "loadMore": "Voir plus",
+    "compareTitle": "Comparer des versions",
+    "compareDescription": "Le côté le plus récent, avec ce qui a changé par rapport au plus ancien.",
+    "from": "Plus ancien",
+    "to": "Plus récent",
+    "draft": "Brouillon",
+    "added": "Ajouté",
+    "removed": "Supprimé",
+    "modified": "Modifié",
+    "close": "Fermer",
+    "restoreTitle": "Restaurer la version {number} ?",
+    "restoreConfirm": "Son contenu remplace le brouillon et est enregistré comme version {number}. Les modifications du brouillon non enregistrées comme version sont perdues.",
+    "restored": "Version {from} restaurée comme version {number}"
   }
 }

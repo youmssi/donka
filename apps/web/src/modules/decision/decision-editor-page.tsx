@@ -31,6 +31,7 @@ import { simulateDecision } from './decision.service';
 import { splitKey, type Decision } from './schema';
 import { useDecision, useDecisionList, useDecisionSaved } from './useDecisions';
 import { useDraft, type DraftStatus } from './useDraft';
+import { HistorySheet, SaveVersionDialog, VersionChip } from './versions';
 
 // antd and the engine's WASM load only here, and only in the browser (ADR-004).
 const JdmGraph = dynamic(() => import('./jdm-graph').then((module) => module.JdmGraph), {
@@ -123,7 +124,19 @@ function Editor({ project, decision, others }: { project: Project; decision: Dec
           <span className="text-muted-foreground">{folder}</span>
           <span className="font-semibold">{name}</span>
         </h1>
+        <VersionChip {...draft.version} />
         <SaveStatus status={draft.status} onRetry={draft.retry} />
+        <div className="ml-auto flex items-center gap-2">
+          <HistorySheet
+            projectId={project.id}
+            decision={decision}
+            draft={draft}
+            editable={editable}
+            callable={others}
+            decisionNodeLabels={decisionNodeLabels}
+          />
+          {editable ? <SaveVersionDialog projectId={project.id} decision={decision} draft={draft} /> : null}
+        </div>
       </div>
       <div className={`${EDITOR_HEIGHT} min-h-96 overflow-hidden rounded-lg border`}>
         <JdmGraph

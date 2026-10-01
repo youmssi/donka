@@ -67,13 +67,13 @@ export function isEmptyRange(filters: AuditFilters): boolean {
   return Boolean(filters.from && filters.to && filters.to < filters.from);
 }
 
-/** A text field of an event's details, or '' when absent. */
+/** A text or number field of an event's details, as text, or '' when absent. */
 export function detail(event: AuditEvent, ...path: string[]): string {
   let node: unknown = event.details;
   for (const key of path) {
     node = node && typeof node === 'object' ? (node as Record<string, unknown>)[key] : undefined;
   }
-  return typeof node === 'string' ? node : '';
+  return typeof node === 'string' ? node : typeof node === 'number' ? String(node) : '';
 }
 
 /** `YYYY-MM-DD` of a day in the viewer's time zone. */

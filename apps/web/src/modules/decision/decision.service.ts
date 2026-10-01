@@ -1,6 +1,15 @@
 import { attempt, failure, http, success, type ActionResult } from '@/components/shared/api';
 
-import type { CreateDecisionValues, Decision, DecisionSummary, SimulationResult } from './schema';
+import type {
+  CreateDecisionValues,
+  Decision,
+  DecisionSummary,
+  Restored,
+  SimulationResult,
+  Version,
+  VersionDetail,
+  VersionList,
+} from './schema';
 
 const base = (projectId: string) => `projects/${encodeURIComponent(projectId)}/decisions`;
 const one = (projectId: string, id: string) => `${base(projectId)}/${encodeURIComponent(id)}`;
@@ -56,5 +65,49 @@ export function simulateDecision(
   return attempt(async () => {
     const response = await http.post(`${one(projectId, id)}/simulate`, { json: { content, context } });
     return response.ok ? success(await response.json<SimulationResult>()) : failure(response);
+  });
+}
+
+export const VERSIONS_PAGE_SIZE = 20;
+
+export function listVersions(projectId: string, id: string, offset: number): Promise<ActionResult<VersionList>> {
+  return attempt(async () => {
+    const response = await http.get(`${one(projectId, id)}/versions`, {
+      searchParams: { limit: VERSIONS_PAGE_SIZE, offset },
+    });
+    return response.ok ? success(await response.json<VersionList>()) : failure(response);
+  });
+}
+
+export function getVersion(projectId: string, id: string, number: number): Promise<ActionResult<VersionDetail>> {
+  return attempt(async () => {
+    const response = await http.get(`${one(projectId, id)}/versions/${number}`);
+    return response.ok ? success(await response.json<VersionDetail>()) : failure(response);
+  });
+}
+
+/** Saves the draft at `revision` as the next version. */
+export function saveVersion(
+  projectId: string,
+  id: string,
+  message: string,
+  revision: number,
+): Promise<ActionResult<Version>> {
+  return attempt(async () => {
+    const response = await http.post(`${one(projectId, id)}/versions`, { json: { message, revision } });
+    return response.ok ? success(await response.json<Version>()) : failure(response);
+  });
+}
+
+/** Restores a version: it becomes the draft and a new version. */
+export function restoreVersion(
+  projectId: string,
+  id: string,
+  number: number,
+  revision: number,
+): Promise<ActionResult<Restored>> {
+  return attempt(async () => {
+    const response = await http.post(`${one(projectId, id)}/versions/${number}/restore`, { json: { revision } });
+    return response.ok ? success(await response.json<Restored>()) : failure(response);
   });
 }

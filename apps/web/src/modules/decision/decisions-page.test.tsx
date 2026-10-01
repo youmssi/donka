@@ -28,6 +28,8 @@ const decisions = [
     revision: 2,
     updatedAt: '2026-09-29T09:00:00Z',
     updatedBy: { id: 'u-1', email: 'ada@bank.example' },
+    latestVersion: 2,
+    changedSinceVersion: false,
   },
   {
     id: 'd-2',
@@ -35,6 +37,8 @@ const decisions = [
     revision: 1,
     updatedAt: '2026-09-29T09:00:00Z',
     updatedBy: { id: 'u-2', email: 'grace@bank.example' },
+    latestVersion: null,
+    changedSinceVersion: true,
   },
 ];
 

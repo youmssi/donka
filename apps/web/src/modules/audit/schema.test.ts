@@ -26,9 +26,10 @@ it('knows a range ending before it starts matches nothing', () => {
   expect(isEmptyRange({ to: '2026-09-01' })).toBe(false);
 });
 
-it('reads text details and ignores anything else', () => {
-  const event = { details: { from: { name: 'Retail' }, locked: true } } as unknown as AuditEvent;
+it('reads text and number details and ignores anything else', () => {
+  const event = { details: { from: { name: 'Retail' }, locked: true, version: 3 } } as unknown as AuditEvent;
   expect(detail(event, 'from', 'name')).toBe('Retail');
+  expect(detail(event, 'version')).toBe('3');
   expect(detail(event, 'locked')).toBe('');
   expect(detail(event, 'to', 'name')).toBe('');
 });

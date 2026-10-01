@@ -25,6 +25,10 @@ pub struct DecisionSummaryResponse {
     pub revision: i32,
     pub updated_at: DateTime<Utc>,
     pub updated_by: PersonRef,
+    /// The number of its latest version; absent before the first "Save version".
+    pub latest_version: Option<i32>,
+    /// Whether the draft has changed since that version (true before the first).
+    pub changed_since_version: bool,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -43,7 +47,7 @@ pub struct DecisionListResponse {
 }
 
 /// A JDM graph: an object with any fields (`nodes`, `edges`, `contentType`…).
-fn graph_schema() -> impl Into<RefOr<Schema>> {
+pub(crate) fn graph_schema() -> impl Into<RefOr<Schema>> {
     ObjectBuilder::new()
         .schema_type(Type::Object)
         .additional_properties(Some(AdditionalProperties::FreeForm(true)))
@@ -184,28 +188,16 @@ pub async fn save(
     DecisionId(id): DecisionId,
     ApiJson(req): ApiJson<SaveDecisionRequest>,
 ) -> Result<Json<DecisionSummaryResponse>, ApiError> {
-    match state
+    let saved = state
         .decisions
         .save_draft(&access, id, req.content, req.revision)
-        .await
-    {
-        Ok(saved) => {
-            let emails = emails(&state, [Some(saved.updated_by)]).await?;
-            Ok(Json(summary(&emails, summary_of(saved))))
-        }
-        Err(DecisionError::Conflict { current }) => {
-            let emails = emails(&state, [Some(current.updated_by)]).await?;
-            Err(ApiError::DecisionConflict(json!({
-                "revision": current.revision,
-                "updatedAt": current.updated_at,
-                "updatedBy": person(&emails, Some(current.updated_by)),
-            })))
-        }
-        Err(err) => Err(err.into()),
-    }
+        .await;
+    let saved = conflict_or(&state, saved).await?;
+    Ok(Json(summarized(&state, saved).await?))
 }
 
-/// Deletes a decision and its draft (editors and owners).
+/// Deletes a decision (editors and owners): it leaves the project and its key
+/// is free again; its versions stay in the history.
 #[utoipa::path(
     delete,
     path = "/projects/{project_id}/decisions/{decision_id}",
@@ -260,16 +252,6 @@ pub async fn simulate(
     }))
 }
 
-fn summary_of(decision: Decision) -> DecisionSummary {
-    DecisionSummary {
-        id: decision.id,
-        key: decision.key,
-        revision: decision.revision,
-        updated_at: decision.updated_at,
-        updated_by: decision.updated_by,
-    }
-}
-
 fn summary(
     emails: &std::collections::HashMap<uuid::Uuid, String>,
     decision: DecisionSummary,
@@ -286,14 +268,46 @@ fn summary(
                 .cloned()
                 .unwrap_or_default(),
         },
+        latest_version: decision.latest_version,
+        changed_since_version: decision.changed_since_version,
     }
 }
 
-async fn full(state: &AppState, mut decision: Decision) -> Result<DecisionResponse, ApiError> {
+/// A summary with the email of who last saved it.
+async fn summarized(
+    state: &AppState,
+    decision: DecisionSummary,
+) -> Result<DecisionSummaryResponse, ApiError> {
     let emails = emails(state, [Some(decision.updated_by)]).await?;
-    let content = std::mem::take(&mut decision.content);
+    Ok(summary(&emails, decision))
+}
+
+/// A change refused because someone saved the draft first answers who and when;
+/// any other failure maps as usual.
+pub(crate) async fn conflict_or<T>(
+    state: &AppState,
+    result: Result<T, DecisionError>,
+) -> Result<T, ApiError> {
+    match result {
+        Ok(value) => Ok(value),
+        Err(DecisionError::Conflict { current }) => {
+            let emails = emails(state, [Some(current.updated_by)]).await?;
+            Err(ApiError::DecisionConflict(json!({
+                "revision": current.revision,
+                "updatedAt": current.updated_at,
+                "updatedBy": person(&emails, Some(current.updated_by)),
+            })))
+        }
+        Err(err) => Err(err.into()),
+    }
+}
+
+pub(crate) async fn full(
+    state: &AppState,
+    decision: Decision,
+) -> Result<DecisionResponse, ApiError> {
     Ok(DecisionResponse {
-        summary: summary(&emails, summary_of(decision)),
-        content,
+        summary: summarized(state, decision.summary).await?,
+        content: decision.content,
     })
 }

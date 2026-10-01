@@ -287,6 +287,22 @@ async fn openapi_document_describes_the_endpoints() {
             "/projects/{project_id}/decisions/{decision_id}/simulate",
             "post",
         ),
+        (
+            "/projects/{project_id}/decisions/{decision_id}/versions",
+            "get",
+        ),
+        (
+            "/projects/{project_id}/decisions/{decision_id}/versions",
+            "post",
+        ),
+        (
+            "/projects/{project_id}/decisions/{decision_id}/versions/{number}",
+            "get",
+        ),
+        (
+            "/projects/{project_id}/decisions/{decision_id}/versions/{number}/restore",
+            "post",
+        ),
         ("/projects/{project_id}/audit", "get"),
         ("/projects/{project_id}/audit/export", "get"),
     ] {

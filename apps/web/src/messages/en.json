@@ -48,7 +48,9 @@
     "DECISION_KEY_TAKEN": "Another decision in this project already uses this key.",
     "DECISION_CONFLICT": "Someone saved this decision since you opened it.",
     "INVALID_DECISION": "This decision is not a valid model. Check its nodes and connections.",
-    "EVALUATION_FAILED": "The decision could not be evaluated with this input."
+    "EVALUATION_FAILED": "The decision could not be evaluated with this input.",
+    "VERSION_NOT_FOUND": "This version does not exist.",
+    "VERSION_UNCHANGED": "Nothing changed since the last version."
   },
   "validation": {
     "email": "Enter a valid email address.",
@@ -274,7 +276,9 @@
     },
     "decision": {
       "created": "Decision created",
-      "deleted": "Decision deleted"
+      "deleted": "Decision deleted",
+      "version_saved": "Version saved",
+      "version_restored": "Version restored"
     }
   },
   "auditSentences": {
@@ -287,7 +291,9 @@
     "memberRoleChanged": "Changed the role of {person} from {from} to {to}",
     "memberRemoved": "Removed {person} ({role})",
     "decisionCreated": "Created the decision {key}",
-    "decisionDeleted": "Deleted the decision {key}"
+    "decisionDeleted": "Deleted the decision {key}",
+    "decisionVersionSaved": "Saved version {version} of {key}: “{message}”",
+    "decisionVersionRestored": "Restored version {from} of {key} as version {version}"
   },
   "ui": {
     "close": "Close",
@@ -345,6 +351,42 @@
     "keepMine": "Keep mine",
     "nodeName": "Decision",
     "nodeDescription": "Call another decision of the project",
-    "nodeChoose": "Choose a decision"
+    "nodeChoose": "Choose a decision",
+    "version": "Version"
+  },
+  "versions": {
+    "none": "No version yet",
+    "changedSince": "changed since",
+    "save": "Save version",
+    "saveTitle": "Save version {number}",
+    "saveDescription": "Keeps the draft as it is now. Versions never change; you can compare or restore them later.",
+    "message": "What changed",
+    "messageHint": "A short note for reviewers, e.g. “Raise the income threshold to 150,000”.",
+    "saving": "Saving…",
+    "saved": "Version {number} saved",
+    "unchanged": "Nothing changed since the last version",
+    "history": "History",
+    "historyTitle": "Version history",
+    "emptyTitle": "No versions yet",
+    "empty": "Save a version to keep the draft as it is now.",
+    "emptyReadOnly": "An editor has not saved a version yet.",
+    "compareWithDraft": "Compare version {number} with the draft",
+    "actionsFor": "Actions for version {number}",
+    "compareWithPrevious": "Compare with version {number}",
+    "restore": "Restore",
+    "restoredFrom": "Restored version {number}",
+    "loadMore": "Load more",
+    "compareTitle": "Compare versions",
+    "compareDescription": "The newer side, with what changed from the older side.",
+    "from": "Older side",
+    "to": "Newer side",
+    "draft": "Draft",
+    "added": "Added",
+    "removed": "Removed",
+    "modified": "Modified",
+    "close": "Close",
+    "restoreTitle": "Restore version {number}?",
+    "restoreConfirm": "Its content replaces the draft and is saved as version {number}. Draft changes that were not saved as a version are lost.",
+    "restored": "Version {from} restored as version {number}"
   }
 }
