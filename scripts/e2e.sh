@@ -58,6 +58,6 @@ answer=$(curl -sS --fail-with-body -X POST "$RUNTIME_URL/api/projects/e2e-credit
 
 [ "$(evaluate "dnk_not-a-token")" = 401 ] || fail "the Runtime accepted an unknown token"
 
-deployment=$(studio GET "$P/environments" | jq -r '.[] | select(.environment == "staging") | .live.releaseVersion')
+deployment=$(studio GET "$P/environments" | jq -r '.items[] | select(.environment == "staging") | .live.releaseVersion')
 [ "$deployment" = "1.0.0" ] || fail "Studio does not show 1.0.0 live on staging"
 echo "e2e: release 1.0.0 is live on staging and the Runtime answers with its token"
