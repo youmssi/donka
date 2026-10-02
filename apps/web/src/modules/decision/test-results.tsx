@@ -16,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Item, ItemGroup } from '@/components/ui/item';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
@@ -108,11 +109,11 @@ export function TestResultsDialog({
           ) : items.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t('none')}</p>
           ) : (
-            <ul className="grid gap-3">
+            <ItemGroup className="gap-3">
               {items.map((item) => (
                 <ResultItem key={item.scenarioId} result={item} />
               ))}
-            </ul>
+            </ItemGroup>
           )}
         </div>
         <DialogFooter>
@@ -130,7 +131,7 @@ function ResultItem({ result }: { result: TestResult }) {
   const scenarios = useTranslations('scenarios');
   const Icon = result.status === 'passed' ? CircleCheck : result.status === 'failed' ? CircleX : CircleAlert;
   return (
-    <li className="grid gap-2 rounded-lg border p-3">
+    <Item variant="outline" size="sm" role="listitem" className="flex-col items-stretch gap-2">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <Icon
           className={cn(
@@ -177,7 +178,7 @@ function ResultItem({ result }: { result: TestResult }) {
           </TableBody>
         </Table>
       ) : null}
-    </li>
+    </Item>
   );
 }
 

@@ -7,11 +7,12 @@ import { useTranslations } from 'next-intl';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
-import type { ActionError } from '@/components/shared/api';
+import type { ActionError, ActionResult } from '@/components/shared/api';
 import { ErrorAlert } from '@/components/shared/error-alert';
 import { SubmitButton } from '@/components/shared/form/submit-button';
 import { TextField } from '@/components/shared/form/text-field';
 import { When } from '@/components/shared/format';
+import { cn } from '@/components/shared/utils';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,6 +43,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/
 import { FieldGroup } from '@/components/ui/field';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { Item, ItemActions, ItemContent, ItemGroup, ItemTitle } from '@/components/ui/item';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 
@@ -238,14 +240,25 @@ export function HistorySheet(props: VersionsProps) {
                 </EmptyHeader>
               </Empty>
             ) : (
-              <ol className="grid gap-2">
+              <ItemGroup className="gap-2">
                 {versions.map((version) => (
-                  <li key={version.number} className="grid gap-1 rounded-lg border p-3">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary">v{version.number}</Badge>
-                      <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
-                        {version.createdBy.email} · <When value={version.createdAt} as="ago" />
-                      </span>
+                  <Item key={version.number} variant="outline" size="sm" role="listitem" className="items-start">
+                    <ItemContent className="min-w-0">
+                      <ItemTitle className="w-full">
+                        <Badge variant="secondary">v{version.number}</Badge>
+                        <span className="min-w-0 truncate font-normal text-muted-foreground">
+                          {version.createdBy.email} · <When value={version.createdAt} as="ago" />
+                        </span>
+                      </ItemTitle>
+                      {/* A restore's message is the server's; it reads in the person's language here. */}
+                      <p className="text-sm break-words whitespace-pre-line">
+                        {version.restoredFrom ? t('restoredFrom', { number: version.restoredFrom }) : version.message}
+                      </p>
+                      <div className="flex">
+                        <TestBadge summary={version.tests} onClick={() => setResultsFor(version.number)} />
+                      </div>
+                    </ItemContent>
+                    <ItemActions>
                       <Button
                         variant="ghost"
                         size="icon-sm"
@@ -286,17 +299,10 @@ export function HistorySheet(props: VersionsProps) {
                           ) : null}
                         </DropdownMenuContent>
                       </DropdownMenu>
-                    </div>
-                    {/* A restore's message is the server's; it reads in the person's language here. */}
-                    <p className="text-sm break-words whitespace-pre-line">
-                      {version.restoredFrom ? t('restoredFrom', { number: version.restoredFrom }) : version.message}
-                    </p>
-                    <div className="flex">
-                      <TestBadge summary={version.tests} onClick={() => setResultsFor(version.number)} />
-                    </div>
-                  </li>
+                    </ItemActions>
+                  </Item>
                 ))}
-              </ol>
+              </ItemGroup>
             )}
             {history.hasNextPage ? (
               <Button
@@ -397,28 +403,15 @@ function CompareDialog({
               ))}
             </SelectContent>
           </Select>
-          <span className="ml-auto flex flex-wrap gap-3 text-xs text-muted-foreground">
-            <Legend className="bg-green-500">{t('added')}</Legend>
-            <Legend className="bg-red-500">{t('removed')}</Legend>
-            <Legend className="bg-amber-500">{t('modified')}</Legend>
-          </span>
+          <DiffLegend className="ml-auto" />
         </div>
-        <div className="min-h-0 flex-1 overflow-hidden rounded-lg border">
-          {failed && !failed.ok ? (
-            <div className="p-4">
-              <ErrorAlert error={failed.error} />
-            </div>
-          ) : previous !== undefined && current !== undefined ? (
-            <JdmDiffGraph
-              current={current}
-              previous={previous}
-              callable={callable}
-              decisionNodeLabels={decisionNodeLabels}
-            />
-          ) : (
-            <Skeleton className="size-full" />
-          )}
-        </div>
+        <DiffGraph
+          failed={failed}
+          previous={previous}
+          current={current}
+          callable={callable}
+          decisionNodeLabels={decisionNodeLabels}
+        />
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
             {t('close')}
@@ -477,22 +470,14 @@ export function VersionDiffDialog({
             {from === null ? '∅' : `v${from}`} → {to === null ? '∅' : `v${to}`}
           </DialogDescription>
         </DialogHeader>
-        <span className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-          <Legend className="bg-green-500">{t('added')}</Legend>
-          <Legend className="bg-red-500">{t('removed')}</Legend>
-          <Legend className="bg-amber-500">{t('modified')}</Legend>
-        </span>
-        <div className="min-h-0 flex-1 overflow-hidden rounded-lg border">
-          {failed && !failed.ok ? (
-            <div className="p-4">
-              <ErrorAlert error={failed.error} />
-            </div>
-          ) : previous !== undefined && current !== undefined ? (
-            <JdmDiffGraph current={current} previous={previous} callable={[]} decisionNodeLabels={decisionNodeLabels} />
-          ) : (
-            <Skeleton className="size-full" />
-          )}
-        </div>
+        <DiffLegend />
+        <DiffGraph
+          failed={failed}
+          previous={previous}
+          current={current}
+          callable={NO_CALLABLE}
+          decisionNodeLabels={decisionNodeLabels}
+        />
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
             {t('close')}
@@ -500,6 +485,55 @@ export function VersionDiffDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** No decision can be chosen in a read-only diff. */
+const NO_CALLABLE: string[] = [];
+
+/** What the colours of a diff graph mean. */
+function DiffLegend({ className }: { className?: string }) {
+  const t = useTranslations('versions');
+  return (
+    <span className={cn('flex flex-wrap gap-3 text-xs text-muted-foreground', className)}>
+      <Legend className="bg-green-500">{t('added')}</Legend>
+      <Legend className="bg-red-500">{t('removed')}</Legend>
+      <Legend className="bg-amber-500">{t('modified')}</Legend>
+    </span>
+  );
+}
+
+/** Two graphs as one diff, or why they could not be loaded, or their shape while they load. */
+function DiffGraph({
+  failed,
+  previous,
+  current,
+  callable,
+  decisionNodeLabels,
+}: {
+  failed: ActionResult<unknown> | undefined;
+  previous: unknown;
+  current: unknown;
+  callable: string[];
+  decisionNodeLabels: DecisionNodeLabels;
+}) {
+  return (
+    <div className="min-h-0 flex-1 overflow-hidden rounded-lg border">
+      {failed && !failed.ok ? (
+        <div className="p-4">
+          <ErrorAlert error={failed.error} />
+        </div>
+      ) : previous !== undefined && current !== undefined ? (
+        <JdmDiffGraph
+          current={current}
+          previous={previous}
+          callable={callable}
+          decisionNodeLabels={decisionNodeLabels}
+        />
+      ) : (
+        <Skeleton className="size-full" />
+      )}
+    </div>
   );
 }
 

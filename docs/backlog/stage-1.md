@@ -617,3 +617,26 @@ short dates and readable links, built from the shadcn components instead of our 
       time on hover; recent audit events read "2 h ago"
 - [x] Project pages open by key; `?id=` links keep working
 - [x] Checked at desktop and 390 px, English and French, light and dark
+
+---
+
+### DNK-35 — Every screen built from the shadcn components
+
+**Type:** refactor · **Repos:** S · **Dependencies:** DNK-15 · **Size:** S
+
+#### Why
+Screens added after DNK-34 (releases, environments, approvals) and a few older spots still use
+hand-made lists, labels, status boxes and a pager. Studio should look and behave the same
+everywhere, using the shadcn component made for each job and its documented usage.
+
+#### Decisions
+- Lists of things with actions or badges are `Item` / `ItemGroup`; form labels are `Field`.
+- A status that needs attention (a deployment on its way or given up, a request waiting) is an
+  `Alert`.
+- Pagination is the shadcn `Pagination`; a value to copy is an `InputGroup` with its button.
+- The two graph diff views (version history and approval review) share one panel.
+
+#### Acceptance criteria
+- [x] No hand-made list, label, pager or status box remains where a shadcn component fits
+- [x] Behaviour, text and tests are unchanged except where a component improves accessibility
+- [x] Screens checked on desktop and 390 px, English and French, light and dark

@@ -4,7 +4,7 @@ import { useForm } from '@tanstack/react-form';
 import { ArrowRight, Check, CircleAlert, GitCompareArrows, Info, TriangleAlert, Undo2, X } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { toast } from 'sonner';
 
 import type { ActionError } from '@/components/shared/api';
@@ -36,7 +36,15 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { FieldGroup } from '@/components/ui/field';
-import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/components/ui/item';
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemSeparator,
+  ItemTitle,
+} from '@/components/ui/item';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Link } from '@/i18n/navigation';
 import { TestBadge, VersionDiffDialog } from '@/modules/decision';
@@ -256,41 +264,44 @@ function Changes({ project, review }: { project: Project; review: ApprovalReview
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ItemGroup className="divide-y rounded-lg border">
-          {review.changes.map((change) => (
-            <Item key={change.decisionId} size="sm" className="rounded-none">
-              <ItemContent className="min-w-0">
-                <ItemTitle className="w-full">
-                  <Link
-                    href={decisionHref(project.key, change.key)}
-                    className="min-w-0 truncate font-mono underline-offset-4 hover:underline"
-                  >
-                    {change.key}
-                  </Link>
-                </ItemTitle>
-                <ItemDescription className="flex flex-wrap items-center gap-2">
-                  <ChangeBadge change={change.change} />
-                  <span className="font-mono text-xs">
-                    {change.fromVersion ? `v${change.fromVersion}` : '—'} →{' '}
-                    {change.toVersion ? `v${change.toVersion}` : '—'}
-                  </span>
-                  {change.tests ? <TestBadge summary={change.tests} /> : null}
-                </ItemDescription>
-              </ItemContent>
-              {change.change !== 'unchanged' ? (
-                <ItemActions>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setComparing(change)}
-                    aria-label={t('compareFor', { key: change.key })}
-                  >
-                    <GitCompareArrows aria-hidden />
-                    <span className="hidden sm:inline">{t('compare')}</span>
-                  </Button>
-                </ItemActions>
-              ) : null}
-            </Item>
+        <ItemGroup className="rounded-lg border">
+          {review.changes.map((change, index) => (
+            <Fragment key={change.decisionId}>
+              {index > 0 ? <ItemSeparator /> : null}
+              <Item size="sm" role="listitem">
+                <ItemContent className="min-w-0">
+                  <ItemTitle className="w-full">
+                    <Link
+                      href={decisionHref(project.key, change.key)}
+                      className="min-w-0 truncate font-mono underline-offset-4 hover:underline"
+                    >
+                      {change.key}
+                    </Link>
+                  </ItemTitle>
+                  <ItemDescription className="flex flex-wrap items-center gap-2">
+                    <ChangeBadge change={change.change} />
+                    <span className="font-mono text-xs">
+                      {change.fromVersion ? `v${change.fromVersion}` : '—'} →{' '}
+                      {change.toVersion ? `v${change.toVersion}` : '—'}
+                    </span>
+                    {change.tests ? <TestBadge summary={change.tests} /> : null}
+                  </ItemDescription>
+                </ItemContent>
+                {change.change !== 'unchanged' ? (
+                  <ItemActions>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setComparing(change)}
+                      aria-label={t('compareFor', { key: change.key })}
+                    >
+                      <GitCompareArrows aria-hidden />
+                      <span className="hidden sm:inline">{t('compare')}</span>
+                    </Button>
+                  </ItemActions>
+                ) : null}
+              </Item>
+            </Fragment>
           ))}
         </ItemGroup>
       </CardContent>
