@@ -402,6 +402,12 @@ function useSentence(event: AuditEvent): string {
         name: detail(event, 'name'),
         environment: environments(detail(event, 'environment') as EnvironmentName),
       });
+    case 'release.rolled_back':
+      return t('releaseRolledBack', {
+        from: detail(event, 'from'),
+        version: detail(event, 'version'),
+        reason: detail(event, 'reason'),
+      });
     case 'approval.requested':
       return t('approvalRequested', { version: detail(event, 'version') });
     case 'approval.approved':

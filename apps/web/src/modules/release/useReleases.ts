@@ -7,6 +7,7 @@ import {
   getRelease,
   listApprovals,
   listEnvironments,
+  listRollbackTargets,
   listReleases,
   listTokens,
   previewRelease,
@@ -25,6 +26,7 @@ const keys = {
   tokens: (projectId: string, env: EnvironmentName) => ['project', projectId, 'releases', 'tokens', env] as const,
   approvals: (projectId: string, offset: number) => ['project', projectId, 'releases', 'approvals', offset] as const,
   approval: (projectId: string, id: string) => ['project', projectId, 'releases', 'approval', id] as const,
+  rollbackTargets: (projectId: string) => ['project', projectId, 'releases', 'rollback-targets'] as const,
 };
 
 export function useReleaseList(projectId: string, offset: number) {
@@ -78,6 +80,14 @@ export function useApproval(projectId: string, id: string | null) {
     queryKey: keys.approval(projectId, id ?? ''),
     queryFn: () => getApproval(projectId, id ?? ''),
     enabled: id !== null,
+  });
+}
+
+export function useRollbackTargets(projectId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: keys.rollbackTargets(projectId),
+    queryFn: () => listRollbackTargets(projectId),
+    enabled,
   });
 }
 

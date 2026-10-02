@@ -354,10 +354,23 @@ An approver who only sees a diff is rubber-stamping. Tests make the four-eyes ru
 
 **Type:** feature · **Repos:** S · **Dependencies:** DNK-15 · **Size:** S
 
+#### Decisions (product owner)
+- Any owner can roll back, including to a release they made or asked for: it was approved by
+  someone else once, and rollback is an emergency action.
+- Targets are the releases once approved for production, except the live one, newer ones
+  included (so production can come back after a rollback).
+- A request waiting for approval stays pending; its review compares with production as it is.
+
+#### Technical choices
+- A rollback is a production deployment with reason `rollback` and its `rollback_reason`, queued
+  through the same outbox; token changes republish the release production runs, rolled back or not.
+- `GET /projects/{id}/rollback-targets` lists the targets; `POST /projects/{id}/rollbacks` rolls
+  back (`422 NEVER_APPROVED`, `422 ALREADY_LIVE`).
+
 #### Acceptance criteria
-- [ ] An approver redeploys any previously approved release to production in one action, with a required reason
-- [ ] No new approval is needed; the audit log records who, when, from which release to which
-- [ ] A release never approved for production cannot be used for rollback
+- [x] An approver redeploys any previously approved release to production in one action, with a required reason
+- [x] No new approval is needed; the audit log records who, when, from which release to which
+- [x] A release never approved for production cannot be used for rollback
 
 ---
 

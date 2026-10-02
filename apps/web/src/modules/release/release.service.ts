@@ -11,6 +11,7 @@ import type {
   Release,
   ReleaseList,
   ReleasePreview,
+  ReleaseSummary,
   ReleaseValues,
   RuntimeToken,
 } from './schema';
@@ -145,5 +146,21 @@ export function withdraw(projectId: string, id: string): Promise<ActionResult<Ap
   return attempt(async () => {
     const response = await http.post(`${approval(projectId, id)}/withdraw`);
     return response.ok ? success(await response.json<Approval>()) : failure(response);
+  });
+}
+
+/** The releases production can go back to: approved once, not live now. */
+export function listRollbackTargets(projectId: string): Promise<ActionResult<ReleaseSummary[]>> {
+  return attempt(async () => {
+    const response = await http.get(`${project(projectId)}/rollback-targets`);
+    return response.ok ? success((await response.json<{ items: ReleaseSummary[] }>()).items) : failure(response);
+  });
+}
+
+/** Puts an approved release back in production, with a reason and without a new approval. */
+export function rollback(projectId: string, releaseId: string, reason: string): Promise<ActionResult<Deployment>> {
+  return attempt(async () => {
+    const response = await http.post(`${project(projectId)}/rollbacks`, { json: { releaseId, reason } });
+    return response.ok ? success(await response.json<Deployment>()) : failure(response);
   });
 }

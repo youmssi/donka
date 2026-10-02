@@ -68,7 +68,9 @@
     "APPROVAL_PENDING": "Une autre demande attend une approbation. Elle doit d’abord être tranchée ou retirée.",
     "SELF_APPROVAL": "Vous avez créé cette release ou demandé son passage : un autre propriétaire doit décider.",
     "APPROVAL_DECIDED": "Cette demande a déjà été tranchée ou retirée.",
-    "NOT_REQUESTER": "Seule la personne qui a fait la demande peut la retirer."
+    "NOT_REQUESTER": "Seule la personne qui a fait la demande peut la retirer.",
+    "NEVER_APPROVED": "La production ne peut revenir qu’à une release approuvée pour elle.",
+    "ALREADY_LIVE": "Cette release est déjà celle en service en production."
   },
   "validation": {
     "email": "Saisissez une adresse e-mail valide.",
@@ -311,7 +313,8 @@
     },
     "release": {
       "created": "Release créée",
-      "deployed": "Release déployée"
+      "deployed": "Release déployée",
+      "rolled_back": "Retour arrière en production"
     },
     "token": {
       "issued": "Jeton Runtime créé",
@@ -347,7 +350,8 @@
     "approvalRequested": "A demandé le passage en production de la release {version}",
     "approvalApproved": "A approuvé la release {version} pour la production",
     "approvalRejected": "A refusé la release {version} pour la production : « {reason} »",
-    "approvalWithdrawn": "A retiré la demande de production de la release {version}"
+    "approvalWithdrawn": "A retiré la demande de production de la release {version}",
+    "releaseRolledBack": "A ramené la production de {from} à {version} : « {reason} »"
   },
   "ui": {
     "close": "Fermer",
@@ -566,7 +570,10 @@
     "requestTitle": "Demander la publication de {version} en production ?",
     "requestConfirm": "Les propriétaires du projet reçoivent un e-mail. L’un d’eux examine les changements et les résultats des tests, puis approuve ou refuse.",
     "requestAction": "Demander l’approbation",
-    "requested": "Approbation demandée pour la release {version}."
+    "requested": "Approbation demandée pour la release {version}.",
+    "rollingBackTo": "Retour à {version}…",
+    "rolledBack": "Retour arrière",
+    "rollbackReason": "Retour arrière, motif : {reason}"
   },
   "tokens": {
     "title": "Jetons Runtime",
@@ -644,5 +651,17 @@
     "approvedDone": "Release {version} approuvée : publication en production.",
     "rejectedDone": "Release {version} refusée.",
     "withdrawnDone": "Demande retirée."
+  },
+  "rollback": {
+    "action": "Revenir en arrière",
+    "title": "Revenir en arrière en production",
+    "description": "Remettre en service une release déjà approuvée pour la production. Aucune nouvelle approbation n’est nécessaire ; le journal d’audit l’enregistre.",
+    "release": "Release",
+    "releaseHint": "Releases approuvées pour la production, sauf celle en service.",
+    "reason": "Motif",
+    "reasonHint": "Ce qui ne va pas, pour l’équipe et le journal d’audit.",
+    "submit": "Revenir à {version}",
+    "rollingBack": "Retour en cours…",
+    "done": "Retour de la production à {version}."
   }
 }

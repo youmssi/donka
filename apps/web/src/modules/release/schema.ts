@@ -42,6 +42,12 @@ export const rejectSchema = z.object({
 });
 export type RejectValues = z.infer<typeof rejectSchema>;
 
+export const rollbackSchema = z.object({
+  releaseId: z.string().min(1, 'required'),
+  reason: z.string().trim().min(1, 'required').max(REASON_MAX, 'maxLength'),
+});
+export type RollbackValues = z.infer<typeof rollbackSchema>;
+
 /** A deployment still on its way to the bucket: the page keeps asking how it went. */
 export function inFlight(deployment: Deployment | null | undefined): boolean {
   return deployment?.status === 'pending' || deployment?.status === 'retrying';
