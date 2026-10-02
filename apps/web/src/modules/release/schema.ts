@@ -15,10 +15,16 @@ export type Deployment = ApiSchemas['DeploymentResponse'];
 export type DeploymentStatus = ApiSchemas['DeploymentStatusResponse'];
 export type RuntimeToken = ApiSchemas['TokenResponse'];
 export type IssuedToken = ApiSchemas['IssuedTokenResponse'];
+export type Approval = ApiSchemas['ApprovalResponse'];
+export type ApprovalList = ApiSchemas['ApprovalListResponse'];
+export type ApprovalReview = ApiSchemas['ApprovalReviewResponse'];
+export type ApprovalStatus = ApiSchemas['ApprovalStatusResponse'];
+export type DecisionChange = ApiSchemas['DecisionChangeResponse'];
 
 // Limits come from the API contract, so the forms and the server never disagree.
 export const NOTES_MAX = openapi.components.schemas.CreateReleaseRequest.properties.notes.maxLength;
 export const TOKEN_NAME_MAX = openapi.components.schemas.IssueTokenRequest.properties.name.maxLength;
+export const REASON_MAX = openapi.components.schemas.RejectRequest.properties.reason.maxLength;
 
 export const releaseSchema = z.object({
   bump: z.enum(['major', 'minor', 'patch']),
@@ -30,6 +36,11 @@ export const tokenSchema = z.object({
   name: z.string().trim().min(1, 'required').max(TOKEN_NAME_MAX, 'maxLength'),
 });
 export type TokenValues = z.infer<typeof tokenSchema>;
+
+export const rejectSchema = z.object({
+  reason: z.string().trim().min(1, 'required').max(REASON_MAX, 'maxLength'),
+});
+export type RejectValues = z.infer<typeof rejectSchema>;
 
 /** A deployment still on its way to the bucket: the page keeps asking how it went. */
 export function inFlight(deployment: Deployment | null | undefined): boolean {

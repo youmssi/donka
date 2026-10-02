@@ -1,6 +1,9 @@
 import { attempt, failure, http, success, type ActionResult } from '@/components/shared/api';
 
 import type {
+  Approval,
+  ApprovalList,
+  ApprovalReview,
   Deployment,
   EnvironmentName,
   EnvironmentState,
@@ -16,6 +19,7 @@ const project = (projectId: string) => `projects/${encodeURIComponent(projectId)
 const environment = (projectId: string, env: EnvironmentName) => `${project(projectId)}/environments/${env}`;
 
 export const RELEASES_PAGE_SIZE = 50;
+export const APPROVALS_PAGE_SIZE = 50;
 
 export function listReleases(projectId: string, offset: number): Promise<ActionResult<ReleaseList>> {
   return attempt(async () => {
@@ -95,5 +99,51 @@ export function revokeToken(projectId: string, env: EnvironmentName, id: string)
   return attempt(async () => {
     const response = await http.delete(`${environment(projectId, env)}/tokens/${encodeURIComponent(id)}`);
     return response.ok ? success(null) : failure(response);
+  });
+}
+
+const approvals = (projectId: string) => `${project(projectId)}/approvals`;
+const approval = (projectId: string, id: string) => `${approvals(projectId)}/${encodeURIComponent(id)}`;
+
+export function listApprovals(projectId: string, offset: number): Promise<ActionResult<ApprovalList>> {
+  return attempt(async () => {
+    const response = await http.get(approvals(projectId), { searchParams: { limit: APPROVALS_PAGE_SIZE, offset } });
+    return response.ok ? success(await response.json<ApprovalList>()) : failure(response);
+  });
+}
+
+export function getApproval(projectId: string, id: string): Promise<ActionResult<ApprovalReview>> {
+  return attempt(async () => {
+    const response = await http.get(approval(projectId, id));
+    return response.ok ? success(await response.json<ApprovalReview>()) : failure(response);
+  });
+}
+
+/** Asks for the release live on staging to go to production; owners are emailed. */
+export function requestApproval(projectId: string, releaseId: string): Promise<ActionResult<Approval>> {
+  return attempt(async () => {
+    const response = await http.post(approvals(projectId), { json: { releaseId } });
+    return response.ok ? success(await response.json<Approval>()) : failure(response);
+  });
+}
+
+export function approve(projectId: string, id: string): Promise<ActionResult<Approval>> {
+  return attempt(async () => {
+    const response = await http.post(`${approval(projectId, id)}/approve`);
+    return response.ok ? success(await response.json<Approval>()) : failure(response);
+  });
+}
+
+export function reject(projectId: string, id: string, reason: string): Promise<ActionResult<Approval>> {
+  return attempt(async () => {
+    const response = await http.post(`${approval(projectId, id)}/reject`, { json: { reason } });
+    return response.ok ? success(await response.json<Approval>()) : failure(response);
+  });
+}
+
+export function withdraw(projectId: string, id: string): Promise<ActionResult<Approval>> {
+  return attempt(async () => {
+    const response = await http.post(`${approval(projectId, id)}/withdraw`);
+    return response.ok ? success(await response.json<Approval>()) : failure(response);
   });
 }

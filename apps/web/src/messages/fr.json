@@ -57,11 +57,18 @@
     "RELEASE_CONFLICT": "Quelqu’un a créé une release avec ce numéro au même moment. Rouvrez la fenêtre.",
     "UNVERSIONED_DECISIONS": "Certaines décisions n’ont pas encore de version enregistrée. Enregistrez une version de chacune avant la release.",
     "NOTHING_TO_RELEASE": "Ce projet n’a aucune décision à publier.",
-    "APPROVAL_REQUIRED": "Un déploiement en production demande une approbation, pas encore disponible.",
+    "APPROVAL_REQUIRED": "La production est publiée après l’approbation d’un propriétaire. Faites la demande depuis la page Environnements.",
     "NOT_RETRYABLE": "Seul un déploiement abandonné peut être relancé.",
     "DEPLOYMENT_NOT_FOUND": "Ce déploiement n’existe pas.",
     "ENVIRONMENT_NOT_FOUND": "Cet environnement n’existe pas.",
-    "TOKEN_NOT_FOUND": "Ce jeton n’existe pas."
+    "TOKEN_NOT_FOUND": "Ce jeton n’existe pas.",
+    "APPROVAL_NOT_FOUND": "Cette demande d’approbation n’existe pas dans ce projet.",
+    "NOT_ON_STAGING": "Seule la release en service en staging peut être demandée pour la production. Déployez-la d’abord en staging.",
+    "NO_APPROVER": "Aucun propriétaire autre que le créateur de la release et vous ne peut l’approuver. Ajoutez un autre propriétaire au projet.",
+    "APPROVAL_PENDING": "Une autre demande attend une approbation. Elle doit d’abord être tranchée ou retirée.",
+    "SELF_APPROVAL": "Vous avez créé cette release ou demandé son passage : un autre propriétaire doit décider.",
+    "APPROVAL_DECIDED": "Cette demande a déjà été tranchée ou retirée.",
+    "NOT_REQUESTER": "Seule la personne qui a fait la demande peut la retirer."
   },
   "validation": {
     "email": "Saisissez une adresse e-mail valide.",
@@ -174,7 +181,9 @@
     "decision": "Décision",
     "scenarios": "Scénarios de test",
     "releases": "Releases",
-    "environments": "Environnements"
+    "environments": "Environnements",
+    "approvals": "Approbations",
+    "approval": "Approbation"
   },
   "members": {
     "title": "Membres",
@@ -307,6 +316,12 @@
     "token": {
       "issued": "Jeton Runtime créé",
       "revoked": "Jeton Runtime révoqué"
+    },
+    "approval": {
+      "requested": "Production demandée",
+      "approved": "Production approuvée",
+      "rejected": "Production refusée",
+      "withdrawn": "Demande retirée"
     }
   },
   "auditSentences": {
@@ -328,7 +343,11 @@
     "releaseCreated": "A créé la release {version}",
     "releaseDeployed": "A déployé la release {version} en {environment}",
     "tokenIssued": "A créé le jeton {environment} « {name} »",
-    "tokenRevoked": "A révoqué le jeton {environment} « {name} »"
+    "tokenRevoked": "A révoqué le jeton {environment} « {name} »",
+    "approvalRequested": "A demandé le passage en production de la release {version}",
+    "approvalApproved": "A approuvé la release {version} pour la production",
+    "approvalRejected": "A refusé la release {version} pour la production : « {reason} »",
+    "approvalWithdrawn": "A retiré la demande de production de la release {version}"
   },
   "ui": {
     "close": "Fermer",
@@ -531,7 +550,7 @@
     "live": "En service",
     "nothingLive": "Aucune release déployée.",
     "publishedBy": "par {email}",
-    "productionApproval": "Déployer en production demande l’approbation d’une deuxième personne (bientôt disponible).",
+    "productionApproval": "La production est publiée après l’approbation d’un propriétaire qui n’a ni créé la release ni fait la demande.",
     "deployLabel": "Release",
     "deploy": "Déployer",
     "noRelease": "Créez une release pour la déployer ici.",
@@ -540,7 +559,14 @@
     "retrying": "La tentative {attempts} a échoué : {error}. Prochain essai à <when></when>.",
     "failedTitle": "Le déploiement de {version} a échoué",
     "failed": "Abandon après {attempts} tentatives : {error}",
-    "retry": "Relancer"
+    "retry": "Relancer",
+    "waitingApproval": "La release {version} attend une approbation (demandée par {email}).",
+    "review": "Examiner",
+    "requestProduction": "Demander la publication de {version}",
+    "requestTitle": "Demander la publication de {version} en production ?",
+    "requestConfirm": "Les propriétaires du projet reçoivent un e-mail. L’un d’eux examine les changements et les résultats des tests, puis approuve ou refuse.",
+    "requestAction": "Demander l’approbation",
+    "requested": "Approbation demandée pour la release {version}."
   },
   "tokens": {
     "title": "Jetons Runtime",
@@ -564,5 +590,56 @@
     "revokeTitle": "Révoquer « {name} » ?",
     "revokeConfirm": "Les appels avec ce jeton sont refusés en moins d’une minute. Action irréversible.",
     "revoked": "Jeton « {name} » révoqué."
+  },
+  "approvals": {
+    "title": "Approbations",
+    "errorTitle": "Impossible de charger les demandes d’approbation",
+    "release": "Release",
+    "status": "Statut",
+    "notes": "Notes de la release",
+    "requestedBy": "Demandée par",
+    "requestedAt": "Demandée",
+    "decidedBy": "Tranchée par",
+    "decidedAt": "Tranchée",
+    "pending": "En attente",
+    "approved": "Release {version} approuvée : publication en production.",
+    "rejected": "Release {version} refusée.",
+    "withdrawn": "Demande retirée.",
+    "emptyTitle": "Aucune demande",
+    "empty": "Les demandes de production apparaissent ici. Faites-en une depuis la page Environnements quand une release est en service en staging.",
+    "notFoundTitle": "Cette demande n’existe pas",
+    "backToList": "Retour aux approbations",
+    "reviewTitle": "Release {version} vers la production",
+    "authorCannotDecide": "Vous avez créé cette release ou demandé son passage : un autre propriétaire décide.",
+    "waitingForOwner": "En attente de la décision d’un propriétaire du projet.",
+    "releasedBy": "Release créée par {email}",
+    "tests": "Tests",
+    "noTests": "Ce projet n’a pas de scénario de test.",
+    "failingTests": "Des scénarios échouent sur cette release. Vérifiez qu’ils sont attendus avant d’approuver.",
+    "request": "Demande",
+    "approvedTitle": "Approuvée par {email} : la release part en production.",
+    "seeProduction": "Voir la production",
+    "rejectedTitle": "Refusée par {email}",
+    "withdrawnTitle": "Retirée par {email}",
+    "changesSummary": "{count, plural, one {# décision change} other {# décisions changent}} par rapport à la production.",
+    "firstProduction": "Rien n’est encore en production : toutes les décisions sont nouvelles.",
+    "added": "Ajoutée",
+    "changed": "Modifiée",
+    "removed": "Retirée",
+    "unchanged": "Inchangée",
+    "compare": "Comparer",
+    "compareFor": "Comparer {key}",
+    "approve": "Approuver",
+    "approveTitle": "Approuver la release {version} pour la production ?",
+    "approveConfirm": "Elle est publiée en production en moins d’une minute. Les systèmes qui appellent le Runtime de production reçoivent ses décisions.",
+    "reject": "Refuser",
+    "rejectTitle": "Refuser la release {version} ?",
+    "rejectDescription": "Expliquez pourquoi, pour que l’équipe sache quoi changer. La production reste inchangée.",
+    "reason": "Motif",
+    "reasonHint": "Affiché sur la demande et conservé dans le journal d’audit.",
+    "rejecting": "Refus…",
+    "withdraw": "Retirer",
+    "withdrawTitle": "Retirer cette demande ?",
+    "withdrawConfirm": "Les propriétaires ne peuvent plus l’approuver. Vous pourrez la refaire plus tard."
   }
 }

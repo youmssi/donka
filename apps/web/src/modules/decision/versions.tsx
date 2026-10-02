@@ -4,7 +4,7 @@ import { useForm } from '@tanstack/react-form';
 import { GitCompareArrows, History, MoreHorizontal, RotateCcw, Save } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import type { ActionError } from '@/components/shared/api';
@@ -415,6 +415,80 @@ function CompareDialog({
               callable={callable}
               decisionNodeLabels={decisionNodeLabels}
             />
+          ) : (
+            <Skeleton className="size-full" />
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            {t('close')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** A graph that does not exist on one side: everything shows as added or removed. */
+const EMPTY_GRAPH = { nodes: [], edges: [] };
+
+/**
+ * Two saved versions of a decision as one read-only diff graph, for people
+ * reviewing a change outside the editor (an approval). A missing side is a
+ * decision that is added or removed.
+ */
+export function VersionDiffDialog({
+  projectId,
+  decisionId,
+  title,
+  from,
+  to,
+  onClose,
+}: {
+  projectId: string;
+  decisionId: string;
+  title: string;
+  from: number | null;
+  to: number | null;
+  onClose: () => void;
+}) {
+  const t = useTranslations('versions');
+  const decisions = useTranslations('decisions');
+  const older = useVersion(projectId, decisionId, from);
+  const newer = useVersion(projectId, decisionId, to);
+  const previous = from === null ? EMPTY_GRAPH : older.data?.ok ? older.data.data.content : undefined;
+  const current = to === null ? EMPTY_GRAPH : newer.data?.ok ? newer.data.data.content : undefined;
+  const failed = [older.data, newer.data].find((result) => result && !result.ok);
+  const decisionNodeLabels = useMemo(
+    () => ({
+      displayName: decisions('nodeName'),
+      shortDescription: decisions('nodeDescription'),
+      choose: decisions('nodeChoose'),
+    }),
+    [decisions],
+  );
+
+  return (
+    <Dialog open onOpenChange={(open) => (open ? null : onClose())}>
+      <DialogContent className="flex h-[90dvh] w-[calc(100vw-2rem)] max-w-none flex-col gap-3 sm:max-w-[min(96vw,1400px)]">
+        <DialogHeader>
+          <DialogTitle className="font-mono">{title}</DialogTitle>
+          <DialogDescription>
+            {from === null ? '∅' : `v${from}`} → {to === null ? '∅' : `v${to}`}
+          </DialogDescription>
+        </DialogHeader>
+        <span className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+          <Legend className="bg-green-500">{t('added')}</Legend>
+          <Legend className="bg-red-500">{t('removed')}</Legend>
+          <Legend className="bg-amber-500">{t('modified')}</Legend>
+        </span>
+        <div className="min-h-0 flex-1 overflow-hidden rounded-lg border">
+          {failed && !failed.ok ? (
+            <div className="p-4">
+              <ErrorAlert error={failed.error} />
+            </div>
+          ) : previous !== undefined && current !== undefined ? (
+            <JdmDiffGraph current={current} previous={previous} callable={[]} decisionNodeLabels={decisionNodeLabels} />
           ) : (
             <Skeleton className="size-full" />
           )}

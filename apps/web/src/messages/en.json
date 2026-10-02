@@ -57,11 +57,18 @@
     "RELEASE_CONFLICT": "Someone created a release with this version at the same time. Open the dialog again.",
     "UNVERSIONED_DECISIONS": "Some decisions have no saved version yet. Save a version of each before releasing.",
     "NOTHING_TO_RELEASE": "This project has no decisions to release.",
-    "APPROVAL_REQUIRED": "Production deployments need an approval, which is not available yet.",
+    "APPROVAL_REQUIRED": "Production is published after an owner approves the release. Ask from the Environments page.",
     "NOT_RETRYABLE": "Only a deployment that gave up can be retried.",
     "DEPLOYMENT_NOT_FOUND": "This deployment does not exist.",
     "ENVIRONMENT_NOT_FOUND": "This environment does not exist.",
-    "TOKEN_NOT_FOUND": "This token does not exist."
+    "TOKEN_NOT_FOUND": "This token does not exist.",
+    "APPROVAL_NOT_FOUND": "This approval request does not exist in this project.",
+    "NOT_ON_STAGING": "Only the release live on staging can be asked for production. Deploy it to staging first.",
+    "NO_APPROVER": "No owner other than the release’s creator and you can approve it. Add another owner to the project.",
+    "APPROVAL_PENDING": "Another request is waiting for approval. It must be decided or withdrawn first.",
+    "SELF_APPROVAL": "You made this release or asked for it: another owner must decide.",
+    "APPROVAL_DECIDED": "This request has already been decided or withdrawn.",
+    "NOT_REQUESTER": "Only the person who asked can withdraw this request."
   },
   "validation": {
     "email": "Enter a valid email address.",
@@ -174,7 +181,9 @@
     "decision": "Decision",
     "scenarios": "Test scenarios",
     "releases": "Releases",
-    "environments": "Environments"
+    "environments": "Environments",
+    "approvals": "Approvals",
+    "approval": "Approval"
   },
   "members": {
     "title": "Members",
@@ -307,6 +316,12 @@
     "token": {
       "issued": "Runtime token created",
       "revoked": "Runtime token revoked"
+    },
+    "approval": {
+      "requested": "Production requested",
+      "approved": "Production approved",
+      "rejected": "Production rejected",
+      "withdrawn": "Request withdrawn"
     }
   },
   "auditSentences": {
@@ -328,7 +343,11 @@
     "releaseCreated": "Created release {version}",
     "releaseDeployed": "Deployed release {version} to {environment}",
     "tokenIssued": "Created the {environment} token “{name}”",
-    "tokenRevoked": "Revoked the {environment} token “{name}”"
+    "tokenRevoked": "Revoked the {environment} token “{name}”",
+    "approvalRequested": "Asked for release {version} to go to production",
+    "approvalApproved": "Approved release {version} for production",
+    "approvalRejected": "Rejected release {version} for production: “{reason}”",
+    "approvalWithdrawn": "Withdrew the production request for release {version}"
   },
   "ui": {
     "close": "Close",
@@ -531,7 +550,7 @@
     "live": "Live",
     "nothingLive": "No release deployed yet.",
     "publishedBy": "by {email}",
-    "productionApproval": "Deploying to production needs an approval by a second person (coming soon).",
+    "productionApproval": "Production is published after an owner who neither made the release nor asked for it approves it.",
     "deployLabel": "Release",
     "deploy": "Deploy",
     "noRelease": "Create a release to deploy it here.",
@@ -540,7 +559,14 @@
     "retrying": "Attempt {attempts} failed: {error}. Next try at <when></when>.",
     "failedTitle": "Deploying {version} failed",
     "failed": "Gave up after {attempts} attempts: {error}",
-    "retry": "Retry"
+    "retry": "Retry",
+    "waitingApproval": "Release {version} waits for approval (asked by {email}).",
+    "review": "Review",
+    "requestProduction": "Ask to publish {version}",
+    "requestTitle": "Ask to publish {version} to production?",
+    "requestConfirm": "The project’s owners are emailed. One of them reviews what changes and the test results, then approves or rejects it.",
+    "requestAction": "Ask for approval",
+    "requested": "Approval asked for release {version}."
   },
   "tokens": {
     "title": "Runtime tokens",
@@ -564,5 +590,56 @@
     "revokeTitle": "Revoke “{name}”?",
     "revokeConfirm": "Calls with this token are refused within a minute. This cannot be undone.",
     "revoked": "Token “{name}” revoked."
+  },
+  "approvals": {
+    "title": "Approvals",
+    "errorTitle": "Approval requests could not be loaded",
+    "release": "Release",
+    "status": "Status",
+    "notes": "Release notes",
+    "requestedBy": "Asked by",
+    "requestedAt": "Asked",
+    "decidedBy": "Decided by",
+    "decidedAt": "Decided",
+    "pending": "Waiting",
+    "approved": "Release {version} approved: publishing to production.",
+    "rejected": "Release {version} rejected.",
+    "withdrawn": "Request withdrawn.",
+    "emptyTitle": "No requests yet",
+    "empty": "Production requests appear here. Ask for one from the Environments page once a release is live on staging.",
+    "notFoundTitle": "This request does not exist",
+    "backToList": "Back to approvals",
+    "reviewTitle": "Release {version} to production",
+    "authorCannotDecide": "You made this release or asked for it: another owner decides.",
+    "waitingForOwner": "Waiting for an owner of the project to decide.",
+    "releasedBy": "Release made by {email}",
+    "tests": "Tests",
+    "noTests": "This project has no test scenarios.",
+    "failingTests": "Some scenarios fail on this release. Check they are expected before approving.",
+    "request": "Request",
+    "approvedTitle": "Approved by {email}: the release is on its way to production.",
+    "seeProduction": "See production",
+    "rejectedTitle": "Rejected by {email}",
+    "withdrawnTitle": "Withdrawn by {email}",
+    "changesSummary": "{count, plural, one {# decision changes} other {# decisions change}} compared with production.",
+    "firstProduction": "Nothing is in production yet: every decision is new.",
+    "added": "Added",
+    "changed": "Changed",
+    "removed": "Removed",
+    "unchanged": "Unchanged",
+    "compare": "Compare",
+    "compareFor": "Compare {key}",
+    "approve": "Approve",
+    "approveTitle": "Approve release {version} for production?",
+    "approveConfirm": "It is published to production within a minute. Systems calling the production Runtime get its decisions.",
+    "reject": "Reject",
+    "rejectTitle": "Reject release {version}?",
+    "rejectDescription": "Say why, so the team knows what to change. Production stays as it is.",
+    "reason": "Reason",
+    "reasonHint": "Shown on the request and kept in the audit log.",
+    "rejecting": "Rejecting…",
+    "withdraw": "Withdraw",
+    "withdrawTitle": "Withdraw this request?",
+    "withdrawConfirm": "Owners can no longer approve it. You can ask again later."
   }
 }
