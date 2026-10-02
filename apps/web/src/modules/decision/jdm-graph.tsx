@@ -13,12 +13,14 @@ import {
   type Simulation,
 } from '@gorules/jdm-editor';
 import { FlaskConical, PlayCircle } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useTheme } from 'next-themes';
 import { useMemo, useState } from 'react';
 
 import type { ActionResult } from '@/components/shared/api';
 import { Button } from '@/components/ui/button';
 
+import { connectorNodeSpecification } from './connector-node';
 import { decisionNodeSpecification, type DecisionNodeLabels } from './decision-node';
 import type { SimulationResult } from './schema';
 
@@ -87,6 +89,15 @@ function tokenColor(name: string): string {
   return `#${[r, g, b].map((part) => part.toString(16).padStart(2, '0')).join('')}`;
 }
 
+/** The custom nodes Studio adds to the editor: connectors to outside services. */
+function useCustomNodes() {
+  const t = useTranslations('connector');
+  return useMemo(
+    () => [connectorNodeSpecification({ displayName: t('nodeName'), shortDescription: t('nodeDescription') })],
+    [t],
+  );
+}
+
 export function JdmGraph({
   value,
   onChange,
@@ -104,6 +115,7 @@ export function JdmGraph({
     () => [decisionNodeSpecification(callable, decisionNodeLabels)],
     [callable, decisionNodeLabels],
   );
+  const customNodes = useCustomNodes();
   const [running, setRunning] = useState(false);
   const [lastRun, setLastRun] = useState<SimulatorRun | null>(null);
 
@@ -146,6 +158,7 @@ export function JdmGraph({
         simulate={simulation}
         reactFlowProOptions={{ hideAttribution: true }}
         components={components}
+        customNodes={customNodes}
         panels={[
           {
             id: 'simulator',
@@ -204,13 +217,20 @@ export function JdmDiffGraph({ current, previous, callable, decisionNodeLabels }
     () => [decisionNodeSpecification(callable, decisionNodeLabels)],
     [callable, decisionNodeLabels],
   );
+  const customNodes = useCustomNodes();
   const diff = useMemo(
-    () => calculateDiffGraph(current as Graph, previous as Graph, { components, customNodes: [] }),
-    [current, previous, components],
+    () => calculateDiffGraph(current as Graph, previous as Graph, { components, customNodes }),
+    [current, previous, components, customNodes],
   );
   return (
     <JdmConfigProvider theme={theme}>
-      <DecisionGraph value={diff} disabled components={components} reactFlowProOptions={{ hideAttribution: true }} />
+      <DecisionGraph
+        value={diff}
+        disabled
+        components={components}
+        customNodes={customNodes}
+        reactFlowProOptions={{ hideAttribution: true }}
+      />
     </JdmConfigProvider>
   );
 }

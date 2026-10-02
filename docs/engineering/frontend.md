@@ -53,6 +53,9 @@ Dependencies go **one way only**: `app/ → Component → Cache hook → Service
     (`modules/decision/jdm-graph.tsx`);
   - the node that calls another decision (`decisionNode`) is given through `components`, with the
     project's decisions to choose from;
+  - the connector node (`customNode` of kind `donka.connector`) is given through `customNodes`.
+    The editor only opens tabs for `components`, so its settings open in a shadcn `Sheet` with a
+    TanStack Form whose Zod rules mirror the Runtime's (`modules/decision/connector.ts`);
   - a pnpm override lifts its antd to the last 5.x release, which has the official React 19 patch.
 - **Nothing loads from a CDN at runtime.** A self-hosted installation runs in networks that block
   the internet, and code must come from the image. Monaco (the editor's code panels) defaults to

@@ -55,10 +55,13 @@ artifact.
 
 ## Connectors (bureau, KYC, AML)
 
-Implemented once, in Rust, as a zen-engine custom-node adapter (`DecisionEngine::with_adapter`),
-shared by the Studio simulator and the Runtime. Graphs store the connector configuration and the
-**name** of a secret. Values come from the Runtime's environment or vault. Timeouts, retries and a
-circuit breaker are enforced by the handler, not by rule authors.
+Implemented once, in Rust, as a zen-engine custom-node adapter (`DecisionEngine::with_adapter`):
+the MIT crate `donka-connectors` in `donka-runtime/crates/connectors`. Studio depends on it
+without its `live` feature, so the simulator and test scenarios answer with each node's mock and
+no call leaves Studio; the Runtime makes the real calls. Graphs store the connector
+configuration and the **name** of a secret; values come from the Runtime's environment
+(`DONKA_SECRET_<NAME>`). Timeouts, retries and a circuit breaker are enforced by the handler, not
+by rule authors. The node format is in `docs/artifact-format.md`.
 
 ## Security baseline
 

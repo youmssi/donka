@@ -1,0 +1,29 @@
+{
+  "nodes": [
+    { "id": "in", "name": "request", "type": "inputNode", "position": { "x": 0, "y": 80 } },
+    {
+      "id": "bureau",
+      "name": "bureau",
+      "type": "customNode",
+      "position": { "x": 300, "y": 40 },
+      "content": {
+        "kind": "donka.connector",
+        "config": {
+          "preset": "bureau-score",
+          "url": "set by scripts/e2e.sh",
+          "auth": { "type": "header", "header": "X-Api-Key", "secret": "BUREAU_API_KEY" },
+          "body": { "nationalId": "{{ applicant.nationalId }}" },
+          "outputKey": "bureau",
+          "retries": 0,
+          "onError": "fail",
+          "mock": { "score": 1, "available": true }
+        }
+      }
+    },
+    { "id": "out", "name": "response", "type": "outputNode", "position": { "x": 640, "y": 80 } }
+  ],
+  "edges": [
+    { "id": "e1", "type": "edge", "sourceId": "in", "targetId": "bureau" },
+    { "id": "e2", "type": "edge", "sourceId": "bureau", "targetId": "out" }
+  ]
+}

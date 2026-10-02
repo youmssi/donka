@@ -259,10 +259,10 @@ An approver who only sees a diff is rubber-stamping. Tests make the four-eyes ru
 **Type:** chore · **Repos:** R · **Dependencies:** DNK-1 · **Size:** M
 
 #### Acceptance criteria
-- [ ] zen-engine and zen-expression pinned to `=2.0.1`; Studio's drift check passes against the runtime
-- [ ] Binary, image and service names are `donka-runtime`; upstream API paths unchanged
-- [ ] Upstream release automation that would publish under GoRules names is removed
-- [ ] CI runs fmt, clippy and all tests including the container-based ones
+- [x] zen-engine and zen-expression pinned to `=2.0.1`; Studio's drift check passes against the runtime
+- [x] Binary, image and service names are `donka-runtime`; upstream API paths unchanged
+- [x] Upstream release automation that would publish under GoRules names is removed
+- [x] CI runs fmt, clippy and all tests including the container-based ones
 
 ---
 
@@ -382,12 +382,20 @@ An approver who only sees a diff is rubber-stamping. Tests make the four-eyes ru
 Connector handler implemented once in Rust (custom-node adapter), in an MIT crate inside
 donka-runtime; Studio depends on it for simulation (mock mode).
 
+#### Decisions (taken in the story)
+- Connector types: HTTP JSON (POST) and a "bureau score" template of it.
+- On failure after the retries, the author chooses per node: fail the evaluation, or continue
+  with a fallback answer. Only service failures fall back; bad settings never do.
+- Mock answers live on each connector node; simulation and test scenarios use them.
+- Secret values come from the Runtime's environment (`DONKA_SECRET_<NAME>`); a vault is a later
+  story. The decision log (DNK-18) receives the node trace, which never holds a secret.
+
 #### Acceptance criteria
-- [ ] Graph nodes store connector type, settings and a secret **name**; secret values come from the Runtime's environment or vault
-- [ ] Timeout, bounded retries and a circuit breaker are enforced by the handler
-- [ ] Studio simulation uses mock responses defined in the project; no real call leaves Studio
-- [ ] A reference "bureau score" connector works end-to-end
-- [ ] No secret value appears in artifacts, logs, traces or the decision log
+- [x] Graph nodes store connector type, settings and a secret **name**; secret values come from the Runtime's environment or vault
+- [x] Timeout, bounded retries and a circuit breaker are enforced by the handler
+- [x] Studio simulation uses mock responses defined in the project; no real call leaves Studio
+- [x] A reference "bureau score" connector works end-to-end
+- [x] No secret value appears in artifacts, logs, traces or the decision log
 
 ---
 

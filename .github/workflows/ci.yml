@@ -78,7 +78,8 @@ jobs:
       - run: pnpm api:generate && git diff --exit-code -- src/components/shared/api/schema.d.ts
       - run: pnpm build
 
-  # A release made in Studio reaches Donka Runtime through MinIO and answers with its token.
+  # A release made in Studio reaches Donka Runtime through MinIO and answers with its token;
+  # its bureau connector calls a fake bureau from the Runtime only.
   e2e:
     runs-on: ubuntu-latest
     services:
@@ -121,8 +122,9 @@ jobs:
           docker run --rm --network host --entrypoint sh pgsty/mc:RELEASE.2026-09-16T00-00-00Z -c \
             "until mc alias set local http://127.0.0.1:9000 donka donka-secret; do sleep 1; done;
              mc mb local/donka-releases"
-      - name: Studio and Runtime
+      - name: Studio, Runtime and a fake bureau
         run: |
+          FAKE_BUREAU_KEY=e2e-bureau-secret nohup scripts/fake-bureau.py 127.0.0.1 8099 > bureau.log 2>&1 &
           DATABASE_URL=postgres://donka:donka@localhost:5432/donka DONKA_LISTEN=127.0.0.1:8181 \
           DONKA_PUBLIC_URL=http://localhost:8181 DONKA_COOKIE_SECURE=false \
           DONKA_BOOTSTRAP_ADMIN_EMAIL=ada@bank.example \
@@ -135,6 +137,7 @@ jobs:
           PROVIDER__TYPE=S3 PROVIDER__BUCKET=donka-releases PROVIDER__REGION=us-east-1 \
           PROVIDER__ENDPOINT=http://127.0.0.1:9000 PROVIDER__FORCE_PATH_STYLE=true \
           PROVIDER__PREFIX=staging/ AWS_ACCESS_KEY_ID=donka AWS_SECRET_ACCESS_KEY=donka-secret \
+          DONKA_SECRET_BUREAU_API_KEY=e2e-bureau-secret \
             nohup ../donka-runtime/target/debug/donka-runtime > runtime.log 2>&1 &
           for _ in $(seq 1 60); do
             curl -sf localhost:8181/api/v1/health >/dev/null && curl -sf localhost:3000/api/health >/dev/null && exit 0
@@ -146,6 +149,8 @@ jobs:
           STUDIO_URL: http://localhost:8181
           RUNTIME_URL: http://localhost:3000
           STUDIO_LOG: studio.log
+          BUREAU_URL: http://127.0.0.1:8099
+          BUREAU_SECRET: e2e-bureau-secret
       - name: Logs
         if: failure()
-        run: tail -n 100 studio.log runtime.log
+        run: tail -n 100 studio.log runtime.log bureau.log

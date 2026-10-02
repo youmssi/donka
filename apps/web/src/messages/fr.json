@@ -80,7 +80,13 @@
     "maxLength": "Utilisez au plus {max} caractères.",
     "projectKey": "Utilisez entre {min} et {max} lettres minuscules, chiffres et tirets simples, en commençant par une lettre.",
     "decisionKey": "Utilisez des mots en minuscules avec des tirets simples ; séparez les dossiers par /. {max} caractères au plus.",
-    "jsonObject": "Saisissez un objet JSON, par ex. '{'\"income\": 150000'}'."
+    "jsonObject": "Saisissez un objet JSON, par ex. '{'\"income\": 150000'}'.",
+    "json": "Saisissez du JSON valide, par ex. '{'\"score\": 700'}'.",
+    "connectorUrl": "Saisissez une adresse commençant par http:// ou https://.",
+    "outputKey": "Utilisez uniquement des lettres, chiffres et tirets bas.",
+    "secretName": "Utilisez des majuscules, chiffres et tirets bas, en commençant par une lettre (64 au plus).",
+    "headerName": "Utilisez uniquement des lettres, chiffres et traits d'union.",
+    "wholeNumberMax": "Saisissez un nombre entier jusqu'à {max}, ou laissez vide."
   },
   "signIn": {
     "title": "Connexion",
@@ -663,5 +669,54 @@
     "submit": "Revenir à {version}",
     "rollingBack": "Retour en cours…",
     "done": "Retour de la production à {version}."
+  },
+  "connector": {
+    "nodeName": "Connecteur",
+    "nodeDescription": "Appeler un service de bureau, KYC ou LCB-FT",
+    "preset": {
+      "http": "HTTP JSON",
+      "bureau-score": "Score bureau"
+    },
+    "notSetUp": "Non configuré",
+    "addsTo": "Ajoute la réponse à {key}",
+    "settings": "Paramètres",
+    "title": "Paramètres du connecteur",
+    "description": "Nœud {name}",
+    "service": "Service",
+    "presetLabel": "Modèle",
+    "presetHint": "Choisir un modèle remplit ses paramètres ; l'adresse est conservée.",
+    "url": "Adresse",
+    "urlHint": "Le Runtime y envoie le corps de la requête en JSON (POST). Studio ne l'appelle jamais.",
+    "authentication": "Authentification",
+    "authType": "Méthode",
+    "auth": {
+      "none": "Aucune",
+      "bearer": "Jeton Bearer",
+      "header": "En-tête de clé d'API"
+    },
+    "header": "En-tête",
+    "secret": "Nom du secret",
+    "secretHint": "Seul le nom est enregistré. Le Runtime lit la valeur dans {variable}.",
+    "requestResponse": "Requête et réponse",
+    "body": "Corps de la requête",
+    "bodyHint": "JSON. Les textes peuvent utiliser l'entrée de la décision, par ex. {example}.",
+    "outputKey": "Champ de réponse",
+    "outputKeyHint": "La réponse du service est ajoutée aux données de la décision sous ce nom.",
+    "reliability": "Si le service est lent ou en échec",
+    "timeout": "Délai accordé (ms)",
+    "timeoutHint": "Par tentative. Vide : la valeur par défaut du Runtime.",
+    "retries": "Nouvelles tentatives",
+    "retriesHint": "Après une erreur serveur ou un délai dépassé. Vide : la valeur par défaut du Runtime.",
+    "onError": "S'il échoue encore",
+    "onErrorOption": {
+      "fail": "Arrêter la décision avec une erreur",
+      "fallback": "Continuer avec une réponse de repli"
+    },
+    "fallback": "Réponse de repli",
+    "fallbackHint": "JSON utilisé comme réponse quand le service échoue.",
+    "simulation": "Simulation",
+    "mock": "Réponse simulée",
+    "mockHint": "JSON que le simulateur et les scénarios de test utilisent comme réponse du service.",
+    "apply": "Appliquer"
   }
 }

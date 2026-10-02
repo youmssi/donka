@@ -105,3 +105,87 @@ fn invalid_content_names_the_decision() {
 
     assert!(matches!(err, RuntimeError::InvalidContent { key, .. } if key == "broken"));
 }
+
+/// A graph whose connector node calls `url`, with or without a mock response.
+fn connector_bundle(url: &str, mock: Option<Value>) -> Bundle {
+    let mut config = json!({
+        "preset": "bureau-score",
+        "url": url,
+        "auth": { "type": "header", "header": "X-Api-Key", "secret": "BUREAU_API_KEY" },
+        "body": { "id": "{{ applicant.id }}" },
+        "outputKey": "bureau"
+    });
+    if let Some(mock) = mock {
+        config["mock"] = mock;
+    }
+    let graph = json!({
+        "nodes": [
+            { "id": "in", "name": "Request", "type": "inputNode", "position": { "x": 0, "y": 0 } },
+            {
+                "id": "bureau", "name": "Bureau", "type": "customNode", "position": { "x": 0, "y": 0 },
+                "content": { "kind": "donka.connector", "config": config }
+            },
+            { "id": "out", "name": "Response", "type": "outputNode", "position": { "x": 0, "y": 0 } }
+        ],
+        "edges": [
+            { "id": "e1", "type": "edge", "sourceId": "in", "targetId": "bureau" },
+            { "id": "e2", "type": "edge", "sourceId": "bureau", "targetId": "out" }
+        ]
+    });
+    Bundle::from_json(BTreeMap::from([("score".to_owned(), graph)])).unwrap()
+}
+
+#[tokio::test]
+async fn connectors_answer_with_their_mock_and_call_nothing() {
+    // A service that would notice a call: nothing may connect to it.
+    let service = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    service.set_nonblocking(true).unwrap();
+    let url = format!("http://{}/score", service.local_addr().unwrap());
+
+    let out = ZenRuntime::new(1)
+        .evaluate(
+            &connector_bundle(&url, Some(json!({ "score": 712 }))),
+            "score",
+            json!({ "applicant": { "id": "A1" } }),
+            EvaluateOptions { trace: true },
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        out.result,
+        json!({ "applicant": { "id": "A1" }, "bureau": { "score": 712 } })
+    );
+    let trace = out.trace.unwrap();
+    assert_eq!(
+        trace["bureau"]["traceData"],
+        json!({ "mode": "mock", "outcome": "ok" })
+    );
+    assert_eq!(
+        service.accept().map_err(|e| e.kind()).err(),
+        Some(std::io::ErrorKind::WouldBlock),
+        "simulation never calls the service"
+    );
+}
+
+#[tokio::test]
+async fn a_connector_without_a_mock_cannot_be_simulated() {
+    let err = ZenRuntime::new(1)
+        .evaluate(
+            &connector_bundle("https://bureau.example/score", None),
+            "score",
+            json!({}),
+            EvaluateOptions::default(),
+        )
+        .await
+        .unwrap_err();
+
+    let RuntimeError::Evaluation { details } = err else {
+        panic!("expected an evaluation error, got {err:?}");
+    };
+    assert_eq!(details["nodeId"], json!("bureau"));
+    assert!(
+        details.to_string().contains("no mock response"),
+        "{details}"
+    );
+}

@@ -73,6 +73,47 @@ Test vector: the token `dnk_test_token` hashes to
 `d4d813b79f07c455e68458c955824329d902dd5f8e7b0c250fb3f05b3f68c840`. The Runtime checks it in its
 tests; Studio checks it too once it issues tokens (DNK-14).
 
+## Connector nodes
+
+A decision may call an outside service through a connector node (DNK-17): a JDM `customNode`
+whose `content.kind` is `donka.connector`. The Runtime POSTs `body` to `url` and adds the JSON
+answer to the node's output under `outputKey`; Studio answers with `mock` instead.
+
+```json
+{
+  "id": "bureau", "name": "bureau", "type": "customNode", "position": { "x": 300, "y": 40 },
+  "content": {
+    "kind": "donka.connector",
+    "config": {
+      "preset": "bureau-score",
+      "url": "https://api.bureau.example/v2/score",
+      "auth": { "type": "header", "header": "X-Api-Key", "secret": "BUREAU_API_KEY" },
+      "body": { "nationalId": "{{ applicant.nationalId }}" },
+      "outputKey": "bureau",
+      "timeoutMs": 3000,
+      "retries": 1,
+      "onError": "fallback",
+      "fallback": { "score": null, "available": false },
+      "mock": { "score": 712, "available": true }
+    }
+  }
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `preset` | `http` or `bureau-score`; informational. |
+| `url` | `http://` or `https://`. |
+| `auth` | `{ "type": "none" }`, `{ "type": "bearer", "secret" }` or `{ "type": "header", "header", "secret" }`. `secret` is a **name** (capital letters, digits, `_`, at most 64); the Runtime reads the value from `DONKA_SECRET_<NAME>`. |
+| `body` | Any JSON; string values may be templates over the node's input. |
+| `outputKey` | Letters, digits and `_`. |
+| `timeoutMs`, `retries` | Optional; capped by the Runtime (`CONNECTORS__*`). |
+| `onError` | `fail` (default) or `fallback`, which answers `fallback` when the service fails. |
+| `mock` | The answer in Studio's simulator and test scenarios; required to simulate. |
+
+Unknown fields are refused, so a secret value cannot ride along in the node. The node's trace
+holds the mode, outcome, attempts, status and an error code, never a secret or the answer.
+
 ## History
 
 | Version | Change |
