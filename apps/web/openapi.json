@@ -81,7 +81,11 @@
           "release.created",
           "release.deployed",
           "token.issued",
-          "token.revoked"
+          "token.revoked",
+          "approval.requested",
+          "approval.approved",
+          "approval.rejected",
+          "approval.withdrawn"
         ],
         "type": "string"
       },
@@ -100,6 +104,149 @@
           "role"
         ],
         "type": "object"
+      },
+      "ApprovalListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalResponse"
+            },
+            "type": "array"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "type": "object"
+      },
+      "ApprovalResponse": {
+        "properties": {
+          "decidedAt": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decidedBy": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PersonRef"
+              }
+            ]
+          },
+          "deploymentId": {
+            "description": "The production deployment the approval queued.",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason": {
+            "description": "Why it was rejected.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "releaseCreatedBy": {
+            "$ref": "#/components/schemas/PersonRef",
+            "description": "Who made the release: they cannot approve it."
+          },
+          "releaseId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "releaseNotes": {
+            "type": "string"
+          },
+          "releaseVersion": {
+            "type": "string"
+          },
+          "requestedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "requestedBy": {
+            "$ref": "#/components/schemas/PersonRef",
+            "description": "Who asked for production: they cannot approve it either."
+          },
+          "status": {
+            "$ref": "#/components/schemas/ApprovalStatusResponse"
+          }
+        },
+        "required": [
+          "id",
+          "releaseId",
+          "releaseVersion",
+          "releaseNotes",
+          "releaseCreatedBy",
+          "requestedBy",
+          "requestedAt",
+          "status"
+        ],
+        "type": "object"
+      },
+      "ApprovalReviewResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApprovalResponse"
+          },
+          {
+            "properties": {
+              "canDecide": {
+                "description": "Whether the person reading may approve or reject it now.",
+                "type": "boolean"
+              },
+              "changes": {
+                "items": {
+                  "$ref": "#/components/schemas/DecisionChangeResponse"
+                },
+                "type": "array"
+              },
+              "productionVersion": {
+                "description": "The release production runs (or ran when the request was decided).",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tests": {
+                "$ref": "#/components/schemas/TestSummaryResponse",
+                "description": "The scenarios' results on the release, added up."
+              }
+            },
+            "required": [
+              "changes",
+              "tests",
+              "canDecide"
+            ],
+            "type": "object"
+          }
+        ],
+        "description": "What an approver reviews: the request, production now, what changes and the tests."
+      },
+      "ApprovalStatusResponse": {
+        "enum": [
+          "pending",
+          "approved",
+          "rejected",
+          "withdrawn"
+        ],
+        "type": "string"
       },
       "AuditEventResponse": {
         "properties": {
@@ -174,6 +321,15 @@
           "major",
           "minor",
           "patch"
+        ],
+        "type": "string"
+      },
+      "ChangeResponse": {
+        "enum": [
+          "added",
+          "changed",
+          "removed",
+          "unchanged"
         ],
         "type": "string"
       },
@@ -284,6 +440,53 @@
           "input",
           "expected",
           "match"
+        ],
+        "type": "object"
+      },
+      "DecisionChangeResponse": {
+        "properties": {
+          "change": {
+            "$ref": "#/components/schemas/ChangeResponse"
+          },
+          "decisionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "fromVersion": {
+            "description": "The version production runs, if any.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "key": {
+            "type": "string"
+          },
+          "tests": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TestSummaryResponse",
+                "description": "The scenarios' results on the version the release brings."
+              }
+            ]
+          },
+          "toVersion": {
+            "description": "The version the release brings, if any.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "decisionId",
+          "change"
         ],
         "type": "object"
       },
@@ -952,6 +1155,20 @@
         ],
         "type": "object"
       },
+      "RejectRequest": {
+        "properties": {
+          "reason": {
+            "description": "Why the release may not go to production.",
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
+      },
       "ReleaseListResponse": {
         "properties": {
           "items": {
@@ -1100,6 +1317,19 @@
           "key",
           "version",
           "tests"
+        ],
+        "type": "object"
+      },
+      "RequestApprovalRequest": {
+        "properties": {
+          "releaseId": {
+            "description": "The release live on staging.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "releaseId"
         ],
         "type": "object"
       },
@@ -2085,6 +2315,453 @@
         "summary": "Renames the project or changes its description (owners). The key never changes.",
         "tags": [
           "projects"
+        ]
+      }
+    },
+    "/projects/{project_id}/approvals": {
+      "get": {
+        "operationId": "list",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size, 1 to 100 (default 50).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalListResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND"
+          }
+        },
+        "summary": "The project's production requests, newest first (any member).",
+        "tags": [
+          "approvals"
+        ]
+      },
+      "post": {
+        "operationId": "request",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestApprovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Viewers cannot ask (FORBIDDEN)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND or RELEASE_NOT_FOUND"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "APPROVAL_PENDING (another request waits) or PROJECT_ARCHIVED"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "NOT_ON_STAGING or NO_APPROVER (no other owner)"
+          }
+        },
+        "summary": "Asks for the release live on staging to go to production; the owners who\nmay decide are emailed (editors and owners).",
+        "tags": [
+          "approvals"
+        ]
+      }
+    },
+    "/projects/{project_id}/approvals/{approval_id}": {
+      "get": {
+        "operationId": "get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "approval_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalReviewResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND or APPROVAL_NOT_FOUND"
+          }
+        },
+        "summary": "One request with what it would change in production and its test results (any member).",
+        "tags": [
+          "approvals"
+        ]
+      }
+    },
+    "/projects/{project_id}/approvals/{approval_id}/approve": {
+      "post": {
+        "operationId": "approve",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "approval_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Only owners decide (FORBIDDEN)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND or APPROVAL_NOT_FOUND"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "APPROVAL_DECIDED (someone decided first) or PROJECT_ARCHIVED"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "SELF_APPROVAL (you made the release or asked for it)"
+          }
+        },
+        "summary": "Approves a request: the release is queued for production (owners who\nneither made the release nor asked).",
+        "tags": [
+          "approvals"
+        ]
+      }
+    },
+    "/projects/{project_id}/approvals/{approval_id}/reject": {
+      "post": {
+        "operationId": "reject",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "approval_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Missing or too long reason (INVALID_REQUEST)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Only owners decide (FORBIDDEN)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND or APPROVAL_NOT_FOUND"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "APPROVAL_DECIDED (someone decided first) or PROJECT_ARCHIVED"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "SELF_APPROVAL (you made the release or asked for it)"
+          }
+        },
+        "summary": "Rejects a request with a reason (owners who neither made the release nor asked).",
+        "tags": [
+          "approvals"
+        ]
+      }
+    },
+    "/projects/{project_id}/approvals/{approval_id}/withdraw": {
+      "post": {
+        "operationId": "withdraw",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "approval_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "NOT_REQUESTER, or a viewer (FORBIDDEN)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND or APPROVAL_NOT_FOUND"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "APPROVAL_DECIDED or PROJECT_ARCHIVED"
+          }
+        },
+        "summary": "Withdraws a request (the person who asked).",
+        "tags": [
+          "approvals"
         ]
       }
     },

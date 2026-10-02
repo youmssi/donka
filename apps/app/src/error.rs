@@ -81,6 +81,20 @@ pub enum ApiError {
     ReleaseConflict(String),
     #[error("deployment not retryable")]
     NotRetryable,
+    #[error("approval not found")]
+    ApprovalNotFound,
+    #[error("release not live on staging")]
+    NotOnStaging,
+    #[error("no owner can approve")]
+    NoApprover,
+    #[error("an approval is pending")]
+    ApprovalPending,
+    #[error("self approval")]
+    SelfApproval,
+    #[error("approval already decided")]
+    AlreadyDecided,
+    #[error("not the requester")]
+    NotRequester,
     #[error("database unavailable")]
     DatabaseUnavailable,
     #[error("no such endpoint")]
@@ -178,6 +192,17 @@ impl From<ReleaseError> for ApiError {
             ReleaseError::ApprovalRequired => Self::ApprovalRequired,
             ReleaseError::VersionTaken(version) => Self::ReleaseConflict(version.to_string()),
             ReleaseError::NotRetryable => Self::NotRetryable,
+            ReleaseError::ApprovalNotFound => Self::ApprovalNotFound,
+            ReleaseError::NotOnStaging => Self::NotOnStaging,
+            ReleaseError::NoApprover => Self::NoApprover,
+            ReleaseError::ApprovalPending => Self::ApprovalPending,
+            ReleaseError::SelfApproval => Self::SelfApproval,
+            ReleaseError::AlreadyDecided => Self::AlreadyDecided,
+            ReleaseError::NotRequester => Self::NotRequester,
+            ReleaseError::InvalidReason => Self::InvalidField {
+                field: "reason",
+                message: format!("Use 1 to {} characters.", donka_release::MAX_REASON_CHARS),
+            },
             ReleaseError::Random => Self::Internal("random token could not be generated".into()),
             ReleaseError::Project(err) => err.into(),
             ReleaseError::Decision(err) => err.into(),
@@ -390,6 +415,56 @@ impl IntoResponse for ApiError {
                 StatusCode::CONFLICT,
                 "NOT_RETRYABLE",
                 "Only a deployment that gave up can be retried.".to_owned(),
+                None,
+                None,
+            ),
+            Self::ApprovalNotFound => (
+                StatusCode::NOT_FOUND,
+                "APPROVAL_NOT_FOUND",
+                "This project has no such approval request.".to_owned(),
+                None,
+                None,
+            ),
+            Self::NotOnStaging => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "NOT_ON_STAGING",
+                "Only the release live on staging can be asked for production.".to_owned(),
+                None,
+                None,
+            ),
+            Self::NoApprover => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "NO_APPROVER",
+                "No owner other than the release's creator and you can approve it. Add another owner."
+                    .to_owned(),
+                None,
+                None,
+            ),
+            Self::ApprovalPending => (
+                StatusCode::CONFLICT,
+                "APPROVAL_PENDING",
+                "Another request is waiting for approval. Decide or withdraw it first.".to_owned(),
+                None,
+                None,
+            ),
+            Self::SelfApproval => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "SELF_APPROVAL",
+                "You made this release or asked for it: another owner must decide.".to_owned(),
+                None,
+                None,
+            ),
+            Self::AlreadyDecided => (
+                StatusCode::CONFLICT,
+                "APPROVAL_DECIDED",
+                "This request has already been decided or withdrawn.".to_owned(),
+                None,
+                None,
+            ),
+            Self::NotRequester => (
+                StatusCode::FORBIDDEN,
+                "NOT_REQUESTER",
+                "Only the person who asked can withdraw this request.".to_owned(),
                 None,
                 None,
             ),

@@ -752,3 +752,437 @@ async fn viewers_read_releases_but_cannot_release_or_deploy(db: PgPool) {
         StatusCode::OK
     );
 }
+
+// ----- Production approvals (DNK-15) -------------------------------------
+
+const ALICE: &str = "alice@bank.example";
+
+async fn approval(app: &TestApp, session: &str, p: &str, release: &str) -> Reply {
+    call(
+        app,
+        "POST",
+        &format!("/projects/{p}/approvals"),
+        Some(json!({ "releaseId": release })),
+        session,
+    )
+    .await
+}
+
+async fn decide(
+    app: &TestApp,
+    session: &str,
+    p: &str,
+    id: &str,
+    how: &str,
+    body: Option<Value>,
+) -> Reply {
+    call(
+        app,
+        "POST",
+        &format!("/projects/{p}/approvals/{id}/{how}"),
+        body,
+        session,
+    )
+    .await
+}
+
+/// Approval emails sent in one pass of the email worker.
+async fn deliver_approvals(app: &TestApp) -> usize {
+    app.releases
+        .deliver_due_emails(app.mailer.as_ref())
+        .await
+        .unwrap()
+}
+
+/// The admin owns a versioned project with Grace (editor) and Alan (owner);
+/// Grace makes release 1.0.0 and it is published to staging. Returns the
+/// sessions (admin, grace, alan), the project and the release.
+async fn staged(app: &TestApp) -> (String, String, String, String, String) {
+    let admin = signed_in_admin(app).await;
+    let grace = signed_in_user(app, GRACE, false).await;
+    let alan = signed_in_user(app, ALAN, false).await;
+    let p = versioned_project(app, &admin).await;
+    add(app, &admin, &p, GRACE, "editor").await;
+    add(app, &admin, &p, ALAN, "owner").await;
+    let r = release(app, &grace, &p, "minor", "Raise the SME ceiling").await;
+    let rid = r.body["id"].as_str().unwrap().to_owned();
+    assert_eq!(
+        deploy(app, &grace, &p, "staging", &rid).await.status,
+        StatusCode::ACCEPTED
+    );
+    app.releases.publish_due().await.unwrap();
+    (admin, grace, alan, p, rid)
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn production_is_published_after_an_owner_approves(db: PgPool) {
+    let app = with_database(db);
+    let (admin, grace, alan, p, rid) = staged(&app).await;
+
+    // Production is not deployed directly.
+    assert_error(
+        &deploy(&app, &grace, &p, "production", &rid).await,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "APPROVAL_REQUIRED",
+    );
+
+    // Only the release live on staging can be asked for.
+    let other = release(&app, &grace, &p, "patch", "Not on staging").await;
+    assert_error(
+        &approval(&app, &grace, &p, other.body["id"].as_str().unwrap()).await,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "NOT_ON_STAGING",
+    );
+
+    let asked = approval(&app, &grace, &p, &rid).await;
+    assert_eq!(asked.status, StatusCode::CREATED, "{}", asked.body);
+    assert_eq!(asked.body["status"], "pending");
+    assert_eq!(asked.body["releaseVersion"], "1.0.0");
+    assert_eq!(asked.body["requestedBy"]["email"], GRACE);
+    let id = asked.body["id"].as_str().unwrap().to_owned();
+
+    // The owners who may decide are emailed, with a link to the review.
+    assert_eq!(deliver_approvals(&app).await, 2);
+    for owner in [ADMIN_EMAIL, ALAN] {
+        let email = emails_to(&app, owner).pop().unwrap();
+        assert!(email.subject.contains("1.0.0"), "{}", email.subject);
+        assert!(
+            email.text.contains(&format!(
+                "{PUBLIC_URL}/en/projects/approval/?p=credit-pme&a={id}"
+            )),
+            "{}",
+            email.text
+        );
+    }
+    assert!(emails_to(&app, GRACE)
+        .iter()
+        .all(|e| !e.subject.contains("approval")));
+
+    // One request waits at a time.
+    assert_error(
+        &approval(&app, &grace, &p, &rid).await,
+        StatusCode::CONFLICT,
+        "APPROVAL_PENDING",
+    );
+    // Editors ask; owners decide.
+    assert_error(
+        &decide(&app, &grace, &p, &id, "approve", None).await,
+        StatusCode::FORBIDDEN,
+        "FORBIDDEN",
+    );
+
+    let approved = decide(&app, &alan, &p, &id, "approve", None).await;
+    assert_eq!(approved.status, StatusCode::OK, "{}", approved.body);
+    assert_eq!(approved.body["status"], "approved");
+    assert_eq!(approved.body["decidedBy"]["email"], ALAN);
+    assert!(approved.body["deploymentId"].is_string());
+    assert!(app.store.get("production/credit-pme").is_none());
+    assert_eq!(app.releases.publish_due().await.unwrap(), 1);
+    let artifact = read_zip(app.store.get("production/credit-pme").unwrap());
+    assert_eq!(
+        artifact[".config/project.json"]["environment"]["key"],
+        "production"
+    );
+    assert_eq!(
+        artifact[".config/project.json"]["release"]["version"],
+        "1.0.0"
+    );
+
+    let envs = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/environments"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(envs.body["items"][1]["live"]["releaseVersion"], "1.0.0");
+    let audit = call(&app, "GET", &format!("/projects/{p}/audit"), None, &admin).await;
+    let actions: Vec<&str> = audit.body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["action"].as_str().unwrap())
+        .collect();
+    assert!(actions.contains(&"approval.requested") && actions.contains(&"approval.approved"));
+
+    // Decided once and for all.
+    assert_error(
+        &decide(&app, &admin, &p, &id, "approve", None).await,
+        StatusCode::CONFLICT,
+        "APPROVAL_DECIDED",
+    );
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn the_releases_author_cannot_approve_it(db: PgPool) {
+    let app = with_database(db);
+    let (admin, _grace, alan, p, rid) = staged(&app).await;
+    let alice = signed_in_user(&app, ALICE, false).await;
+    add(&app, &admin, &p, ALICE, "owner").await;
+
+    // Alan, an owner, asks: neither he nor Grace (who made the release) can approve.
+    let asked = approval(&app, &alan, &p, &rid).await;
+    assert_eq!(asked.status, StatusCode::CREATED, "{}", asked.body);
+    let id = asked.body["id"].as_str().unwrap().to_owned();
+    assert_error(
+        &decide(&app, &alan, &p, &id, "approve", None).await,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "SELF_APPROVAL",
+    );
+    assert_error(
+        &decide(
+            &app,
+            &alan,
+            &p,
+            &id,
+            "reject",
+            Some(json!({ "reason": "Mine" })),
+        )
+        .await,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "SELF_APPROVAL",
+    );
+    let review = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/approvals/{id}"),
+        None,
+        &alan,
+    )
+    .await;
+    assert_eq!(review.body["canDecide"], false);
+    let review = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/approvals/{id}"),
+        None,
+        &alice,
+    )
+    .await;
+    assert_eq!(review.body["canDecide"], true);
+    assert_eq!(
+        decide(&app, &alice, &p, &id, "approve", None).await.status,
+        StatusCode::OK
+    );
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn a_project_needs_another_owner_to_approve(db: PgPool) {
+    let app = with_database(db);
+    let admin = signed_in_admin(&app).await;
+    let p = versioned_project(&app, &admin).await;
+    let r = release(&app, &admin, &p, "minor", "Solo").await;
+    let rid = r.body["id"].as_str().unwrap().to_owned();
+    deploy(&app, &admin, &p, "staging", &rid).await;
+    app.releases.publish_due().await.unwrap();
+    assert_error(
+        &approval(&app, &admin, &p, &rid).await,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "NO_APPROVER",
+    );
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn rejecting_records_a_reason_and_withdrawing_is_for_the_asker(db: PgPool) {
+    let app = with_database(db);
+    let (admin, grace, alan, p, rid) = staged(&app).await;
+    let id = approval(&app, &grace, &p, &rid).await.body["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    let empty = decide(
+        &app,
+        &alan,
+        &p,
+        &id,
+        "reject",
+        Some(json!({ "reason": "  " })),
+    )
+    .await;
+    assert_error(&empty, StatusCode::BAD_REQUEST, "INVALID_REQUEST");
+    assert!(empty.body["fields"]["reason"].is_string(), "{}", empty.body);
+    let rejected = decide(
+        &app,
+        &alan,
+        &p,
+        &id,
+        "reject",
+        Some(json!({ "reason": "The SME ceiling needs risk sign-off first." })),
+    )
+    .await;
+    assert_eq!(rejected.status, StatusCode::OK, "{}", rejected.body);
+    assert_eq!(rejected.body["status"], "rejected");
+    assert_eq!(
+        rejected.body["reason"],
+        "The SME ceiling needs risk sign-off first."
+    );
+    assert!(app.store.get("production/credit-pme").is_none());
+    assert_eq!(app.releases.publish_due().await.unwrap(), 0);
+
+    // A new request can wait now; only Grace, who asked, can withdraw it.
+    let again = approval(&app, &grace, &p, &rid).await;
+    assert_eq!(again.status, StatusCode::CREATED, "{}", again.body);
+    let again = again.body["id"].as_str().unwrap().to_owned();
+    assert_error(
+        &decide(&app, &admin, &p, &again, "withdraw", None).await,
+        StatusCode::FORBIDDEN,
+        "NOT_REQUESTER",
+    );
+    let withdrawn = decide(&app, &grace, &p, &again, "withdraw", None).await;
+    assert_eq!(withdrawn.body["status"], "withdrawn", "{}", withdrawn.body);
+    assert_error(
+        &decide(&app, &alan, &p, &again, "approve", None).await,
+        StatusCode::CONFLICT,
+        "APPROVAL_DECIDED",
+    );
+
+    let listed = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/approvals"),
+        None,
+        &grace,
+    )
+    .await;
+    assert_eq!(listed.body["total"], 2);
+    assert_eq!(listed.body["items"][0]["status"], "withdrawn");
+    assert_eq!(listed.body["items"][1]["status"], "rejected");
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn two_owners_deciding_at_once_produce_one_outcome(db: PgPool) {
+    let app = with_database(db);
+    let (admin, grace, alan, p, rid) = staged(&app).await;
+    let id = approval(&app, &grace, &p, &rid).await.body["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    let (first, second) = tokio::join!(
+        decide(&app, &admin, &p, &id, "approve", None),
+        decide(
+            &app,
+            &alan,
+            &p,
+            &id,
+            "reject",
+            Some(json!({ "reason": "Not this week" }))
+        ),
+    );
+    let mut statuses = [first.status, second.status];
+    statuses.sort();
+    assert_eq!(
+        statuses,
+        [StatusCode::OK, StatusCode::CONFLICT],
+        "{} / {}",
+        first.body,
+        second.body
+    );
+    let loser = if first.status == StatusCode::CONFLICT {
+        &first
+    } else {
+        &second
+    };
+    assert_error(loser, StatusCode::CONFLICT, "APPROVAL_DECIDED");
+
+    let review = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/approvals/{id}"),
+        None,
+        &grace,
+    )
+    .await;
+    let deployments = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/environments/production/deployments"),
+        None,
+        &grace,
+    )
+    .await;
+    let queued = deployments.body["total"].as_i64().unwrap();
+    match review.body["status"].as_str().unwrap() {
+        "approved" => assert_eq!(queued, 1),
+        "rejected" => assert_eq!(queued, 0),
+        other => panic!("unexpected outcome {other}"),
+    }
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn the_review_shows_what_changes_the_tests_and_the_notes(db: PgPool) {
+    let app = with_database(db);
+    let (admin, grace, alan, p, rid) = staged(&app).await;
+    let first = approval(&app, &grace, &p, &rid).await.body["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    decide(&app, &alan, &p, &first, "approve", None).await;
+    app.releases.publish_due().await.unwrap();
+
+    // A new version of person-score, released and staged.
+    let decisions = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/decisions"),
+        None,
+        &grace,
+    )
+    .await;
+    let score = decisions.body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|d| d["key"] == "person-score")
+        .unwrap()
+        .clone();
+    let base = format!("/projects/{p}/decisions/{}", score["id"].as_str().unwrap());
+    let revision = score["revision"].as_i64().unwrap();
+    let mut changed = calling("bureau/normalize");
+    changed["nodes"][1]["name"] = json!("normalize");
+    save_draft(&app, &grace, &base, changed, revision).await;
+    let v = save_version(&app, &grace, &base, revision + 1, "Second").await;
+    assert_eq!(v.status, StatusCode::CREATED, "{}", v.body);
+    let next = release(&app, &grace, &p, "minor", "Score v2 for SMEs").await;
+    let next_id = next.body["id"].as_str().unwrap().to_owned();
+    deploy(&app, &grace, &p, "staging", &next_id).await;
+    app.releases.publish_due().await.unwrap();
+
+    let asked = approval(&app, &grace, &p, &next_id).await;
+    let id = asked.body["id"].as_str().unwrap();
+    let review = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/approvals/{id}"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(review.status, StatusCode::OK, "{}", review.body);
+    assert_eq!(review.body["releaseVersion"], "1.1.0");
+    assert_eq!(review.body["releaseNotes"], "Score v2 for SMEs");
+    assert_eq!(review.body["productionVersion"], "1.0.0");
+    let changes = review.body["changes"].as_array().unwrap();
+    assert_eq!(changes[0]["key"], "person-score");
+    assert_eq!(changes[0]["change"], "changed");
+    assert_eq!(changes[0]["fromVersion"], 1);
+    assert_eq!(changes[0]["toVersion"], 2);
+    assert_eq!(changes[1]["key"], "bureau/normalize");
+    assert_eq!(changes[1]["change"], "unchanged");
+    assert!(review.body["tests"]["passed"].is_i64());
+    assert_eq!(review.body["canDecide"], true);
+
+    // The first request still compares with production as it was then.
+    let old = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/approvals/{first}"),
+        None,
+        &admin,
+    )
+    .await;
+    assert!(old.body["productionVersion"].is_null(), "{}", old.body);
+    assert_eq!(old.body["changes"][0]["change"], "added");
+}

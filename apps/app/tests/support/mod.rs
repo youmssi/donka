@@ -15,7 +15,7 @@ use donka_identity::{Identity, Locale, Policy};
 use donka_mail::testing::RecordingMailer;
 use donka_mail::Email;
 use donka_project::Projects;
-use donka_release::Releases;
+use donka_release::{ReleaseSettings, Releases};
 use donka_shared::clock::ManualClock;
 use donka_storage::MemoryStore;
 use http_body_util::BodyExt;
@@ -70,7 +70,11 @@ pub fn build_with_web(
         decisions.clone(),
         projects.clone(),
         store.clone(),
-        PUBLISH_MAX_ATTEMPTS,
+        ReleaseSettings {
+            publish_max_attempts: PUBLISH_MAX_ATTEMPTS,
+            email_max_attempts: policy().email_max_attempts,
+            public_url: PUBLIC_URL.into(),
+        },
     );
     let audit = AuditLog::new(db.clone());
     let router = router(

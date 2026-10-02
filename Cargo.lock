@@ -1079,6 +1079,7 @@ dependencies = [
  "donka-audit",
  "donka-db",
  "donka-decision",
+ "donka-mail",
  "donka-project",
  "donka-shared",
  "donka-storage",

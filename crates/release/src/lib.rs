@@ -9,7 +9,7 @@
 //! retrying a failed write and showing why it failed. Runtime tokens are
 //! issued per environment, shown once and kept only as hashes; issuing or
 //! revoking one publishes the environment's release again with the new hashes.
-//! Production deployments need a second person's approval (DNK-15).
+//! Production is published through a second person's approval (`approval`).
 
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
@@ -27,7 +27,14 @@ use std::sync::Arc;
 use tokio::sync::Notify;
 use uuid::Uuid;
 
+pub mod approval;
 pub mod artifact;
+mod emails;
+
+pub use approval::{
+    Approval, ApprovalReview, ApprovalStatus, Approver, Change, DecisionChange, Language,
+    MAX_REASON_CHARS,
+};
 
 pub const MAX_NOTES_CHARS: usize = 2000;
 pub const MAX_TOKEN_NAME_CHARS: usize = 100;
@@ -137,9 +144,31 @@ pub enum ReleaseError {
     InvalidNotes,
     #[error("token names are 1 to {MAX_TOKEN_NAME_CHARS} characters")]
     InvalidTokenName,
-    /// Production is published through an approval (DNK-15), not deployed directly.
+    /// Production is published through an approval, not deployed directly.
     #[error("production needs a second person's approval")]
     ApprovalRequired,
+    #[error("approval not found")]
+    ApprovalNotFound,
+    /// Only the release live on staging can be asked for production.
+    #[error("the release is not the one live on staging")]
+    NotOnStaging,
+    /// No owner other than the release's creator and the person asking.
+    #[error("the project has no owner who can approve this release")]
+    NoApprover,
+    /// One request per project waits at a time.
+    #[error("another request is waiting for approval")]
+    ApprovalPending,
+    /// The release's creator and the person asking cannot decide.
+    #[error("you made this release or asked for it: another owner must decide")]
+    SelfApproval,
+    /// Someone decided first, or the request was withdrawn.
+    #[error("this request has already been decided")]
+    AlreadyDecided,
+    /// Only the person who asked can withdraw a request.
+    #[error("only the person who asked can withdraw this request")]
+    NotRequester,
+    #[error("reasons are 1 to {MAX_REASON_CHARS} characters")]
+    InvalidReason,
     /// Someone created a release with this version at the same moment.
     #[error("release {0} was just created by someone else")]
     VersionTaken(SemVer),
@@ -284,6 +313,17 @@ pub struct IssuedToken {
     pub details: RuntimeToken,
 }
 
+/// How releases are published and approval emails sent.
+#[derive(Debug, Clone)]
+pub struct ReleaseSettings {
+    /// Failed writes before a deployment is given up.
+    pub publish_max_attempts: u32,
+    /// Failed sends before an approval email is given up.
+    pub email_max_attempts: u32,
+    /// Studio's address, for the links in emails.
+    pub public_url: String,
+}
+
 #[derive(Clone)]
 pub struct Releases {
     pool: PgPool,
@@ -291,12 +331,14 @@ pub struct Releases {
     decisions: Decisions,
     projects: Projects,
     store: Arc<dyn ArtifactStore>,
-    /// Failed writes before a deployment is given up.
-    max_attempts: u32,
+    settings: ReleaseSettings,
+    /// Woken when a deployment is queued.
     outbox: Arc<Notify>,
+    /// Woken when an approval email is queued.
+    emails: Arc<Notify>,
 }
 
-type Tx<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
+pub(crate) type Tx<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
 
 #[derive(sqlx::FromRow)]
 struct SummaryRow {
@@ -412,7 +454,7 @@ const TOKENS: &str = "SELECT id, name, hint, created_by, created_at, revoked_by,
 
 /// A query assembled from this module's constant fragments: no value from
 /// outside ever reaches the text, only bound parameters.
-fn sql(text: String) -> sqlx::AssertSqlSafe<String> {
+pub(crate) fn sql(text: String) -> sqlx::AssertSqlSafe<String> {
     sqlx::AssertSqlSafe(text)
 }
 
@@ -423,7 +465,7 @@ impl Releases {
         decisions: Decisions,
         projects: Projects,
         store: Arc<dyn ArtifactStore>,
-        max_attempts: u32,
+        settings: ReleaseSettings,
     ) -> Self {
         Self {
             pool,
@@ -431,8 +473,9 @@ impl Releases {
             decisions,
             projects,
             store,
-            max_attempts,
+            settings,
             outbox: Arc::new(Notify::new()),
+            emails: Arc::new(Notify::new()),
         }
     }
 
@@ -788,7 +831,7 @@ impl Releases {
                     published += 1;
                 }
                 Err(error) => {
-                    let max = i32::try_from(self.max_attempts).unwrap_or(i32::MAX);
+                    let max = i32::try_from(self.settings.publish_max_attempts).unwrap_or(i32::MAX);
                     let abandoned_at = (attempts >= max).then_some(now);
                     if abandoned_at.is_some() {
                         tracing::error!(deployment_id = %due.id, %key, %error, attempts, "deployment given up");
@@ -1002,7 +1045,7 @@ async fn load_deployment(
 
 /// Queues a deployment; any earlier one of the environment not yet published
 /// is superseded, so an older release never lands after a newer one.
-async fn enqueue(
+pub(crate) async fn enqueue(
     tx: &mut Tx<'_>,
     access: &Access,
     project: &donka_project::Project,
@@ -1071,7 +1114,7 @@ async fn republish(
     Ok(())
 }
 
-fn retry_delay(attempts: i32) -> Duration {
+pub(crate) fn retry_delay(attempts: i32) -> Duration {
     let doublings = u32::try_from(attempts.saturating_sub(1))
         .unwrap_or(0)
         .min(16);
@@ -1079,7 +1122,7 @@ fn retry_delay(attempts: i32) -> Duration {
 }
 
 /// A unique violation means someone did the same thing at the same moment.
-fn unique_or(err: sqlx::Error, taken: ReleaseError) -> ReleaseError {
+pub(crate) fn unique_or(err: sqlx::Error, taken: ReleaseError) -> ReleaseError {
     match err.as_database_error().and_then(|db| db.code()) {
         Some(code) if code == "23505" => taken,
         _ => err.into(),

@@ -8,7 +8,7 @@ use donka_engine::{DecisionRuntime, ZenRuntime};
 use donka_identity::{Identity, Policy};
 use donka_mail::SmtpMailer;
 use donka_project::Projects;
-use donka_release::Releases;
+use donka_release::{ReleaseSettings, Releases};
 use donka_shared::clock::SystemClock;
 use donka_storage::ObjectStorage;
 use std::sync::Arc;
@@ -73,7 +73,11 @@ async fn main() -> anyhow::Result<()> {
         decisions.clone(),
         projects.clone(),
         Arc::new(storage),
-        config.publish_max_attempts,
+        ReleaseSettings {
+            publish_max_attempts: config.publish_max_attempts,
+            email_max_attempts: config.email_max_attempts,
+            public_url: config.public_url.clone(),
+        },
     );
     let audit = AuditLog::new(db.clone());
 
@@ -99,6 +103,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn(donka_app::publish_worker::run(releases.clone()));
     tokio::spawn(donka_app::email_worker::run(
         identity.clone(),
+        releases.clone(),
         Arc::new(mailer),
         config.public_url.clone(),
     ));
