@@ -126,6 +126,20 @@ impl FromRequestParts<AppState> for DeploymentId {
     }
 }
 
+/// The approval in the `{approval_id}` path segment; a malformed id is `404 APPROVAL_NOT_FOUND`.
+pub struct ApprovalId(pub Uuid);
+
+impl FromRequestParts<AppState> for ApprovalId {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, ApiError> {
+        path_id(parts, state, "approval_id")
+            .await
+            .map(Self)
+            .ok_or(ApiError::ApprovalNotFound)
+    }
+}
+
 /// The token in the `{token_id}` path segment; a malformed id is `404 TOKEN_NOT_FOUND`.
 pub struct TokenId(pub Uuid);
 

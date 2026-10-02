@@ -2,11 +2,19 @@ import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { getProjectByKey } from '@/modules/project/project.service';
-import { search } from '@/test/navigation-mock';
+import { router, search } from '@/test/navigation-mock';
 import { renderWithProviders } from '@/test/render';
 
 import { EnvironmentsPage } from './environments-page';
-import { issueToken, listEnvironments, listReleases, listTokens, retryDeployment } from './release.service';
+import {
+  issueToken,
+  listApprovals,
+  listEnvironments,
+  listReleases,
+  listTokens,
+  requestApproval,
+  retryDeployment,
+} from './release.service';
 import type { Deployment, EnvironmentState } from './schema';
 
 vi.mock('./release.service', () => ({
@@ -18,7 +26,11 @@ vi.mock('./release.service', () => ({
   retryDeployment: vi.fn(),
   issueToken: vi.fn(),
   revokeToken: vi.fn(),
+  listApprovals: vi.fn(),
+  requestApproval: vi.fn(),
 }));
+const approvalsMock = vi.mocked(listApprovals);
+const requestMock = vi.mocked(requestApproval);
 const environmentsMock = vi.mocked(listEnvironments);
 const releasesMock = vi.mocked(listReleases);
 const tokensMock = vi.mocked(listTokens);
@@ -61,6 +73,7 @@ beforeEach(() => {
   search.params = new URLSearchParams({ p: 'credit-pme' });
   releasesMock.mockResolvedValue({ ok: true, data: { items: [], total: 0 } });
   tokensMock.mockResolvedValue({ ok: true, data: [] });
+  approvalsMock.mockResolvedValue({ ok: true, data: { items: [], total: 0 } });
 });
 
 it('shows the live release of each environment and its object key', async () => {
@@ -124,4 +137,62 @@ it('shows a new token once, with how to send it', async () => {
   expect(await within(dialog).findByDisplayValue('dnk_secret-value-abcd')).toBeInTheDocument();
   expect(within(dialog).getByText(/shown only once/)).toBeInTheDocument();
   expect(within(dialog).getByText(/X-Access-Token/)).toBeInTheDocument();
+});
+
+it('asks for the release live on staging to go to production', async () => {
+  const user = userEvent.setup();
+  projectMock.mockResolvedValue({ ok: true, data: project('editor') });
+  const live = deployment({ releaseId: 'r-2', releaseVersion: '1.1.0' });
+  environmentsMock.mockResolvedValue({ ok: true, data: environments({ live, latest: live }) });
+  requestMock.mockResolvedValue({
+    ok: true,
+    data: {
+      id: 'a-1',
+      releaseId: 'r-2',
+      releaseVersion: '1.1.0',
+      releaseNotes: 'Raise the ceiling',
+      releaseCreatedBy: ada,
+      requestedBy: ada,
+      requestedAt: '2026-10-01T09:00:00Z',
+      status: 'pending',
+    },
+  });
+  renderWithProviders(<EnvironmentsPage />);
+  const production = await screen.findByRole('region', { name: 'Production' });
+  await user.click(await within(production).findByRole('button', { name: 'Ask to publish 1.1.0' }));
+  await user.click(await screen.findByRole('button', { name: 'Ask for approval' }));
+  expect(requestMock).toHaveBeenCalledWith('p-1', 'r-2');
+  expect(router.push).toHaveBeenCalledWith('/projects/approval?p=credit-pme&a=a-1');
+});
+
+it('shows the request waiting for approval instead of asking again', async () => {
+  projectMock.mockResolvedValue({ ok: true, data: project('editor') });
+  const live = deployment({ releaseId: 'r-2', releaseVersion: '1.1.0' });
+  environmentsMock.mockResolvedValue({ ok: true, data: environments({ live, latest: live }) });
+  approvalsMock.mockResolvedValue({
+    ok: true,
+    data: {
+      items: [
+        {
+          id: 'a-1',
+          releaseId: 'r-2',
+          releaseVersion: '1.1.0',
+          releaseNotes: 'Raise the ceiling',
+          releaseCreatedBy: ada,
+          requestedBy: ada,
+          requestedAt: '2026-10-01T09:00:00Z',
+          status: 'pending',
+        },
+      ],
+      total: 1,
+    },
+  });
+  renderWithProviders(<EnvironmentsPage />);
+  const production = await screen.findByRole('region', { name: 'Production' });
+  expect(await within(production).findByText(/1.1.0 waits for approval/)).toBeInTheDocument();
+  expect(within(production).getByRole('link', { name: 'Review' })).toHaveAttribute(
+    'href',
+    '/projects/approval?p=credit-pme&a=a-1',
+  );
+  expect(within(production).queryByRole('button', { name: /Ask to publish/ })).not.toBeInTheDocument();
 });

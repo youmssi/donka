@@ -6,6 +6,7 @@ it('knows where the person is from the address', () => {
   expect(placeOf('/projects/audit')).toEqual({ kind: 'project', section: 'audit' });
   expect(placeOf('/projects/members/')).toEqual({ kind: 'project', section: 'members' });
   expect(placeOf('/projects/decision')).toEqual({ kind: 'project', section: 'decision' });
+  expect(placeOf('/projects/approval/')).toEqual({ kind: 'project', section: 'approval' });
   expect(placeOf('/sign-in')).toEqual({ kind: 'other' });
 });
 
@@ -24,9 +25,18 @@ it('offers the audit log to owners only', () => {
     'scenarios',
     'releases',
     'environments',
+    'approvals',
     'members',
     'settings',
     'audit',
   ]);
-  expect(sections('editor')).toEqual(['decisions', 'scenarios', 'releases', 'environments', 'members', 'settings']);
+  expect(sections('editor')).toEqual([
+    'decisions',
+    'scenarios',
+    'releases',
+    'environments',
+    'approvals',
+    'members',
+    'settings',
+  ]);
 });

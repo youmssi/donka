@@ -125,6 +125,11 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
             routes::releases::issue_token
         ))
         .routes(routes!(routes::releases::revoke_token))
+        .routes(routes!(routes::approvals::list, routes::approvals::request))
+        .routes(routes!(routes::approvals::get))
+        .routes(routes!(routes::approvals::approve))
+        .routes(routes!(routes::approvals::reject))
+        .routes(routes!(routes::approvals::withdraw))
         .routes(routes!(routes::scenarios::list, routes::scenarios::create))
         .routes(routes!(
             routes::scenarios::get,

@@ -39,10 +39,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
-import { ProjectFrame, type Project } from '@/modules/project';
+import { Link, useRouter } from '@/i18n/navigation';
+import { approvalHref, ProjectFrame, type Project } from '@/modules/project';
 
 import { canRelease } from './releases-page';
-import { deployRelease, issueToken, retryDeployment, revokeToken } from './release.service';
+import { deployRelease, issueToken, requestApproval, retryDeployment, revokeToken } from './release.service';
 import {
   inFlight,
   TOKEN_NAME_MAX,
@@ -54,7 +55,7 @@ import {
   type RuntimeToken,
   type TokenValues,
 } from './schema';
-import { useEnvironments, useReleaseList, useReleasesChanged, useTokens } from './useReleases';
+import { useApprovals, useEnvironments, useReleaseList, useReleasesChanged, useTokens } from './useReleases';
 
 /** Owners manage the tokens that open an environment. */
 function canManageTokens(project: Project): boolean {
@@ -87,13 +88,29 @@ function Environments({ project }: { project: Project }) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       {result
-        ? result.data.map((env) => <EnvironmentCard key={env.environment} project={project} state={env} />)
+        ? result.data.map((env) => (
+            <EnvironmentCard
+              key={env.environment}
+              project={project}
+              state={env}
+              staging={result.data.find((other) => other.environment === 'staging')?.live ?? null}
+            />
+          ))
         : [0, 1].map((index) => <Skeleton key={index} className="h-80 w-full rounded-xl" />)}
     </div>
   );
 }
 
-function EnvironmentCard({ project, state }: { project: Project; state: EnvironmentState }) {
+function EnvironmentCard({
+  project,
+  state,
+  staging,
+}: {
+  project: Project;
+  state: EnvironmentState;
+  /** What staging runs: the release production can be asked for. */
+  staging: Deployment | null;
+}) {
   const t = useTranslations('environments');
   const env = state.environment;
   const pending = state.latest && state.latest.id !== state.live?.id ? state.latest : null;
@@ -128,15 +145,100 @@ function EnvironmentCard({ project, state }: { project: Project; state: Environm
             <DeployControl project={project} live={state.live?.releaseId ?? null} />
           ) : null
         ) : (
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <ShieldCheck className="size-4 shrink-0" aria-hidden />
-            {t('productionApproval')}
-          </p>
+          <ProductionRequest project={project} staging={staging} live={state.live?.releaseId ?? null} />
         )}
         <Separator />
         <Tokens project={project} environment={env} />
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Production is published through an approval: the request waiting for one,
+ * or a way to ask for the release live on staging.
+ */
+function ProductionRequest({
+  project,
+  staging,
+  live,
+}: {
+  project: Project;
+  staging: Deployment | null;
+  live: string | null;
+}) {
+  const t = useTranslations('environments');
+  const common = useTranslations('common');
+  const errors = useTranslations('errors');
+  const router = useRouter();
+  const changed = useReleasesChanged(project.id);
+  const approvals = useApprovals(project.id, 0).data;
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const pending = approvals?.ok ? approvals.data.items.find((approval) => approval.status === 'pending') : undefined;
+
+  if (pending) {
+    return (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+        <ShieldCheck className="size-4 shrink-0 text-amber-600" aria-hidden />
+        <p className="min-w-0 flex-1">
+          {t('waitingApproval', { version: pending.releaseVersion, email: pending.requestedBy.email })}
+        </p>
+        <Button asChild size="sm" variant="outline">
+          <Link href={approvalHref(project.key, pending.id)}>{t('review')}</Link>
+        </Button>
+      </div>
+    );
+  }
+  const askable = canRelease(project) && staging && staging.releaseId !== live;
+  if (!askable) {
+    return (
+      <p className="flex items-center gap-2 text-sm text-muted-foreground">
+        <ShieldCheck className="size-4 shrink-0" aria-hidden />
+        {t('productionApproval')}
+      </p>
+    );
+  }
+
+  async function onRequest() {
+    if (!staging) return;
+    setBusy(true);
+    const result = await requestApproval(project.id, staging.releaseId);
+    setBusy(false);
+    changed();
+    if (result.ok) {
+      toast.success(t('requested', { version: result.data.releaseVersion }));
+      router.push(approvalHref(project.key, result.data.id));
+    } else {
+      toast.error(errors(result.error.code));
+    }
+  }
+
+  return (
+    <div className="grid gap-2">
+      <p className="flex items-center gap-2 text-sm text-muted-foreground">
+        <ShieldCheck className="size-4 shrink-0" aria-hidden />
+        {t('productionApproval')}
+      </p>
+      <div>
+        <Button disabled={busy} onClick={() => setConfirming(true)}>
+          {busy ? <Spinner /> : <Rocket aria-hidden />}
+          {t('requestProduction', { version: staging.releaseVersion })}
+        </Button>
+      </div>
+      <AlertDialog open={confirming} onOpenChange={setConfirming}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('requestTitle', { version: staging.releaseVersion })}</AlertDialogTitle>
+            <AlertDialogDescription>{t('requestConfirm')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{common('cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void onRequest()}>{t('requestAction')}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 }
 
@@ -231,14 +333,14 @@ function DeployControl({ project, live }: { project: Project; live: string | nul
           {t('deployLabel')}
         </label>
         <Select value={selected} onValueChange={setChosen}>
-          <SelectTrigger id={selectId} className="w-full">
+          <SelectTrigger id={selectId} className="w-full overflow-hidden">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {items.map((release) => (
               <SelectItem key={release.id} value={release.id}>
                 <span className="font-mono">{release.version}</span>
-                <span className="max-w-60 truncate text-muted-foreground">{release.notes}</span>
+                <span className="max-w-60 min-w-0 truncate text-muted-foreground">{release.notes}</span>
               </SelectItem>
             ))}
           </SelectContent>

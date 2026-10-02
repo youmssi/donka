@@ -97,6 +97,18 @@ pub enum Action {
     #[serde(rename = "token.revoked")]
     #[sqlx(rename = "token.revoked")]
     TokenRevoked,
+    #[serde(rename = "approval.requested")]
+    #[sqlx(rename = "approval.requested")]
+    ApprovalRequested,
+    #[serde(rename = "approval.approved")]
+    #[sqlx(rename = "approval.approved")]
+    ApprovalApproved,
+    #[serde(rename = "approval.rejected")]
+    #[sqlx(rename = "approval.rejected")]
+    ApprovalRejected,
+    #[serde(rename = "approval.withdrawn")]
+    #[sqlx(rename = "approval.withdrawn")]
+    ApprovalWithdrawn,
 }
 
 impl Action {
@@ -127,6 +139,10 @@ impl Action {
             Self::ReleaseDeployed => "release.deployed",
             Self::TokenIssued => "token.issued",
             Self::TokenRevoked => "token.revoked",
+            Self::ApprovalRequested => "approval.requested",
+            Self::ApprovalApproved => "approval.approved",
+            Self::ApprovalRejected => "approval.rejected",
+            Self::ApprovalWithdrawn => "approval.withdrawn",
         }
     }
 }
@@ -305,6 +321,10 @@ mod tests {
             Action::ReleaseDeployed,
             Action::TokenIssued,
             Action::TokenRevoked,
+            Action::ApprovalRequested,
+            Action::ApprovalApproved,
+            Action::ApprovalRejected,
+            Action::ApprovalWithdrawn,
         ] {
             assert_eq!(
                 serde_json::to_value(action).unwrap(),

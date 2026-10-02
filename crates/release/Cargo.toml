@@ -12,6 +12,7 @@ chrono = { workspace = true }
 donka-audit = { workspace = true }
 donka-db = { workspace = true }
 donka-decision = { workspace = true }
+donka-mail = { workspace = true }
 donka-project = { workspace = true }
 donka-shared = { workspace = true }
 donka-storage = { workspace = true }

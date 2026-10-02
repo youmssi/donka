@@ -402,6 +402,14 @@ function useSentence(event: AuditEvent): string {
         name: detail(event, 'name'),
         environment: environments(detail(event, 'environment') as EnvironmentName),
       });
+    case 'approval.requested':
+      return t('approvalRequested', { version: detail(event, 'version') });
+    case 'approval.approved':
+      return t('approvalApproved', { version: detail(event, 'version') });
+    case 'approval.rejected':
+      return t('approvalRejected', { version: detail(event, 'version'), reason: detail(event, 'reason') });
+    case 'approval.withdrawn':
+      return t('approvalWithdrawn', { version: detail(event, 'version') });
     case 'member.removed':
       return t('memberRemoved', { person, role: role(detail(event, 'role')) });
     default:

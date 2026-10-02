@@ -2,7 +2,15 @@
 
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { getRelease, listEnvironments, listReleases, listTokens, previewRelease } from './release.service';
+import {
+  getApproval,
+  getRelease,
+  listApprovals,
+  listEnvironments,
+  listReleases,
+  listTokens,
+  previewRelease,
+} from './release.service';
 import { inFlight, type EnvironmentName } from './schema';
 
 /** While a deployment is on its way, the environments are asked again this often. */
@@ -15,6 +23,8 @@ const keys = {
   preview: (projectId: string) => ['project', projectId, 'releases', 'preview'] as const,
   environments: (projectId: string) => ['project', projectId, 'releases', 'environments'] as const,
   tokens: (projectId: string, env: EnvironmentName) => ['project', projectId, 'releases', 'tokens', env] as const,
+  approvals: (projectId: string, offset: number) => ['project', projectId, 'releases', 'approvals', offset] as const,
+  approval: (projectId: string, id: string) => ['project', projectId, 'releases', 'approval', id] as const,
 };
 
 export function useReleaseList(projectId: string, offset: number) {
@@ -55,7 +65,23 @@ export function useTokens(projectId: string, env: EnvironmentName) {
   return useQuery({ queryKey: keys.tokens(projectId, env), queryFn: () => listTokens(projectId, env) });
 }
 
-/** After a release, a deployment or a token change, every view of them updates. */
+export function useApprovals(projectId: string, offset: number) {
+  return useQuery({
+    queryKey: keys.approvals(projectId, offset),
+    queryFn: () => listApprovals(projectId, offset),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useApproval(projectId: string, id: string | null) {
+  return useQuery({
+    queryKey: keys.approval(projectId, id ?? ''),
+    queryFn: () => getApproval(projectId, id ?? ''),
+    enabled: id !== null,
+  });
+}
+
+/** After a release, a deployment, an approval or a token change, every view of them updates. */
 export function useReleasesChanged(projectId: string) {
   const queryClient = useQueryClient();
   return () => void queryClient.invalidateQueries({ queryKey: keys.all(projectId) });

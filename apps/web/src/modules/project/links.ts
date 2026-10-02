@@ -1,6 +1,15 @@
-/** A project's pages; `decision` is the editor of one decision. */
+/** A project's pages; `decision` is the editor of one decision, `approval` the review of one request. */
 export type ProjectSection =
-  'decisions' | 'decision' | 'scenarios' | 'releases' | 'environments' | 'members' | 'settings' | 'audit';
+  | 'decisions'
+  | 'decision'
+  | 'scenarios'
+  | 'releases'
+  | 'environments'
+  | 'approvals'
+  | 'approval'
+  | 'members'
+  | 'settings'
+  | 'audit';
 
 /** A project page's address: by key, short and readable (`/projects/members?p=credit-pme`). */
 export function projectHref(section: ProjectSection, key: string, extra?: Record<string, string>): string {
@@ -16,4 +25,9 @@ export function projectHome(key: string): string {
 /** The editor of one decision (`/projects/decision?p=credit-pme&d=bureau/normalize`). */
 export function decisionHref(projectKey: string, decisionKey: string): string {
   return projectHref('decision', projectKey, { d: decisionKey });
+}
+
+/** The review of one production request (`/projects/approval?p=credit-pme&a=<id>`). */
+export function approvalHref(projectKey: string, id: string): string {
+  return projectHref('approval', projectKey, { a: id });
 }

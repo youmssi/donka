@@ -165,6 +165,98 @@ export interface paths {
     patch: operations['update'];
     trace?: never;
   };
+  '/projects/{project_id}/approvals': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The project's production requests, newest first (any member). */
+    get: operations['list'];
+    put?: never;
+    /**
+     * Asks for the release live on staging to go to production; the owners who
+     *     may decide are emailed (editors and owners).
+     */
+    post: operations['request'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/approvals/{approval_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** One request with what it would change in production and its test results (any member). */
+    get: operations['get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/approvals/{approval_id}/approve': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Approves a request: the release is queued for production (owners who
+     *     neither made the release nor asked).
+     */
+    post: operations['approve'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/approvals/{approval_id}/reject': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Rejects a request with a reason (owners who neither made the release nor asked). */
+    post: operations['reject'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/approvals/{approval_id}/withdraw': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Withdraws a request (the person who asked). */
+    post: operations['withdraw'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/projects/{project_id}/archive': {
     parameters: {
       query?: never;
@@ -732,12 +824,58 @@ export interface components {
       | 'release.created'
       | 'release.deployed'
       | 'token.issued'
-      | 'token.revoked';
+      | 'token.revoked'
+      | 'approval.requested'
+      | 'approval.approved'
+      | 'approval.rejected'
+      | 'approval.withdrawn';
     AddMemberRequest: {
       /** @description Email of an existing Studio account. */
       email: string;
       role: components['schemas']['Role'];
     };
+    ApprovalListResponse: {
+      items: components['schemas']['ApprovalResponse'][];
+      /** Format: int64 */
+      total: number;
+    };
+    ApprovalResponse: {
+      /** Format: date-time */
+      decidedAt?: string | null;
+      decidedBy?: null | components['schemas']['PersonRef'];
+      /**
+       * Format: uuid
+       * @description The production deployment the approval queued.
+       */
+      deploymentId?: string | null;
+      /** Format: uuid */
+      id: string;
+      /** @description Why it was rejected. */
+      reason?: string | null;
+      /** @description Who made the release: they cannot approve it. */
+      releaseCreatedBy: components['schemas']['PersonRef'];
+      /** Format: uuid */
+      releaseId: string;
+      releaseNotes: string;
+      releaseVersion: string;
+      /** Format: date-time */
+      requestedAt: string;
+      /** @description Who asked for production: they cannot approve it either. */
+      requestedBy: components['schemas']['PersonRef'];
+      status: components['schemas']['ApprovalStatusResponse'];
+    };
+    /** @description What an approver reviews: the request, production now, what changes and the tests. */
+    ApprovalReviewResponse: components['schemas']['ApprovalResponse'] & {
+      /** @description Whether the person reading may approve or reject it now. */
+      canDecide: boolean;
+      changes: components['schemas']['DecisionChangeResponse'][];
+      /** @description The release production runs (or ran when the request was decided). */
+      productionVersion?: string | null;
+      /** @description The scenarios' results on the release, added up. */
+      tests: components['schemas']['TestSummaryResponse'];
+    };
+    /** @enum {string} */
+    ApprovalStatusResponse: 'pending' | 'approved' | 'rejected' | 'withdrawn';
     AuditEventResponse: {
       action: components['schemas']['Action'];
       actor?: null | components['schemas']['PersonRef'];
@@ -762,6 +900,8 @@ export interface components {
      * @enum {string}
      */
     BumpRequest: 'major' | 'minor' | 'patch';
+    /** @enum {string} */
+    ChangeResponse: 'added' | 'changed' | 'removed' | 'unchanged';
     ChangeRoleRequest: {
       role: components['schemas']['Role'];
     };
@@ -800,6 +940,23 @@ export interface components {
       match: components['schemas']['MatchMode'];
       /** @description Unique among the decision's scenarios (any case). */
       name: string;
+    };
+    DecisionChangeResponse: {
+      change: components['schemas']['ChangeResponse'];
+      /** Format: uuid */
+      decisionId: string;
+      /**
+       * Format: int32
+       * @description The version production runs, if any.
+       */
+      fromVersion?: number | null;
+      key: string;
+      tests?: null | components['schemas']['TestSummaryResponse'];
+      /**
+       * Format: int32
+       * @description The version the release brings, if any.
+       */
+      toVersion?: number | null;
     };
     DecisionListResponse: {
       items: components['schemas']['DecisionSummaryResponse'][];
@@ -1034,6 +1191,10 @@ export interface components {
       name: string;
       role: components['schemas']['Role'];
     };
+    RejectRequest: {
+      /** @description Why the release may not go to production. */
+      reason: string;
+    };
     ReleaseListResponse: {
       items: components['schemas']['ReleaseSummaryResponse'][];
       /**
@@ -1084,6 +1245,13 @@ export interface components {
        * @description The version of the decision the release froze.
        */
       version: number;
+    };
+    RequestApprovalRequest: {
+      /**
+       * Format: uuid
+       * @description The release live on staging.
+       */
+      releaseId: string;
     };
     RestoreRequest: {
       /**
@@ -1661,6 +1829,310 @@ export interface operations {
         };
       };
       /** @description Archived (PROJECT_ARCHIVED) */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  list: {
+    parameters: {
+      query?: {
+        /** @description Page size, 1 to 100 (default 50). */
+        limit?: number;
+        offset?: number;
+      };
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ApprovalListResponse'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  request: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RequestApprovalRequest'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ApprovalResponse'];
+        };
+      };
+      /** @description Viewers cannot ask (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or RELEASE_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description APPROVAL_PENDING (another request waits) or PROJECT_ARCHIVED */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description NOT_ON_STAGING or NO_APPROVER (no other owner) */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        approval_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ApprovalReviewResponse'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or APPROVAL_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  approve: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        approval_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ApprovalResponse'];
+        };
+      };
+      /** @description Only owners decide (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or APPROVAL_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description APPROVAL_DECIDED (someone decided first) or PROJECT_ARCHIVED */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description SELF_APPROVAL (you made the release or asked for it) */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  reject: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        approval_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RejectRequest'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ApprovalResponse'];
+        };
+      };
+      /** @description Missing or too long reason (INVALID_REQUEST) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Only owners decide (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or APPROVAL_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description APPROVAL_DECIDED (someone decided first) or PROJECT_ARCHIVED */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description SELF_APPROVAL (you made the release or asked for it) */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  withdraw: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        approval_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ApprovalResponse'];
+        };
+      };
+      /** @description NOT_REQUESTER, or a viewer (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or APPROVAL_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description APPROVAL_DECIDED or PROJECT_ARCHIVED */
       409: {
         headers: {
           [name: string]: unknown;

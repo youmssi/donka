@@ -336,6 +336,21 @@ async fn openapi_document_describes_the_endpoints() {
             "/projects/{project_id}/environments/{environment}/tokens/{token_id}",
             "delete",
         ),
+        ("/projects/{project_id}/approvals", "get"),
+        ("/projects/{project_id}/approvals", "post"),
+        ("/projects/{project_id}/approvals/{approval_id}", "get"),
+        (
+            "/projects/{project_id}/approvals/{approval_id}/approve",
+            "post",
+        ),
+        (
+            "/projects/{project_id}/approvals/{approval_id}/reject",
+            "post",
+        ),
+        (
+            "/projects/{project_id}/approvals/{approval_id}/withdraw",
+            "post",
+        ),
         ("/projects/{project_id}/test-scenarios", "get"),
         ("/projects/{project_id}/test-scenarios", "post"),
         ("/projects/{project_id}/test-scenarios/{scenario_id}", "get"),
