@@ -80,7 +80,13 @@
     "maxLength": "Use at most {max} characters.",
     "projectKey": "Use {min} to {max} lowercase letters, digits and single hyphens, starting with a letter.",
     "decisionKey": "Use lowercase words with single hyphens; separate folders with /. At most {max} characters.",
-    "jsonObject": "Enter a JSON object, e.g. '{'\"income\": 150000'}'."
+    "jsonObject": "Enter a JSON object, e.g. '{'\"income\": 150000'}'.",
+    "json": "Enter valid JSON, e.g. '{'\"score\": 700'}'.",
+    "connectorUrl": "Enter an address starting with http:// or https://.",
+    "outputKey": "Use letters, digits and underscores only.",
+    "secretName": "Use capital letters, digits and underscores, starting with a letter (at most 64).",
+    "headerName": "Use letters, digits and hyphens only.",
+    "wholeNumberMax": "Enter a whole number up to {max}, or leave it empty."
   },
   "signIn": {
     "title": "Sign in",
@@ -663,5 +669,54 @@
     "submit": "Roll back to {version}",
     "rollingBack": "Rolling back…",
     "done": "Rolling production back to {version}."
+  },
+  "connector": {
+    "nodeName": "Connector",
+    "nodeDescription": "Call a bureau, KYC or AML service",
+    "preset": {
+      "http": "HTTP JSON",
+      "bureau-score": "Bureau score"
+    },
+    "notSetUp": "Not set up",
+    "addsTo": "Adds the answer to {key}",
+    "settings": "Settings",
+    "title": "Connector settings",
+    "description": "Node {name}",
+    "service": "Service",
+    "presetLabel": "Template",
+    "presetHint": "Choosing a template fills in its settings; the address stays.",
+    "url": "Address",
+    "urlHint": "The Runtime sends the request body here as JSON (POST). Studio never calls it.",
+    "authentication": "Authentication",
+    "authType": "Method",
+    "auth": {
+      "none": "None",
+      "bearer": "Bearer token",
+      "header": "API key header"
+    },
+    "header": "Header",
+    "secret": "Secret name",
+    "secretHint": "Only the name is stored. The Runtime reads the value from {variable}.",
+    "requestResponse": "Request and response",
+    "body": "Request body",
+    "bodyHint": "JSON. Text values may use the decision's input, e.g. {example}.",
+    "outputKey": "Answer field",
+    "outputKeyHint": "The service's answer is added to the decision's data under this name.",
+    "reliability": "When the service is slow or fails",
+    "timeout": "Time allowed (ms)",
+    "timeoutHint": "Per attempt. Empty: the Runtime's default.",
+    "retries": "Retries",
+    "retriesHint": "After a server error or timeout. Empty: the Runtime's default.",
+    "onError": "If it still fails",
+    "onErrorOption": {
+      "fail": "Stop the decision with an error",
+      "fallback": "Continue with a fallback answer"
+    },
+    "fallback": "Fallback answer",
+    "fallbackHint": "JSON used as the answer when the service fails.",
+    "simulation": "Simulation",
+    "mock": "Mock answer",
+    "mockHint": "JSON the simulator and test scenarios use as the service's answer.",
+    "apply": "Apply"
   }
 }

@@ -981,6 +981,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "donka-connectors"
+version = "0.1.0"
+source = "git+https://github.com/youmssi/donka-runtime?rev=532841918709fa22baf6e2c8a577e61a67b951df#532841918709fa22baf6e2c8a577e61a67b951df"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "zen-engine",
+ "zen-tmpl",
+]
+
+[[package]]
 name = "donka-db"
 version = "0.1.0"
 dependencies = [
@@ -1011,6 +1023,7 @@ name = "donka-engine"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "donka-connectors",
  "serde",
  "serde_json",
  "thiserror 2.0.21",

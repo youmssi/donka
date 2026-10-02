@@ -6,8 +6,13 @@
 //! A [`Bundle`] is the unit Donka evaluates: every decision of a project at one
 //! point in time (a draft, or a release). Graphs reference sub-decisions by key,
 //! so evaluating a single graph without its siblings would be wrong.
+//!
+//! Connector nodes (`donka.connector`) answer with the mock response their
+//! author defined: no call to an outside service ever leaves Studio. The
+//! Runtime runs the same handler for real.
 
 use async_trait::async_trait;
+use donka_connectors::ConnectorAdapter;
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -107,12 +112,14 @@ pub trait DecisionRuntime: Send + Sync {
 #[derive(Clone)]
 pub struct ZenRuntime {
     pool: LocalPoolHandle,
+    connectors: Arc<ConnectorAdapter>,
 }
 
 impl ZenRuntime {
     pub fn new(workers: usize) -> Self {
         Self {
             pool: LocalPoolHandle::new(workers.max(1)),
+            connectors: Arc::new(ConnectorAdapter::mock()),
         }
     }
 }
@@ -137,6 +144,7 @@ impl DecisionRuntime for ZenRuntime {
         }
 
         let loader = bundle.loader.clone();
+        let connectors = self.connectors.clone();
         let key = key.to_owned();
         let trace = if options.trace {
             EvaluationTraceKind::Default
@@ -147,7 +155,9 @@ impl DecisionRuntime for ZenRuntime {
         let outcome = self
             .pool
             .spawn_pinned(move || async move {
-                let engine = DecisionEngine::default().with_loader(loader);
+                let engine = DecisionEngine::default()
+                    .with_loader(loader)
+                    .with_adapter(connectors);
                 engine
                     .evaluate_serialized(
                         key,

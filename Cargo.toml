@@ -38,6 +38,8 @@ object_store = { version = "0.14", features = ["aws"] }
 url = "2"
 zip = { version = "8", default-features = false, features = ["deflate"] }
 zen-engine = { version = "=2.0.1", features = ["arbitrary_precision"] }
+# Connector nodes, the same handler the Runtime runs; Studio uses its mock mode only (no `live`).
+donka-connectors = { git = "https://github.com/youmssi/donka-runtime", rev = "532841918709fa22baf6e2c8a577e61a67b951df" }
 
 donka-engine = { path = "crates/engine" }
 donka-db = { path = "crates/db" }
