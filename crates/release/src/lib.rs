@@ -722,7 +722,7 @@ impl Releases {
             access,
             &project,
             Queued {
-                environment: environment,
+                environment,
                 release_id,
                 reason: DeploymentReason::Deploy,
                 rollback_reason: None,
@@ -1135,7 +1135,7 @@ async fn republish(
             access,
             project,
             Queued {
-                environment: environment,
+                environment,
                 release_id,
                 reason: DeploymentReason::Tokens,
                 rollback_reason: None,
