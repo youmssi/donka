@@ -31,10 +31,10 @@ import {
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Link } from '@/i18n/navigation';
 import { TestBadge } from '@/modules/decision';
-import { decisionHref, projectHref, ProjectFrame, type Project } from '@/modules/project';
+import { projectHref, ProjectFrame, type Project } from '@/modules/project';
 
+import { FrozenDecisions } from './frozen-decisions';
 import { NewRelease } from './release-dialog';
 import { deployRelease, RELEASES_PAGE_SIZE } from './release.service';
 import type { EnvironmentName, ReleaseSummary } from './schema';
@@ -98,13 +98,13 @@ function Releases({ project }: { project: Project }) {
       id: 'version',
       header: t('version'),
       cell: ({ row }) => (
-        <button
-          type="button"
-          className="font-mono font-semibold underline-offset-4 hover:underline"
+        <Button
+          variant="link"
+          className="h-auto p-0 font-mono font-semibold text-foreground"
           onClick={() => setViewing(row.original.id)}
         >
           {row.original.version}
-        </button>
+        </Button>
       ),
     },
     {
@@ -291,23 +291,7 @@ function ReleaseSheet({ project, id, onClose }: { project: Project; id: string |
             <>
               <p className="text-sm break-words whitespace-pre-line">{release.notes}</p>
               <LiveIn environments={release.liveIn} />
-              <section className="grid gap-2">
-                <h3 className="text-sm font-medium">{t('frozen', { count: release.decisions.length })}</h3>
-                <ul className="divide-y rounded-lg border text-sm">
-                  {release.decisions.map((decision) => (
-                    <li key={decision.key} className="flex items-center gap-2 px-3 py-2">
-                      <Link
-                        href={decisionHref(project.key, decision.key)}
-                        className="min-w-0 flex-1 truncate font-mono underline-offset-4 hover:underline"
-                      >
-                        {decision.key}
-                      </Link>
-                      <TestBadge summary={decision.tests} />
-                      <span className="font-mono text-xs text-muted-foreground">v{decision.version}</span>
-                    </li>
-                  ))}
-                </ul>
-              </section>
+              <FrozenDecisions decisions={release.decisions} projectKey={project.key} />
             </>
           )}
         </div>

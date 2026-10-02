@@ -1,9 +1,9 @@
 'use client';
 
 import { useForm } from '@tanstack/react-form';
-import { CircleAlert, Copy, KeyRound, Plus, Rocket, RotateCcw, ShieldCheck } from 'lucide-react';
+import { Check, CircleAlert, Copy, KeyRound, Plus, Rocket, RotateCcw, ShieldCheck } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useId, useState } from 'react';
+import { Fragment, useId, useState } from 'react';
 import { toast } from 'sonner';
 
 import type { ActionError } from '@/components/shared/api';
@@ -33,8 +33,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { FieldGroup } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group';
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemMedia,
+  ItemSeparator,
+  ItemTitle,
+} from '@/components/ui/item';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -179,15 +189,15 @@ function ProductionRequest({
 
   if (pending) {
     return (
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-        <ShieldCheck className="size-4 shrink-0 text-amber-600" aria-hidden />
-        <p className="min-w-0 flex-1">
-          {t('waitingApproval', { version: pending.releaseVersion, email: pending.requestedBy.email })}
-        </p>
-        <Button asChild size="sm" variant="outline">
-          <Link href={approvalHref(project.key, pending.id)}>{t('review')}</Link>
-        </Button>
-      </div>
+      <Alert className="border-amber-500/40 bg-amber-500/10">
+        <ShieldCheck className="text-amber-600" aria-hidden />
+        <AlertDescription className="text-foreground">
+          <p>{t('waitingApproval', { version: pending.releaseVersion, email: pending.requestedBy.email })}</p>
+          <Button asChild size="sm" variant="outline" className="mt-2">
+            <Link href={approvalHref(project.key, pending.id)}>{t('review')}</Link>
+          </Button>
+        </AlertDescription>
+      </Alert>
     );
   }
   const askable = canRelease(project) && staging && staging.releaseId !== live;
@@ -281,20 +291,19 @@ function PendingDeployment({ project, deployment }: { project: Project; deployme
   }
   if (inFlight(deployment)) {
     return (
-      <div className="grid gap-1 rounded-lg border bg-muted/40 p-3 text-sm" role="status" aria-live="polite">
-        <p className="flex items-center gap-2 font-medium">
-          <Spinner /> {what}
-        </p>
+      <Alert role="status" aria-live="polite">
+        <Spinner />
+        <AlertTitle>{what}</AlertTitle>
         {deployment.status === 'retrying' ? (
-          <p className="text-muted-foreground">
+          <AlertDescription>
             {t.rich('retrying', {
               attempts: deployment.attempts,
               error: deployment.lastError ?? '',
               when: () => (deployment.nextAttemptAt ? <When value={deployment.nextAttemptAt} as="time" /> : null),
             })}
-          </p>
+          </AlertDescription>
         ) : null}
-      </div>
+      </Alert>
     );
   }
   return null;
@@ -328,10 +337,8 @@ function DeployControl({ project, live }: { project: Project; live: string | nul
 
   return (
     <div className="flex flex-wrap items-end gap-2">
-      <div className="grid min-w-0 flex-1 gap-1.5">
-        <label htmlFor={selectId} className="text-sm font-medium">
-          {t('deployLabel')}
-        </label>
+      <Field className="min-w-0 flex-1 gap-1.5">
+        <FieldLabel htmlFor={selectId}>{t('deployLabel')}</FieldLabel>
         <Select value={selected} onValueChange={setChosen}>
           <SelectTrigger id={selectId} className="w-full overflow-hidden">
             <SelectValue />
@@ -345,7 +352,7 @@ function DeployControl({ project, live }: { project: Project; live: string | nul
             ))}
           </SelectContent>
         </Select>
-      </div>
+      </Field>
       <Button disabled={busy || selected === live} onClick={() => void onDeploy()}>
         {busy ? <Spinner /> : <Rocket aria-hidden />}
         {t('deploy')}
@@ -379,11 +386,14 @@ function Tokens({ project, environment }: { project: Project; environment: Envir
       ) : result.data.length === 0 ? (
         <p className="text-sm text-muted-foreground">{manage ? t('empty') : t('emptyReadOnly')}</p>
       ) : (
-        <ul className="divide-y rounded-lg border text-sm">
-          {result.data.map((token) => (
-            <TokenRow key={token.id} project={project} environment={environment} token={token} manage={manage} />
+        <ItemGroup className="rounded-lg border">
+          {result.data.map((token, index) => (
+            <Fragment key={token.id}>
+              {index > 0 ? <ItemSeparator /> : null}
+              <TokenRow project={project} environment={environment} token={token} manage={manage} />
+            </Fragment>
           ))}
-        </ul>
+        </ItemGroup>
       )}
       {issuing ? (
         <IssueTokenDialog project={project} environment={environment} onClose={() => setIssuing(false)} />
@@ -418,23 +428,20 @@ function TokenRow({
   }
 
   return (
-    <li className="flex items-center gap-2 px-3 py-2">
-      <KeyRound className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-      <span
-        className={revoked ? 'min-w-0 flex-1 truncate text-muted-foreground line-through' : 'min-w-0 flex-1 truncate'}
-      >
-        {token.name}
-      </span>
-      <span className="font-mono text-xs text-muted-foreground">…{token.hint}</span>
-      {revoked ? (
-        <Badge variant="outline">{t('revokedBadge')}</Badge>
-      ) : (
-        <span className="hidden text-xs text-muted-foreground sm:inline">
-          <When value={token.createdAt} as="ago" />
-        </span>
-      )}
+    <Item size="sm" role="listitem">
+      <ItemMedia variant="icon">
+        <KeyRound aria-hidden />
+      </ItemMedia>
+      <ItemContent className="min-w-0">
+        <ItemTitle className={revoked ? 'text-muted-foreground line-through' : undefined}>{token.name}</ItemTitle>
+        <ItemDescription className="flex flex-wrap items-center gap-x-2">
+          <span className="font-mono">…{token.hint}</span>
+          {revoked ? null : <When value={token.createdAt} as="ago" />}
+        </ItemDescription>
+      </ItemContent>
+      {revoked ? <Badge variant="outline">{t('revokedBadge')}</Badge> : null}
       {manage && !revoked ? (
-        <>
+        <ItemActions>
           <Button variant="ghost" size="sm" onClick={() => setConfirming(true)}>
             {t('revoke')}
           </Button>
@@ -452,9 +459,9 @@ function TokenRow({
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-        </>
+        </ItemActions>
       ) : null}
-    </li>
+    </Item>
   );
 }
 
@@ -474,6 +481,7 @@ function IssueTokenDialog({
   const changed = useReleasesChanged(project.id);
   const [error, setError] = useState<ActionError | null>(null);
   const [issued, setIssued] = useState<IssuedToken | null>(null);
+  const [copied, setCopied] = useState(false);
   const tokenField = useId();
 
   const form = useForm({
@@ -494,6 +502,7 @@ function IssueTokenDialog({
   async function copy(token: string) {
     try {
       await navigator.clipboard.writeText(token);
+      setCopied(true);
       toast.success(t('copied'));
     } catch {
       toast.error(t('copyFailed'));
@@ -509,23 +518,28 @@ function IssueTokenDialog({
         </DialogHeader>
         {issued ? (
           <div className="grid gap-4">
-            <div className="grid gap-1.5">
-              <label htmlFor={tokenField} className="text-sm font-medium">
-                {issued.name}
-              </label>
-              <div className="flex gap-2">
-                <Input
+            <Field className="gap-1.5">
+              <FieldLabel htmlFor={tokenField}>{issued.name}</FieldLabel>
+              <InputGroup>
+                <InputGroupInput
                   id={tokenField}
                   readOnly
                   value={issued.token}
                   className="font-mono text-xs"
                   onFocus={(e) => e.target.select()}
                 />
-                <Button variant="outline" size="icon" aria-label={t('copy')} onClick={() => void copy(issued.token)}>
-                  <Copy aria-hidden />
-                </Button>
-              </div>
-            </div>
+                <InputGroupAddon align="inline-end">
+                  <InputGroupButton
+                    size="icon-xs"
+                    aria-label={t('copy')}
+                    title={t('copy')}
+                    onClick={() => void copy(issued.token)}
+                  >
+                    {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
+                  </InputGroupButton>
+                </InputGroupAddon>
+              </InputGroup>
+            </Field>
             <Alert>
               <CircleAlert aria-hidden />
               <AlertDescription>{t('header')}</AlertDescription>

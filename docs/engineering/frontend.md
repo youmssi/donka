@@ -110,7 +110,8 @@ Studio is a desktop-first work tool (analysts at a desk), but every screen must 
 - **Design tokens** (colours, radius, fonts) are CSS variables shared by the shadcn components and
   the antd theme used inside jdm-editor, so the editor matches the shell.
 - **Components come from the shadcn registry** (new-york-v4 sources in `components/ui/`, taken
-  as published; only import paths change). Check the registry before writing markup: a need
+  as published; only import paths change, and a component gets `asChild` where it must wrap the
+  locale-aware `Link`). Check the registry before writing markup: a need
   already covered by a component is built with it. The map below is the default per need:
 
   | Need | Component |
@@ -127,6 +128,11 @@ Studio is a desktop-first work tool (analysts at a desk), but every screen must 
   | Pick among many (people) | `Popover` + `Command` (combobox) |
   | Short confirmation | `sonner` toast |
   | Icon-only button | `Button size="icon-sm"` + `Tooltip` with its name |
+  | Short list inside a card, sheet or dialog (tokens, frozen versions, changes) | `ItemGroup` + `Item` (`ItemSeparator` between, `ItemActions` for buttons) |
+  | Something that needs attention (in progress, waiting, failed) | `Alert` (default or `destructive`, `Spinner` as its icon while in progress) |
+  | Form label outside a TanStack form | `Field` + `FieldLabel` |
+  | Value to copy | `InputGroup` with an `InputGroupButton` |
+  | Previous / next pages | `Pagination` (`components/shared/pager`) |
 
 - **Dates and times** go through `components/shared/format` only: "13 Nov" in the current year,
   "13 Nov 2025" otherwise, times "14:05" in the viewer's locale and time zone, the full date and

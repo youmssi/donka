@@ -24,9 +24,9 @@ import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Link } from '@/i18n/navigation';
-import { TestBadge } from '@/modules/decision';
 import { decisionHref, type Project } from '@/modules/project';
 
+import { FrozenDecisions } from './frozen-decisions';
 import { createRelease, deployRelease } from './release.service';
 import { NOTES_MAX, releaseSchema, type Bump, type ReleasePreview, type ReleaseValues } from './schema';
 import { useReleasePreview, useReleasesChanged } from './useReleases';
@@ -227,18 +227,7 @@ function ReleaseForm({
             <AlertDescription>{t('failing')}</AlertDescription>
           </Alert>
         ) : null}
-        <section className="grid gap-2">
-          <h3 className="text-sm font-medium">{t('frozen', { count: preview.decisions.length })}</h3>
-          <ul className="divide-y rounded-lg border text-sm">
-            {preview.decisions.map((decision) => (
-              <li key={decision.key} className="flex items-center gap-2 px-3 py-2">
-                <span className="min-w-0 flex-1 truncate font-mono">{decision.key}</span>
-                <TestBadge summary={decision.tests} />
-                <span className="font-mono text-xs text-muted-foreground">v{decision.version}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
+        <FrozenDecisions decisions={preview.decisions} />
       </div>
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onClose}>
