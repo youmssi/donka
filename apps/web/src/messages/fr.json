@@ -602,9 +602,9 @@
     "decidedBy": "Tranchée par",
     "decidedAt": "Tranchée",
     "pending": "En attente",
-    "approved": "Release {version} approuvée : publication en production.",
-    "rejected": "Release {version} refusée.",
-    "withdrawn": "Demande retirée.",
+    "approved": "Approuvée",
+    "rejected": "Refusée",
+    "withdrawn": "Retirée",
     "emptyTitle": "Aucune demande",
     "empty": "Les demandes de production apparaissent ici. Faites-en une depuis la page Environnements quand une release est en service en staging.",
     "notFoundTitle": "Cette demande n’existe pas",
@@ -640,6 +640,9 @@
     "rejecting": "Refus…",
     "withdraw": "Retirer",
     "withdrawTitle": "Retirer cette demande ?",
-    "withdrawConfirm": "Les propriétaires ne peuvent plus l’approuver. Vous pourrez la refaire plus tard."
+    "withdrawConfirm": "Les propriétaires ne peuvent plus l’approuver. Vous pourrez la refaire plus tard.",
+    "approvedDone": "Release {version} approuvée : publication en production.",
+    "rejectedDone": "Release {version} refusée.",
+    "withdrawnDone": "Demande retirée."
   }
 }

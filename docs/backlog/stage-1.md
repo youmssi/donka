@@ -294,7 +294,7 @@ An approver who only sees a diff is rubber-stamping. Tests make the four-eyes ru
 #### Decisions (product owner)
 - A decision with no saved version blocks the release; the dialog names it with a link to fix it.
 - Editors and owners create releases and deploy to staging; owners manage Runtime tokens.
-  Production waits for DNK-15's approval.
+  Production goes through DNK-15's approval.
 - The person picks a major, minor or patch bump; the first release of a project is 1.0.0.
 - Failing tests warn but do not block; each frozen version keeps its test results.
 
@@ -322,12 +322,31 @@ An approver who only sees a diff is rubber-stamping. Tests make the four-eyes ru
 
 **Type:** feature · **Repos:** S · **Dependencies:** DNK-14 · **Size:** M
 
+#### Decisions (product owner)
+- Approvers are the project's owners.
+- Neither the person who made the release nor the person who asked for production can approve
+  or reject it (`422 SELF_APPROVAL`); a request with no other owner is refused (`422 NO_APPROVER`).
+- Only the release live on staging can be asked for production (`422 NOT_ON_STAGING`).
+- One request per project waits at a time (`409 APPROVAL_PENDING`); the person who asked can
+  withdraw it.
+
+#### Technical choices
+- Approvals live in the release module (`crates/release/src/approval.rs`): approving queues the
+  production deployment through the same outbox as staging.
+- Deciding locks the pending request first (`SELECT … FOR UPDATE`), then queues the deployment
+  and records the outcome; a second owner waits on the lock and gets `409 APPROVAL_DECIDED`.
+- Approval emails have their own outbox (`approval_emails`), rendered in each owner's language
+  when queued (they hold no secret), sent by the email worker with the same retry policy.
+- The review compares the release with what production ran before the request's outcome, by
+  decision id (a renamed decision is the same decision); each changed decision opens the graph
+  diff of its two versions.
+
 #### Acceptance criteria
-- [ ] Requesting production creates a pending approval and emails the project's approvers
-- [ ] The release author cannot approve (`422 SELF_APPROVAL`)
-- [ ] Approving publishes to `production/<project-key>`; rejecting records a reason
-- [ ] Two approvers acting at the same time produce one outcome (`409` for the second)
-- [ ] The approval screen shows diff, test results and release notes
+- [x] Requesting production creates a pending approval and emails the project's approvers
+- [x] The release author cannot approve (`422 SELF_APPROVAL`)
+- [x] Approving publishes to `production/<project-key>`; rejecting records a reason
+- [x] Two approvers acting at the same time produce one outcome (`409` for the second)
+- [x] The approval screen shows diff, test results and release notes
 
 ---
 

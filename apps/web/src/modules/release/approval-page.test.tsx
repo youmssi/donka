@@ -99,6 +99,7 @@ it('lets an owner who did not make the release approve it', async () => {
   await user.click(within(confirm).getByRole('button', { name: 'Approve' }));
   expect(approveMock).toHaveBeenCalledWith('p-1', 'a-1');
   expect(toast.success).toHaveBeenCalledWith('Release 1.1.0 approved: publishing to production.');
+  expect(screen.queryByText(/{version}/)).not.toBeInTheDocument();
 });
 
 it('asks for a reason to reject', async () => {
@@ -138,6 +139,8 @@ it('shows why a request was rejected', async () => {
   });
   renderWithProviders(<ApprovalPage />);
   expect(await screen.findByText('Rejected by alan@bank.example')).toBeInTheDocument();
+  // The status badge names the status, not a sentence about it.
+  expect(screen.getByText('Rejected', { exact: true })).toBeInTheDocument();
   expect(screen.getByText('Needs risk sign-off')).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Reject' })).not.toBeInTheDocument();
 });

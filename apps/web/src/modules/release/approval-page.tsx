@@ -333,7 +333,7 @@ function ApproveButton({ project, review }: { project: Project; review: Approval
   async function onApprove() {
     const result = await approve(project.id, review.id);
     changed();
-    if (result.ok) toast.success(t('approved', { version: review.releaseVersion }));
+    if (result.ok) toast.success(t('approvedDone', { version: review.releaseVersion }));
     else toast.error(errors(result.error.code));
   }
 
@@ -391,7 +391,7 @@ function RejectDialog({ project, review, onClose }: { project: Project; review: 
         return;
       }
       onClose();
-      toast.success(t('rejected', { version: review.releaseVersion }));
+      toast.success(t('rejectedDone', { version: review.releaseVersion }));
     },
   });
 
@@ -455,7 +455,7 @@ function WithdrawButton({ project, review }: { project: Project; review: Approva
   async function onWithdraw() {
     const result = await withdraw(project.id, review.id);
     changed();
-    if (result.ok) toast.success(t('withdrawn'));
+    if (result.ok) toast.success(t('withdrawnDone'));
     else toast.error(errors(result.error.code));
   }
 

@@ -333,14 +333,14 @@ function DeployControl({ project, live }: { project: Project; live: string | nul
           {t('deployLabel')}
         </label>
         <Select value={selected} onValueChange={setChosen}>
-          <SelectTrigger id={selectId} className="w-full">
+          <SelectTrigger id={selectId} className="w-full overflow-hidden">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {items.map((release) => (
               <SelectItem key={release.id} value={release.id}>
                 <span className="font-mono">{release.version}</span>
-                <span className="max-w-60 truncate text-muted-foreground">{release.notes}</span>
+                <span className="max-w-60 min-w-0 truncate text-muted-foreground">{release.notes}</span>
               </SelectItem>
             ))}
           </SelectContent>

@@ -602,9 +602,9 @@
     "decidedBy": "Decided by",
     "decidedAt": "Decided",
     "pending": "Waiting",
-    "approved": "Release {version} approved: publishing to production.",
-    "rejected": "Release {version} rejected.",
-    "withdrawn": "Request withdrawn.",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "withdrawn": "Withdrawn",
     "emptyTitle": "No requests yet",
     "empty": "Production requests appear here. Ask for one from the Environments page once a release is live on staging.",
     "notFoundTitle": "This request does not exist",
@@ -640,6 +640,9 @@
     "rejecting": "Rejecting…",
     "withdraw": "Withdraw",
     "withdrawTitle": "Withdraw this request?",
-    "withdrawConfirm": "Owners can no longer approve it. You can ask again later."
+    "withdrawConfirm": "Owners can no longer approve it. You can ask again later.",
+    "approvedDone": "Release {version} approved: publishing to production.",
+    "rejectedDone": "Release {version} rejected.",
+    "withdrawnDone": "Request withdrawn."
   }
 }
