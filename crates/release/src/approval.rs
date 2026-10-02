@@ -9,7 +9,8 @@
 //! so two owners acting at once produce one outcome.
 
 use crate::{
-    enqueue, sql, unique_or, DeploymentReason, Environment, ReleaseError, Releases, SemVer, Tx,
+    enqueue, load_deployment, sql, unique_or, Deployment, DeploymentReason, Environment, Queued,
+    ReleaseError, ReleaseSummary, Releases, SemVer, SummaryRow, Tx, SUMMARY,
 };
 use chrono::{DateTime, Utc};
 use donka_audit::{Action, Event};
@@ -376,9 +377,12 @@ impl Releases {
             &mut tx,
             access,
             &project,
-            Environment::Production,
-            current.release_id,
-            DeploymentReason::Deploy,
+            Queued {
+                environment: Environment::Production,
+                release_id: current.release_id,
+                reason: DeploymentReason::Deploy,
+                rollback_reason: None,
+            },
             now,
         )
         .await?;
@@ -454,6 +458,106 @@ impl Releases {
         let approval = load(&mut tx, access.project_id(), id).await?;
         tx.commit().await?;
         Ok(approval)
+    }
+
+    /// The releases production can be rolled back to: each one approved for
+    /// production once, except the one live now, newest first (any member).
+    pub async fn rollback_targets(
+        &self,
+        access: &Access,
+    ) -> Result<Vec<ReleaseSummary>, ReleaseError> {
+        let mut conn = self.pool.acquire().await?;
+        let live = live_release(&mut conn, access.project_id(), Environment::Production).await?;
+        let rows: Vec<SummaryRow> = sqlx::query_as(sql(format!(
+            "{SUMMARY} AND EXISTS (SELECT 1 FROM approvals a WHERE a.release_id = r.id \
+             AND a.status = 'approved') AND r.id IS DISTINCT FROM $2 \
+             ORDER BY r.major DESC, r.minor DESC, r.patch DESC"
+        )))
+        .bind(access.project_id())
+        .bind(live)
+        .fetch_all(&mut *conn)
+        .await?;
+        Ok(rows.into_iter().map(ReleaseSummary::from).collect())
+    }
+
+    /// Puts a release once approved for production back in production, with
+    /// a reason and without a new approval (owners). A request waiting for
+    /// approval stays as it is.
+    pub async fn rollback(
+        &self,
+        access: &Access,
+        release_id: Uuid,
+        reason: &str,
+    ) -> Result<Deployment, ReleaseError> {
+        let reason = reason.trim();
+        if reason.is_empty() || reason.chars().count() > MAX_REASON_CHARS {
+            return Err(ReleaseError::InvalidReason);
+        }
+        let project = self.projects.get(access).await?;
+        let now = self.clock.now();
+        let mut tx = self.pool.begin().await?;
+        authorize_change(&mut tx, access, Role::Owner).await?;
+        let target: Option<SemVer> = sqlx::query_as(
+            "SELECT major, minor, patch FROM releases WHERE project_id = $1 AND id = $2",
+        )
+        .bind(access.project_id())
+        .bind(release_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+        let target = target.ok_or(ReleaseError::NotFound)?;
+        let (approved,): (bool,) = sqlx::query_as(
+            "SELECT EXISTS (SELECT 1 FROM approvals WHERE project_id = $1 AND release_id = $2 \
+             AND status = 'approved')",
+        )
+        .bind(access.project_id())
+        .bind(release_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        if !approved {
+            return Err(ReleaseError::NeverApproved);
+        }
+        let live = live_release(&mut tx, access.project_id(), Environment::Production).await?;
+        if live == Some(release_id) {
+            return Err(ReleaseError::AlreadyLive);
+        }
+        let from: Option<SemVer> = match live {
+            Some(live) => {
+                sqlx::query_as("SELECT major, minor, patch FROM releases WHERE id = $1")
+                    .bind(live)
+                    .fetch_optional(&mut *tx)
+                    .await?
+            }
+            None => None,
+        };
+        let id = enqueue(
+            &mut tx,
+            access,
+            &project,
+            Queued {
+                environment: Environment::Production,
+                release_id,
+                reason: DeploymentReason::Rollback,
+                rollback_reason: Some(reason),
+            },
+            now,
+        )
+        .await?;
+        donka_audit::record(
+            &mut tx,
+            Event::new(now, Some(access.user_id()), Action::ReleaseRolledBack)
+                .in_project(access.project_id())
+                .with_details(json!({
+                    "from": from.map(|v| v.to_string()),
+                    "version": target.to_string(),
+                    "reason": reason,
+                })),
+        )
+        .await?;
+        let deployment =
+            load_deployment(&mut tx, access.project_id(), Environment::Production, id).await?;
+        tx.commit().await?;
+        self.outbox.notify_one();
+        Ok(deployment)
     }
 
     /// Resolves when an approval email has been queued since the last call.

@@ -648,6 +648,43 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/projects/{project_id}/rollback-targets': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The releases production can be rolled back to (any member). */
+    get: operations['rollback_targets'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/rollbacks': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Puts a release once approved for production back in production, with a
+     *     reason and without a new approval (owners).
+     */
+    post: operations['rollback'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/projects/{project_id}/test-scenarios': {
     parameters: {
       query?: never;
@@ -825,6 +862,7 @@ export interface components {
       | 'release.deployed'
       | 'token.issued'
       | 'token.revoked'
+      | 'release.rolled_back'
       | 'approval.requested'
       | 'approval.approved'
       | 'approval.rejected'
@@ -1033,7 +1071,7 @@ export interface components {
      * @description Why a deployment exists.
      * @enum {string}
      */
-    DeploymentReasonResponse: 'deploy' | 'tokens';
+    DeploymentReasonResponse: 'deploy' | 'tokens' | 'rollback';
     DeploymentResponse: {
       /**
        * Format: int32
@@ -1059,6 +1097,8 @@ export interface components {
       /** Format: date-time */
       requestedAt: string;
       requestedBy: components['schemas']['PersonRef'];
+      /** @description Why production was rolled back, for a rollback. */
+      rollbackReason?: string | null;
       status: components['schemas']['DeploymentStatusResponse'];
     };
     /** @enum {string} */
@@ -1272,6 +1312,19 @@ export interface components {
      * @enum {string}
      */
     Role: 'viewer' | 'editor' | 'owner';
+    RollbackRequest: {
+      /** @description Why production goes back, for the audit log and the team. */
+      reason: string;
+      /**
+       * Format: uuid
+       * @description A release once approved for production, not the one live now.
+       */
+      releaseId: string;
+    };
+    RollbackTargetsResponse: {
+      /** @description Releases once approved for production, except the live one, newest first. */
+      items: components['schemas']['ReleaseSummaryResponse'][];
+    };
     SaveDecisionRequest: {
       /** @description A JDM decision graph. */
       content: {
@@ -3513,6 +3566,107 @@ export interface operations {
       };
       /** @description PROJECT_NOT_FOUND */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  rollback_targets: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['RollbackTargetsResponse'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  rollback: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RollbackRequest'];
+      };
+    };
+    responses: {
+      /** @description Queued for production */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DeploymentResponse'];
+        };
+      };
+      /** @description Missing or too long reason (INVALID_REQUEST) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Only owners roll back (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or RELEASE_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_ARCHIVED */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description NEVER_APPROVED or ALREADY_LIVE */
+      422: {
         headers: {
           [name: string]: unknown;
         };

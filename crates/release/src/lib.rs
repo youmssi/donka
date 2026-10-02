@@ -169,6 +169,12 @@ pub enum ReleaseError {
     NotRequester,
     #[error("reasons are 1 to {MAX_REASON_CHARS} characters")]
     InvalidReason,
+    /// Rollback only puts back a release once approved for production.
+    #[error("this release was never approved for production")]
+    NeverApproved,
+    /// The release is already the one production runs.
+    #[error("this release is already live in production")]
+    AlreadyLive,
     /// Someone created a release with this version at the same moment.
     #[error("release {0} was just created by someone else")]
     VersionTaken(SemVer),
@@ -257,6 +263,8 @@ pub enum DeploymentReason {
     Deploy,
     /// The environment's tokens changed; its release is published again.
     Tokens,
+    /// An owner put a release once approved for production back, with a reason.
+    Rollback,
 }
 
 impl DeploymentReason {
@@ -264,6 +272,7 @@ impl DeploymentReason {
         match self {
             DeploymentReason::Deploy => "deploy",
             DeploymentReason::Tokens => "tokens",
+            DeploymentReason::Rollback => "rollback",
         }
     }
 }
@@ -275,6 +284,8 @@ pub struct Deployment {
     pub release_id: Uuid,
     pub release_version: SemVer,
     pub reason: DeploymentReason,
+    /// Why production was rolled back, for a rollback.
+    pub rollback_reason: Option<String>,
     pub requested_by: Uuid,
     pub requested_at: DateTime<Utc>,
     pub status: DeploymentStatus,
@@ -341,7 +352,7 @@ pub struct Releases {
 pub(crate) type Tx<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
 
 #[derive(sqlx::FromRow)]
-struct SummaryRow {
+pub(crate) struct SummaryRow {
     id: Uuid,
     #[sqlx(flatten)]
     version: SemVer,
@@ -374,7 +385,7 @@ impl From<SummaryRow> for ReleaseSummary {
 }
 
 /// A release with its counts and where it is live (`$1` is the project).
-const SUMMARY: &str = "SELECT r.id, r.major, r.minor, r.patch, r.notes, r.created_by, r.created_at, \
+pub(crate) const SUMMARY: &str = "SELECT r.id, r.major, r.minor, r.patch, r.notes, r.created_by, r.created_at, \
      (SELECT count(*) FROM release_decisions rd WHERE rd.release_id = r.id) AS decisions, \
      (SELECT coalesce(sum(tests_passed), 0)::bigint FROM release_decisions rd WHERE rd.release_id = r.id) AS passed, \
      (SELECT coalesce(sum(tests_failed), 0)::bigint FROM release_decisions rd WHERE rd.release_id = r.id) AS failed, \
@@ -392,6 +403,7 @@ struct DeploymentRow {
     #[sqlx(flatten)]
     version: SemVer,
     reason: String,
+    rollback_reason: Option<String>,
     requested_by: Uuid,
     requested_at: DateTime<Utc>,
     attempts: i32,
@@ -425,11 +437,12 @@ impl From<DeploymentRow> for Deployment {
             environment: Environment::parse(&row.environment).unwrap_or(Environment::Staging),
             release_id: row.release_id,
             release_version: row.version,
-            reason: if row.reason == "tokens" {
-                DeploymentReason::Tokens
-            } else {
-                DeploymentReason::Deploy
+            reason: match row.reason.as_str() {
+                "tokens" => DeploymentReason::Tokens,
+                "rollback" => DeploymentReason::Rollback,
+                _ => DeploymentReason::Deploy,
             },
+            rollback_reason: row.rollback_reason,
             requested_by: row.requested_by,
             requested_at: row.requested_at,
             status,
@@ -443,7 +456,7 @@ impl From<DeploymentRow> for Deployment {
 
 /// A deployment with its release's version (`$1` is the project, `$2` the environment).
 const DEPLOYMENTS: &str =
-    "SELECT d.id, d.environment, d.release_id, r.major, r.minor, r.patch, d.reason, \
+    "SELECT d.id, d.environment, d.release_id, r.major, r.minor, r.patch, d.reason, d.rollback_reason, \
      d.requested_by, d.requested_at, d.attempts, d.last_error, d.next_attempt_at, d.published_at, \
      d.abandoned_at, d.superseded_at \
      FROM deployments d JOIN releases r ON r.id = d.release_id \
@@ -708,9 +721,12 @@ impl Releases {
             &mut tx,
             access,
             &project,
-            environment,
-            release_id,
-            DeploymentReason::Deploy,
+            Queued {
+                environment: environment,
+                release_id,
+                reason: DeploymentReason::Deploy,
+                rollback_reason: None,
+            },
             now,
         )
         .await?;
@@ -1027,7 +1043,7 @@ async fn load_release(
     Ok(Release { summary, decisions })
 }
 
-async fn load_deployment(
+pub(crate) async fn load_deployment(
     conn: &mut sqlx::PgConnection,
     project_id: Uuid,
     environment: Environment,
@@ -1045,15 +1061,28 @@ async fn load_deployment(
 
 /// Queues a deployment; any earlier one of the environment not yet published
 /// is superseded, so an older release never lands after a newer one.
+/// A deployment about to be queued.
+pub(crate) struct Queued<'a> {
+    pub environment: Environment,
+    pub release_id: Uuid,
+    pub reason: DeploymentReason,
+    /// Why production is rolled back; set exactly for a rollback.
+    pub rollback_reason: Option<&'a str>,
+}
+
 pub(crate) async fn enqueue(
     tx: &mut Tx<'_>,
     access: &Access,
     project: &donka_project::Project,
-    environment: Environment,
-    release_id: Uuid,
-    reason: DeploymentReason,
+    queued: Queued<'_>,
     now: DateTime<Utc>,
 ) -> Result<Uuid, ReleaseError> {
+    let Queued {
+        environment,
+        release_id,
+        reason,
+        rollback_reason,
+    } = queued;
     sqlx::query(
         "UPDATE deployments SET superseded_at = $3 \
          WHERE project_id = $1 AND environment = $2 AND published_at IS NULL AND superseded_at IS NULL",
@@ -1066,8 +1095,8 @@ pub(crate) async fn enqueue(
     let id = Uuid::new_v4();
     sqlx::query(
         "INSERT INTO deployments (id, project_id, environment, release_id, project_key, project_name, \
-         reason, requested_by, requested_at, next_attempt_at) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)",
+         reason, rollback_reason, requested_by, requested_at, next_attempt_at) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)",
     )
     .bind(id)
     .bind(access.project_id())
@@ -1076,6 +1105,7 @@ pub(crate) async fn enqueue(
     .bind(&project.key)
     .bind(&project.name)
     .bind(reason.as_str())
+    .bind(rollback_reason)
     .bind(access.user_id())
     .bind(now)
     .execute(&mut **tx)
@@ -1093,7 +1123,7 @@ async fn republish(
 ) -> Result<(), ReleaseError> {
     let latest: Option<(Uuid,)> = sqlx::query_as(
         "SELECT release_id FROM deployments WHERE project_id = $1 AND environment = $2 \
-         AND reason = 'deploy' ORDER BY seq DESC LIMIT 1",
+         AND reason IN ('deploy', 'rollback') ORDER BY seq DESC LIMIT 1",
     )
     .bind(access.project_id())
     .bind(environment.as_str())
@@ -1104,9 +1134,12 @@ async fn republish(
             tx,
             access,
             project,
-            environment,
-            release_id,
-            DeploymentReason::Tokens,
+            Queued {
+                environment: environment,
+                release_id,
+                reason: DeploymentReason::Tokens,
+                rollback_reason: None,
+            },
             now,
         )
         .await?;
