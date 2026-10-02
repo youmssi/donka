@@ -68,6 +68,9 @@ services:
       PROVIDER__PREFIX: staging/
       AWS_ACCESS_KEY_ID: donka
       AWS_SECRET_ACCESS_KEY: donka-secret
+      # To send its decisions to Studio's decision log, add a token issued under Runtimes:
+      # DECISION_LOG__URL: http://app:8080/api/v1/decision-log/records
+      # DECISION_LOG__TOKEN: dnk_log_...
     depends_on: [minio-init]
     ports: ["8090:8080"]
 

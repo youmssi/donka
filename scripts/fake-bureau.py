@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """A credit bureau for the end-to-end test: POST /score answers a score when the
-X-Api-Key header holds FAKE_BUREAU_KEY, 401 otherwise.
+X-Api-Key header holds FAKE_BUREAU_KEY, 401 otherwise. GET /calls says how many
+scores it answered, so a test can tell whether something called it.
 
     FAKE_BUREAU_KEY=... scripts/fake-bureau.py 127.0.0.1 8099
 """
@@ -11,15 +12,22 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 KEY = os.environ["FAKE_BUREAU_KEY"]
 SCORES = {"CM-1": 712}
+CALLS = {"score": 0}
 
 
 class Bureau(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path != "/calls":
+            return self.answer(404, {})
+        return self.answer(200, CALLS)
+
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
         if self.path != "/score":
             return self.answer(404, {})
         if self.headers.get("X-Api-Key") != KEY:
             return self.answer(401, {"error": "unknown key"})
+        CALLS["score"] += 1
         return self.answer(200, {"score": SCORES.get(body.get("nationalId"), 480), "available": True})
 
     def answer(self, status, payload):

@@ -44,6 +44,11 @@ pub struct Config {
     pub storage_options: Vec<(String, String)>,
     /// Failed writes after which a deployment is given up (it can be retried by hand).
     pub publish_max_attempts: u32,
+    /// Base64 of the 32-byte key decision records are encrypted with. A secret:
+    /// never log it, and keep it safe (records cannot be read without it).
+    pub decision_log_key: String,
+    /// Decision records older than this are purged.
+    pub decision_log_retention_days: u32,
 }
 
 /// The web app calls the API here (apps/web `API_BASE`).
@@ -140,6 +145,14 @@ impl Config {
             }
         }
 
+        let decision_log_key = required(
+            &get,
+            "DONKA_DECISION_LOG_KEY",
+            "is required: 32 random bytes in base64 (e.g. `openssl rand -base64 32`)",
+        )?;
+        donka_decision_log::Cipher::from_base64(&decision_log_key)
+            .map_err(|err| invalid("DONKA_DECISION_LOG_KEY", &err.to_string()))?;
+
         Ok(Self {
             listen,
             engine_workers: positive(&get, "DONKA_ENGINE_WORKERS")?,
@@ -165,6 +178,10 @@ impl Config {
             storage_url,
             storage_options,
             publish_max_attempts: positive(&get, "DONKA_PUBLISH_MAX_ATTEMPTS")?.unwrap_or(10),
+            decision_log_key,
+            // Five years, a common minimum for credit files.
+            decision_log_retention_days: positive(&get, "DONKA_DECISION_LOG_RETENTION_DAYS")?
+                .unwrap_or(1825),
         })
     }
 }
@@ -238,11 +255,15 @@ mod tests {
     use super::*;
     use std::collections::HashMap;
 
-    const REQUIRED: [(&str, &str); 4] = [
+    const REQUIRED: [(&str, &str); 5] = [
         ("DATABASE_URL", "postgres://donka@localhost/donka"),
         ("DONKA_SMTP_URL", "smtp://localhost:1025"),
         ("DONKA_SMTP_FROM", "donka@bank.example"),
         ("DONKA_STORAGE_URL", "s3://donka-releases"),
+        (
+            "DONKA_DECISION_LOG_KEY",
+            "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+        ),
     ];
 
     /// Loads with the required variables set, unless the test overrides them.
@@ -274,6 +295,26 @@ mod tests {
         assert_eq!(config.password_reset_link_minutes, 30);
         assert_eq!(config.email_max_attempts, 10);
         assert_eq!(config.web_dir, None);
+        assert_eq!(config.decision_log_retention_days, 1825);
+    }
+
+    #[test]
+    fn the_decision_log_key_is_required_and_checked() {
+        for bad in ["", "too-short", "AAECAwQFBgcICQoLDA0ODw=="] {
+            assert_eq!(
+                load(&[("DONKA_DECISION_LOG_KEY", bad)]).unwrap_err().var,
+                "DONKA_DECISION_LOG_KEY",
+                "{bad}"
+            );
+        }
+        assert_eq!(
+            load(&[("DONKA_DECISION_LOG_RETENTION_DAYS", "0")])
+                .unwrap_err()
+                .var,
+            "DONKA_DECISION_LOG_RETENTION_DAYS"
+        );
+        let config = load(&[("DONKA_DECISION_LOG_RETENTION_DAYS", "365")]).unwrap();
+        assert_eq!(config.decision_log_retention_days, 365);
     }
 
     #[test]

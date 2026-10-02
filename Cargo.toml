@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/shared", "crates/engine", "crates/db", "crates/audit", "crates/identity", "crates/mail", "crates/project", "crates/decision", "crates/storage", "crates/release", "apps/app"]
+members = ["crates/shared", "crates/engine", "crates/db", "crates/audit", "crates/identity", "crates/mail", "crates/project", "crates/decision", "crates/storage", "crates/release", "crates/decision-log", "apps/app"]
 
 [workspace.package]
 version = "0.1.0"
@@ -28,6 +28,8 @@ argon2 = "0.6"
 sha2 = "0.10"
 base64 = "0.22"
 getrandom = "0.3"
+# Decision records encrypted at rest (DNK-18).
+aes-gcm = "0.10"
 # rustls with the system trust store, so a bank's internal mail relay CA is honoured.
 lettre = { version = "0.11", default-features = false, features = ["builder", "hostname", "pool", "smtp-transport", "tokio1", "tokio1-rustls", "ring", "rustls-platform-verifier"] }
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "macros", "migrate", "uuid", "chrono"] }
@@ -39,7 +41,7 @@ url = "2"
 zip = { version = "8", default-features = false, features = ["deflate"] }
 zen-engine = { version = "=2.0.1", features = ["arbitrary_precision"] }
 # Connector nodes, the same handler the Runtime runs; Studio uses its mock mode only (no `live`).
-donka-connectors = { git = "https://github.com/youmssi/donka-runtime", rev = "532841918709fa22baf6e2c8a577e61a67b951df" }
+donka-connectors = { git = "https://github.com/youmssi/donka-runtime", rev = "56af4927ac8fe0cf0f1fd90cb00913b705921f2f" }
 
 donka-engine = { path = "crates/engine" }
 donka-db = { path = "crates/db" }
@@ -51,6 +53,7 @@ donka-shared = { path = "crates/shared" }
 donka-mail = { path = "crates/mail" }
 donka-storage = { path = "crates/storage" }
 donka-release = { path = "crates/release" }
+donka-decision-log = { path = "crates/decision-log" }
 
 # Adopted from gorules/zen: no unsafe code, no unwrap() outside tests (clippy.toml allows it there).
 [workspace.lints.rust]

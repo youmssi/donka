@@ -48,8 +48,8 @@ artifact.
    every decision in the project. Deploying to staging writes the artifact. Production needs one
    approval from someone other than the author, then the artifact is written.
 3. **Evaluate.** Customer backend → Runtime `POST /api/rules/{project}/evaluate/{key}` with a
-   bearer token → result + reason codes + release id. The Runtime ships the decision record to
-   Studio asynchronously.
+   bearer token (and optionally `X-Donka-Reference`) → result + release id + `X-Decision-Id`.
+   The Runtime ships the decision record to Studio asynchronously, in batches.
 4. **Explain / replay.** Studio loads a logged decision, re-evaluates it against the same release
    (identical result), and can ask the customer's LLM for a plain-language explanation.
 
@@ -63,9 +63,28 @@ configuration and the **name** of a secret; values come from the Runtime's envir
 (`DONKA_SECRET_<NAME>`). Timeouts, retries and a circuit breaker are enforced by the handler, not
 by rule authors. The node format is in `docs/artifact-format.md`.
 
+## Decision log
+
+Every decision a Runtime makes is sent to Studio in the background (`src/decision_log.rs` in the
+Runtime): a bounded queue, batches, retries with backoff; when the queue is full, records are
+dropped and counted rather than slowing answers. The Runtime authenticates with a
+**decision-log token** an administrator issued for its environment, so a staging Runtime cannot
+write production records. Studio stores a record only when its release was published to that
+environment of its project. The feed format: [`decision-log-feed.md`](decision-log-feed.md).
+
+`crates/decision-log` owns the records. Search fields stay readable; what the decision read and
+answered is encrypted with AES-256-GCM (`DONKA_DECISION_LOG_KEY`). Every member can search;
+opening and replaying a record are audited. Replay evaluates the record's input with its
+release, connector nodes answering from the recorded trace (`ConnectorAdapter::replay`), and
+says whether the result is identical. A worker purges records past
+`DONKA_DECISION_LOG_RETENTION_DAYS`, one audit event per project purged.
+
 ## Security baseline
 
 - Session cookies (argon2 password hashes) for Studio users. Owner / editor / viewer per project.
 - Runtime access tokens are hashed, scoped to one environment, and rotatable.
-- Audit and decision-log tables are append-only at the database level.
+- Audit and decision-log tables are append-only at the database level; decision records can
+  only be deleted by the retention purge, which the table's trigger lets through.
+- Decision records are encrypted at rest; decision-log tokens are hashed and scoped to one
+  environment.
 - The browser never holds a Runtime token. Fieldkit calls the Runtime through the customer's backend.

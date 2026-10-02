@@ -31,9 +31,13 @@ pub async fn emails(
 }
 
 pub fn person(emails: &HashMap<Uuid, String>, id: Option<Uuid>) -> Option<PersonRef> {
-    let id = id?;
-    Some(PersonRef {
+    id.map(|id| known_person(emails, id))
+}
+
+/// Someone who is always there (an author, an issuer).
+pub fn known_person(emails: &HashMap<Uuid, String>, id: Uuid) -> PersonRef {
+    PersonRef {
         id,
         email: emails.get(&id).cloned().unwrap_or_default(),
-    })
+    }
 }

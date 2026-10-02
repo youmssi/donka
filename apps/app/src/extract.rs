@@ -112,6 +112,20 @@ impl FromRequestParts<AppState> for ReleaseId {
     }
 }
 
+/// The decision record in the `{record_id}` path segment; a malformed id is `404 RECORD_NOT_FOUND`.
+pub struct RecordId(pub Uuid);
+
+impl FromRequestParts<AppState> for RecordId {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, ApiError> {
+        path_id(parts, state, "record_id")
+            .await
+            .map(Self)
+            .ok_or(ApiError::RecordNotFound)
+    }
+}
+
 /// The deployment in the `{deployment_id}` path segment; a malformed id is `404 DEPLOYMENT_NOT_FOUND`.
 pub struct DeploymentId(pub Uuid);
 

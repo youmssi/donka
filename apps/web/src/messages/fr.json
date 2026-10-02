@@ -24,7 +24,10 @@
     "next": "Suivant",
     "pageOf": "{from}–{to} sur {total}",
     "actions": "Actions",
-    "admin": "Administrateur"
+    "admin": "Administrateur",
+    "copyToken": "Copier le jeton",
+    "tokenCopied": "Jeton copié.",
+    "tokenCopyFailed": "La copie a échoué. Sélectionnez le jeton et copiez-le."
   },
   "errors": {
     "INVALID_CREDENTIALS": "L'e-mail ou le mot de passe est incorrect.",
@@ -70,7 +73,8 @@
     "APPROVAL_DECIDED": "Cette demande a déjà été tranchée ou retirée.",
     "NOT_REQUESTER": "Seule la personne qui a fait la demande peut la retirer.",
     "NEVER_APPROVED": "La production ne peut revenir qu’à une release approuvée pour elle.",
-    "ALREADY_LIVE": "Cette release est déjà celle en service en production."
+    "ALREADY_LIVE": "Cette release est déjà celle en service en production.",
+    "RECORD_NOT_FOUND": "Cette décision enregistrée n'existe pas dans ce projet."
   },
   "validation": {
     "email": "Saisissez une adresse e-mail valide.",
@@ -86,7 +90,8 @@
     "outputKey": "Utilisez uniquement des lettres, chiffres et tirets bas.",
     "secretName": "Utilisez des majuscules, chiffres et tirets bas, en commençant par une lettre (64 au plus).",
     "headerName": "Utilisez uniquement des lettres, chiffres et traits d'union.",
-    "wholeNumberMax": "Saisissez un nombre entier jusqu'à {max}, ou laissez vide."
+    "wholeNumberMax": "Saisissez un nombre entier jusqu'à {max}, ou laissez vide.",
+    "fieldPath": "Utilisez des noms de champs séparés par des points, par exemple decision ou result.band."
   },
   "signIn": {
     "title": "Connexion",
@@ -191,7 +196,9 @@
     "releases": "Releases",
     "environments": "Environnements",
     "approvals": "Approbations",
-    "approval": "Approbation"
+    "approval": "Approbation",
+    "decision-log": "Journal des décisions",
+    "decision-record": "Décision enregistrée"
   },
   "members": {
     "title": "Membres",
@@ -227,7 +234,8 @@
     "workspace": "Espace de travail",
     "project": "Projet",
     "switchProject": "Changer de projet (actuel : {name})",
-    "allProjects": "Tous les projets"
+    "allProjects": "Tous les projets",
+    "runtimes": "Runtimes"
   },
   "people": {
     "title": "Personnes",
@@ -331,6 +339,18 @@
       "approved": "Production approuvée",
       "rejected": "Production refusée",
       "withdrawn": "Demande retirée"
+    },
+    "decision_record": {
+      "viewed": "Décision enregistrée ouverte",
+      "replayed": "Décision enregistrée rejouée"
+    },
+    "decision_log": {
+      "purged": "Décisions enregistrées purgées",
+      "settings_updated": "Réglages du journal des décisions modifiés"
+    },
+    "decision_log_token": {
+      "issued": "Jeton de journal créé",
+      "revoked": "Jeton de journal révoqué"
     }
   },
   "auditSentences": {
@@ -357,7 +377,12 @@
     "approvalApproved": "A approuvé la release {version} pour la production",
     "approvalRejected": "A refusé la release {version} pour la production : « {reason} »",
     "approvalWithdrawn": "A retiré la demande de production de la release {version}",
-    "releaseRolledBack": "A ramené la production de {from} à {version} : « {reason} »"
+    "releaseRolledBack": "A ramené la production de {from} à {version} : « {reason} »",
+    "decisionRecordViewed": "A ouvert la décision {key} {reference}",
+    "decisionRecordReplayed": "A rejoué la décision {key} {reference}",
+    "decisionLogPurged": "A purgé {records} décisions enregistrées de plus de {days} jours",
+    "decisionLogSettingsUpdated": "A défini le champ de résultat du journal sur {field}",
+    "decisionLogSettingsCleared": "A retiré le champ de résultat du journal"
   },
   "ui": {
     "close": "Fermer",
@@ -592,9 +617,6 @@
     "namePlaceholder": "Octroi de crédit",
     "shownOnce": "Copiez-le maintenant : il n’est affiché qu’une fois. Studio n’en garde qu’une empreinte.",
     "header": "Envoyez-le dans l’en-tête X-Access-Token. Il fonctionne en moins d’une minute.",
-    "copy": "Copier le jeton",
-    "copied": "Jeton copié.",
-    "copyFailed": "La copie a échoué. Sélectionnez le jeton et copiez-le.",
     "done": "Terminé",
     "empty": "Aucun jeton. Créez-en un pour chaque système qui appelle le Runtime.",
     "emptyReadOnly": "Aucun jeton. Les propriétaires les créent.",
@@ -718,5 +740,87 @@
     "mock": "Réponse simulée",
     "mockHint": "JSON que le simulateur et les scénarios de test utilisent comme réponse du service.",
     "apply": "Appliquer"
+  },
+  "decisionLog": {
+    "title": "Journal des décisions",
+    "when": "Date",
+    "decision": "Décision",
+    "reference": "Référence",
+    "outcome": "Résultat",
+    "environment": "Environnement",
+    "duration": "Durée",
+    "status": "Issue",
+    "noReference": "Sans référence",
+    "search": "Rechercher",
+    "allEnvironments": "Tous les environnements",
+    "allStatuses": "Toutes les issues",
+    "succeeded": "Répondue",
+    "failed": "Échec",
+    "dates": "Dates",
+    "anyDate": "Toutes les dates",
+    "clearFilters": "Effacer les filtres",
+    "emptyRange": "Le dernier jour précède le premier : aucune décision ne peut correspondre.",
+    "errorTitle": "Le journal des décisions n'a pas pu être chargé.",
+    "emptyTitle": "Aucune décision pour l'instant",
+    "empty": "Les décisions apparaissent ici dès qu'un Runtime qui sert ce projet les envoie. Un administrateur crée un jeton de journal dans Runtimes et le configure sur le Runtime.",
+    "emptyFilteredTitle": "Aucune décision ne correspond",
+    "emptyFiltered": "Essayez d'autres filtres, ou effacez-les.",
+    "notFoundTitle": "Décision enregistrée introuvable",
+    "backToLog": "Retour au journal des décisions",
+    "recordTitle": "Décision",
+    "recordOf": "Décision {key}, telle que le Runtime l'a prise.",
+    "replay": "Rejouer",
+    "replaying": "Rejeu…",
+    "viewAudited": "Cet enregistrement contient des données personnelles d'un demandeur. Son ouverture et son rejeu sont inscrits au journal d'audit du projet.",
+    "replayFailedTitle": "Le rejeu n'a pas pu s'exécuter.",
+    "summary": "Résumé",
+    "release": "Version publiée",
+    "received": "Reçue par Studio",
+    "recordId": "Identifiant",
+    "input": "Entrée",
+    "inputDescription": "Ce qui a été demandé à la décision.",
+    "output": "Sortie",
+    "outputDescription": "Ce que la décision a répondu.",
+    "error": "Erreur",
+    "errorDescription": "L'erreur reçue par l'appelant.",
+    "trace": "Trace",
+    "traceDescription": "Ce que chaque nœud de la décision a reçu et renvoyé.",
+    "identicalTitle": "Même résultat",
+    "identical": "La version {version} donne de nouveau la même réponse.",
+    "differentTitle": "Résultat différent",
+    "different": "La version {version} donne maintenant une autre réponse que celle enregistrée.",
+    "recordedAnswer": "Réponse enregistrée",
+    "replayedAnswer": "Réponse actuelle",
+    "settingsTitle": "Journal des décisions",
+    "settingsDescription": "Chaque décision prise par un Runtime est enregistrée. Le champ de résultat est lu dans sa réponse à son arrivée, pour pouvoir chercher par résultat.",
+    "outcomeField": "Champ de résultat",
+    "outcomeFieldHint": "Un champ de la sortie de la décision, par exemple decision ou result.band. Laissez vide pour aucun ; une décision en échec vaut toujours error.",
+    "outcomeFieldReadOnly": "Seuls les propriétaires le modifient.",
+    "settingsSaved": "Réglages du journal enregistrés."
+  },
+  "runtimes": {
+    "title": "Runtimes",
+    "description": "Chaque Runtime envoie les décisions qu'il prend au journal des décisions de Studio avec un jeton créé ici pour son environnement.",
+    "forbiddenTitle": "Seuls les administrateurs gèrent les jetons des Runtimes.",
+    "name": "Nom",
+    "environment": "Environnement",
+    "issued": "Créé",
+    "revokedBadge": "Révoqué",
+    "create": "Nouveau jeton",
+    "creating": "Création…",
+    "emptyTitle": "Aucun jeton pour l'instant",
+    "empty": "Créez un jeton par environnement, puis configurez-le sur ses Runtimes pour que leurs décisions arrivent au journal.",
+    "revoke": "Révoquer",
+    "revoked": "{name} révoqué.",
+    "revokeTitle": "Révoquer {name} ?",
+    "revokeConfirm": "Les Runtimes qui l'utilisent ne peuvent plus envoyer de décisions ; celles qu'ils gardent encore sont perdues. Action définitive.",
+    "createTitle": "Nouveau jeton de journal",
+    "createDescription": "Un jeton permet aux Runtimes d'un environnement d'envoyer leurs décisions à Studio.",
+    "shownOnce": "Copiez le jeton maintenant : Studio n'en garde que l'empreinte et ne l'affichera plus.",
+    "nameHint": "Qui l'utilise, par exemple l'hôte du Runtime.",
+    "namePlaceholder": "runtime-prod-1",
+    "runtimeSettings": "Réglages du Runtime",
+    "oneEnvironment": "Ce jeton n'envoie que des décisions de {environment} : celles d'un autre environnement sont refusées.",
+    "done": "Terminé"
   }
 }

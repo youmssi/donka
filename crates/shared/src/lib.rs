@@ -3,3 +3,4 @@
 
 pub mod clock;
 pub mod page;
+pub mod secret;

@@ -1,4 +1,5 @@
-/** A project's pages; `decision` is the editor of one decision, `approval` the review of one request. */
+/** A project's pages; `decision` is the editor of one decision, `approval` the review of one
+ * request, `decision-record` one decision the Runtime made. */
 export type ProjectSection =
   | 'decisions'
   | 'decision'
@@ -7,6 +8,8 @@ export type ProjectSection =
   | 'environments'
   | 'approvals'
   | 'approval'
+  | 'decision-log'
+  | 'decision-record'
   | 'members'
   | 'settings'
   | 'audit';
@@ -30,4 +33,9 @@ export function decisionHref(projectKey: string, decisionKey: string): string {
 /** The review of one production request (`/projects/approval?p=credit-pme&a=<id>`). */
 export function approvalHref(projectKey: string, id: string): string {
   return projectHref('approval', projectKey, { a: id });
+}
+
+/** One decision the Runtime made (`/projects/decision-record?p=credit-pme&r=<id>`). */
+export function recordHref(projectKey: string, id: string): string {
+  return projectHref('decision-record', projectKey, { r: id });
 }

@@ -1,6 +1,6 @@
 use crate::error::{ApiError, ErrorBody};
 use crate::extract::{ApiJson, ApprovalId, ProjectAccess};
-use crate::routes::people::{emails, PersonRef};
+use crate::routes::people::{emails, known_person, person, PersonRef};
 use crate::routes::releases::{
     one_deployment, summary, DeploymentResponse, PageQuery, ReleaseSummaryResponse,
 };
@@ -336,24 +336,17 @@ fn people(a: &Approval) -> [Option<Uuid>; 3] {
     ]
 }
 
-fn person(emails: &HashMap<Uuid, String>, id: Uuid) -> PersonRef {
-    PersonRef {
-        id,
-        email: emails.get(&id).cloned().unwrap_or_default(),
-    }
-}
-
 fn approval(emails: &HashMap<Uuid, String>, a: Approval) -> ApprovalResponse {
     ApprovalResponse {
         id: a.id,
         release_id: a.release_id,
         release_version: a.release_version.to_string(),
         release_notes: a.release_notes,
-        release_created_by: person(emails, a.release_created_by),
-        requested_by: person(emails, a.requested_by),
+        release_created_by: known_person(emails, a.release_created_by),
+        requested_by: known_person(emails, a.requested_by),
         requested_at: a.requested_at,
         status: a.status.into(),
-        decided_by: a.decided_by.map(|id| person(emails, id)),
+        decided_by: person(emails, a.decided_by),
         decided_at: a.decided_at,
         reason: a.reason,
         deployment_id: a.deployment_id,

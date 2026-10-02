@@ -1,14 +1,18 @@
 #!/usr/bin/env bash
-# End to end: a release made in Studio reaches Donka Runtime and answers with a token, and its
-# "bureau score" connector calls the bureau from the Runtime only.
+# End to end: a release made in Studio reaches Donka Runtime and answers with a token, its
+# "bureau score" connector calls the bureau from the Runtime only, and every decision the
+# Runtime makes lands in Studio's decision log, where it is found, opened and replayed.
 #
 # Needs a running Studio (fresh database, DONKA_BOOTSTRAP_ADMIN_EMAIL set, its console output in
-# STUDIO_LOG), a Runtime reading the same bucket with PROVIDER__PREFIX=staging/ and
-# DONKA_SECRET_BUREAU_API_KEY set, and scripts/fake-bureau.py at BUREAU_URL with that key in
-# FAKE_BUREAU_KEY. BUREAU_SECRET is the same value: the test checks it never leaves the Runtime.
+# STUDIO_LOG) and scripts/fake-bureau.py at BUREAU_URL with FAKE_BUREAU_KEY set. The script
+# starts the Runtime itself (RUNTIME_BIN, output in RUNTIME_LOG) once it has a decision-log
+# token for it; the Runtime reads the rest of its settings from this environment: the same
+# bucket with PROVIDER__PREFIX=staging/, and DONKA_SECRET_BUREAU_API_KEY. BUREAU_SECRET is that
+# key's value: the test checks it never leaves the Runtime.
 #
-#   STUDIO_URL=http://localhost:8080 RUNTIME_URL=http://localhost:8090 \
-#   BUREAU_URL=http://127.0.0.1:8099 BUREAU_SECRET=... STUDIO_LOG=/tmp/studio.log scripts/e2e.sh
+#   STUDIO_URL=http://localhost:8080 RUNTIME_URL=http://localhost:3000 RUNTIME_BIN=... \
+#   RUNTIME_LOG=/tmp/runtime.log BUREAU_URL=http://127.0.0.1:8099 BUREAU_SECRET=... \
+#   STUDIO_LOG=/tmp/studio.log scripts/e2e.sh
 set -euo pipefail
 
 : "${STUDIO_URL:?set STUDIO_URL}"
@@ -16,12 +20,15 @@ set -euo pipefail
 : "${STUDIO_LOG:?set STUDIO_LOG}"
 : "${BUREAU_URL:?set BUREAU_URL}"
 : "${BUREAU_SECRET:?set BUREAU_SECRET}"
+: "${RUNTIME_BIN:?set RUNTIME_BIN}"
+: "${RUNTIME_LOG:?set RUNTIME_LOG}"
 API="$STUDIO_URL${DONKA_API_BASE_PATH:-/api/v1}"
 PASSWORD="end-to-end passphrase"
 FIXTURE="$(dirname "$0")/../crates/engine/tests/fixtures/table.json"
 SCORE="$(dirname "$0")/e2e-person-score.json"
 JAR="$(mktemp)"
-trap 'rm -f "$JAR"' EXIT
+RUNTIME_PID=
+trap 'rm -f "$JAR"; [ -z "$RUNTIME_PID" ] || kill "$RUNTIME_PID"' EXIT
 
 fail() { echo "e2e: $*" >&2; exit 1; }
 
@@ -37,8 +44,21 @@ email=$(grep -o 'First administrator created: [^ ]*' "$STUDIO_LOG" | head -1 | c
 studio POST /auth/password-setup "$(jq -n --arg t "${link#*token=}" --arg p "$PASSWORD" '{token: $t, password: $p}')" >/dev/null
 studio POST /auth/sign-in "$(jq -n --arg e "$email" --arg p "$PASSWORD" '{email: $e, password: $p}')" >/dev/null
 
+# A decision-log token for staging, then the staging Runtime with it.
+log_token=$(studio POST /decision-log/tokens '{"environment": "staging", "name": "e2e-runtime"}' | jq -r .token)
+DECISION_LOG__URL="$API/decision-log/records" DECISION_LOG__TOKEN="$log_token" DECISION_LOG__FLUSH_INTERVAL=200 \
+  "$RUNTIME_BIN" > "$RUNTIME_LOG" 2>&1 &
+RUNTIME_PID=$!
+for _ in $(seq 1 60); do
+  curl -sf "$RUNTIME_URL/api/health" >/dev/null && break
+  sleep 1
+done
+curl -sf "$RUNTIME_URL/api/health" >/dev/null || fail "the Runtime did not start (see $RUNTIME_LOG)"
+
 project=$(studio POST /projects '{"key": "e2e-credit", "name": "E2E credit"}' | jq -r .id)
 P="/projects/$project"
+# The bureau's score is each decision's outcome in the log.
+studio PUT "$P/decision-log/settings" '{"outcomeField": "bureau.score"}' >/dev/null
 decision=$(studio POST "$P/decisions" "$(jq -n --slurpfile c "$FIXTURE" '{key: "bureau/normalize", content: $c[0]}')")
 studio POST "$P/decisions/$(jq -r .id <<<"$decision")/versions" \
   "$(jq -n --argjson r "$(jq .revision <<<"$decision")" '{message: "First table", revision: $r}')" >/dev/null
@@ -89,4 +109,38 @@ grep -qF "$BUREAU_SECRET" <<<"$(studio GET "$P/releases/$(jq -r .id <<<"$release
 
 deployment=$(studio GET "$P/environments" | jq -r '.items[] | select(.environment == "staging") | .live.releaseVersion')
 [ "$deployment" = "1.0.0" ] || fail "Studio does not show 1.0.0 live on staging"
-echo "e2e: release 1.0.0 is live on staging, the Runtime answers with its token, and the bureau connector scores from the Runtime"
+# The decision log: a decision with the caller's reference, the trace not asked for.
+headers=$(mktemp)
+logged=$(curl -sS --fail-with-body -D "$headers" -X POST "$RUNTIME_URL/api/projects/e2e-credit/evaluate/person-score" \
+  -H 'content-type: application/json' -H "X-Access-Token: $token" -H 'X-Donka-Reference: E2E-0001' \
+  --data '{"context": {"applicant": {"nationalId": "CM-1"}}}')
+decision_id=$(grep -i '^x-decision-id:' "$headers" | cut -d' ' -f2 | tr -d '\r')
+rm -f "$headers"
+[ -n "$decision_id" ] || fail "the Runtime did not name the logged decision: $logged"
+jq -e 'has("trace") | not' <<<"$logged" >/dev/null || fail "the answer has a trace nobody asked for"
+
+found=
+for _ in $(seq 1 30); do
+  found=$(studio GET "$P/decision-log?reference=E2E-0001")
+  [ "$(jq .total <<<"$found")" = 1 ] && break
+  sleep 1
+done
+[ "$(jq -r '.items[0].id' <<<"$found")" = "$decision_id" ] || fail "the decision did not reach the log: $found"
+[ "$(jq -r '.items[0].outcome' <<<"$found")" = 712 ] || fail "unexpected outcome: $found"
+[ "$(jq -r '.items[0].environment' <<<"$found")" = staging ] || fail "unexpected environment: $found"
+
+record=$(studio GET "$P/decision-log/$decision_id")
+[ "$(jq -cS .output.bureau <<<"$record")" = '{"available":true,"score":712}' ] || fail "unexpected record: $record"
+[ "$(jq -r .trace.bureau.traceData.mode <<<"$record")" = live ] || fail "the record has no connector trace: $record"
+[ "$(jq -r .releaseVersion <<<"$record")" = 1.0.0 ] || fail "the record does not name its release: $record"
+grep -qF "$BUREAU_SECRET" <<<"$record" && fail "the bureau secret appears in the decision log"
+
+# Replay answers the connector from the record: the bureau is not called again.
+calls=$(curl -sS "$BUREAU_URL/calls" | jq .score)
+replayed=$(studio POST "$P/decision-log/$decision_id/replay")
+[ "$(jq .identical <<<"$replayed")" = true ] || fail "the replay differs: $replayed"
+[ "$(curl -sS "$BUREAU_URL/calls" | jq .score)" = "$calls" ] || fail "the replay called the bureau"
+studio GET "$P/audit?action=decision_record.replayed" | jq -e '.total == 1' >/dev/null \
+  || fail "the replay is not in the audit log"
+
+echo "e2e: release 1.0.0 is live on staging, the Runtime answers with its token, the bureau connector scores from the Runtime, and the decision is logged, found and replayed"

@@ -3,6 +3,8 @@ import { placeOf, projectSections } from './sections';
 it('knows where the person is from the address', () => {
   expect(placeOf('/')).toEqual({ kind: 'projects' });
   expect(placeOf('/people')).toEqual({ kind: 'people' });
+  expect(placeOf('/runtimes')).toEqual({ kind: 'runtimes' });
+  expect(placeOf('/projects/decision-record')).toEqual({ kind: 'project', section: 'decision-record' });
   expect(placeOf('/projects/audit')).toEqual({ kind: 'project', section: 'audit' });
   expect(placeOf('/projects/members/')).toEqual({ kind: 'project', section: 'members' });
   expect(placeOf('/projects/decision')).toEqual({ kind: 'project', section: 'decision' });
@@ -26,6 +28,7 @@ it('offers the audit log to owners only', () => {
     'releases',
     'environments',
     'approvals',
+    'decision-log',
     'members',
     'settings',
     'audit',
@@ -36,6 +39,7 @@ it('offers the audit log to owners only', () => {
     'releases',
     'environments',
     'approvals',
+    'decision-log',
     'members',
     'settings',
   ]);

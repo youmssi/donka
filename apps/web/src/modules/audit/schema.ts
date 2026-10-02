@@ -1,13 +1,14 @@
 import type { ApiSchemas } from '@/components/shared/api';
+import { isEmptyRange as emptyRange, rangeQuery, readDay } from '@/components/shared/date-range';
 import openapi from '../../../openapi.json';
 
 export type AuditAction = ApiSchemas['Action'];
 export type AuditEvent = ApiSchemas['AuditEventResponse'];
 export type AuditList = ApiSchemas['AuditListResponse'];
 
-/** The actions a project's log holds; account events (`user.*`) belong to no project. */
+/** The actions a project's log holds; account and decision-log token events belong to no project. */
 export const PROJECT_ACTIONS = (openapi.components.schemas.Action.enum as AuditAction[]).filter(
-  (action) => !action.startsWith('user.'),
+  (action) => !action.startsWith('user.') && !action.startsWith('decision_log_token.'),
 );
 
 /** The filters as the page's address holds them: dates are days in the viewer's time zone. */
@@ -28,43 +29,24 @@ export interface AuditQuery {
   until?: string;
 }
 
-const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
-
-/** Midnight at the start of a day in the viewer's time zone, `days` later. */
-function startOfDay(day: string, days = 0): string | undefined {
-  if (!DAY.test(day)) return undefined;
-  const start = dateOf(day);
-  start.setDate(start.getDate() + days);
-  return start.toISOString();
-}
-
 export function toQuery(filters: AuditFilters): AuditQuery {
-  return {
-    actor: filters.actor,
-    action: filters.action,
-    from: filters.from ? startOfDay(filters.from) : undefined,
-    until: filters.to ? startOfDay(filters.to, 1) : undefined,
-  };
+  return { actor: filters.actor, action: filters.action, ...rangeQuery(filters.from, filters.to) };
 }
 
 /** Reads the filters from the page's address, dropping values the API would refuse. */
 export function readFilters(params: URLSearchParams): AuditFilters {
   const action = params.get('action') as AuditAction | null;
-  const day = (name: string) => {
-    const value = params.get(name);
-    return value && DAY.test(value) ? value : undefined;
-  };
   return {
     actor: params.get('actor') || undefined,
     action: action && PROJECT_ACTIONS.includes(action) ? action : undefined,
-    from: day('from'),
-    to: day('to'),
+    from: readDay(params.get('from')),
+    to: readDay(params.get('to')),
   };
 }
 
 /** True when the last day comes before the first: nothing could match. */
 export function isEmptyRange(filters: AuditFilters): boolean {
-  return Boolean(filters.from && filters.to && filters.to < filters.from);
+  return emptyRange(filters.from, filters.to);
 }
 
 /** A text or number field of an event's details, as text, or '' when absent. */
@@ -74,16 +56,4 @@ export function detail(event: AuditEvent, ...path: string[]): string {
     node = node && typeof node === 'object' ? (node as Record<string, unknown>)[key] : undefined;
   }
   return typeof node === 'string' ? node : typeof node === 'number' ? String(node) : '';
-}
-
-/** `YYYY-MM-DD` of a day in the viewer's time zone. */
-export function dayOf(date: Date): string {
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-/** Midnight of a `YYYY-MM-DD` day in the viewer's time zone. */
-export function dateOf(day: string): Date {
-  const [year, month, date] = day.split('-').map(Number) as [number, number, number];
-  return new Date(year, month - 1, date);
 }

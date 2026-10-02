@@ -1,7 +1,7 @@
 'use client';
 
 import { useForm } from '@tanstack/react-form';
-import { Check, CircleAlert, Copy, KeyRound, Plus, Rocket, RotateCcw, ShieldCheck } from 'lucide-react';
+import { CircleAlert, KeyRound, Plus, Rocket, RotateCcw, ShieldCheck } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { Fragment, useId, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
@@ -11,6 +11,7 @@ import { ErrorAlert } from '@/components/shared/error-alert';
 import { SubmitButton } from '@/components/shared/form/submit-button';
 import { TextField } from '@/components/shared/form/text-field';
 import { When } from '@/components/shared/format';
+import { ShownOnceToken } from '@/components/shared/shown-once-token';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   AlertDialog,
@@ -34,7 +35,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
-import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group';
 import {
   Item,
   ItemActions,
@@ -505,8 +505,6 @@ function IssueTokenDialog({
   const changed = useReleasesChanged(project.id);
   const [error, setError] = useState<ActionError | null>(null);
   const [issued, setIssued] = useState<IssuedToken | null>(null);
-  const [copied, setCopied] = useState(false);
-  const tokenField = useId();
 
   const form = useForm({
     defaultValues: { name: '' } satisfies TokenValues,
@@ -523,16 +521,6 @@ function IssueTokenDialog({
     },
   });
 
-  async function copy(token: string) {
-    try {
-      await navigator.clipboard.writeText(token);
-      setCopied(true);
-      toast.success(t('copied'));
-    } catch {
-      toast.error(t('copyFailed'));
-    }
-  }
-
   return (
     <Dialog open onOpenChange={(open) => (open ? null : onClose())}>
       <DialogContent>
@@ -542,28 +530,7 @@ function IssueTokenDialog({
         </DialogHeader>
         {issued ? (
           <div className="grid gap-4">
-            <Field className="gap-1.5">
-              <FieldLabel htmlFor={tokenField}>{issued.name}</FieldLabel>
-              <InputGroup>
-                <InputGroupInput
-                  id={tokenField}
-                  readOnly
-                  value={issued.token}
-                  className="font-mono text-xs"
-                  onFocus={(e) => e.target.select()}
-                />
-                <InputGroupAddon align="inline-end">
-                  <InputGroupButton
-                    size="icon-xs"
-                    aria-label={t('copy')}
-                    title={t('copy')}
-                    onClick={() => void copy(issued.token)}
-                  >
-                    {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
-                  </InputGroupButton>
-                </InputGroupAddon>
-              </InputGroup>
-            </Field>
+            <ShownOnceToken label={issued.name} token={issued.token} />
             <Alert>
               <CircleAlert aria-hidden />
               <AlertDescription>{t('header')}</AlertDescription>

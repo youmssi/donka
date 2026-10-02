@@ -46,6 +46,7 @@ export const KNOWN_ERROR_CODES = [
   'NOT_REQUESTER',
   'NEVER_APPROVED',
   'ALREADY_LIVE',
+  'RECORD_NOT_FOUND',
   'NETWORK',
   'UNEXPECTED',
 ] as const;
