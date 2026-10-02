@@ -40,7 +40,15 @@ import { routing } from '@/i18n/routing';
 import { useCurrentUser, useSignOut } from '@/modules/identity';
 import { projectHref, useOpenProject, useProjectList, type Project, type ProjectSection } from '@/modules/project';
 
-import { navSection, PEOPLE_ICON, placeOf, PROJECTS_ICON, projectSections, type Place } from './sections';
+import {
+  navSection,
+  PEOPLE_ICON,
+  placeOf,
+  PROJECTS_ICON,
+  projectSections,
+  RUNTIMES_ICON,
+  type Place,
+} from './sections';
 
 /** Studio's navigation: sections, the open project, and the account. */
 export function AppSidebar() {
@@ -93,14 +101,24 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               {user.isAdmin ? (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={place.kind === 'people'} tooltip={t('people')}>
-                    <Link href="/people" onClick={close}>
-                      <PEOPLE_ICON aria-hidden />
-                      <span>{t('people')}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                <>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={place.kind === 'people'} tooltip={t('people')}>
+                      <Link href="/people" onClick={close}>
+                        <PEOPLE_ICON aria-hidden />
+                        <span>{t('people')}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={place.kind === 'runtimes'} tooltip={t('runtimes')}>
+                      <Link href="/runtimes" onClick={close}>
+                        <RUNTIMES_ICON aria-hidden />
+                        <span>{t('runtimes')}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </>
               ) : null}
             </SidebarMenu>
           </SidebarGroupContent>

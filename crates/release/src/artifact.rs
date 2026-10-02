@@ -3,7 +3,6 @@
 //! entry per decision, named by its key so graphs find each other.
 
 use serde_json::{json, Value};
-use sha2::{Digest, Sha256};
 use std::io::{Cursor, Write};
 use zip::write::SimpleFileOptions;
 use zip::ZipWriter;
@@ -30,14 +29,6 @@ pub struct ArtifactInput<'a> {
 /// The object an artifact is written to in the bucket: `staging/credit-pme`.
 pub fn object_key(environment: &str, project_key: &str) -> String {
     format!("{environment}/{project_key}")
-}
-
-/// The SHA-256 of a token as artifacts store it: lowercase hex.
-pub fn hash_token(token: &str) -> String {
-    Sha256::digest(token.as_bytes())
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
 }
 
 pub fn config(input: &ArtifactInput<'_>) -> Value {
@@ -106,7 +97,7 @@ mod tests {
             environment: "staging",
             deployment_id: "d-1".into(),
             deployed_at: "2026-10-02T09:00:00Z".into(),
-            token_hashes: vec![("t-1".into(), hash_token("dnk_test_token"))],
+            token_hashes: vec![("t-1".into(), donka_shared::secret::hash("dnk_test_token"))],
             decisions: vec![
                 (
                     "bureau/normalize".into(),
@@ -120,7 +111,7 @@ mod tests {
     #[test]
     fn token_hashes_match_the_published_vector() {
         assert_eq!(
-            hash_token("dnk_test_token"),
+            donka_shared::secret::hash("dnk_test_token"),
             "d4d813b79f07c455e68458c955824329d902dd5f8e7b0c250fb3f05b3f68c840"
         );
     }

@@ -1,13 +1,17 @@
 [package]
 name = "donka-shared"
-description = "Cross-cutting code every module may use: clock, pagination"
+description = "Cross-cutting code every module may use: clock, pagination, issued tokens"
 version.workspace = true
 edition.workspace = true
 license-file.workspace = true
 publish = false
 
 [dependencies]
+base64 = { workspace = true }
 chrono = { workspace = true }
+getrandom = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
 
 [lints]
 workspace = true

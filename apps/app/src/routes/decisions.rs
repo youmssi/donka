@@ -243,7 +243,15 @@ pub async fn simulate(
     let (bundle, key) = state.decisions.bundle(&access, id, req.content).await?;
     let evaluation = state
         .runtime
-        .evaluate(&bundle, &key, req.context, EvaluateOptions { trace: true })
+        .evaluate(
+            &bundle,
+            &key,
+            req.context,
+            EvaluateOptions {
+                trace: true,
+                ..Default::default()
+            },
+        )
         .await?;
     Ok(Json(SimulateResponse {
         result: evaluation.result,

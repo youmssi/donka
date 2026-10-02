@@ -1,0 +1,30 @@
+[package]
+name = "donka-decision-log"
+description = "Decision log: every decision a Runtime makes, stored encrypted, searchable and replayable"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+publish = false
+
+[dependencies]
+aes-gcm = { workspace = true }
+base64 = { workspace = true }
+chrono = { workspace = true }
+donka-audit = { workspace = true }
+donka-db = { workspace = true }
+donka-engine = { workspace = true }
+donka-identity = { workspace = true }
+donka-project = { workspace = true }
+donka-release = { workspace = true }
+donka-shared = { workspace = true }
+getrandom = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+sqlx = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+
+[lints]
+workspace = true

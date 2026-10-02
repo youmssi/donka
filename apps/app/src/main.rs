@@ -4,6 +4,7 @@ use donka_app::{config::Config, router, AppState};
 use donka_audit::AuditLog;
 use donka_db::DbOptions;
 use donka_decision::Decisions;
+use donka_decision_log::{Cipher, DecisionLog};
 use donka_engine::{DecisionRuntime, ZenRuntime};
 use donka_identity::{Identity, Policy};
 use donka_mail::SmtpMailer;
@@ -69,7 +70,7 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|err| exit_with(&format!("DONKA_STORAGE_URL: {err}")));
     let releases = Releases::new(
         db.clone(),
-        clock,
+        clock.clone(),
         decisions.clone(),
         projects.clone(),
         Arc::new(storage),
@@ -80,6 +81,16 @@ async fn main() -> anyhow::Result<()> {
         },
     );
     let audit = AuditLog::new(db.clone());
+    let cipher = Cipher::from_base64(&config.decision_log_key)
+        .unwrap_or_else(|err| exit_with(&format!("DONKA_DECISION_LOG_KEY {err}")));
+    let decision_log = DecisionLog::new(
+        db.clone(),
+        clock,
+        Arc::new(cipher),
+        releases.clone(),
+        runtime.clone(),
+        Duration::days(config.decision_log_retention_days.into()),
+    );
 
     if let Some(email) = &config.bootstrap_admin_email {
         match identity.bootstrap_admin(email, config.default_locale).await {
@@ -101,6 +112,7 @@ async fn main() -> anyhow::Result<()> {
     let mailer = SmtpMailer::new(&config.smtp_url, &config.smtp_from)
         .unwrap_or_else(|err| exit_with(&format!("DONKA_SMTP_URL / DONKA_SMTP_FROM: {err}")));
     tokio::spawn(donka_app::publish_worker::run(releases.clone()));
+    tokio::spawn(donka_app::purge_worker::run(decision_log.clone()));
     tokio::spawn(donka_app::email_worker::run(
         identity.clone(),
         releases.clone(),
@@ -119,6 +131,7 @@ async fn main() -> anyhow::Result<()> {
             projects,
             decisions,
             releases,
+            decision_log,
             audit,
             cookies,
         },

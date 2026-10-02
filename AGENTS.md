@@ -144,9 +144,10 @@ crates/db/           PostgreSQL pool, migrations, readiness (shared by every mod
 crates/identity/     users, sign-in with lockout, sessions, invitations, password reset
 crates/mail/         Mailer trait + SMTP implementation (shared by modules that send email)
 crates/project/      projects, members and roles; `Access` proves membership (DNK-7)
-crates/shared/       cross-cutting code only: clock, pagination
+crates/shared/       cross-cutting code only: clock, pagination, issued tokens (random, hashed)
 crates/storage/      ArtifactStore trait: S3 or local files (object_store), in-memory fake for tests
 crates/release/      releases (frozen versions, semver), environments, deployment outbox and publisher, runtime tokens, production approvals
+crates/decision-log/ decision records sent by Runtimes (feed, tokens, encryption, search, replay, retention purge)
 crates/<module>/     one crate per business module
 migrations/          PostgreSQL migrations (sqlx), forward-only; <UTC timestamp>_<what>.sql
 scripts/             repo scripts (engine version drift check, end-to-end release test)

@@ -10,6 +10,7 @@ use donka_app::{router, AppState};
 use donka_audit::AuditLog;
 use donka_db::{DbOptions, PgPool};
 use donka_decision::Decisions;
+use donka_decision_log::{Cipher, DecisionLog};
 use donka_engine::{DecisionRuntime, ZenRuntime};
 use donka_identity::{Identity, Locale, Policy};
 use donka_mail::testing::RecordingMailer;
@@ -28,6 +29,10 @@ pub const ADMIN_EMAIL: &str = "ada@bank.example";
 pub const ADMIN_PASSWORD: &str = "correct horse battery staple";
 
 pub const PUBLIC_URL: &str = "https://studio.bank.example";
+/// The decision-log key in tests (32 bytes, base64).
+pub const DECISION_LOG_KEY: &str = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=";
+/// How long decision records are kept, in tests.
+pub const RETENTION_DAYS: i64 = 30;
 
 pub struct TestApp {
     pub router: Router,
@@ -38,6 +43,8 @@ pub struct TestApp {
     pub store: Arc<MemoryStore>,
     /// Runs the publisher (`publish_due`) on demand.
     pub releases: Releases,
+    /// Runs the retention purge on demand.
+    pub decision_log: DecisionLog,
 }
 
 /// Failed writes before a deployment is given up, in tests.
@@ -77,6 +84,14 @@ pub fn build_with_web(
         },
     );
     let audit = AuditLog::new(db.clone());
+    let decision_log = DecisionLog::new(
+        db.clone(),
+        clock.clone(),
+        Arc::new(Cipher::from_base64(DECISION_LOG_KEY).unwrap()),
+        releases.clone(),
+        runtime.clone(),
+        chrono::Duration::days(RETENTION_DAYS),
+    );
     let router = router(
         AppState {
             runtime,
@@ -85,6 +100,7 @@ pub fn build_with_web(
             projects,
             decisions,
             releases: releases.clone(),
+            decision_log: decision_log.clone(),
             audit,
             cookies: CookieSettings {
                 secure: true,
@@ -101,6 +117,7 @@ pub fn build_with_web(
         mailer: Arc::new(RecordingMailer::default()),
         store,
         releases,
+        decision_log,
     }
 }
 

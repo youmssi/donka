@@ -38,7 +38,10 @@ async fn returns_a_trace_when_asked() {
             &bundle(&["table"]),
             "table",
             json!({ "input": 12 }),
-            EvaluateOptions { trace: true },
+            EvaluateOptions {
+                trace: true,
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -147,7 +150,10 @@ async fn connectors_answer_with_their_mock_and_call_nothing() {
             &connector_bundle(&url, Some(json!({ "score": 712 }))),
             "score",
             json!({ "applicant": { "id": "A1" } }),
-            EvaluateOptions { trace: true },
+            EvaluateOptions {
+                trace: true,
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -187,5 +193,39 @@ async fn a_connector_without_a_mock_cannot_be_simulated() {
     assert!(
         details.to_string().contains("no mock response"),
         "{details}"
+    );
+}
+
+#[tokio::test]
+async fn a_replay_answers_connectors_with_the_recorded_trace() {
+    // As the Runtime logged it: the bureau answered 640.
+    let recorded = json!({
+        "bureau": {
+            "id": "bureau", "name": "Bureau", "order": 1,
+            "input": { "applicant": { "id": "A1" } },
+            "output": { "applicant": { "id": "A1" }, "bureau": { "score": 640 } }
+        }
+    });
+
+    let out = ZenRuntime::new(1)
+        .evaluate(
+            &connector_bundle(
+                "https://bureau.example/score",
+                Some(json!({ "score": 712 })),
+            ),
+            "score",
+            json!({ "applicant": { "id": "A1" } }),
+            EvaluateOptions {
+                trace: true,
+                recorded_trace: Some(std::sync::Arc::new(recorded)),
+            },
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(out.result["bureau"], json!({ "score": 640 }));
+    assert_eq!(
+        out.trace.unwrap()["bureau"]["traceData"],
+        json!({ "mode": "replay", "outcome": "ok" })
     );
 }

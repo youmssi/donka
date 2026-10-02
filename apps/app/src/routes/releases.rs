@@ -1,6 +1,6 @@
 use crate::error::{ApiError, ErrorBody};
 use crate::extract::{ApiJson, DeploymentId, EnvironmentKey, ProjectAccess, ReleaseId, TokenId};
-use crate::routes::people::{emails, PersonRef};
+use crate::routes::people::{emails, known_person, person, PersonRef};
 use crate::routes::scenarios::TestSummaryResponse;
 use crate::AppState;
 use axum::extract::{Query, State};
@@ -562,13 +562,6 @@ pub async fn revoke_token(
     Ok(StatusCode::NO_CONTENT)
 }
 
-fn person(emails: &HashMap<Uuid, String>, id: Uuid) -> PersonRef {
-    PersonRef {
-        id,
-        email: emails.get(&id).cloned().unwrap_or_default(),
-    }
-}
-
 fn released(decision: ReleasedDecision) -> ReleasedDecisionResponse {
     ReleasedDecisionResponse {
         decision_id: decision.decision_id,
@@ -587,7 +580,7 @@ pub(crate) fn summary(
         version: release.version.to_string(),
         notes: release.notes,
         created_at: release.created_at,
-        created_by: person(emails, release.created_by),
+        created_by: known_person(emails, release.created_by),
         decisions: release.decisions,
         tests: release.tests.into(),
         live_in: release.live_in.into_iter().map(Into::into).collect(),
@@ -615,7 +608,7 @@ pub(crate) fn deployment(emails: &HashMap<Uuid, String>, d: Deployment) -> Deplo
         },
         rollback_reason: d.rollback_reason,
         requested_at: d.requested_at,
-        requested_by: person(emails, d.requested_by),
+        requested_by: known_person(emails, d.requested_by),
         status: match d.status {
             DeploymentStatus::Pending => DeploymentStatusResponse::Pending,
             DeploymentStatus::Retrying => DeploymentStatusResponse::Retrying,
@@ -653,8 +646,8 @@ fn token(emails: &HashMap<Uuid, String>, t: RuntimeToken) -> TokenResponse {
         name: t.name,
         hint: t.hint,
         created_at: t.created_at,
-        created_by: person(emails, t.created_by),
+        created_by: known_person(emails, t.created_by),
         revoked_at: t.revoked_at,
-        revoked_by: t.revoked_by.map(|id| person(emails, id)),
+        revoked_by: person(emails, t.revoked_by),
     }
 }

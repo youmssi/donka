@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/breadcrumb';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Link, usePathname } from '@/i18n/navigation';
-import { projectHome, useOpenProject } from '@/modules/project';
+import { projectHome, projectHref, useOpenProject } from '@/modules/project';
 
 import { placeOf } from './sections';
 
@@ -40,6 +40,9 @@ export function Breadcrumbs() {
     case 'people':
       crumbs = [{ label: t('people') }];
       break;
+    case 'runtimes':
+      crumbs = [{ label: t('runtimes') }];
+      break;
     case 'project':
       crumbs = project
         ? [
@@ -47,7 +50,12 @@ export function Breadcrumbs() {
             { label: project.name, href: projectHome(project.key) },
             ...(place.section === 'decision'
               ? [{ label: sections('decisions'), href: projectHome(project.key) }, { label: decisionKey }]
-              : [{ label: sections(place.section) }]),
+              : place.section === 'decision-record'
+                ? [
+                    { label: sections('decision-log'), href: projectHref('decision-log', project.key) },
+                    { label: sections('decision-record') },
+                  ]
+                : [{ label: sections(place.section) }]),
           ]
         : null;
       break;

@@ -8,11 +8,12 @@
 //! so evaluating a single graph without its siblings would be wrong.
 //!
 //! Connector nodes (`donka.connector`) answer with the mock response their
-//! author defined: no call to an outside service ever leaves Studio. The
-//! Runtime runs the same handler for real.
+//! author defined, or, when replaying a logged decision, with what they
+//! answered at the time: no call to an outside service ever leaves Studio.
+//! The Runtime runs the same handler for real.
 
 use async_trait::async_trait;
-use donka_connectors::ConnectorAdapter;
+use donka_connectors::{recorded_outputs, ConnectorAdapter};
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -79,10 +80,13 @@ impl Bundle {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct EvaluateOptions {
     /// Per-node trace, used by the simulator, the decision log and AI explain.
     pub trace: bool,
+    /// Replays a logged decision: its trace, from which connector nodes answer
+    /// with their output at the time instead of their mock.
+    pub recorded_trace: Option<Arc<Value>>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -144,7 +148,10 @@ impl DecisionRuntime for ZenRuntime {
         }
 
         let loader = bundle.loader.clone();
-        let connectors = self.connectors.clone();
+        let connectors = match &options.recorded_trace {
+            Some(trace) => Arc::new(ConnectorAdapter::replay(recorded_outputs(trace))),
+            None => self.connectors.clone(),
+        };
         let key = key.to_owned();
         let trace = if options.trace {
             EvaluationTraceKind::Default

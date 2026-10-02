@@ -1,6 +1,7 @@
 pub mod approvals;
 pub mod audit;
 pub mod auth;
+pub mod decision_log;
 pub mod decisions;
 pub mod health;
 pub mod people;

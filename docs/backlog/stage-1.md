@@ -403,12 +403,30 @@ donka-runtime; Studio depends on it for simulation (mock mode).
 
 **Type:** feature · **Repos:** R, S · **Dependencies:** DNK-14 · **Size:** L
 
+#### Decisions (taken in the story)
+- **Outcome**: each project names one output field (a dotted path, e.g. `decision`); Studio reads
+  it when a record arrives and stores it searchable. Failed evaluations have the outcome `error`.
+- **Retention**: five years by default (`DONKA_DECISION_LOG_RETENTION_DAYS=1825`).
+- **Access**: every project member searches the log and opens records; each opening and replay
+  is audited. Owners set the outcome field.
+- **Runtime credential**: decision-log tokens issued by administrators under **Runtimes**, one
+  environment each, shown once and stored hashed; a staging Runtime cannot write production
+  records, and Studio stores a record only for a release it published to that environment.
+- **Reference**: callers send `X-Donka-Reference` to the Runtime; every logged answer returns
+  `X-Decision-Id`. The trace is always recorded and returned only when asked for.
+- **Encryption**: input, output, error and trace are encrypted with AES-256-GCM under
+  `DONKA_DECISION_LOG_KEY` (required); search fields stay readable.
+- **Replay** runs the record's release in Studio with connector nodes answering from the
+  recorded trace (no outside call). Identical means both succeeded with the same output, or
+  both failed.
+- Feed format: `docs/decision-log-feed.md`.
+
 #### Acceptance criteria
-- [ ] The Runtime sends each evaluation (input, output, release, trace, time) to Studio asynchronously, batched, retried, without slowing the response
-- [ ] Studio stores records encrypted at rest; retention from configuration; purge is audited
-- [ ] Search by reference, decision, outcome and date; paginated
-- [ ] Replay re-evaluates a record against its release and shows whether the result is identical
-- [ ] Viewing a record is audited (it contains personal data)
+- [x] The Runtime sends each evaluation (input, output, release, trace, time) to Studio asynchronously, batched, retried, without slowing the response
+- [x] Studio stores records encrypted at rest; retention from configuration; purge is audited
+- [x] Search by reference, decision, outcome and date; paginated
+- [x] Replay re-evaluates a record against its release and shows whether the result is identical
+- [x] Viewing a record is audited (it contains personal data)
 
 ---
 

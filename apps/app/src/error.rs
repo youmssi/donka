@@ -9,6 +9,7 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use donka_decision::{DecisionError, MAX_SCENARIO_NAME_CHARS};
+use donka_decision_log::DecisionLogError;
 use donka_engine::RuntimeError;
 use donka_identity::IdentityError;
 use donka_project::ProjectError;
@@ -99,6 +100,12 @@ pub enum ApiError {
     NeverApproved,
     #[error("release already live")]
     AlreadyLive,
+    #[error("decision record not found")]
+    RecordNotFound,
+    #[error("invalid decision-log token")]
+    InvalidLogToken,
+    #[error("too many records in one batch")]
+    BatchTooLarge,
     #[error("database unavailable")]
     DatabaseUnavailable,
     #[error("no such endpoint")]
@@ -213,6 +220,33 @@ impl From<ReleaseError> for ApiError {
             ReleaseError::Project(err) => err.into(),
             ReleaseError::Decision(err) => err.into(),
             ReleaseError::Database(err) => Self::Internal(err.to_string()),
+        }
+    }
+}
+
+impl From<DecisionLogError> for ApiError {
+    fn from(err: DecisionLogError) -> Self {
+        match err {
+            DecisionLogError::NotAdministrator => Self::Forbidden,
+            DecisionLogError::InvalidTokenName => Self::InvalidField {
+                field: "name",
+                message: err.to_string(),
+            },
+            DecisionLogError::TokenNotFound => Self::TokenNotFound,
+            DecisionLogError::InvalidToken => Self::InvalidLogToken,
+            DecisionLogError::BatchTooLarge => Self::BatchTooLarge,
+            DecisionLogError::InvalidOutcomeField => Self::InvalidField {
+                field: "outcomeField",
+                message: err.to_string(),
+            },
+            DecisionLogError::RecordNotFound => Self::RecordNotFound,
+            DecisionLogError::Unreadable(err) => Self::Internal(err.to_string()),
+            DecisionLogError::Random => {
+                Self::Internal("random token could not be generated".into())
+            }
+            DecisionLogError::Project(err) => err.into(),
+            DecisionLogError::Release(err) => err.into(),
+            DecisionLogError::Database(err) => Self::Internal(err.to_string()),
         }
     }
 }
@@ -485,6 +519,30 @@ impl IntoResponse for ApiError {
                 StatusCode::FORBIDDEN,
                 "NOT_REQUESTER",
                 "Only the person who asked can withdraw this request.".to_owned(),
+                None,
+                None,
+            ),
+            Self::RecordNotFound => (
+                StatusCode::NOT_FOUND,
+                "RECORD_NOT_FOUND",
+                "This decision record does not exist in this project.".to_owned(),
+                None,
+                None,
+            ),
+            Self::InvalidLogToken => (
+                StatusCode::UNAUTHORIZED,
+                "INVALID_TOKEN",
+                "The decision-log token is missing, unknown or revoked.".to_owned(),
+                None,
+                None,
+            ),
+            Self::BatchTooLarge => (
+                StatusCode::BAD_REQUEST,
+                "TOO_MANY_RECORDS",
+                format!(
+                    "Send at most {} records at once.",
+                    donka_decision_log::MAX_BATCH_RECORDS
+                ),
                 None,
                 None,
             ),

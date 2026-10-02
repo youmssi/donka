@@ -58,7 +58,10 @@ pub async fn simulate(
             &bundle,
             &req.key,
             req.context,
-            EvaluateOptions { trace: true },
+            EvaluateOptions {
+                trace: true,
+                ..Default::default()
+            },
         )
         .await?;
     Ok(Json(SimulateResponse {

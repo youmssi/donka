@@ -2,7 +2,7 @@
 
 import { useForm } from '@tanstack/react-form';
 import { useTranslations } from 'next-intl';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 
 import type { ActionError } from '@/components/shared/api';
@@ -29,17 +29,19 @@ import { ProjectFrame } from './project-frame';
 import { DESCRIPTION_MAX, NAME_MAX, projectDetailsSchema, type Project } from './schema';
 import { useSetArchived, useUpdateProject } from './useProjects';
 
-export function ProjectSettingsPage() {
-  return <ProjectFrame section="settings">{(project) => <Settings project={project} />}</ProjectFrame>;
+/** The project's settings; `more` adds other modules' settings (the decision log's). */
+export function ProjectSettingsPage({ more }: { more?: (project: Project) => ReactNode }) {
+  return <ProjectFrame section="settings">{(project) => <Settings project={project} more={more} />}</ProjectFrame>;
 }
 
-function Settings({ project }: { project: Project }) {
+function Settings({ project, more }: { project: Project; more?: (project: Project) => ReactNode }) {
   const isOwner = project.role === 'owner';
   return (
     <div className="grid items-start gap-6 lg:grid-cols-3">
       {/* Keyed by the archive state: archiving or restoring starts the form afresh. */}
       <Details key={project.archivedAt ?? 'active'} project={project} />
       {isOwner ? <ArchiveSection project={project} /> : null}
+      {more?.(project)}
     </div>
   );
 }

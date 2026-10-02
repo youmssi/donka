@@ -15,6 +15,7 @@ anyhow = { workspace = true }
 axum = { workspace = true }
 donka-audit = { workspace = true, features = ["openapi"] }
 donka-decision = { workspace = true }
+donka-decision-log = { workspace = true }
 donka-db = { workspace = true }
 donka-engine = { workspace = true }
 donka-identity = { workspace = true, features = ["openapi"] }

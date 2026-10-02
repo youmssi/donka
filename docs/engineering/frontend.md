@@ -27,6 +27,9 @@ Dependencies go **one way only**: `app/ → Component → Cache hook → Service
 
 - **Routing (`app/`)**: reads params and search params, guards, metadata; renders one top-level
   component imported **from the module barrel**. No business or presentation logic in pages.
+  When a page shows two modules (a project's settings with the decision log's), a small client
+  component next to the page composes them through a slot (`ProjectSettingsPage more={…}`), so
+  neither module imports the other.
 - **Component**: renders and validates. Never calls `fetch`.
 - **Cache hook**: TanStack Query for data that changes after load (release status, decision log).
 - **Service**: HTTP calls to Studio's API; converts every response into an `ActionResult`.

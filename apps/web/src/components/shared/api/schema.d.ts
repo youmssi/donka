@@ -92,6 +92,61 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/decision-log/records': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Receives the records a Runtime sends (`Authorization: Bearer <decision-log token>`). */
+    post: operations['receive'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/decision-log/tokens': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Every decision-log token, live ones first; never their value (administrators). */
+    get: operations['tokens'];
+    put?: never;
+    /**
+     * Issues a token Runtimes of one environment send their records with
+     *     (administrators). The token is in this response only.
+     */
+    post: operations['issue_token'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/decision-log/tokens/{token_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Revokes a decision-log token: batches sent with it are refused from now on (administrators). */
+    delete: operations['revoke_token'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/health': {
     parameters: {
       query?: never;
@@ -305,6 +360,88 @@ export interface paths {
     get: operations['export'];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/decision-log': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The project's decision records, newest first (any member). Lists hold
+     *     nothing the decisions read or answered.
+     */
+    get: operations['search'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/decision-log/settings': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The project's decision-log settings (any member). */
+    get: operations['settings'];
+    /**
+     * Names the output field read as each new record's outcome (owners).
+     *     Records already stored keep the outcome they arrived with.
+     */
+    put: operations['update_settings'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/decision-log/{record_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Opens a decision record (any member). Each opening is audited
+     *     (`decision_record.viewed`): records hold applicants' personal data.
+     */
+    get: operations['get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/decision-log/{record_id}/replay': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Evaluates a record again with the release that answered it (any member);
+     *     connector nodes answer with what they answered then, so nothing is called.
+     *     Audited (`decision_record.replayed`).
+     */
+    post: operations['replay'];
     delete?: never;
     options?: never;
     head?: never;
@@ -866,7 +1003,13 @@ export interface components {
       | 'approval.requested'
       | 'approval.approved'
       | 'approval.rejected'
-      | 'approval.withdrawn';
+      | 'approval.withdrawn'
+      | 'decision_record.viewed'
+      | 'decision_record.replayed'
+      | 'decision_log.purged'
+      | 'decision_log.settings_updated'
+      | 'decision_log_token.issued'
+      | 'decision_log_token.revoked';
     AddMemberRequest: {
       /** @description Email of an existing Studio account. */
       email: string;
@@ -998,6 +1141,13 @@ export interface components {
     };
     DecisionListResponse: {
       items: components['schemas']['DecisionSummaryResponse'][];
+    };
+    DecisionLogSettingsBody: {
+      /**
+       * @description The output field whose value is a record's outcome, as a dotted path
+       *     (`decision`, `result.band`); `null` for none. Read when a record arrives.
+       */
+      outcomeField?: string | null;
     };
     DecisionResponse: components['schemas']['DecisionSummaryResponse'] & {
       /** @description A JDM decision graph. */
@@ -1134,14 +1284,39 @@ export interface components {
       /** @description Same value as the `x-request-id` response header; quote it when reporting a problem. */
       requestId: string;
     };
+    /** @description A batch of records, as a Runtime sends it (docs/decision-log-feed.md). */
+    FeedBatch: {
+      /** @description At most 1000 records; each is checked on its own. */
+      records: unknown[];
+    };
+    FeedReceipt: {
+      /** @description Records stored, now or before (a record sent twice is stored once). */
+      accepted: number;
+      /** @description Records not stored, with why: `invalid`, `wrong_environment` or `unknown_release`. */
+      rejected: components['schemas']['FeedRejection'][];
+    };
+    FeedRejection: {
+      code: string;
+      /** Format: uuid */
+      id: string;
+    };
     InvitationRequest: {
       email: string;
       isAdmin?: boolean;
       locale?: null | components['schemas']['Locale'];
     };
+    IssueLogTokenRequest: {
+      environment: components['schemas']['EnvironmentName'];
+      /** @description 1 to 100 characters, e.g. the Runtime's host. */
+      name: string;
+    };
     IssueTokenRequest: {
       /** @description Who uses the token, e.g. the loan origination system. */
       name: string;
+    };
+    IssuedLogTokenResponse: components['schemas']['LogTokenResponse'] & {
+      /** @description Shown this once: set it as the Runtime's `DECISION_LOG__TOKEN`. */
+      token: string;
     };
     IssuedTokenResponse: components['schemas']['TokenResponse'] & {
       /** @description The token. Shown this once: Studio keeps only its hash. */
@@ -1152,6 +1327,24 @@ export interface components {
      * @enum {string}
      */
     Locale: 'en' | 'fr';
+    LogTokenListResponse: {
+      items: components['schemas']['LogTokenResponse'][];
+    };
+    LogTokenResponse: {
+      /** Format: date-time */
+      createdAt: string;
+      createdBy: components['schemas']['PersonRef'];
+      /** @description The environment whose Runtimes send records with it. */
+      environment: components['schemas']['EnvironmentName'];
+      /** @description The token's last characters, to tell tokens apart. */
+      hint: string;
+      /** Format: uuid */
+      id: string;
+      name: string;
+      /** Format: date-time */
+      revokedAt?: string | null;
+      revokedBy?: null | components['schemas']['PersonRef'];
+    };
     /**
      * @description How much of the output a scenario pins down.
      * @enum {string}
@@ -1231,6 +1424,52 @@ export interface components {
       name: string;
       role: components['schemas']['Role'];
     };
+    RecordListResponse: {
+      items: components['schemas']['RecordSummaryResponse'][];
+      /**
+       * Format: int64
+       * @description Records matching across all pages.
+       */
+      total: number;
+    };
+    RecordResponse: components['schemas']['RecordSummaryResponse'] & {
+      /** @description The error the caller received, when it failed. */
+      error?: unknown;
+      /** @description What the decision was asked. */
+      input: unknown;
+      /** @description What it answered, when it succeeded. */
+      output?: unknown;
+      /** Format: date-time */
+      receivedAt: string;
+      /** @description The release that answered, e.g. `1.4.0`. */
+      releaseVersion: string;
+      /** @description The engine's per-node trace, when the Runtime had one. */
+      trace?: unknown;
+    };
+    /**
+     * @description Whether the Runtime answered or the evaluation failed.
+     * @enum {string}
+     */
+    RecordStatus: 'succeeded' | 'failed';
+    RecordSummaryResponse: {
+      decisionKey: string;
+      /**
+       * Format: int64
+       * @description How long the Runtime took, in microseconds.
+       */
+      durationUs: number;
+      environment: components['schemas']['EnvironmentName'];
+      /** Format: date-time */
+      evaluatedAt: string;
+      /** Format: uuid */
+      id: string;
+      /** @description The project's outcome field when the record arrived; `error` for failures. */
+      outcome?: string | null;
+      reference?: string | null;
+      /** Format: uuid */
+      releaseId: string;
+      status: components['schemas']['RecordStatus'];
+    };
     RejectRequest: {
       /** @description Why the release may not go to production. */
       reason: string;
@@ -1285,6 +1524,14 @@ export interface components {
        * @description The version of the decision the release froze.
        */
       version: number;
+    };
+    ReplayResponse: {
+      /** @description The engine's error, when the replay failed. */
+      error?: unknown;
+      /** @description Both succeeded with the same output, or both failed. */
+      identical: boolean;
+      output?: unknown;
+      status: components['schemas']['RecordStatus'];
     };
     RequestApprovalRequest: {
       /**
@@ -1656,6 +1903,154 @@ export interface operations {
       };
       /** @description Not signed in (UNAUTHENTICATED) */
       401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  receive: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['FeedBatch'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['FeedReceipt'];
+        };
+      };
+      /** @description Not a batch, or more than 1000 records (INVALID_REQUEST, TOO_MANY_RECORDS) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Missing, unknown or revoked token (INVALID_TOKEN) */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  tokens: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['LogTokenListResponse'];
+        };
+      };
+      /** @description Not an administrator (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  issue_token: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['IssueLogTokenRequest'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['IssuedLogTokenResponse'];
+        };
+      };
+      /** @description Missing or too long name (INVALID_REQUEST) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Not an administrator (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  revoke_token: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        token_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Revoked */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Not an administrator (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Unknown or already revoked (TOKEN_NOT_FOUND) */
+      404: {
         headers: {
           [name: string]: unknown;
         };
@@ -2337,6 +2732,214 @@ export interface operations {
         };
       };
       /** @description PROJECT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  search: {
+    parameters: {
+      query?: {
+        /** @description The caller's reference (`X-Donka-Reference`), exactly. */
+        reference?: string;
+        /** @description Only this decision, by key. */
+        decisionKey?: string;
+        /** @description Only this outcome, exactly (`error` for failed evaluations). */
+        outcome?: string;
+        environment?: components['schemas']['EnvironmentName'];
+        status?: components['schemas']['RecordStatus'];
+        /** @description Evaluated from this instant, inclusive (ISO-8601). */
+        from?: string;
+        /** @description Evaluated until this instant, exclusive (ISO-8601). */
+        until?: string;
+        /** @description Page size, 1 to 100 (default 50). */
+        limit?: number;
+        offset?: number;
+      };
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['RecordListResponse'];
+        };
+      };
+      /** @description A filter is not valid (INVALID_REQUEST) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  settings: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DecisionLogSettingsBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  update_settings: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['DecisionLogSettingsBody'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DecisionLogSettingsBody'];
+        };
+      };
+      /** @description Not a dotted path of field names (INVALID_REQUEST) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Only owners change settings (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_ARCHIVED */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        record_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['RecordResponse'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or RECORD_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  replay: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        record_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ReplayResponse'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or RECORD_NOT_FOUND */
       404: {
         headers: {
           [name: string]: unknown;

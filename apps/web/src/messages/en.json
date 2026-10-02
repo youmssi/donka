@@ -24,7 +24,10 @@
     "next": "Next",
     "pageOf": "{from}–{to} of {total}",
     "actions": "Actions",
-    "admin": "Administrator"
+    "admin": "Administrator",
+    "copyToken": "Copy the token",
+    "tokenCopied": "Token copied.",
+    "tokenCopyFailed": "Copy failed. Select the token and copy it."
   },
   "errors": {
     "INVALID_CREDENTIALS": "Email or password is incorrect.",
@@ -70,7 +73,8 @@
     "APPROVAL_DECIDED": "This request has already been decided or withdrawn.",
     "NOT_REQUESTER": "Only the person who asked can withdraw this request.",
     "NEVER_APPROVED": "Production can only go back to a release that was approved for it.",
-    "ALREADY_LIVE": "This release is already the one production runs."
+    "ALREADY_LIVE": "This release is already the one production runs.",
+    "RECORD_NOT_FOUND": "This decision record does not exist in this project."
   },
   "validation": {
     "email": "Enter a valid email address.",
@@ -86,7 +90,8 @@
     "outputKey": "Use letters, digits and underscores only.",
     "secretName": "Use capital letters, digits and underscores, starting with a letter (at most 64).",
     "headerName": "Use letters, digits and hyphens only.",
-    "wholeNumberMax": "Enter a whole number up to {max}, or leave it empty."
+    "wholeNumberMax": "Enter a whole number up to {max}, or leave it empty.",
+    "fieldPath": "Use field names joined by dots, e.g. decision or result.band."
   },
   "signIn": {
     "title": "Sign in",
@@ -191,7 +196,9 @@
     "releases": "Releases",
     "environments": "Environments",
     "approvals": "Approvals",
-    "approval": "Approval"
+    "approval": "Approval",
+    "decision-log": "Decision log",
+    "decision-record": "Decision record"
   },
   "members": {
     "title": "Members",
@@ -227,7 +234,8 @@
     "workspace": "Workspace",
     "project": "Project",
     "switchProject": "Switch project (current: {name})",
-    "allProjects": "All projects"
+    "allProjects": "All projects",
+    "runtimes": "Runtimes"
   },
   "people": {
     "title": "People",
@@ -331,6 +339,18 @@
       "approved": "Production approved",
       "rejected": "Production rejected",
       "withdrawn": "Request withdrawn"
+    },
+    "decision_record": {
+      "viewed": "Decision record opened",
+      "replayed": "Decision record replayed"
+    },
+    "decision_log": {
+      "purged": "Decision records purged",
+      "settings_updated": "Decision log settings changed"
+    },
+    "decision_log_token": {
+      "issued": "Decision-log token issued",
+      "revoked": "Decision-log token revoked"
     }
   },
   "auditSentences": {
@@ -357,7 +377,12 @@
     "approvalApproved": "Approved release {version} for production",
     "approvalRejected": "Rejected release {version} for production: “{reason}”",
     "approvalWithdrawn": "Withdrew the production request for release {version}",
-    "releaseRolledBack": "Rolled production back from {from} to {version}: “{reason}”"
+    "releaseRolledBack": "Rolled production back from {from} to {version}: “{reason}”",
+    "decisionRecordViewed": "Opened the {key} decision {reference}",
+    "decisionRecordReplayed": "Replayed the {key} decision {reference}",
+    "decisionLogPurged": "Purged {records} decision records older than {days} days",
+    "decisionLogSettingsUpdated": "Set the decision log's outcome field to {field}",
+    "decisionLogSettingsCleared": "Removed the decision log's outcome field"
   },
   "ui": {
     "close": "Close",
@@ -592,9 +617,6 @@
     "namePlaceholder": "Loan origination",
     "shownOnce": "Copy it now: it is shown only once. Studio keeps only a fingerprint.",
     "header": "Send it in the X-Access-Token header. It works within a minute.",
-    "copy": "Copy the token",
-    "copied": "Token copied.",
-    "copyFailed": "Copy failed. Select the token and copy it.",
     "done": "Done",
     "empty": "No tokens. Create one for each system that calls the Runtime.",
     "emptyReadOnly": "No tokens. Owners create them.",
@@ -718,5 +740,87 @@
     "mock": "Mock answer",
     "mockHint": "JSON the simulator and test scenarios use as the service's answer.",
     "apply": "Apply"
+  },
+  "decisionLog": {
+    "title": "Decision log",
+    "when": "When",
+    "decision": "Decision",
+    "reference": "Reference",
+    "outcome": "Outcome",
+    "environment": "Environment",
+    "duration": "Duration",
+    "status": "Result",
+    "noReference": "No reference",
+    "search": "Search",
+    "allEnvironments": "All environments",
+    "allStatuses": "All results",
+    "succeeded": "Answered",
+    "failed": "Failed",
+    "dates": "Dates",
+    "anyDate": "Any date",
+    "clearFilters": "Clear filters",
+    "emptyRange": "The last day comes before the first: no decision can match.",
+    "errorTitle": "The decision log could not be loaded.",
+    "emptyTitle": "No decision yet",
+    "empty": "Decisions appear here once a Runtime serving this project sends them. An administrator issues a decision-log token under Runtimes and sets it on the Runtime.",
+    "emptyFilteredTitle": "No decision matches",
+    "emptyFiltered": "Try other filters, or clear them.",
+    "notFoundTitle": "Decision record not found",
+    "backToLog": "Back to the decision log",
+    "recordTitle": "Decision",
+    "recordOf": "Decision {key}, as the Runtime made it.",
+    "replay": "Replay",
+    "replaying": "Replaying…",
+    "viewAudited": "This record holds an applicant's personal data. Opening and replaying it are recorded in the project's audit log.",
+    "replayFailedTitle": "The replay could not run.",
+    "summary": "Summary",
+    "release": "Release",
+    "received": "Received by Studio",
+    "recordId": "Record id",
+    "input": "Input",
+    "inputDescription": "What the decision was asked.",
+    "output": "Output",
+    "outputDescription": "What the decision answered.",
+    "error": "Error",
+    "errorDescription": "The error the caller received.",
+    "trace": "Trace",
+    "traceDescription": "What each node of the decision received and returned.",
+    "identicalTitle": "Same result",
+    "identical": "Release {version} gives the same answer again.",
+    "differentTitle": "Different result",
+    "different": "Release {version} now gives another answer than the one recorded.",
+    "recordedAnswer": "Recorded answer",
+    "replayedAnswer": "Answer now",
+    "settingsTitle": "Decision log",
+    "settingsDescription": "Each decision a Runtime makes is recorded. The outcome field is read from its answer when it arrives, so the log can be searched by outcome.",
+    "outcomeField": "Outcome field",
+    "outcomeFieldHint": "A field of the decision's output, e.g. decision or result.band. Leave empty for none; failed decisions are always error.",
+    "outcomeFieldReadOnly": "Only owners change it.",
+    "settingsSaved": "Decision log settings saved."
+  },
+  "runtimes": {
+    "title": "Runtimes",
+    "description": "Each Runtime sends the decisions it makes to Studio's decision log with a token issued here for its environment.",
+    "forbiddenTitle": "Only administrators manage Runtime tokens.",
+    "name": "Name",
+    "environment": "Environment",
+    "issued": "Issued",
+    "revokedBadge": "Revoked",
+    "create": "New token",
+    "creating": "Creating…",
+    "emptyTitle": "No token yet",
+    "empty": "Issue a token for each environment, then set it on its Runtimes so their decisions reach the decision log.",
+    "revoke": "Revoke",
+    "revoked": "{name} revoked.",
+    "revokeTitle": "Revoke {name}?",
+    "revokeConfirm": "Runtimes using it can no longer send decisions; those they still hold are dropped. This cannot be undone.",
+    "createTitle": "New decision-log token",
+    "createDescription": "A token lets the Runtimes of one environment send their decisions to Studio.",
+    "shownOnce": "Copy the token now: Studio keeps only its hash and will not show it again.",
+    "nameHint": "Who uses it, e.g. the Runtime's host.",
+    "namePlaceholder": "runtime-prod-1",
+    "runtimeSettings": "Runtime settings",
+    "oneEnvironment": "This token only sends {environment} decisions: records from another environment are refused.",
+    "done": "Done"
   }
 }

@@ -86,7 +86,13 @@
           "approval.requested",
           "approval.approved",
           "approval.rejected",
-          "approval.withdrawn"
+          "approval.withdrawn",
+          "decision_record.viewed",
+          "decision_record.replayed",
+          "decision_log.purged",
+          "decision_log.settings_updated",
+          "decision_log_token.issued",
+          "decision_log_token.revoked"
         ],
         "type": "string"
       },
@@ -505,6 +511,19 @@
         ],
         "type": "object"
       },
+      "DecisionLogSettingsBody": {
+        "properties": {
+          "outcomeField": {
+            "description": "The output field whose value is a record's outcome, as a dotted path\n(`decision`, `result.band`); `null` for none. Read when a record arrives.",
+            "maxLength": 200,
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "DecisionResponse": {
         "allOf": [
           {
@@ -874,6 +893,57 @@
         ],
         "type": "object"
       },
+      "FeedBatch": {
+        "description": "A batch of records, as a Runtime sends it (docs/decision-log-feed.md).",
+        "properties": {
+          "records": {
+            "description": "At most 1000 records; each is checked on its own.",
+            "items": {},
+            "type": "array"
+          }
+        },
+        "required": [
+          "records"
+        ],
+        "type": "object"
+      },
+      "FeedReceipt": {
+        "properties": {
+          "accepted": {
+            "description": "Records stored, now or before (a record sent twice is stored once).",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "rejected": {
+            "description": "Records not stored, with why: `invalid`, `wrong_environment` or `unknown_release`.",
+            "items": {
+              "$ref": "#/components/schemas/FeedRejection"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "accepted",
+          "rejected"
+        ],
+        "type": "object"
+      },
+      "FeedRejection": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "code"
+        ],
+        "type": "object"
+      },
       "InvitationRequest": {
         "properties": {
           "email": {
@@ -899,6 +969,23 @@
         ],
         "type": "object"
       },
+      "IssueLogTokenRequest": {
+        "properties": {
+          "environment": {
+            "$ref": "#/components/schemas/EnvironmentName"
+          },
+          "name": {
+            "description": "1 to 100 characters, e.g. the Runtime's host.",
+            "maxLength": 100,
+            "type": "string"
+          }
+        },
+        "required": [
+          "environment",
+          "name"
+        ],
+        "type": "object"
+      },
       "IssueTokenRequest": {
         "properties": {
           "name": {
@@ -912,6 +999,25 @@
           "name"
         ],
         "type": "object"
+      },
+      "IssuedLogTokenResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/LogTokenResponse"
+          },
+          {
+            "properties": {
+              "token": {
+                "description": "Shown this once: set it as the Runtime's `DECISION_LOG__TOKEN`.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "token"
+            ],
+            "type": "object"
+          }
+        ]
       },
       "IssuedTokenResponse": {
         "allOf": [
@@ -939,6 +1045,72 @@
           "fr"
         ],
         "type": "string"
+      },
+      "LogTokenListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LogTokenResponse"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "LogTokenResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/PersonRef"
+          },
+          "environment": {
+            "$ref": "#/components/schemas/EnvironmentName",
+            "description": "The environment whose Runtimes send records with it."
+          },
+          "hint": {
+            "description": "The token's last characters, to tell tokens apart.",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "revokedAt": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revokedBy": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PersonRef"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "environment",
+          "name",
+          "hint",
+          "createdBy",
+          "createdAt"
+        ],
+        "type": "object"
       },
       "MatchMode": {
         "description": "How much of the output a scenario pins down.",
@@ -1164,6 +1336,124 @@
         ],
         "type": "object"
       },
+      "RecordListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RecordSummaryResponse"
+            },
+            "type": "array"
+          },
+          "total": {
+            "description": "Records matching across all pages.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "type": "object"
+      },
+      "RecordResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RecordSummaryResponse"
+          },
+          {
+            "properties": {
+              "error": {
+                "description": "The error the caller received, when it failed."
+              },
+              "input": {
+                "description": "What the decision was asked."
+              },
+              "output": {
+                "description": "What it answered, when it succeeded."
+              },
+              "receivedAt": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "releaseVersion": {
+                "description": "The release that answered, e.g. `1.4.0`.",
+                "type": "string"
+              },
+              "trace": {
+                "description": "The engine's per-node trace, when the Runtime had one."
+              }
+            },
+            "required": [
+              "releaseVersion",
+              "receivedAt",
+              "input"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "RecordStatus": {
+        "description": "Whether the Runtime answered or the evaluation failed.",
+        "enum": [
+          "succeeded",
+          "failed"
+        ],
+        "type": "string"
+      },
+      "RecordSummaryResponse": {
+        "properties": {
+          "decisionKey": {
+            "type": "string"
+          },
+          "durationUs": {
+            "description": "How long the Runtime took, in microseconds.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "environment": {
+            "$ref": "#/components/schemas/EnvironmentName"
+          },
+          "evaluatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "outcome": {
+            "description": "The project's outcome field when the record arrived; `error` for failures.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reference": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "releaseId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RecordStatus"
+          }
+        },
+        "required": [
+          "id",
+          "decisionKey",
+          "environment",
+          "status",
+          "releaseId",
+          "evaluatedAt",
+          "durationUs"
+        ],
+        "type": "object"
+      },
       "RejectRequest": {
         "properties": {
           "reason": {
@@ -1326,6 +1616,26 @@
           "key",
           "version",
           "tests"
+        ],
+        "type": "object"
+      },
+      "ReplayResponse": {
+        "properties": {
+          "error": {
+            "description": "The engine's error, when the replay failed."
+          },
+          "identical": {
+            "description": "Both succeeded with the same output, or both failed.",
+            "type": "boolean"
+          },
+          "output": {},
+          "status": {
+            "$ref": "#/components/schemas/RecordStatus"
+          }
+        },
+        "required": [
+          "identical",
+          "status"
         ],
         "type": "object"
       },
@@ -2051,6 +2361,182 @@
         "summary": "Ends the session on the server and clears the cookie.",
         "tags": [
           "identity"
+        ]
+      }
+    },
+    "/decision-log/records": {
+      "post": {
+        "operationId": "receive",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedBatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedReceipt"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not a batch, or more than 1000 records (INVALID_REQUEST, TOO_MANY_RECORDS)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Missing, unknown or revoked token (INVALID_TOKEN)"
+          }
+        },
+        "summary": "Receives the records a Runtime sends (`Authorization: Bearer <decision-log token>`).",
+        "tags": [
+          "decision-log"
+        ]
+      }
+    },
+    "/decision-log/tokens": {
+      "get": {
+        "operationId": "tokens",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogTokenListResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not an administrator (FORBIDDEN)"
+          }
+        },
+        "summary": "Every decision-log token, live ones first; never their value (administrators).",
+        "tags": [
+          "decision-log"
+        ]
+      },
+      "post": {
+        "operationId": "issue_token",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueLogTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssuedLogTokenResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Missing or too long name (INVALID_REQUEST)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not an administrator (FORBIDDEN)"
+          }
+        },
+        "summary": "Issues a token Runtimes of one environment send their records with\n(administrators). The token is in this response only.",
+        "tags": [
+          "decision-log"
+        ]
+      }
+    },
+    "/decision-log/tokens/{token_id}": {
+      "delete": {
+        "operationId": "revoke_token",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revoked"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not an administrator (FORBIDDEN)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unknown or already revoked (TOKEN_NOT_FOUND)"
+          }
+        },
+        "summary": "Revokes a decision-log token: batches sent with it are refused from now on (administrators).",
+        "tags": [
+          "decision-log"
         ]
       }
     },
@@ -3092,6 +3578,366 @@
         "summary": "The project's audit log as CSV, with the same filters (owners). At most\n50,000 rows; narrow the dates for more.",
         "tags": [
           "audit"
+        ]
+      }
+    },
+    "/projects/{project_id}/decision-log": {
+      "get": {
+        "operationId": "search",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The caller's reference (`X-Donka-Reference`), exactly.",
+            "in": "query",
+            "name": "reference",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only this decision, by key.",
+            "in": "query",
+            "name": "decisionKey",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only this outcome, exactly (`error` for failed evaluations).",
+            "in": "query",
+            "name": "outcome",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "environment",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/EnvironmentName"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/RecordStatus"
+            }
+          },
+          {
+            "description": "Evaluated from this instant, inclusive (ISO-8601).",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Evaluated until this instant, exclusive (ISO-8601).",
+            "in": "query",
+            "name": "until",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size, 1 to 100 (default 50).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordListResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A filter is not valid (INVALID_REQUEST)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND"
+          }
+        },
+        "summary": "The project's decision records, newest first (any member). Lists hold\nnothing the decisions read or answered.",
+        "tags": [
+          "decision-log"
+        ]
+      }
+    },
+    "/projects/{project_id}/decision-log/settings": {
+      "get": {
+        "operationId": "settings",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionLogSettingsBody"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND"
+          }
+        },
+        "summary": "The project's decision-log settings (any member).",
+        "tags": [
+          "decision-log"
+        ]
+      },
+      "put": {
+        "operationId": "update_settings",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionLogSettingsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionLogSettingsBody"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not a dotted path of field names (INVALID_REQUEST)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Only owners change settings (FORBIDDEN)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_ARCHIVED"
+          }
+        },
+        "summary": "Names the output field read as each new record's outcome (owners).\nRecords already stored keep the outcome they arrived with.",
+        "tags": [
+          "decision-log"
+        ]
+      }
+    },
+    "/projects/{project_id}/decision-log/{record_id}": {
+      "get": {
+        "operationId": "get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "record_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND or RECORD_NOT_FOUND"
+          }
+        },
+        "summary": "Opens a decision record (any member). Each opening is audited\n(`decision_record.viewed`): records hold applicants' personal data.",
+        "tags": [
+          "decision-log"
+        ]
+      }
+    },
+    "/projects/{project_id}/decision-log/{record_id}/replay": {
+      "post": {
+        "operationId": "replay",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "record_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplayResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND or RECORD_NOT_FOUND"
+          }
+        },
+        "summary": "Evaluates a record again with the release that answered it (any member);\nconnector nodes answer with what they answered then, so nothing is called.\nAudited (`decision_record.replayed`).",
+        "tags": [
+          "decision-log"
         ]
       }
     },

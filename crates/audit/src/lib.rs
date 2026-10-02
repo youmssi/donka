@@ -112,6 +112,26 @@ pub enum Action {
     #[serde(rename = "approval.withdrawn")]
     #[sqlx(rename = "approval.withdrawn")]
     ApprovalWithdrawn,
+    /// Someone opened a decision record (it holds personal data).
+    #[serde(rename = "decision_record.viewed")]
+    #[sqlx(rename = "decision_record.viewed")]
+    DecisionRecordViewed,
+    #[serde(rename = "decision_record.replayed")]
+    #[sqlx(rename = "decision_record.replayed")]
+    DecisionRecordReplayed,
+    /// Records older than the retention period were deleted; no actor.
+    #[serde(rename = "decision_log.purged")]
+    #[sqlx(rename = "decision_log.purged")]
+    DecisionLogPurged,
+    #[serde(rename = "decision_log.settings_updated")]
+    #[sqlx(rename = "decision_log.settings_updated")]
+    DecisionLogSettingsUpdated,
+    #[serde(rename = "decision_log_token.issued")]
+    #[sqlx(rename = "decision_log_token.issued")]
+    DecisionLogTokenIssued,
+    #[serde(rename = "decision_log_token.revoked")]
+    #[sqlx(rename = "decision_log_token.revoked")]
+    DecisionLogTokenRevoked,
 }
 
 impl Action {
@@ -147,6 +167,12 @@ impl Action {
             Self::ApprovalApproved => "approval.approved",
             Self::ApprovalRejected => "approval.rejected",
             Self::ApprovalWithdrawn => "approval.withdrawn",
+            Self::DecisionRecordViewed => "decision_record.viewed",
+            Self::DecisionRecordReplayed => "decision_record.replayed",
+            Self::DecisionLogPurged => "decision_log.purged",
+            Self::DecisionLogSettingsUpdated => "decision_log.settings_updated",
+            Self::DecisionLogTokenIssued => "decision_log_token.issued",
+            Self::DecisionLogTokenRevoked => "decision_log_token.revoked",
         }
     }
 }

@@ -1,20 +1,18 @@
 'use client';
 
-import { CalendarRange, Check, ChevronsUpDown, Download, History, ShieldAlert } from 'lucide-react';
+import { Check, ChevronsUpDown, Download, History, ShieldAlert } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
-import { useLocale, useTranslations } from 'next-intl';
+import { useTranslations } from 'next-intl';
 import { useState } from 'react';
-import type { DateRange } from 'react-day-picker';
-import { enGB, fr } from 'react-day-picker/locale';
 
 import { DataTable, type DataTableColumn } from '@/components/shared/data-table';
+import { DateRangeFilter } from '@/components/shared/date-range';
 import { ErrorAlert } from '@/components/shared/error-alert';
-import { useDateFormat, When } from '@/components/shared/format';
+import { When } from '@/components/shared/format';
 import { Person } from '@/components/shared/person';
 import { cn } from '@/components/shared/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -25,8 +23,6 @@ import type { EnvironmentName } from '@/modules/release';
 
 import { exportHref, PAGE_SIZE } from './audit.service';
 import {
-  dateOf,
-  dayOf,
   detail,
   isEmptyRange,
   PROJECT_ACTIONS,
@@ -118,7 +114,13 @@ function AuditLog({ project }: { project: Project }) {
       <div className="flex flex-wrap items-center gap-2">
         <PersonFilter project={project} value={filters.actor} onChange={(actor) => apply({ actor })} />
         <ActionFilter value={filters.action} onChange={(action) => apply({ action })} />
-        <DateRangeFilter from={filters.from} to={filters.to} onChange={(from, to) => apply({ from, to })} />
+        <DateRangeFilter
+          from={filters.from}
+          to={filters.to}
+          label={t('dates')}
+          anyLabel={t('anyDate')}
+          onChange={(from, to) => apply({ from, to })}
+        />
         {filtered ? (
           <Button asChild variant="ghost" size="sm">
             <Link href={href({})}>{t('clearFilters')}</Link>
@@ -286,55 +288,6 @@ function ActionFilter({
   );
 }
 
-/** Pick a range of days (Popover + Calendar); the last day is included. */
-function DateRangeFilter({
-  from,
-  to,
-  onChange,
-}: {
-  from: string | undefined;
-  to: string | undefined;
-  onChange: (from: string | undefined, to: string | undefined) => void;
-}) {
-  const t = useTranslations('audit');
-  const locale = useLocale();
-  const format = useDateFormat();
-  const [open, setOpen] = useState(false);
-  const selected: DateRange | undefined = from ? { from: dateOf(from), to: to ? dateOf(to) : undefined } : undefined;
-  const label = from
-    ? to && to !== from
-      ? `${format.date(dateOf(from))} – ${format.date(dateOf(to))}`
-      : format.date(dateOf(from))
-    : t('anyDate');
-
-  function select(range: DateRange | undefined) {
-    onChange(range?.from ? dayOf(range.from) : undefined, range?.to ? dayOf(range.to) : undefined);
-    if (range?.from && range.to) setOpen(false);
-  }
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" aria-label={t('dates')} className="w-56 justify-start font-normal">
-          <CalendarRange className="opacity-60" aria-hidden />
-          <span className="truncate">{label}</span>
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
-        <Calendar
-          mode="range"
-          selected={selected}
-          onSelect={select}
-          defaultMonth={selected?.from}
-          numberOfMonths={2}
-          disabled={{ after: new Date() }}
-          locale={locale === 'fr' ? fr : enGB}
-        />
-      </PopoverContent>
-    </Popover>
-  );
-}
-
 /** What happened, in words: the action with the people and values it involved. */
 function useSentence(event: AuditEvent): string {
   const t = useTranslations('auditSentences');
@@ -418,6 +371,16 @@ function useSentence(event: AuditEvent): string {
       return t('approvalWithdrawn', { version: detail(event, 'version') });
     case 'member.removed':
       return t('memberRemoved', { person, role: role(detail(event, 'role')) });
+    case 'decision_record.viewed':
+      return t('decisionRecordViewed', { key: detail(event, 'decisionKey'), reference: detail(event, 'reference') });
+    case 'decision_record.replayed':
+      return t('decisionRecordReplayed', { key: detail(event, 'decisionKey'), reference: detail(event, 'reference') });
+    case 'decision_log.purged':
+      return t('decisionLogPurged', { records: detail(event, 'records'), days: detail(event, 'retentionDays') });
+    case 'decision_log.settings_updated': {
+      const field = detail(event, 'to', 'outcomeField');
+      return field ? t('decisionLogSettingsUpdated', { field }) : t('decisionLogSettingsCleared');
+    }
     default:
       return actions(event.action);
   }

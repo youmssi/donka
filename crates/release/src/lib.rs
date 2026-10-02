@@ -11,8 +11,6 @@
 //! revoking one publishes the environment's release again with the new hashes.
 //! Production is published through a second person's approval (`approval`).
 
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use base64::Engine;
 use chrono::{DateTime, Duration, Utc};
 use donka_audit::{Action, Event};
 use donka_db::PgPool;
@@ -20,8 +18,10 @@ use donka_decision::{DecisionError, Decisions, TestSummary};
 use donka_project::{authorize_change, Access, ProjectError, Projects, Role};
 use donka_shared::clock::Clock;
 use donka_shared::page::{Page, PageRequest};
+use donka_shared::secret::{self, IssuedSecret};
 use donka_storage::ArtifactStore;
 use serde_json::json;
+use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
 use tokio::sync::Notify;
@@ -44,8 +44,6 @@ const PUBLISH_BATCH: usize = 20;
 const RETRY_BASE_SECONDS: i64 = 30;
 /// ...up to this ceiling.
 const RETRY_MAX_SECONDS: i64 = 3600;
-/// Random bytes in a Runtime token (docs/artifact-format.md: at least 32).
-const TOKEN_BYTES: usize = 32;
 /// Every Runtime token starts with this, so a leaked one is easy to recognise.
 const TOKEN_PREFIX: &str = "dnk_";
 
@@ -872,6 +870,49 @@ impl Releases {
         Ok(published)
     }
 
+    // ----- For the decision log --------------------------------------------
+
+    /// Whether `release` of `project` was ever published to `environment`: a
+    /// Runtime can only have answered with a release Studio published there.
+    /// Asked for records a Runtime sends, so no member access is involved.
+    pub async fn was_published(
+        &self,
+        project: Uuid,
+        release: Uuid,
+        environment: Environment,
+    ) -> Result<bool, ReleaseError> {
+        let (published,): (bool,) = sqlx::query_as(
+            "SELECT EXISTS (SELECT 1 FROM deployments \
+             WHERE project_id = $1 AND release_id = $2 AND environment = $3 AND published_at IS NOT NULL)",
+        )
+        .bind(project)
+        .bind(release)
+        .bind(environment.as_str())
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(published)
+    }
+
+    /// Every decision a release froze, by key, as the Runtime evaluates them (any member).
+    pub async fn contents(
+        &self,
+        access: &Access,
+        id: Uuid,
+    ) -> Result<BTreeMap<String, serde_json::Value>, ReleaseError> {
+        let decisions: Vec<(String, serde_json::Value)> = sqlx::query_as(
+            "SELECT d.key, d.content FROM release_decisions d \
+             JOIN releases r ON r.id = d.release_id WHERE r.project_id = $1 AND r.id = $2",
+        )
+        .bind(access.project_id())
+        .bind(id)
+        .fetch_all(&self.pool)
+        .await?;
+        if decisions.is_empty() {
+            return Err(ReleaseError::NotFound);
+        }
+        Ok(decisions.into_iter().collect())
+    }
+
     // ----- Runtime tokens -------------------------------------------------
 
     /// An environment's tokens, live ones first; never their value (any member).
@@ -902,17 +943,8 @@ impl Releases {
         if name.is_empty() || name.chars().count() > MAX_TOKEN_NAME_CHARS {
             return Err(ReleaseError::InvalidTokenName);
         }
-        let mut bytes = [0u8; TOKEN_BYTES];
-        getrandom::fill(&mut bytes).map_err(|_| ReleaseError::Random)?;
-        let token = format!("{TOKEN_PREFIX}{}", URL_SAFE_NO_PAD.encode(bytes));
-        let hint: String = token
-            .chars()
-            .rev()
-            .take(4)
-            .collect::<Vec<_>>()
-            .into_iter()
-            .rev()
-            .collect();
+        let IssuedSecret { token, hash, hint } =
+            secret::issue(TOKEN_PREFIX).map_err(|_| ReleaseError::Random)?;
         let project = self.projects.get(access).await?;
         let now = self.clock.now();
         let id = Uuid::new_v4();
@@ -927,7 +959,7 @@ impl Releases {
         .bind(access.project_id())
         .bind(environment.as_str())
         .bind(name)
-        .bind(artifact::hash_token(&token))
+        .bind(&hash)
         .bind(&hint)
         .bind(access.user_id())
         .bind(now)

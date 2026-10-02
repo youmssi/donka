@@ -82,8 +82,10 @@ One shape for the whole API:
 - **Migrations** in `migrations/`: versioned, additive, forward-only. A merged migration is never
   edited. Destructive changes go expand → migrate data → contract across releases.
 - Constraints live in the database: `NOT NULL`, foreign keys, unique indexes, checks.
-- **Append-only tables** (`audit_events`, `decision_log`): a trigger rejects `UPDATE` and
-  `DELETE`, and the application role is not granted those privileges.
+- **Append-only tables** (`audit_events`, `decision_records`): a trigger rejects `UPDATE` and
+  `DELETE`, and the application role is not granted those privileges. A table with a retention
+  period lets one transaction delete what is past it: `decision_records` accepts a `DELETE`
+  only for rows older than the transaction-local `donka.purge_before` setting the purge sets.
 - **Concurrency:** "only one can win" rules (one approval per release, one active deployment per
   environment) use a unique constraint or a row version. Test with two concurrent requests.
 - **Isolation.** Donka runs one installation per customer, so there are no tenants. The boundary

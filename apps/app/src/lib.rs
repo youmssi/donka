@@ -9,6 +9,7 @@ pub mod email_worker;
 pub mod error;
 pub mod extract;
 pub mod publish_worker;
+pub mod purge_worker;
 pub mod request_id;
 pub mod routes;
 pub mod web;
@@ -23,6 +24,7 @@ use axum::{middleware, Json, Router};
 use donka_audit::AuditLog;
 use donka_db::PgPool;
 use donka_decision::Decisions;
+use donka_decision_log::DecisionLog;
 use donka_engine::DecisionRuntime;
 use donka_identity::Identity;
 use donka_project::Projects;
@@ -57,6 +59,7 @@ pub struct AppState {
     pub projects: Projects,
     pub decisions: Decisions,
     pub releases: Releases,
+    pub decision_log: DecisionLog,
     pub audit: AuditLog,
     pub cookies: CookieSettings,
 }
@@ -140,20 +143,41 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
         ))
         .routes(routes!(routes::audit::list))
         .routes(routes!(routes::audit::export))
+        .routes(routes!(
+            routes::decision_log::tokens,
+            routes::decision_log::issue_token
+        ))
+        .routes(routes!(routes::decision_log::revoke_token))
+        .routes(routes!(
+            routes::decision_log::settings,
+            routes::decision_log::update_settings
+        ))
+        .routes(routes!(routes::decision_log::search))
+        .routes(routes!(routes::decision_log::get))
+        .routes(routes!(routes::decision_log::replay))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             auth::require_session,
         ));
 
-    let (api, mut doc) = public.merge(protected).with_state(state).split_for_parts();
+    // Runtimes authenticate with a bearer token, not a cookie: no session, no CSRF header.
+    let feed = OpenApiRouter::new().routes(routes!(routes::decision_log::receive));
+
+    let (api, mut doc) = public
+        .merge(protected)
+        .with_state(state.clone())
+        .split_for_parts();
+    let (feed, feed_doc) = feed.with_state(state).split_for_parts();
+    doc.merge(feed_doc);
     doc.servers = Some(vec![Server::new(api_base_path)]);
     doc.info.version = VERSION.to_owned();
 
     let api = api
+        .layer(middleware::from_fn(auth::require_csrf_header))
+        .merge(feed)
         .route("/openapi.json", get(move || openapi(doc.clone())))
         .fallback(api_not_found)
-        .layer(DefaultBodyLimit::max(MAX_BODY_BYTES))
-        .layer(middleware::from_fn(auth::require_csrf_header));
+        .layer(DefaultBodyLimit::max(MAX_BODY_BYTES));
 
     let app = Router::new().nest(api_base_path, api);
     let app = match web_dir {
