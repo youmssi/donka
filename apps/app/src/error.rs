@@ -95,6 +95,10 @@ pub enum ApiError {
     AlreadyDecided,
     #[error("not the requester")]
     NotRequester,
+    #[error("release never approved for production")]
+    NeverApproved,
+    #[error("release already live")]
+    AlreadyLive,
     #[error("database unavailable")]
     DatabaseUnavailable,
     #[error("no such endpoint")]
@@ -199,6 +203,8 @@ impl From<ReleaseError> for ApiError {
             ReleaseError::SelfApproval => Self::SelfApproval,
             ReleaseError::AlreadyDecided => Self::AlreadyDecided,
             ReleaseError::NotRequester => Self::NotRequester,
+            ReleaseError::NeverApproved => Self::NeverApproved,
+            ReleaseError::AlreadyLive => Self::AlreadyLive,
             ReleaseError::InvalidReason => Self::InvalidField {
                 field: "reason",
                 message: format!("Use 1 to {} characters.", donka_release::MAX_REASON_CHARS),
@@ -458,6 +464,20 @@ impl IntoResponse for ApiError {
                 StatusCode::CONFLICT,
                 "APPROVAL_DECIDED",
                 "This request has already been decided or withdrawn.".to_owned(),
+                None,
+                None,
+            ),
+            Self::NeverApproved => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "NEVER_APPROVED",
+                "Production can only go back to a release that was approved for it.".to_owned(),
+                None,
+                None,
+            ),
+            Self::AlreadyLive => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "ALREADY_LIVE",
+                "This release is already the one production runs.".to_owned(),
                 None,
                 None,
             ),

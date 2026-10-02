@@ -143,6 +143,8 @@ pub enum DeploymentReasonResponse {
     Deploy,
     /// The environment's tokens changed: its release was published again.
     Tokens,
+    /// An owner put a release once approved for production back (see `rollbackReason`).
+    Rollback,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -153,6 +155,8 @@ pub struct DeploymentResponse {
     pub release_id: Uuid,
     pub release_version: String,
     pub reason: DeploymentReasonResponse,
+    /// Why production was rolled back, for a rollback.
+    pub rollback_reason: Option<String>,
     pub requested_at: DateTime<Utc>,
     pub requested_by: PersonRef,
     pub status: DeploymentStatusResponse,
@@ -574,7 +578,10 @@ fn released(decision: ReleasedDecision) -> ReleasedDecisionResponse {
     }
 }
 
-fn summary(emails: &HashMap<Uuid, String>, release: ReleaseSummary) -> ReleaseSummaryResponse {
+pub(crate) fn summary(
+    emails: &HashMap<Uuid, String>,
+    release: ReleaseSummary,
+) -> ReleaseSummaryResponse {
     ReleaseSummaryResponse {
         id: release.id,
         version: release.version.to_string(),
@@ -595,7 +602,7 @@ async fn full(state: &AppState, release: Release) -> Result<ReleaseResponse, Api
     })
 }
 
-fn deployment(emails: &HashMap<Uuid, String>, d: Deployment) -> DeploymentResponse {
+pub(crate) fn deployment(emails: &HashMap<Uuid, String>, d: Deployment) -> DeploymentResponse {
     DeploymentResponse {
         id: d.id,
         environment: d.environment.into(),
@@ -604,7 +611,9 @@ fn deployment(emails: &HashMap<Uuid, String>, d: Deployment) -> DeploymentRespon
         reason: match d.reason {
             DeploymentReason::Deploy => DeploymentReasonResponse::Deploy,
             DeploymentReason::Tokens => DeploymentReasonResponse::Tokens,
+            DeploymentReason::Rollback => DeploymentReasonResponse::Rollback,
         },
+        rollback_reason: d.rollback_reason,
         requested_at: d.requested_at,
         requested_by: person(emails, d.requested_by),
         status: match d.status {
@@ -621,7 +630,10 @@ fn deployment(emails: &HashMap<Uuid, String>, d: Deployment) -> DeploymentRespon
     }
 }
 
-async fn one_deployment(state: &AppState, d: Deployment) -> Result<DeploymentResponse, ApiError> {
+pub(crate) async fn one_deployment(
+    state: &AppState,
+    d: Deployment,
+) -> Result<DeploymentResponse, ApiError> {
     let emails = emails(state, [Some(d.requested_by)]).await?;
     Ok(deployment(&emails, d))
 }

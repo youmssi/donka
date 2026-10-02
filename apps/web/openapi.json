@@ -82,6 +82,7 @@
           "release.deployed",
           "token.issued",
           "token.revoked",
+          "release.rolled_back",
           "approval.requested",
           "approval.approved",
           "approval.rejected",
@@ -683,7 +684,8 @@
         "description": "Why a deployment exists.",
         "enum": [
           "deploy",
-          "tokens"
+          "tokens",
+          "rollback"
         ],
         "type": "string"
       },
@@ -739,6 +741,13 @@
           },
           "requestedBy": {
             "$ref": "#/components/schemas/PersonRef"
+          },
+          "rollbackReason": {
+            "description": "Why production was rolled back, for a rollback.",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "status": {
             "$ref": "#/components/schemas/DeploymentStatusResponse"
@@ -1371,6 +1380,41 @@
           "owner"
         ],
         "type": "string"
+      },
+      "RollbackRequest": {
+        "properties": {
+          "reason": {
+            "description": "Why production goes back, for the audit log and the team.",
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "releaseId": {
+            "description": "A release once approved for production, not the one live now.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "releaseId",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "RollbackTargetsResponse": {
+        "properties": {
+          "items": {
+            "description": "Releases once approved for production, except the live one, newest first.",
+            "items": {
+              "$ref": "#/components/schemas/ReleaseSummaryResponse"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
       },
       "SaveDecisionRequest": {
         "properties": {
@@ -4887,6 +4931,140 @@
         "summary": "Restores an archived project (owners).",
         "tags": [
           "projects"
+        ]
+      }
+    },
+    "/projects/{project_id}/rollback-targets": {
+      "get": {
+        "operationId": "rollback_targets",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RollbackTargetsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND"
+          }
+        },
+        "summary": "The releases production can be rolled back to (any member).",
+        "tags": [
+          "approvals"
+        ]
+      }
+    },
+    "/projects/{project_id}/rollbacks": {
+      "post": {
+        "operationId": "rollback",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RollbackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeploymentResponse"
+                }
+              }
+            },
+            "description": "Queued for production"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Missing or too long reason (INVALID_REQUEST)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Only owners roll back (FORBIDDEN)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND or RELEASE_NOT_FOUND"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_ARCHIVED"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "NEVER_APPROVED or ALREADY_LIVE"
+          }
+        },
+        "summary": "Puts a release once approved for production back in production, with a\nreason and without a new approval (owners).",
+        "tags": [
+          "approvals"
         ]
       }
     },

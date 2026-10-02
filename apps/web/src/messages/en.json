@@ -68,7 +68,9 @@
     "APPROVAL_PENDING": "Another request is waiting for approval. It must be decided or withdrawn first.",
     "SELF_APPROVAL": "You made this release or asked for it: another owner must decide.",
     "APPROVAL_DECIDED": "This request has already been decided or withdrawn.",
-    "NOT_REQUESTER": "Only the person who asked can withdraw this request."
+    "NOT_REQUESTER": "Only the person who asked can withdraw this request.",
+    "NEVER_APPROVED": "Production can only go back to a release that was approved for it.",
+    "ALREADY_LIVE": "This release is already the one production runs."
   },
   "validation": {
     "email": "Enter a valid email address.",
@@ -311,7 +313,8 @@
     },
     "release": {
       "created": "Release created",
-      "deployed": "Release deployed"
+      "deployed": "Release deployed",
+      "rolled_back": "Production rolled back"
     },
     "token": {
       "issued": "Runtime token created",
@@ -347,7 +350,8 @@
     "approvalRequested": "Asked for release {version} to go to production",
     "approvalApproved": "Approved release {version} for production",
     "approvalRejected": "Rejected release {version} for production: “{reason}”",
-    "approvalWithdrawn": "Withdrew the production request for release {version}"
+    "approvalWithdrawn": "Withdrew the production request for release {version}",
+    "releaseRolledBack": "Rolled production back from {from} to {version}: “{reason}”"
   },
   "ui": {
     "close": "Close",
@@ -566,7 +570,10 @@
     "requestTitle": "Ask to publish {version} to production?",
     "requestConfirm": "The project’s owners are emailed. One of them reviews what changes and the test results, then approves or rejects it.",
     "requestAction": "Ask for approval",
-    "requested": "Approval asked for release {version}."
+    "requested": "Approval asked for release {version}.",
+    "rollingBackTo": "Rolling back to {version}…",
+    "rolledBack": "Rolled back",
+    "rollbackReason": "Rolled back because: {reason}"
   },
   "tokens": {
     "title": "Runtime tokens",
@@ -644,5 +651,17 @@
     "approvedDone": "Release {version} approved: publishing to production.",
     "rejectedDone": "Release {version} rejected.",
     "withdrawnDone": "Request withdrawn."
+  },
+  "rollback": {
+    "action": "Roll back",
+    "title": "Roll production back",
+    "description": "Put a release approved for production before back live. No new approval is needed; the audit log records it.",
+    "release": "Release",
+    "releaseHint": "Releases approved for production, except the one live now.",
+    "reason": "Reason",
+    "reasonHint": "What went wrong, for the team and the audit log.",
+    "submit": "Roll back to {version}",
+    "rollingBack": "Rolling back…",
+    "done": "Rolling production back to {version}."
   }
 }

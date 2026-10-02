@@ -3,7 +3,7 @@
 import { useForm } from '@tanstack/react-form';
 import { Check, CircleAlert, Copy, KeyRound, Plus, Rocket, RotateCcw, ShieldCheck } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { Fragment, useId, useState } from 'react';
+import { Fragment, useId, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 
 import type { ActionError } from '@/components/shared/api';
@@ -53,6 +53,7 @@ import { Link, useRouter } from '@/i18n/navigation';
 import { approvalHref, ProjectFrame, type Project } from '@/modules/project';
 
 import { canRelease } from './releases-page';
+import { RollbackButton } from './rollback-dialog';
 import { deployRelease, issueToken, requestApproval, retryDeployment, revokeToken } from './release.service';
 import {
   inFlight,
@@ -138,8 +139,9 @@ function EnvironmentCard({
         <section className="grid gap-1" aria-label={t('live')}>
           <h3 className="text-xs font-medium text-muted-foreground uppercase">{t('live')}</h3>
           {state.live ? (
-            <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
+            <p className="flex flex-wrap items-center gap-x-2 text-sm">
               <span className="font-mono text-lg font-semibold">{state.live.releaseVersion}</span>
+              {state.live.reason === 'rollback' ? <Badge variant="outline">{t('rolledBack')}</Badge> : null}
               <span className="text-muted-foreground">
                 {t('publishedBy', { email: state.live.requestedBy.email })} ·{' '}
                 <When value={state.live.publishedAt ?? state.live.requestedAt} as="ago" />
@@ -148,6 +150,11 @@ function EnvironmentCard({
           ) : (
             <p className="text-sm text-muted-foreground">{t('nothingLive')}</p>
           )}
+          {state.live?.reason === 'rollback' && state.live.rollbackReason ? (
+            <p className="text-sm text-muted-foreground">
+              {t('rollbackReason', { reason: state.live.rollbackReason })}
+            </p>
+          ) : null}
         </section>
         {pending ? <PendingDeployment project={project} deployment={pending} /> : null}
         {env === 'staging' ? (
@@ -155,7 +162,12 @@ function EnvironmentCard({
             <DeployControl project={project} live={state.live?.releaseId ?? null} />
           ) : null
         ) : (
-          <ProductionRequest project={project} staging={staging} live={state.live?.releaseId ?? null} />
+          <ProductionRequest
+            project={project}
+            staging={staging}
+            live={state.live?.releaseId ?? null}
+            actions={<RollbackButton project={project} live={state.live?.releaseId ?? null} />}
+          />
         )}
         <Separator />
         <Tokens project={project} environment={env} />
@@ -172,10 +184,13 @@ function ProductionRequest({
   project,
   staging,
   live,
+  actions,
 }: {
   project: Project;
   staging: Deployment | null;
   live: string | null;
+  /** Other production actions, shown next to the request (rolling back). */
+  actions: ReactNode;
 }) {
   const t = useTranslations('environments');
   const common = useTranslations('common');
@@ -189,24 +204,30 @@ function ProductionRequest({
 
   if (pending) {
     return (
-      <Alert className="border-amber-500/40 bg-amber-500/10">
-        <ShieldCheck className="text-amber-600" aria-hidden />
-        <AlertDescription className="text-foreground">
-          <p>{t('waitingApproval', { version: pending.releaseVersion, email: pending.requestedBy.email })}</p>
-          <Button asChild size="sm" variant="outline" className="mt-2">
-            <Link href={approvalHref(project.key, pending.id)}>{t('review')}</Link>
-          </Button>
-        </AlertDescription>
-      </Alert>
+      <>
+        <Alert className="border-amber-500/40 bg-amber-500/10">
+          <ShieldCheck className="text-amber-600" aria-hidden />
+          <AlertDescription className="text-foreground">
+            <p>{t('waitingApproval', { version: pending.releaseVersion, email: pending.requestedBy.email })}</p>
+            <Button asChild size="sm" variant="outline" className="mt-2">
+              <Link href={approvalHref(project.key, pending.id)}>{t('review')}</Link>
+            </Button>
+          </AlertDescription>
+        </Alert>
+        {actions}
+      </>
     );
   }
   const askable = canRelease(project) && staging && staging.releaseId !== live;
   if (!askable) {
     return (
-      <p className="flex items-center gap-2 text-sm text-muted-foreground">
-        <ShieldCheck className="size-4 shrink-0" aria-hidden />
-        {t('productionApproval')}
-      </p>
+      <>
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <ShieldCheck className="size-4 shrink-0" aria-hidden />
+          {t('productionApproval')}
+        </p>
+        {actions}
+      </>
     );
   }
 
@@ -230,11 +251,12 @@ function ProductionRequest({
         <ShieldCheck className="size-4 shrink-0" aria-hidden />
         {t('productionApproval')}
       </p>
-      <div>
+      <div className="flex flex-wrap gap-2">
         <Button disabled={busy} onClick={() => setConfirming(true)}>
           {busy ? <Spinner /> : <Rocket aria-hidden />}
           {t('requestProduction', { version: staging.releaseVersion })}
         </Button>
+        {actions}
       </div>
       <AlertDialog open={confirming} onOpenChange={setConfirming}>
         <AlertDialogContent>
@@ -270,7 +292,9 @@ function PendingDeployment({ project, deployment }: { project: Project; deployme
   const what =
     deployment.reason === 'tokens'
       ? t('republishing', { version: deployment.releaseVersion })
-      : t('deployingVersion', { version: deployment.releaseVersion });
+      : deployment.reason === 'rollback'
+        ? t('rollingBackTo', { version: deployment.releaseVersion })
+        : t('deployingVersion', { version: deployment.releaseVersion });
 
   if (deployment.status === 'failed') {
     return (

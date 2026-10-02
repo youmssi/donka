@@ -11,8 +11,10 @@ import {
   listApprovals,
   listEnvironments,
   listReleases,
+  listRollbackTargets,
   listTokens,
   requestApproval,
+  rollback,
   retryDeployment,
 } from './release.service';
 import type { Deployment, EnvironmentState } from './schema';
@@ -28,7 +30,11 @@ vi.mock('./release.service', () => ({
   revokeToken: vi.fn(),
   listApprovals: vi.fn(),
   requestApproval: vi.fn(),
+  listRollbackTargets: vi.fn(),
+  rollback: vi.fn(),
 }));
+const targetsMock = vi.mocked(listRollbackTargets);
+const rollbackMock = vi.mocked(rollback);
 const approvalsMock = vi.mocked(listApprovals);
 const requestMock = vi.mocked(requestApproval);
 const environmentsMock = vi.mocked(listEnvironments);
@@ -74,6 +80,7 @@ beforeEach(() => {
   releasesMock.mockResolvedValue({ ok: true, data: { items: [], total: 0 } });
   tokensMock.mockResolvedValue({ ok: true, data: [] });
   approvalsMock.mockResolvedValue({ ok: true, data: { items: [], total: 0 } });
+  targetsMock.mockResolvedValue({ ok: true, data: [] });
 });
 
 it('shows the live release of each environment and its object key', async () => {
@@ -195,4 +202,66 @@ it('shows the request waiting for approval instead of asking again', async () =>
     '/projects/approval?p=credit-pme&a=a-1',
   );
   expect(within(production).queryByRole('button', { name: /Ask to publish/ })).not.toBeInTheDocument();
+});
+
+const approved = {
+  id: 'r-1',
+  version: '1.0.0',
+  notes: 'First rules',
+  createdAt: '2026-09-30T09:00:00Z',
+  createdBy: ada,
+  decisions: 2,
+  tests: { passed: 2, failed: 0, errors: 0 },
+  liveIn: [],
+};
+
+const productionLive = (overrides: Partial<Deployment> = {}) => {
+  const live = deployment({ environment: 'production', releaseId: 'r-2', releaseVersion: '1.1.0', ...overrides });
+  return [
+    { environment: 'staging' as const, tokens: 0 },
+    { environment: 'production' as const, tokens: 0, live, latest: live },
+  ];
+};
+
+it('lets an owner roll production back with a reason', async () => {
+  const user = userEvent.setup();
+  projectMock.mockResolvedValue({ ok: true, data: project('owner') });
+  environmentsMock.mockResolvedValue({ ok: true, data: productionLive() });
+  targetsMock.mockResolvedValue({ ok: true, data: [approved] });
+  rollbackMock.mockResolvedValue({
+    ok: true,
+    data: deployment({ environment: 'production', releaseId: 'r-1', reason: 'rollback', status: 'pending' }),
+  });
+  renderWithProviders(<EnvironmentsPage />);
+  const production = await screen.findByRole('region', { name: 'Production' });
+  await user.click(await within(production).findByRole('button', { name: 'Roll back' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Roll production back' });
+  await user.click(within(dialog).getByRole('button', { name: 'Roll back to 1.0.0' }));
+  expect(await within(dialog).findByText('This field is required.')).toBeInTheDocument();
+  expect(rollbackMock).not.toHaveBeenCalled();
+  await user.type(within(dialog).getByLabelText(/Reason/), '1.1.0 rejects good files');
+  await user.click(within(dialog).getByRole('button', { name: 'Roll back to 1.0.0' }));
+  expect(rollbackMock).toHaveBeenCalledWith('p-1', 'r-1', '1.1.0 rejects good files');
+});
+
+it('offers rollback to owners only, and only with somewhere to go back to', async () => {
+  projectMock.mockResolvedValue({ ok: true, data: project('editor') });
+  environmentsMock.mockResolvedValue({ ok: true, data: productionLive() });
+  targetsMock.mockResolvedValue({ ok: true, data: [approved] });
+  renderWithProviders(<EnvironmentsPage />);
+  const production = await screen.findByRole('region', { name: 'Production' });
+  expect(await within(production).findByText('1.1.0')).toBeInTheDocument();
+  expect(within(production).queryByRole('button', { name: 'Roll back' })).not.toBeInTheDocument();
+});
+
+it('says when production was rolled back, and why', async () => {
+  projectMock.mockResolvedValue({ ok: true, data: project('viewer') });
+  environmentsMock.mockResolvedValue({
+    ok: true,
+    data: productionLive({ releaseVersion: '1.0.0', reason: 'rollback', rollbackReason: 'Scores too low' }),
+  });
+  renderWithProviders(<EnvironmentsPage />);
+  const production = await screen.findByRole('region', { name: 'Production' });
+  expect(await within(production).findByText('Rolled back')).toBeInTheDocument();
+  expect(within(production).getByText('Rolled back because: Scores too low')).toBeInTheDocument();
 });

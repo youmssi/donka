@@ -130,6 +130,8 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
         .routes(routes!(routes::approvals::approve))
         .routes(routes!(routes::approvals::reject))
         .routes(routes!(routes::approvals::withdraw))
+        .routes(routes!(routes::approvals::rollback_targets))
+        .routes(routes!(routes::approvals::rollback))
         .routes(routes!(routes::scenarios::list, routes::scenarios::create))
         .routes(routes!(
             routes::scenarios::get,

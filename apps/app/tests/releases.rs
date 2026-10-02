@@ -1186,3 +1186,212 @@ async fn the_review_shows_what_changes_the_tests_and_the_notes(db: PgPool) {
     assert!(old.body["productionVersion"].is_null(), "{}", old.body);
     assert_eq!(old.body["changes"][0]["change"], "added");
 }
+
+// ----- Rolling production back (DNK-16) ----------------------------------
+
+async fn rollback(app: &TestApp, session: &str, p: &str, release: &str, reason: &str) -> Reply {
+    call(
+        app,
+        "POST",
+        &format!("/projects/{p}/rollbacks"),
+        Some(json!({ "releaseId": release, "reason": reason })),
+        session,
+    )
+    .await
+}
+
+/// Approves the request for `release` (live on staging) as Alan and publishes it.
+async fn to_production(app: &TestApp, grace: &str, alan: &str, p: &str, release: &str) {
+    let asked = approval(app, grace, p, release).await;
+    assert_eq!(asked.status, StatusCode::CREATED, "{}", asked.body);
+    let id = asked.body["id"].as_str().unwrap();
+    let approved = decide(app, alan, p, id, "approve", None).await;
+    assert_eq!(approved.status, StatusCode::OK, "{}", approved.body);
+    app.releases.publish_due().await.unwrap();
+}
+
+/// Releases 1.0.0 then 1.1.0 to production; returns their ids.
+async fn two_in_production(app: &TestApp, grace: &str, alan: &str, p: &str, first: &str) -> String {
+    to_production(app, grace, alan, p, first).await;
+    let second = release(app, grace, p, "minor", "Second").await;
+    let second = second.body["id"].as_str().unwrap().to_owned();
+    deploy(app, grace, p, "staging", &second).await;
+    app.releases.publish_due().await.unwrap();
+    to_production(app, grace, alan, p, &second).await;
+    second
+}
+
+fn production_version(app: &TestApp) -> Value {
+    read_zip(app.store.get("production/credit-pme").unwrap())[".config/project.json"]["release"]
+        ["version"]
+        .clone()
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn an_owner_rolls_production_back_with_a_reason(db: PgPool) {
+    let app = with_database(db);
+    let (admin, grace, alan, p, first) = staged(&app).await;
+    two_in_production(&app, &grace, &alan, &p, &first).await;
+    assert_eq!(production_version(&app), "1.1.0");
+
+    let targets = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/rollback-targets"),
+        None,
+        &grace,
+    )
+    .await;
+    let versions: Vec<&str> = targets.body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r["version"].as_str().unwrap())
+        .collect();
+    assert_eq!(versions, ["1.0.0"], "the live release is not a target");
+
+    // Grace made 1.0.0 and asked for it: as an owner she could still roll back
+    // to it, but she is an editor, and only owners roll back.
+    assert_error(
+        &rollback(&app, &grace, &p, &first, "Scores too low").await,
+        StatusCode::FORBIDDEN,
+        "FORBIDDEN",
+    );
+    let empty = rollback(&app, &admin, &p, &first, "  ").await;
+    assert_error(&empty, StatusCode::BAD_REQUEST, "INVALID_REQUEST");
+    assert!(empty.body["fields"]["reason"].is_string(), "{}", empty.body);
+
+    let back = rollback(&app, &admin, &p, &first, "1.1.0 rejects good SME files").await;
+    assert_eq!(back.status, StatusCode::ACCEPTED, "{}", back.body);
+    assert_eq!(back.body["reason"], "rollback");
+    assert_eq!(back.body["rollbackReason"], "1.1.0 rejects good SME files");
+    assert_eq!(back.body["releaseVersion"], "1.0.0");
+    assert_eq!(back.body["environment"], "production");
+    // No new approval: it is queued straight away and published.
+    assert_eq!(app.releases.publish_due().await.unwrap(), 1);
+    assert_eq!(production_version(&app), "1.0.0");
+
+    let envs = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/environments"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(envs.body["items"][1]["live"]["releaseVersion"], "1.0.0");
+    assert_eq!(envs.body["items"][1]["live"]["reason"], "rollback");
+
+    let audit = call(&app, "GET", &format!("/projects/{p}/audit"), None, &admin).await;
+    let event = audit.body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["action"] == "release.rolled_back")
+        .unwrap()
+        .clone();
+    assert_eq!(event["actor"]["email"], ADMIN_EMAIL);
+    assert_eq!(event["details"]["from"], "1.1.0");
+    assert_eq!(event["details"]["version"], "1.0.0");
+    assert_eq!(event["details"]["reason"], "1.1.0 rejects good SME files");
+
+    // 1.1.0 can come back the same way (it was approved once).
+    let targets = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/rollback-targets"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(targets.body["items"][0]["version"], "1.1.0");
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn only_a_release_approved_for_production_can_come_back(db: PgPool) {
+    let app = with_database(db);
+    let (admin, grace, alan, p, first) = staged(&app).await;
+
+    // Live on staging but never approved for production.
+    assert_error(
+        &rollback(&app, &admin, &p, &first, "Try it").await,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "NEVER_APPROVED",
+    );
+    // A rejected request does not count as an approval.
+    let asked = approval(&app, &grace, &p, &first).await;
+    decide(
+        &app,
+        &alan,
+        &p,
+        asked.body["id"].as_str().unwrap(),
+        "reject",
+        Some(json!({ "reason": "No" })),
+    )
+    .await;
+    assert_error(
+        &rollback(&app, &admin, &p, &first, "Try it").await,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "NEVER_APPROVED",
+    );
+
+    to_production(&app, &grace, &alan, &p, &first).await;
+    assert_error(
+        &rollback(&app, &admin, &p, &first, "Again").await,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "ALREADY_LIVE",
+    );
+    let unknown = "00000000-0000-4000-8000-000000000000";
+    assert_error(
+        &rollback(&app, &admin, &p, unknown, "Nope").await,
+        StatusCode::NOT_FOUND,
+        "RELEASE_NOT_FOUND",
+    );
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn a_rollback_keeps_waiting_requests_and_survives_token_changes(db: PgPool) {
+    let app = with_database(db);
+    let (admin, grace, alan, p, first) = staged(&app).await;
+    two_in_production(&app, &grace, &alan, &p, &first).await;
+
+    // 1.2.0 waits for approval while production goes back to 1.0.0.
+    let third = release(&app, &grace, &p, "minor", "Third").await;
+    let third = third.body["id"].as_str().unwrap().to_owned();
+    deploy(&app, &grace, &p, "staging", &third).await;
+    app.releases.publish_due().await.unwrap();
+    let waiting = approval(&app, &grace, &p, &third).await;
+    let waiting = waiting.body["id"].as_str().unwrap().to_owned();
+
+    assert_eq!(
+        rollback(&app, &admin, &p, &first, "Incident").await.status,
+        StatusCode::ACCEPTED
+    );
+    app.releases.publish_due().await.unwrap();
+    let review = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/approvals/{waiting}"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(review.body["status"], "pending");
+    assert_eq!(
+        review.body["productionVersion"], "1.0.0",
+        "compared with production now"
+    );
+
+    // A new production token publishes production again: still 1.0.0.
+    let token = call(
+        &app,
+        "POST",
+        &format!("/projects/{p}/environments/production/tokens"),
+        Some(json!({ "name": "Core banking" })),
+        &admin,
+    )
+    .await;
+    assert_eq!(token.status, StatusCode::CREATED, "{}", token.body);
+    app.releases.publish_due().await.unwrap();
+    assert_eq!(production_version(&app), "1.0.0");
+}

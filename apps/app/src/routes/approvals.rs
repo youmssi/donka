@@ -1,7 +1,9 @@
 use crate::error::{ApiError, ErrorBody};
 use crate::extract::{ApiJson, ApprovalId, ProjectAccess};
 use crate::routes::people::{emails, PersonRef};
-use crate::routes::releases::PageQuery;
+use crate::routes::releases::{
+    one_deployment, summary, DeploymentResponse, PageQuery, ReleaseSummaryResponse,
+};
 use crate::routes::scenarios::TestSummaryResponse;
 use crate::AppState;
 use axum::extract::{Query, State};
@@ -372,4 +374,83 @@ fn change(c: DecisionChange) -> DecisionChangeResponse {
         to_version: c.to_version,
         tests: c.tests.map(Into::into),
     }
+}
+
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RollbackRequest {
+    /// A release once approved for production, not the one live now.
+    pub release_id: Uuid,
+    #[schema(schema_with = rollback_reason_schema)]
+    pub reason: String,
+}
+
+fn rollback_reason_schema() -> impl Into<RefOr<Schema>> {
+    ObjectBuilder::new()
+        .schema_type(Type::String)
+        .min_length(Some(1))
+        .max_length(Some(MAX_REASON_CHARS))
+        .description(Some(
+            "Why production goes back, for the audit log and the team.",
+        ))
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct RollbackTargetsResponse {
+    /// Releases once approved for production, except the live one, newest first.
+    pub items: Vec<ReleaseSummaryResponse>,
+}
+
+/// The releases production can be rolled back to (any member).
+#[utoipa::path(
+    get,
+    path = "/projects/{project_id}/rollback-targets",
+    tag = "approvals",
+    params(("project_id" = Uuid, Path)),
+    responses(
+        (status = 200, body = RollbackTargetsResponse),
+        (status = 404, description = "PROJECT_NOT_FOUND", body = ErrorBody),
+    )
+)]
+pub async fn rollback_targets(
+    State(state): State<AppState>,
+    ProjectAccess(access): ProjectAccess,
+) -> Result<Json<RollbackTargetsResponse>, ApiError> {
+    let targets = state.releases.rollback_targets(&access).await?;
+    let emails = emails(&state, targets.iter().map(|r| Some(r.created_by))).await?;
+    Ok(Json(RollbackTargetsResponse {
+        items: targets.into_iter().map(|r| summary(&emails, r)).collect(),
+    }))
+}
+
+/// Puts a release once approved for production back in production, with a
+/// reason and without a new approval (owners).
+#[utoipa::path(
+    post,
+    path = "/projects/{project_id}/rollbacks",
+    tag = "approvals",
+    params(("project_id" = Uuid, Path)),
+    request_body = RollbackRequest,
+    responses(
+        (status = 202, description = "Queued for production", body = DeploymentResponse),
+        (status = 400, description = "Missing or too long reason (INVALID_REQUEST)", body = ErrorBody),
+        (status = 403, description = "Only owners roll back (FORBIDDEN)", body = ErrorBody),
+        (status = 404, description = "PROJECT_NOT_FOUND or RELEASE_NOT_FOUND", body = ErrorBody),
+        (status = 409, description = "PROJECT_ARCHIVED", body = ErrorBody),
+        (status = 422, description = "NEVER_APPROVED or ALREADY_LIVE", body = ErrorBody),
+    )
+)]
+pub async fn rollback(
+    State(state): State<AppState>,
+    ProjectAccess(access): ProjectAccess,
+    ApiJson(req): ApiJson<RollbackRequest>,
+) -> Result<(StatusCode, Json<DeploymentResponse>), ApiError> {
+    let queued = state
+        .releases
+        .rollback(&access, req.release_id, &req.reason)
+        .await?;
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(one_deployment(&state, queued).await?),
+    ))
 }

@@ -97,6 +97,9 @@ pub enum Action {
     #[serde(rename = "token.revoked")]
     #[sqlx(rename = "token.revoked")]
     TokenRevoked,
+    #[serde(rename = "release.rolled_back")]
+    #[sqlx(rename = "release.rolled_back")]
+    ReleaseRolledBack,
     #[serde(rename = "approval.requested")]
     #[sqlx(rename = "approval.requested")]
     ApprovalRequested,
@@ -139,6 +142,7 @@ impl Action {
             Self::ReleaseDeployed => "release.deployed",
             Self::TokenIssued => "token.issued",
             Self::TokenRevoked => "token.revoked",
+            Self::ReleaseRolledBack => "release.rolled_back",
             Self::ApprovalRequested => "approval.requested",
             Self::ApprovalApproved => "approval.approved",
             Self::ApprovalRejected => "approval.rejected",
@@ -321,6 +325,7 @@ mod tests {
             Action::ReleaseDeployed,
             Action::TokenIssued,
             Action::TokenRevoked,
+            Action::ReleaseRolledBack,
             Action::ApprovalRequested,
             Action::ApprovalApproved,
             Action::ApprovalRejected,
