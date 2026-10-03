@@ -977,6 +977,7 @@ dependencies = [
  "donka-decision",
  "donka-decision-log",
  "donka-engine",
+ "donka-explain",
  "donka-identity",
  "donka-mail",
  "donka-project",
@@ -1089,6 +1090,19 @@ dependencies = [
  "tokio",
  "tokio-util",
  "zen-engine",
+]
+
+[[package]]
+name = "donka-explain"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -1817,6 +1831,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "rustls",
+ "rustls-native-certs",
  "tokio",
  "tokio-rustls",
  "tower-service",
@@ -3451,6 +3466,7 @@ dependencies = [
  "pin-project-lite",
  "quinn",
  "rustls",
+ "rustls-native-certs",
  "rustls-pki-types",
  "serde",
  "serde_json",

@@ -92,7 +92,8 @@
           "decision_log.purged",
           "decision_log.settings_updated",
           "decision_log_token.issued",
-          "decision_log_token.revoked"
+          "decision_log_token.revoked",
+          "decision_record.explained"
         ],
         "type": "string"
       },
@@ -520,8 +521,46 @@
               "string",
               "null"
             ]
+          },
+          "redactedFields": {
+            "description": "Fields removed from a record before it is sent to be explained, as\ndotted paths; left out, they stay as they are.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "type": [
+              "array",
+              "null"
+            ]
           }
         },
+        "type": "object"
+      },
+      "DecisionLogSettingsResponse": {
+        "properties": {
+          "explainEnabled": {
+            "description": "Whether this installation explains decisions (`DONKA_EXPLAIN_URL`).",
+            "type": "boolean"
+          },
+          "outcomeField": {
+            "description": "The output field whose value is a record's outcome, as a dotted path\n(`decision`, `result.band`); `null` for none. Read when a record arrives.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "redactedFields": {
+            "description": "Fields removed from a record before it is sent to be explained, as\ndotted paths (`applicant.nationalId`).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "redactedFields",
+          "explainEnabled"
+        ],
         "type": "object"
       },
       "DecisionResponse": {
@@ -890,6 +929,43 @@
           "message",
           "code",
           "requestId"
+        ],
+        "type": "object"
+      },
+      "ExplainLanguage": {
+        "description": "The language Studio is read in.",
+        "enum": [
+          "en",
+          "fr"
+        ],
+        "type": "string"
+      },
+      "ExplainRequest": {
+        "properties": {
+          "language": {
+            "$ref": "#/components/schemas/ExplainLanguage",
+            "description": "The language to explain in: the reader's."
+          }
+        },
+        "required": [
+          "language"
+        ],
+        "type": "object"
+      },
+      "ExplainResponse": {
+        "properties": {
+          "explanation": {
+            "description": "Plain text, in the language asked for. Shown only: it changes nothing.",
+            "type": "string"
+          },
+          "model": {
+            "description": "The model that answered, as the endpoint names it.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "explanation",
+          "model"
         ],
         "type": "object"
       },
@@ -1366,6 +1442,10 @@
               "error": {
                 "description": "The error the caller received, when it failed."
               },
+              "explainable": {
+                "description": "Whether this installation can explain the record (DNK-19).",
+                "type": "boolean"
+              },
               "input": {
                 "description": "What the decision was asked."
               },
@@ -1387,7 +1467,8 @@
             "required": [
               "releaseVersion",
               "receivedAt",
-              "input"
+              "input",
+              "explainable"
             ],
             "type": "object"
           }
@@ -3736,7 +3817,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DecisionLogSettingsBody"
+                  "$ref": "#/components/schemas/DecisionLogSettingsResponse"
                 }
               }
             },
@@ -3786,7 +3867,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DecisionLogSettingsBody"
+                  "$ref": "#/components/schemas/DecisionLogSettingsResponse"
                 }
               }
             },
@@ -3800,7 +3881,7 @@
                 }
               }
             },
-            "description": "Not a dotted path of field names (INVALID_REQUEST)"
+            "description": "Not dotted paths of field names (INVALID_REQUEST)"
           },
           "403": {
             "content": {
@@ -3833,7 +3914,7 @@
             "description": "PROJECT_ARCHIVED"
           }
         },
-        "summary": "Names the output field read as each new record's outcome (owners).\nRecords already stored keep the outcome they arrived with.",
+        "summary": "Names the output field read as each new record's outcome and the fields\nremoved before a record is explained (owners). Records already stored keep\nthe outcome they arrived with.",
         "tags": [
           "decision-log"
         ]
@@ -3885,6 +3966,87 @@
           }
         },
         "summary": "Opens a decision record (any member). Each opening is audited\n(`decision_record.viewed`): records hold applicants' personal data.",
+        "tags": [
+          "decision-log"
+        ]
+      }
+    },
+    "/projects/{project_id}/decision-log/{record_id}/explain": {
+      "post": {
+        "operationId": "explain",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "record_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExplainRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExplainResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "NOT_FOUND (explanations are off), PROJECT_NOT_FOUND or RECORD_NOT_FOUND"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The service declined to explain it (EXPLAIN_DECLINED)"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The service failed or did not answer (EXPLAIN_UNAVAILABLE)"
+          }
+        },
+        "summary": "Explains a record in plain language with the installation's LLM endpoint\n(any member). The project's redacted fields are removed first. Audited\n(`decision_record.explained`) before anything is sent. `404` when the\ninstallation does not explain decisions.",
         "tags": [
           "decision-log"
         ]

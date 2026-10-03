@@ -5,7 +5,7 @@ import { getProjectByKey } from '@/modules/project/project.service';
 import { search } from '@/test/navigation-mock';
 import { renderWithProviders } from '@/test/render';
 
-import { getRecord, replayRecord } from './decision-log.service';
+import { explainRecord, getRecord, replayRecord } from './decision-log.service';
 import { RecordPage } from './record-page';
 import type { DecisionRecord } from './schema';
 
@@ -13,9 +13,11 @@ vi.mock('./decision-log.service', async (original) => ({
   ...(await original<typeof import('./decision-log.service')>()),
   getRecord: vi.fn(),
   replayRecord: vi.fn(),
+  explainRecord: vi.fn(),
 }));
 const getMock = vi.mocked(getRecord);
 const replayMock = vi.mocked(replayRecord);
+const explainMock = vi.mocked(explainRecord);
 
 vi.mock('@/modules/project/project.service', () => ({
   getProject: vi.fn(),
@@ -40,6 +42,7 @@ const record: DecisionRecord = {
   output: { decision: 'approve' },
   error: null,
   trace: { score: { output: { decision: 'approve' } } },
+  explainable: false,
 };
 
 beforeEach(() => {
@@ -104,4 +107,36 @@ it('says when the record does not exist', async () => {
     'href',
     '/projects/decision-log?p=retail',
   );
+});
+
+it('offers no explanation when the installation does not explain decisions', async () => {
+  renderWithProviders(<RecordPage />);
+  await screen.findByRole('heading', { name: 'APP-2026-0042' });
+  expect(screen.queryByRole('button', { name: 'Explain' })).not.toBeInTheDocument();
+});
+
+it('explains the decision in the reader’s language, as text only', async () => {
+  getMock.mockResolvedValue({ ok: true, data: { ...record, explainable: true } });
+  explainMock.mockResolvedValue({
+    ok: true,
+    data: { explanation: 'The bureau score was above 700, so the table approved.', model: 'bank-llm' },
+  });
+  renderWithProviders(<RecordPage />);
+  await screen.findByRole('heading', { name: 'APP-2026-0042' });
+  await userEvent.setup().click(screen.getByRole('button', { name: 'Explain' }));
+  expect(await screen.findByText('The bureau score was above 700, so the table approved.')).toBeInTheDocument();
+  expect(
+    screen.getByText(/Written by bank-llm from this record, without the project's redacted fields/),
+  ).toBeInTheDocument();
+  expect(explainMock).toHaveBeenCalledWith('p-1', 'r-1', 'en');
+});
+
+it('says when no explanation could be had', async () => {
+  getMock.mockResolvedValue({ ok: true, data: { ...record, explainable: true } });
+  explainMock.mockResolvedValue({ ok: false, error: { code: 'EXPLAIN_UNAVAILABLE' } });
+  renderWithProviders(<RecordPage />);
+  await screen.findByRole('heading', { name: 'APP-2026-0042' });
+  await userEvent.setup().click(screen.getByRole('button', { name: 'Explain' }));
+  expect(await screen.findByText('No explanation this time.')).toBeInTheDocument();
+  expect(screen.getByText('The explanation service did not answer. Try again in a moment.')).toBeInTheDocument();
 });

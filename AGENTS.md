@@ -147,7 +147,8 @@ crates/project/      projects, members and roles; `Access` proves membership (DN
 crates/shared/       cross-cutting code only: clock, pagination, issued tokens (random, hashed)
 crates/storage/      ArtifactStore trait: S3 or local files (object_store), in-memory fake for tests
 crates/release/      releases (frozen versions, semver), environments, deployment outbox and publisher, runtime tokens, production approvals
-crates/decision-log/ decision records sent by Runtimes (feed, tokens, encryption, search, replay, retention purge)
+crates/decision-log/ decision records sent by Runtimes (feed, tokens, encryption, search, replay, redaction, retention purge)
+crates/explain/      plain-language explanations from the customer's LLM endpoint (Messages API or OpenAI-compatible)
 crates/<module>/     one crate per business module
 migrations/          PostgreSQL migrations (sqlx), forward-only; <UTC timestamp>_<what>.sql
 scripts/             repo scripts (engine version drift check, end-to-end release test)

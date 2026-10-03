@@ -64,6 +64,28 @@ pub fn build_with_web(
     base: &str,
     web_dir: Option<&std::path::Path>,
 ) -> TestApp {
+    assemble(db, runtime, base, web_dir, None)
+}
+
+/// An app that explains decisions with the endpoint in `settings`.
+pub fn with_explainer(db: PgPool, settings: donka_explain::Settings) -> TestApp {
+    let explainer = donka_explain::Explainer::new(settings).unwrap();
+    assemble(
+        db,
+        Arc::new(ZenRuntime::new(1)),
+        BASE,
+        None,
+        Some(explainer),
+    )
+}
+
+fn assemble(
+    db: PgPool,
+    runtime: Arc<dyn DecisionRuntime>,
+    base: &str,
+    web_dir: Option<&std::path::Path>,
+    explainer: Option<donka_explain::Explainer>,
+) -> TestApp {
     let clock = Arc::new(ManualClock::new(
         Utc.with_ymd_and_hms(2026, 9, 28, 9, 0, 0).unwrap(),
     ));
@@ -101,6 +123,7 @@ pub fn build_with_web(
             decisions,
             releases: releases.clone(),
             decision_log: decision_log.clone(),
+            explainer,
             audit,
             cookies: CookieSettings {
                 secure: true,

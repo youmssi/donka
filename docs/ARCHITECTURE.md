@@ -79,6 +79,17 @@ release, connector nodes answering from the recorded trace (`ConnectorAdapter::r
 says whether the result is identical. A worker purges records past
 `DONKA_DECISION_LOG_RETENTION_DAYS`, one audit event per project purged.
 
+## Explanations
+
+When the installation sets `DONKA_EXPLAIN_URL`, any project member can ask Studio to explain a
+logged decision in plain language (`crates/explain`). Studio removes the project's redacted
+fields (dotted paths, owners list them in Settings) from the record's input, output and trace,
+records `decision_record.explained` in the audit log, then sends the rest to the customer's own
+LLM endpoint: Anthropic's Messages API or any OpenAI-compatible chat completions endpoint. The
+explanation is written in the reader's language and only shown; the model has no tools and
+nothing it says is stored or acted on. With the feature off, the endpoint answers `404` and the
+web app shows no explain control.
+
 ## Security baseline
 
 - Session cookies (argon2 password hashes) for Studio users. Owner / editor / viewer per project.
@@ -87,4 +98,6 @@ says whether the result is identical. A worker purges records past
   only be deleted by the retention purge, which the table's trigger lets through.
 - Decision records are encrypted at rest; decision-log tokens are hashed and scoped to one
   environment.
+- Explanations are off by default; a record leaves Studio only without its project's redacted
+  fields, and each time is audited.
 - The browser never holds a Runtime token. Fieldkit calls the Runtime through the customer's backend.

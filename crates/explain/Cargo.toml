@@ -1,0 +1,21 @@
+[package]
+name = "donka-explain"
+description = "Plain-language explanations of logged decisions, from the customer's own LLM endpoint"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+publish = false
+
+[dependencies]
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+axum = { workspace = true }
+tokio = { workspace = true }
+
+[lints]
+workspace = true

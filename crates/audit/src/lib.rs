@@ -132,6 +132,10 @@ pub enum Action {
     #[serde(rename = "decision_log_token.revoked")]
     #[sqlx(rename = "decision_log_token.revoked")]
     DecisionLogTokenRevoked,
+    /// Sent, without the project's redacted fields, to be explained (DNK-19).
+    #[serde(rename = "decision_record.explained")]
+    #[sqlx(rename = "decision_record.explained")]
+    DecisionRecordExplained,
 }
 
 impl Action {
@@ -173,6 +177,7 @@ impl Action {
             Self::DecisionLogSettingsUpdated => "decision_log.settings_updated",
             Self::DecisionLogTokenIssued => "decision_log_token.issued",
             Self::DecisionLogTokenRevoked => "decision_log_token.revoked",
+            Self::DecisionRecordExplained => "decision_record.explained",
         }
     }
 }

@@ -49,6 +49,9 @@ pub struct Config {
     pub decision_log_key: String,
     /// Decision records older than this are purged.
     pub decision_log_retention_days: u32,
+    /// The customer's LLM endpoint that explains logged decisions; `None`
+    /// (the default) turns explanations off. Holds a key: never log it.
+    pub explain: Option<donka_explain::Settings>,
 }
 
 /// The web app calls the API here (apps/web `API_BASE`).
@@ -153,6 +156,8 @@ impl Config {
         donka_decision_log::Cipher::from_base64(&decision_log_key)
             .map_err(|err| invalid("DONKA_DECISION_LOG_KEY", &err.to_string()))?;
 
+        let explain = explain_settings(&get)?;
+
         Ok(Self {
             listen,
             engine_workers: positive(&get, "DONKA_ENGINE_WORKERS")?,
@@ -182,8 +187,65 @@ impl Config {
             // Five years, a common minimum for credit files.
             decision_log_retention_days: positive(&get, "DONKA_DECISION_LOG_RETENTION_DAYS")?
                 .unwrap_or(1825),
+            explain,
         })
     }
+}
+
+/// Explanations are on only when an endpoint is configured; then its key,
+/// request format and model are required too.
+fn explain_settings(
+    get: &impl Fn(&str) -> Option<String>,
+) -> Result<Option<donka_explain::Settings>, ConfigError> {
+    let Some(url) = get("DONKA_EXPLAIN_URL").filter(|v| !v.trim().is_empty()) else {
+        if get("DONKA_EXPLAIN_API_KEY").is_some_and(|v| !v.trim().is_empty()) {
+            return Err(invalid(
+                "DONKA_EXPLAIN_URL",
+                "is required when DONKA_EXPLAIN_API_KEY is set (explanations are off without it)",
+            ));
+        }
+        return Ok(None);
+    };
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        return Err(invalid(
+            "DONKA_EXPLAIN_URL",
+            "must start with https:// or http://, e.g. https://api.anthropic.com/v1/messages",
+        ));
+    }
+    let api_key = required(
+        get,
+        "DONKA_EXPLAIN_API_KEY",
+        "is required when DONKA_EXPLAIN_URL is set",
+    )?;
+    let protocol = required(
+        get,
+        "DONKA_EXPLAIN_API",
+        "is required when DONKA_EXPLAIN_URL is set: anthropic or openai",
+    )?
+    .parse()
+    .map_err(|reason: String| invalid("DONKA_EXPLAIN_API", &reason))?;
+    let model = required(
+        get,
+        "DONKA_EXPLAIN_MODEL",
+        "is required when DONKA_EXPLAIN_URL is set: the model name the endpoint expects",
+    )?;
+    let fallbacks = boolean(get, "DONKA_EXPLAIN_FALLBACKS", false)?;
+    if fallbacks && protocol != donka_explain::Protocol::Anthropic {
+        return Err(invalid(
+            "DONKA_EXPLAIN_FALLBACKS",
+            "applies only when DONKA_EXPLAIN_API is anthropic",
+        ));
+    }
+    Ok(Some(donka_explain::Settings {
+        url,
+        api_key,
+        protocol,
+        model,
+        timeout: std::time::Duration::from_secs(
+            positive(get, "DONKA_EXPLAIN_TIMEOUT_SECONDS")?.unwrap_or(60),
+        ),
+        fallbacks,
+    }))
 }
 
 fn required(
@@ -315,6 +377,66 @@ mod tests {
         );
         let config = load(&[("DONKA_DECISION_LOG_RETENTION_DAYS", "365")]).unwrap();
         assert_eq!(config.decision_log_retention_days, 365);
+    }
+
+    #[test]
+    fn explanations_are_off_unless_an_endpoint_is_configured() {
+        assert_eq!(load(&[]).unwrap().explain, None);
+        assert_eq!(
+            load(&[("DONKA_EXPLAIN_API_KEY", "k")]).unwrap_err().var,
+            "DONKA_EXPLAIN_URL"
+        );
+        let on = [
+            (
+                "DONKA_EXPLAIN_URL",
+                "https://llm.bank.example/v1/chat/completions",
+            ),
+            ("DONKA_EXPLAIN_API_KEY", "k"),
+            ("DONKA_EXPLAIN_API", "openai"),
+            ("DONKA_EXPLAIN_MODEL", "local-model"),
+        ];
+        let explain = load(&on).unwrap().explain.unwrap();
+        assert_eq!(explain.protocol, donka_explain::Protocol::OpenAi);
+        assert_eq!(explain.model, "local-model");
+        assert_eq!(explain.timeout, std::time::Duration::from_secs(60));
+        assert!(!explain.fallbacks);
+
+        // Each of the others is required once the endpoint is set, and checked.
+        for (missing, _) in &on[1..] {
+            let vars: Vec<_> = on.iter().copied().filter(|(k, _)| k != missing).collect();
+            assert_eq!(load(&vars).unwrap_err().var, *missing);
+        }
+        let with = |extra: (&'static str, &'static str)| {
+            let mut vars = on.to_vec();
+            vars.retain(|(k, _)| *k != extra.0);
+            vars.push(extra);
+            load(&vars)
+        };
+        for bad in [
+            ("DONKA_EXPLAIN_URL", "llm.bank.example"),
+            ("DONKA_EXPLAIN_API", "gpt"),
+            ("DONKA_EXPLAIN_TIMEOUT_SECONDS", "0"),
+            ("DONKA_EXPLAIN_FALLBACKS", "true"),
+        ] {
+            assert_eq!(with(bad).unwrap_err().var, bad.0, "{bad:?}");
+        }
+        let anthropic = load(&[
+            ("DONKA_EXPLAIN_URL", "https://api.anthropic.com/v1/messages"),
+            ("DONKA_EXPLAIN_API_KEY", "k"),
+            ("DONKA_EXPLAIN_API", "anthropic"),
+            ("DONKA_EXPLAIN_MODEL", "claude-opus-5-5"),
+            ("DONKA_EXPLAIN_FALLBACKS", "true"),
+            ("DONKA_EXPLAIN_TIMEOUT_SECONDS", "90"),
+        ])
+        .unwrap()
+        .explain
+        .unwrap();
+        assert!(anthropic.fallbacks);
+        assert_eq!(anthropic.timeout, std::time::Duration::from_secs(90));
+        assert!(
+            !format!("{anthropic:?}").contains("\"k\""),
+            "the key is never printed"
+        );
     }
 
     #[test]

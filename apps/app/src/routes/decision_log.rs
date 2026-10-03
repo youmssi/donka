@@ -1,5 +1,6 @@
 //! Decision log (DNK-18): the feed Runtimes send records to, the tokens they
-//! send them with, and the project's records (search, open, replay).
+//! send them with, and the project's records (search, open, replay, and
+//! explain when the installation configures it, DNK-19).
 
 use crate::auth::CurrentUser;
 use crate::error::{ApiError, ErrorBody};
@@ -11,7 +12,10 @@ use axum::extract::{Query, State};
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::{Extension, Json};
 use chrono::{DateTime, Utc};
-use donka_decision_log::{Filter, LogToken, Payload, RecordSummary, Status, MAX_TEXT_CHARS};
+use donka_decision_log::{
+    Filter, LogToken, Payload, RecordSummary, Settings, SettingsChange, Status, MAX_TEXT_CHARS,
+};
+use donka_explain::{Language, Question};
 use donka_release::Environment;
 use donka_shared::page::PageRequest;
 use serde::{Deserialize, Serialize};
@@ -220,13 +224,39 @@ fn environment(name: EnvironmentName) -> Environment {
 
 // ----- Settings -------------------------------------------------------------
 
-#[derive(Serialize, Deserialize, ToSchema)]
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DecisionLogSettingsResponse {
+    /// The output field whose value is a record's outcome, as a dotted path
+    /// (`decision`, `result.band`); `null` for none. Read when a record arrives.
+    pub outcome_field: Option<String>,
+    /// Fields removed from a record before it is sent to be explained, as
+    /// dotted paths (`applicant.nationalId`).
+    pub redacted_fields: Vec<String>,
+    /// Whether this installation explains decisions (`DONKA_EXPLAIN_URL`).
+    pub explain_enabled: bool,
+}
+
+#[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DecisionLogSettingsBody {
     /// The output field whose value is a record's outcome, as a dotted path
     /// (`decision`, `result.band`); `null` for none. Read when a record arrives.
     #[schema(max_length = 200)]
     pub outcome_field: Option<String>,
+    /// Fields removed from a record before it is sent to be explained, as
+    /// dotted paths; left out, they stay as they are.
+    #[serde(default)]
+    #[schema(max_items = 50)]
+    pub redacted_fields: Option<Vec<String>>,
+}
+
+fn settings_response(state: &AppState, settings: Settings) -> DecisionLogSettingsResponse {
+    DecisionLogSettingsResponse {
+        outcome_field: settings.outcome_field,
+        redacted_fields: settings.redacted_fields,
+        explain_enabled: state.explainer.is_some(),
+    }
 }
 
 /// The project's decision-log settings (any member).
@@ -236,22 +266,21 @@ pub struct DecisionLogSettingsBody {
     tag = "decision-log",
     params(("project_id" = Uuid, Path)),
     responses(
-        (status = 200, body = DecisionLogSettingsBody),
+        (status = 200, body = DecisionLogSettingsResponse),
         (status = 404, description = "PROJECT_NOT_FOUND", body = ErrorBody),
     )
 )]
 pub async fn settings(
     State(state): State<AppState>,
     ProjectAccess(access): ProjectAccess,
-) -> Result<Json<DecisionLogSettingsBody>, ApiError> {
+) -> Result<Json<DecisionLogSettingsResponse>, ApiError> {
     let settings = state.decision_log.settings(&access).await?;
-    Ok(Json(DecisionLogSettingsBody {
-        outcome_field: settings.outcome_field,
-    }))
+    Ok(Json(settings_response(&state, settings)))
 }
 
-/// Names the output field read as each new record's outcome (owners).
-/// Records already stored keep the outcome they arrived with.
+/// Names the output field read as each new record's outcome and the fields
+/// removed before a record is explained (owners). Records already stored keep
+/// the outcome they arrived with.
 #[utoipa::path(
     put,
     path = "/projects/{project_id}/decision-log/settings",
@@ -259,8 +288,8 @@ pub async fn settings(
     params(("project_id" = Uuid, Path)),
     request_body = DecisionLogSettingsBody,
     responses(
-        (status = 200, body = DecisionLogSettingsBody),
-        (status = 400, description = "Not a dotted path of field names (INVALID_REQUEST)", body = ErrorBody),
+        (status = 200, body = DecisionLogSettingsResponse),
+        (status = 400, description = "Not dotted paths of field names (INVALID_REQUEST)", body = ErrorBody),
         (status = 403, description = "Only owners change settings (FORBIDDEN)", body = ErrorBody),
         (status = 404, description = "PROJECT_NOT_FOUND", body = ErrorBody),
         (status = 409, description = "PROJECT_ARCHIVED", body = ErrorBody),
@@ -270,14 +299,18 @@ pub async fn update_settings(
     State(state): State<AppState>,
     ProjectAccess(access): ProjectAccess,
     ApiJson(req): ApiJson<DecisionLogSettingsBody>,
-) -> Result<Json<DecisionLogSettingsBody>, ApiError> {
+) -> Result<Json<DecisionLogSettingsResponse>, ApiError> {
     let settings = state
         .decision_log
-        .update_settings(&access, req.outcome_field.as_deref())
+        .update_settings(
+            &access,
+            SettingsChange {
+                outcome_field: Some(req.outcome_field),
+                redacted_fields: req.redacted_fields,
+            },
+        )
         .await?;
-    Ok(Json(DecisionLogSettingsBody {
-        outcome_field: settings.outcome_field,
-    }))
+    Ok(Json(settings_response(&state, settings)))
 }
 
 // ----- Records ----------------------------------------------------------------
@@ -368,6 +401,8 @@ pub struct RecordResponse {
     pub error: Option<Value>,
     /// The engine's per-node trace, when the Runtime had one.
     pub trace: Option<Value>,
+    /// Whether this installation can explain the record (DNK-19).
+    pub explainable: bool,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -463,6 +498,7 @@ pub async fn get(
         output,
         error,
         trace,
+        explainable: state.explainer.is_some(),
     }))
 }
 
@@ -490,6 +526,82 @@ pub async fn replay(
         status: replay.status.into(),
         output: replay.output,
         error: replay.error,
+    }))
+}
+
+/// The language Studio is read in.
+#[derive(Debug, Clone, Copy, Deserialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum ExplainLanguage {
+    En,
+    Fr,
+}
+
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ExplainRequest {
+    /// The language to explain in: the reader's.
+    pub language: ExplainLanguage,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ExplainResponse {
+    /// Plain text, in the language asked for. Shown only: it changes nothing.
+    pub explanation: String,
+    /// The model that answered, as the endpoint names it.
+    pub model: String,
+}
+
+/// Explains a record in plain language with the installation's LLM endpoint
+/// (any member). The project's redacted fields are removed first. Audited
+/// (`decision_record.explained`) before anything is sent. `404` when the
+/// installation does not explain decisions.
+#[utoipa::path(
+    post,
+    path = "/projects/{project_id}/decision-log/{record_id}/explain",
+    tag = "decision-log",
+    params(("project_id" = Uuid, Path), ("record_id" = Uuid, Path)),
+    request_body = ExplainRequest,
+    responses(
+        (status = 200, body = ExplainResponse),
+        (status = 404, description = "NOT_FOUND (explanations are off), PROJECT_NOT_FOUND or RECORD_NOT_FOUND", body = ErrorBody),
+        (status = 422, description = "The service declined to explain it (EXPLAIN_DECLINED)", body = ErrorBody),
+        (status = 502, description = "The service failed or did not answer (EXPLAIN_UNAVAILABLE)", body = ErrorBody),
+    )
+)]
+pub async fn explain(
+    State(state): State<AppState>,
+    ProjectAccess(access): ProjectAccess,
+    RecordId(id): RecordId,
+    ApiJson(req): ApiJson<ExplainRequest>,
+) -> Result<Json<ExplainResponse>, ApiError> {
+    let explainer = state.explainer.as_ref().ok_or(ApiError::RouteNotFound)?;
+    let record = state.decision_log.explain_source(&access, id).await?;
+    let Payload {
+        input,
+        output,
+        error,
+        trace,
+    } = record.payload;
+    let explanation = explainer
+        .explain(&Question {
+            language: match req.language {
+                ExplainLanguage::En => Language::English,
+                ExplainLanguage::Fr => Language::French,
+            },
+            decision_key: record.summary.decision_key,
+            release_version: record.release_version,
+            succeeded: record.summary.status == Status::Succeeded,
+            input,
+            output,
+            error,
+            trace,
+        })
+        .await?;
+    Ok(Json(ExplainResponse {
+        explanation: explanation.text,
+        model: explanation.model,
     }))
 }
 

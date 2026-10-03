@@ -74,7 +74,9 @@
     "NOT_REQUESTER": "Only the person who asked can withdraw this request.",
     "NEVER_APPROVED": "Production can only go back to a release that was approved for it.",
     "ALREADY_LIVE": "This release is already the one production runs.",
-    "RECORD_NOT_FOUND": "This decision record does not exist in this project."
+    "RECORD_NOT_FOUND": "This decision record does not exist in this project.",
+    "EXPLAIN_DECLINED": "The explanation service declined to explain this decision.",
+    "EXPLAIN_UNAVAILABLE": "The explanation service did not answer. Try again in a moment."
   },
   "validation": {
     "email": "Enter a valid email address.",
@@ -91,7 +93,9 @@
     "secretName": "Use capital letters, digits and underscores, starting with a letter (at most 64).",
     "headerName": "Use letters, digits and hyphens only.",
     "wholeNumberMax": "Enter a whole number up to {max}, or leave it empty.",
-    "fieldPath": "Use field names joined by dots, e.g. decision or result.band."
+    "fieldPath": "Use field names joined by dots, e.g. decision or result.band.",
+    "fieldPathLines": "Write one field per line, as names joined by dots, e.g. applicant.nationalId.",
+    "fieldPathCount": "List at most {max} fields."
   },
   "signIn": {
     "title": "Sign in",
@@ -342,7 +346,8 @@
     },
     "decision_record": {
       "viewed": "Decision record opened",
-      "replayed": "Decision record replayed"
+      "replayed": "Decision record replayed",
+      "explained": "Decision record explained"
     },
     "decision_log": {
       "purged": "Decision records purged",
@@ -382,7 +387,8 @@
     "decisionRecordReplayed": "Replayed the {key} decision {reference}",
     "decisionLogPurged": "Purged {records} decision records older than {days} days",
     "decisionLogSettingsUpdated": "Set the decision log's outcome field to {field}",
-    "decisionLogSettingsCleared": "Removed the decision log's outcome field"
+    "decisionLogSettingsCleared": "Removed the decision log's outcome field",
+    "decisionRecordExplained": "Asked for an explanation of the {key} decision {reference}"
   },
   "ui": {
     "close": "Close",
@@ -792,11 +798,20 @@
     "recordedAnswer": "Recorded answer",
     "replayedAnswer": "Answer now",
     "settingsTitle": "Decision log",
-    "settingsDescription": "Each decision a Runtime makes is recorded. The outcome field is read from its answer when it arrives, so the log can be searched by outcome.",
+    "settingsDescription": "Each decision a Runtime makes is recorded. The outcome field is read from its answer when it arrives, so the log can be searched by outcome; the redacted fields never leave Studio when a decision is explained.",
     "outcomeField": "Outcome field",
     "outcomeFieldHint": "A field of the decision's output, e.g. decision or result.band. Leave empty for none; failed decisions are always error.",
     "outcomeFieldReadOnly": "Only owners change it.",
-    "settingsSaved": "Decision log settings saved."
+    "settingsSaved": "Decision log settings saved.",
+    "explain": "Explain",
+    "explaining": "Explaining…",
+    "explainFailedTitle": "No explanation this time.",
+    "explanationTitle": "In plain words",
+    "explanationNote": "Written by {model} from this record, without the project's redacted fields. It explains; it changes nothing.",
+    "redactedFields": "Fields never sent for an explanation",
+    "redactedFieldsHint": "One field per line, e.g. applicant.nationalId. They are removed from what the decision read and answered, and from its trace, before a record is sent to be explained. At most {max}.",
+    "redactedFieldsHintOff": "One field per line, e.g. applicant.nationalId. Explanations are off in this installation; the list applies once they are on. At most {max}.",
+    "viewAuditedExplain": "This record holds an applicant's personal data. Opening, replaying and explaining it are recorded in the project's audit log."
   },
   "runtimes": {
     "title": "Runtimes",

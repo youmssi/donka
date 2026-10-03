@@ -74,7 +74,9 @@
     "NOT_REQUESTER": "Seule la personne qui a fait la demande peut la retirer.",
     "NEVER_APPROVED": "La production ne peut revenir qu’à une release approuvée pour elle.",
     "ALREADY_LIVE": "Cette release est déjà celle en service en production.",
-    "RECORD_NOT_FOUND": "Cette décision enregistrée n'existe pas dans ce projet."
+    "RECORD_NOT_FOUND": "Cette décision enregistrée n'existe pas dans ce projet.",
+    "EXPLAIN_DECLINED": "Le service d'explication a refusé d'expliquer cette décision.",
+    "EXPLAIN_UNAVAILABLE": "Le service d'explication n'a pas répondu. Réessayez dans un instant."
   },
   "validation": {
     "email": "Saisissez une adresse e-mail valide.",
@@ -91,7 +93,9 @@
     "secretName": "Utilisez des majuscules, chiffres et tirets bas, en commençant par une lettre (64 au plus).",
     "headerName": "Utilisez uniquement des lettres, chiffres et traits d'union.",
     "wholeNumberMax": "Saisissez un nombre entier jusqu'à {max}, ou laissez vide.",
-    "fieldPath": "Utilisez des noms de champs séparés par des points, par exemple decision ou result.band."
+    "fieldPath": "Utilisez des noms de champs séparés par des points, par exemple decision ou result.band.",
+    "fieldPathLines": "Écrivez un champ par ligne, en noms séparés par des points, par exemple applicant.nationalId.",
+    "fieldPathCount": "Indiquez au plus {max} champs."
   },
   "signIn": {
     "title": "Connexion",
@@ -342,7 +346,8 @@
     },
     "decision_record": {
       "viewed": "Décision enregistrée ouverte",
-      "replayed": "Décision enregistrée rejouée"
+      "replayed": "Décision enregistrée rejouée",
+      "explained": "Décision enregistrée expliquée"
     },
     "decision_log": {
       "purged": "Décisions enregistrées purgées",
@@ -382,7 +387,8 @@
     "decisionRecordReplayed": "A rejoué la décision {key} {reference}",
     "decisionLogPurged": "A purgé {records} décisions enregistrées de plus de {days} jours",
     "decisionLogSettingsUpdated": "A défini le champ de résultat du journal sur {field}",
-    "decisionLogSettingsCleared": "A retiré le champ de résultat du journal"
+    "decisionLogSettingsCleared": "A retiré le champ de résultat du journal",
+    "decisionRecordExplained": "A demandé l'explication de la décision {key} {reference}"
   },
   "ui": {
     "close": "Fermer",
@@ -792,11 +798,20 @@
     "recordedAnswer": "Réponse enregistrée",
     "replayedAnswer": "Réponse actuelle",
     "settingsTitle": "Journal des décisions",
-    "settingsDescription": "Chaque décision prise par un Runtime est enregistrée. Le champ de résultat est lu dans sa réponse à son arrivée, pour pouvoir chercher par résultat.",
+    "settingsDescription": "Chaque décision prise par un Runtime est enregistrée. Le champ de résultat est lu dans sa réponse à son arrivée, pour pouvoir chercher par résultat ; les champs masqués ne quittent jamais Studio quand une décision est expliquée.",
     "outcomeField": "Champ de résultat",
     "outcomeFieldHint": "Un champ de la sortie de la décision, par exemple decision ou result.band. Laissez vide pour aucun ; une décision en échec vaut toujours error.",
     "outcomeFieldReadOnly": "Seuls les propriétaires le modifient.",
-    "settingsSaved": "Réglages du journal enregistrés."
+    "settingsSaved": "Réglages du journal enregistrés.",
+    "explain": "Expliquer",
+    "explaining": "Explication…",
+    "explainFailedTitle": "Pas d'explication cette fois.",
+    "explanationTitle": "En clair",
+    "explanationNote": "Rédigée par {model} à partir de cet enregistrement, sans les champs masqués du projet. Elle explique ; elle ne change rien.",
+    "redactedFields": "Champs jamais envoyés pour une explication",
+    "redactedFieldsHint": "Un champ par ligne, par exemple applicant.nationalId. Ils sont retirés de ce que la décision a lu et répondu, et de sa trace, avant l'envoi pour une explication. Au plus {max}.",
+    "redactedFieldsHintOff": "Un champ par ligne, par exemple applicant.nationalId. Les explications sont désactivées dans cette installation ; la liste s'appliquera quand elles seront activées. Au plus {max}.",
+    "viewAuditedExplain": "Cet enregistrement contient des données personnelles d'un demandeur. Son ouverture, son rejeu et son explication sont inscrits au journal d'audit du projet."
   },
   "runtimes": {
     "title": "Runtimes",

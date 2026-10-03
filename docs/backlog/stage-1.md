@@ -434,11 +434,23 @@ donka-runtime; Studio depends on it for simulation (mock mode).
 
 **Type:** feature · **Repos:** S · **Dependencies:** DNK-18 · **Size:** M
 
+#### Decisions (taken in the story)
+- **Endpoint formats**: Anthropic's Messages API or OpenAI-compatible chat completions
+  (`DONKA_EXPLAIN_API`), so a bank can use a hosted model or one it runs itself. URL, key, format
+  and model are all configuration; nothing is assumed.
+- **Redaction**: owners list dotted paths (`applicant.nationalId`) in the project's decision-log
+  settings; they are removed from the input, the output and every trace node (and from a
+  decision table's traced references) before sending. Values computed from a redacted field are
+  not tracked.
+- **Who**: any member who can open the record; each explanation is audited
+  (`decision_record.explained`) before the record is sent, whatever the endpoint answers.
+- **Nothing stored**: the explanation is shown, not kept; asking again asks the endpoint again.
+
 #### Acceptance criteria
-- [ ] Off by default; enabling requires the customer's endpoint URL and key in configuration
-- [ ] Fields listed in the project's redaction settings are removed before sending
-- [ ] The explanation is in the viewer's language; it is read-only and cannot change any decision
-- [ ] With the feature off, no explain control is rendered and the endpoint returns `404`
+- [x] Off by default; enabling requires the customer's endpoint URL and key in configuration
+- [x] Fields listed in the project's redaction settings are removed before sending
+- [x] The explanation is in the viewer's language; it is read-only and cannot change any decision
+- [x] With the feature off, no explain control is rendered and the endpoint returns `404`
 
 ---
 

@@ -14,7 +14,7 @@ import { FieldGroup } from '@/components/ui/field';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Project } from '@/modules/project';
 
-import { OUTCOME_FIELD_MAX, settingsSchema, type LogSettings } from './schema';
+import { fieldLines, OUTCOME_FIELD_MAX, REDACTED_FIELDS_MAX, settingsSchema, type LogSettings } from './schema';
 import { useLogSettings, useSaveLogSettings } from './useDecisionLog';
 
 /** The project's decision-log settings: which output field is a record's outcome (owners change it). */
@@ -34,7 +34,11 @@ export function OutcomeSettings({ project }: { project: Project }) {
         ) : !result.ok ? (
           <ErrorAlert error={result.error} />
         ) : (
-          <OutcomeForm key={result.data.outcomeField ?? ''} project={project} settings={result.data} />
+          <OutcomeForm
+            key={`${result.data.outcomeField ?? ''}|${result.data.redactedFields.join(',')}`}
+            project={project}
+            settings={result.data}
+          />
         )}
       </CardContent>
     </Card>
@@ -49,12 +53,15 @@ function OutcomeForm({ project, settings }: { project: Project; settings: LogSet
   const [error, setError] = useState<ActionError | null>(null);
 
   const form = useForm({
-    defaultValues: { outcomeField: settings.outcomeField ?? '' },
+    defaultValues: { outcomeField: settings.outcomeField ?? '', redactedFields: settings.redactedFields.join('\n') },
     validators: { onChange: settingsSchema, onSubmit: settingsSchema },
     onSubmit: async ({ value }) => {
       setError(null);
       const outcomeField = value.outcomeField.trim();
-      const result = await save.mutateAsync({ outcomeField: outcomeField || null });
+      const result = await save.mutateAsync({
+        outcomeField: outcomeField || null,
+        redactedFields: [...new Set(fieldLines(value.redactedFields))],
+      });
       if (result.ok) toast.success(t('settingsSaved'));
       else setError(result.error);
     },
@@ -80,6 +87,21 @@ function OutcomeForm({ project, settings }: { project: Project; settings: LogSet
               placeholder="decision"
               disabled={!editable}
               messageValues={{ max: OUTCOME_FIELD_MAX }}
+            />
+          )}
+        </form.Field>
+        <form.Field name="redactedFields">
+          {(field) => (
+            <TextField
+              field={field}
+              label={t('redactedFields')}
+              hint={t(settings.explainEnabled ? 'redactedFieldsHint' : 'redactedFieldsHintOff', {
+                max: REDACTED_FIELDS_MAX,
+              })}
+              placeholder={'applicant.nationalId\napplicant.name'}
+              multiline
+              disabled={!editable}
+              messageValues={{ max: REDACTED_FIELDS_MAX }}
             />
           )}
         </form.Field>
