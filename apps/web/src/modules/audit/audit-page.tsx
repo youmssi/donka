@@ -375,6 +375,10 @@ function useSentence(event: AuditEvent): string {
       return t('decisionRecordViewed', { key: detail(event, 'decisionKey'), reference: detail(event, 'reference') });
     case 'decision_record.replayed':
       return t('decisionRecordReplayed', { key: detail(event, 'decisionKey'), reference: detail(event, 'reference') });
+    case 'ci_token.issued':
+      return t('ciTokenIssued', { name: detail(event, 'name') });
+    case 'ci_token.revoked':
+      return t('ciTokenRevoked', { name: detail(event, 'name') });
     case 'decision_record.explained':
       return t('decisionRecordExplained', { key: detail(event, 'decisionKey'), reference: detail(event, 'reference') });
     case 'decision_log.purged':

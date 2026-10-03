@@ -93,7 +93,9 @@
           "decision_log.settings_updated",
           "decision_log_token.issued",
           "decision_log_token.revoked",
-          "decision_record.explained"
+          "decision_record.explained",
+          "ci_token.issued",
+          "ci_token.revoked"
         ],
         "type": "string"
       },
@@ -349,6 +351,75 @@
         },
         "required": [
           "role"
+        ],
+        "type": "object"
+      },
+      "CiTokenListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CiTokenResponse"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "CiTokenResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/PersonRef"
+          },
+          "hint": {
+            "description": "The token's last characters, to tell tokens apart.",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "lastUsedAt": {
+            "description": "When a pipeline last used it.",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "revokedAt": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revokedBy": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PersonRef"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "hint",
+          "createdAt",
+          "createdBy"
         ],
         "type": "object"
       },
@@ -1045,6 +1116,20 @@
         ],
         "type": "object"
       },
+      "IssueCiTokenRequest": {
+        "properties": {
+          "name": {
+            "description": "Who uses the token, e.g. the loan origination system or a CI pipeline.",
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
       "IssueLogTokenRequest": {
         "properties": {
           "environment": {
@@ -1065,7 +1150,7 @@
       "IssueTokenRequest": {
         "properties": {
           "name": {
-            "description": "Who uses the token, e.g. the loan origination system.",
+            "description": "Who uses the token, e.g. the loan origination system or a CI pipeline.",
             "maxLength": 100,
             "minLength": 1,
             "type": "string"
@@ -1075,6 +1160,25 @@
           "name"
         ],
         "type": "object"
+      },
+      "IssuedCiTokenResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/CiTokenResponse"
+          },
+          {
+            "properties": {
+              "token": {
+                "description": "The token. Shown this once: Studio keeps only its hash.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "token"
+            ],
+            "type": "object"
+          }
+        ]
       },
       "IssuedLogTokenResponse": {
         "allOf": [
@@ -1994,6 +2098,290 @@
           "result",
           "trace",
           "performance"
+        ],
+        "type": "object"
+      },
+      "SyncAction": {
+        "description": "What became of one deployment.",
+        "enum": [
+          "load",
+          "no_change",
+          "no_release",
+          "no_access",
+          "error"
+        ],
+        "type": "string"
+      },
+      "SyncArtifact": {
+        "properties": {
+          "sha256": {
+            "description": "Lowercase hex SHA-256 of the download.",
+            "type": "string"
+          },
+          "url": {
+            "description": "Relative to the API base path; download it with the same token.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "sha256"
+        ],
+        "type": "object"
+      },
+      "SyncBody": {
+        "properties": {
+          "deployments": {
+            "description": "At most 50; each is answered on its own.",
+            "items": {
+              "$ref": "#/components/schemas/SyncDeployment"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "deployments"
+        ],
+        "type": "object"
+      },
+      "SyncCommit": {
+        "properties": {
+          "branchId": {
+            "description": "Always `null`: Donka has no branches.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "branchName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "description": "Send it back as `current.commitId` to be told `no_change`.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "SyncCurrent": {
+        "properties": {
+          "commitId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "releaseId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "SyncDeployment": {
+        "properties": {
+          "alias": {
+            "description": "Echoed back, to tell answers apart.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "current": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SyncCurrent",
+                "description": "What the pipeline already holds; a match answers `no_change`."
+              }
+            ]
+          },
+          "project": {
+            "description": "The project's key or id.",
+            "type": "string"
+          },
+          "target": {
+            "description": "`main` (the newest release), `commit:<release id>`, `release:<version>`\nor `env:<staging|production>`. Default `main`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "project"
+        ],
+        "type": "object"
+      },
+      "SyncEnvironment": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "key": {
+            "$ref": "#/components/schemas/EnvironmentName"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "name"
+        ],
+        "type": "object"
+      },
+      "SyncProjectRef": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "key"
+        ],
+        "type": "object"
+      },
+      "SyncRelease": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "description": "The release notes.",
+            "type": "string"
+          },
+          "semanticVersion": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "version",
+          "semanticVersion"
+        ],
+        "type": "object"
+      },
+      "SyncResponse": {
+        "properties": {
+          "deployments": {
+            "items": {
+              "$ref": "#/components/schemas/SyncResult"
+            },
+            "type": "array"
+          },
+          "nextPollAt": {
+            "description": "Always `null`: Studio does not ask pipelines to poll.",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "deployments"
+        ],
+        "type": "object"
+      },
+      "SyncResult": {
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/SyncAction"
+          },
+          "alias": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "artifact": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SyncArtifact"
+              }
+            ]
+          },
+          "code": {
+            "description": "With `error`: `INVALID_TARGET`, `UNSUPPORTED_TARGET` or `RELEASE_NOT_FOUND`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "commit": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SyncCommit",
+                "description": "The snapshot held after a load: the release, or for `env:` the deployment."
+              }
+            ]
+          },
+          "environment": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SyncEnvironment"
+              }
+            ]
+          },
+          "project": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SyncProjectRef"
+              }
+            ]
+          },
+          "release": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SyncRelease"
+              }
+            ]
+          },
+          "target": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "target",
+          "action"
         ],
         "type": "object"
       },
@@ -3659,6 +4047,182 @@
         "summary": "The project's audit log as CSV, with the same filters (owners). At most\n50,000 rows; narrow the dates for more.",
         "tags": [
           "audit"
+        ]
+      }
+    },
+    "/projects/{project_id}/ci-tokens": {
+      "get": {
+        "operationId": "ci_tokens",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CiTokenListResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND"
+          }
+        },
+        "summary": "The project's CI tokens, live ones first; never their value (any member).",
+        "tags": [
+          "rules-sync"
+        ]
+      },
+      "post": {
+        "operationId": "issue_ci_token",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueCiTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssuedCiTokenResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "INVALID_REQUEST"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Only owners issue tokens (FORBIDDEN)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_ARCHIVED"
+          }
+        },
+        "summary": "Issues a read-only CI token for the project (owners). The token is in this response only.",
+        "tags": [
+          "rules-sync"
+        ]
+      }
+    },
+    "/projects/{project_id}/ci-tokens/{token_id}": {
+      "delete": {
+        "operationId": "revoke_ci_token",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "token_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revoked"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "FORBIDDEN"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND or TOKEN_NOT_FOUND"
+          }
+        },
+        "summary": "Revokes a CI token (owners); pipelines using it are refused from then on.",
+        "tags": [
+          "rules-sync"
         ]
       }
     },
@@ -6460,6 +7024,171 @@
         "summary": "Readiness: the service can handle requests that need the database.",
         "tags": [
           "operations"
+        ]
+      }
+    },
+    "/rules-sync": {
+      "post": {
+        "operationId": "sync",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not a request, or more than 50 deployments (INVALID_REQUEST)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Missing, unknown or revoked CI token (INVALID_TOKEN)"
+          }
+        },
+        "summary": "Resolves the targets a pipeline asks for (`Authorization: Bearer <CI token>`).\nA token reaches only its own project; any other answers `no_access`.",
+        "tags": [
+          "rules-sync"
+        ]
+      }
+    },
+    "/rules-sync/artifacts/{project_id}/deployments/{deployment_id}": {
+      "get": {
+        "operationId": "deployment_artifact",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "deployment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/zip": {}
+            },
+            "description": "The artifact (a zip)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "INVALID_TOKEN"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not this token's project, or no such published deployment (RELEASE_NOT_FOUND)"
+          }
+        },
+        "summary": "An environment's artifact as its Runtime reads it, tokens included, with\nthe CI token of its project.",
+        "tags": [
+          "rules-sync"
+        ]
+      }
+    },
+    "/rules-sync/artifacts/{project_id}/releases/{release_id}": {
+      "get": {
+        "operationId": "release_artifact",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "release_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/zip": {}
+            },
+            "description": "The artifact (a zip)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "INVALID_TOKEN"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not this token's project, or no such release (RELEASE_NOT_FOUND)"
+          }
+        },
+        "summary": "A release's artifact (no environment, no token), with the CI token of its project.",
+        "tags": [
+          "rules-sync"
         ]
       }
     },

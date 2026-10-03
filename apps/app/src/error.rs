@@ -105,6 +105,8 @@ pub enum ApiError {
     RecordNotFound,
     #[error("invalid decision-log token")]
     InvalidLogToken,
+    #[error("invalid CI token")]
+    InvalidCiToken,
     #[error("too many records in one batch")]
     BatchTooLarge,
     #[error("the explanation service declined")]
@@ -195,6 +197,8 @@ impl From<ReleaseError> for ApiError {
             ReleaseError::NotFound => Self::ReleaseNotFound,
             ReleaseError::DeploymentNotFound => Self::DeploymentNotFound,
             ReleaseError::TokenNotFound => Self::TokenNotFound,
+            ReleaseError::InvalidCiToken => Self::InvalidCiToken,
+            ReleaseError::Artifact(err) => Self::Internal(err),
             ReleaseError::Unversioned(keys) => Self::UnversionedDecisions(keys),
             ReleaseError::NothingToRelease => Self::NothingToRelease,
             ReleaseError::InvalidNotes => Self::InvalidField {
@@ -551,6 +555,13 @@ impl IntoResponse for ApiError {
                 StatusCode::UNAUTHORIZED,
                 "INVALID_TOKEN",
                 "The decision-log token is missing, unknown or revoked.".to_owned(),
+                None,
+                None,
+            ),
+            Self::InvalidCiToken => (
+                StatusCode::UNAUTHORIZED,
+                "INVALID_TOKEN",
+                "The CI token is missing, unknown or revoked.".to_owned(),
                 None,
                 None,
             ),

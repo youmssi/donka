@@ -280,6 +280,18 @@ impl Projects {
         .ok_or(ProjectError::NotFound)
     }
 
+    /// A project by id, for callers authenticated otherwise than as a member
+    /// (a project's CI token, which already names its project).
+    pub async fn find(&self, id: Uuid) -> Result<Project, ProjectError> {
+        sqlx::query_as(
+            "SELECT id, key, name, description, created_at, archived_at FROM projects WHERE id = $1",
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or(ProjectError::NotFound)
+    }
+
     /// Changes the name and description; the key never changes. Owners only.
     pub async fn update_details(
         &self,

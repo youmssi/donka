@@ -7,6 +7,7 @@ pub mod health;
 pub mod people;
 pub mod projects;
 pub mod releases;
+pub mod rules_sync;
 pub mod scenarios;
 pub mod simulate;
 pub mod users;

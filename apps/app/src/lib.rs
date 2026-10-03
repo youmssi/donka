@@ -158,13 +158,23 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
         .routes(routes!(routes::decision_log::get))
         .routes(routes!(routes::decision_log::replay))
         .routes(routes!(routes::decision_log::explain))
+        .routes(routes!(
+            routes::rules_sync::ci_tokens,
+            routes::rules_sync::issue_ci_token
+        ))
+        .routes(routes!(routes::rules_sync::revoke_ci_token))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             auth::require_session,
         ));
 
-    // Runtimes authenticate with a bearer token, not a cookie: no session, no CSRF header.
-    let feed = OpenApiRouter::new().routes(routes!(routes::decision_log::receive));
+    // Runtimes and CI pipelines authenticate with a bearer token, not a
+    // cookie: no session, no CSRF header.
+    let feed = OpenApiRouter::new()
+        .routes(routes!(routes::decision_log::receive))
+        .routes(routes!(routes::rules_sync::sync))
+        .routes(routes!(routes::rules_sync::release_artifact))
+        .routes(routes!(routes::rules_sync::deployment_artifact));
 
     let (api, mut doc) = public
         .merge(protected)

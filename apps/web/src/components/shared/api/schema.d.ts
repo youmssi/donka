@@ -366,6 +366,41 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/projects/{project_id}/ci-tokens': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The project's CI tokens, live ones first; never their value (any member). */
+    get: operations['ci_tokens'];
+    put?: never;
+    /** Issues a read-only CI token for the project (owners). The token is in this response only. */
+    post: operations['issue_ci_token'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/ci-tokens/{token_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Revokes a CI token (owners); pipelines using it are refused from then on. */
+    delete: operations['revoke_ci_token'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/projects/{project_id}/decision-log': {
     parameters: {
       query?: never;
@@ -899,6 +934,63 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/rules-sync': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Resolves the targets a pipeline asks for (`Authorization: Bearer <CI token>`).
+     *     A token reaches only its own project; any other answers `no_access`.
+     */
+    post: operations['sync'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/rules-sync/artifacts/{project_id}/deployments/{deployment_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * An environment's artifact as its Runtime reads it, tokens included, with
+     *     the CI token of its project.
+     */
+    get: operations['deployment_artifact'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/rules-sync/artifacts/{project_id}/releases/{release_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** A release's artifact (no environment, no token), with the CI token of its project. */
+    get: operations['release_artifact'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/simulate': {
     parameters: {
       query?: never;
@@ -1033,7 +1125,9 @@ export interface components {
       | 'decision_log.settings_updated'
       | 'decision_log_token.issued'
       | 'decision_log_token.revoked'
-      | 'decision_record.explained';
+      | 'decision_record.explained'
+      | 'ci_token.issued'
+      | 'ci_token.revoked';
     AddMemberRequest: {
       /** @description Email of an existing Studio account. */
       email: string;
@@ -1109,6 +1203,27 @@ export interface components {
     ChangeResponse: 'added' | 'changed' | 'removed' | 'unchanged';
     ChangeRoleRequest: {
       role: components['schemas']['Role'];
+    };
+    CiTokenListResponse: {
+      items: components['schemas']['CiTokenResponse'][];
+    };
+    CiTokenResponse: {
+      /** Format: date-time */
+      createdAt: string;
+      createdBy: components['schemas']['PersonRef'];
+      /** @description The token's last characters, to tell tokens apart. */
+      hint: string;
+      /** Format: uuid */
+      id: string;
+      /**
+       * Format: date-time
+       * @description When a pipeline last used it.
+       */
+      lastUsedAt?: string | null;
+      name: string;
+      /** Format: date-time */
+      revokedAt?: string | null;
+      revokedBy?: null | components['schemas']['PersonRef'];
     };
     CreateDecisionRequest: {
       /** @description A JDM decision graph. */
@@ -1363,14 +1478,22 @@ export interface components {
       isAdmin?: boolean;
       locale?: null | components['schemas']['Locale'];
     };
+    IssueCiTokenRequest: {
+      /** @description Who uses the token, e.g. the loan origination system or a CI pipeline. */
+      name: string;
+    };
     IssueLogTokenRequest: {
       environment: components['schemas']['EnvironmentName'];
       /** @description 1 to 100 characters, e.g. the Runtime's host. */
       name: string;
     };
     IssueTokenRequest: {
-      /** @description Who uses the token, e.g. the loan origination system. */
+      /** @description Who uses the token, e.g. the loan origination system or a CI pipeline. */
       name: string;
+    };
+    IssuedCiTokenResponse: components['schemas']['CiTokenResponse'] & {
+      /** @description The token. Shown this once: Studio keeps only its hash. */
+      token: string;
     };
     IssuedLogTokenResponse: components['schemas']['LogTokenResponse'] & {
       /** @description Shown this once: set it as the Runtime's `DECISION_LOG__TOKEN`. */
@@ -1713,6 +1836,85 @@ export interface components {
       result: Record<string, never>;
       /** @description Per-node trace: inputs, outputs and timing of each node. */
       trace: Record<string, never>;
+    };
+    /**
+     * @description What became of one deployment.
+     * @enum {string}
+     */
+    SyncAction: 'load' | 'no_change' | 'no_release' | 'no_access' | 'error';
+    SyncArtifact: {
+      /** @description Lowercase hex SHA-256 of the download. */
+      sha256: string;
+      /** @description Relative to the API base path; download it with the same token. */
+      url: string;
+    };
+    SyncBody: {
+      /** @description At most 50; each is answered on its own. */
+      deployments: components['schemas']['SyncDeployment'][];
+    };
+    SyncCommit: {
+      /** @description Always `null`: Donka has no branches. */
+      branchId?: string | null;
+      branchName?: string | null;
+      /**
+       * Format: uuid
+       * @description Send it back as `current.commitId` to be told `no_change`.
+       */
+      id: string;
+    };
+    SyncCurrent: {
+      commitId?: string | null;
+      releaseId?: string | null;
+    };
+    SyncDeployment: {
+      /** @description Echoed back, to tell answers apart. */
+      alias?: string | null;
+      current?: null | components['schemas']['SyncCurrent'];
+      /** @description The project's key or id. */
+      project: string;
+      /**
+       * @description `main` (the newest release), `commit:<release id>`, `release:<version>`
+       *     or `env:<staging|production>`. Default `main`.
+       */
+      target?: string | null;
+    };
+    SyncEnvironment: {
+      id: string;
+      key: components['schemas']['EnvironmentName'];
+      name: string;
+    };
+    SyncProjectRef: {
+      /** Format: uuid */
+      id: string;
+      key: string;
+    };
+    SyncRelease: {
+      /** Format: uuid */
+      id: string;
+      /** @description The release notes. */
+      name: string;
+      semanticVersion: string;
+      version: string;
+    };
+    SyncResponse: {
+      deployments: components['schemas']['SyncResult'][];
+      /**
+       * Format: date-time
+       * @description Always `null`: Studio does not ask pipelines to poll.
+       */
+      nextPollAt?: string | null;
+    };
+    SyncResult: {
+      action: components['schemas']['SyncAction'];
+      alias?: string | null;
+      artifact?: null | components['schemas']['SyncArtifact'];
+      /** @description With `error`: `INVALID_TARGET`, `UNSUPPORTED_TARGET` or `RELEASE_NOT_FOUND`. */
+      code?: string | null;
+      commit?: null | components['schemas']['SyncCommit'];
+      environment?: null | components['schemas']['SyncEnvironment'];
+      project?: null | components['schemas']['SyncProjectRef'];
+      release?: null | components['schemas']['SyncRelease'];
+      target: string;
     };
     TestResultListResponse: {
       items: components['schemas']['TestResultResponse'][];
@@ -2792,6 +2994,136 @@ export interface operations {
         };
       };
       /** @description PROJECT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  ci_tokens: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['CiTokenListResponse'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  issue_ci_token: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['IssueCiTokenRequest'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['IssuedCiTokenResponse'];
+        };
+      };
+      /** @description INVALID_REQUEST */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Only owners issue tokens (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_ARCHIVED */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  revoke_ci_token: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        token_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Revoked */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description FORBIDDEN */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or TOKEN_NOT_FOUND */
       404: {
         headers: {
           [name: string]: unknown;
@@ -4651,6 +4983,129 @@ export interface operations {
       };
       /** @description The database is not reachable (DATABASE_UNAVAILABLE) */
       503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  sync: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SyncBody'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SyncResponse'];
+        };
+      };
+      /** @description Not a request, or more than 50 deployments (INVALID_REQUEST) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Missing, unknown or revoked CI token (INVALID_TOKEN) */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  deployment_artifact: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        deployment_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The artifact (a zip) */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/zip': unknown;
+        };
+      };
+      /** @description INVALID_TOKEN */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Not this token's project, or no such published deployment (RELEASE_NOT_FOUND) */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  release_artifact: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        release_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The artifact (a zip) */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/zip': unknown;
+        };
+      };
+      /** @description INVALID_TOKEN */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Not this token's project, or no such release (RELEASE_NOT_FOUND) */
+      404: {
         headers: {
           [name: string]: unknown;
         };

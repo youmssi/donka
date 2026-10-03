@@ -458,10 +458,23 @@ donka-runtime; Studio depends on it for simulation (mock mode).
 
 **Type:** feature · **Repos:** S · **Dependencies:** DNK-14 · **Size:** M
 
+#### Decisions (taken in the story)
+- **Targets**: Donka has releases, not branches or commits. `main` is the project's newest
+  release; `commit:<id>` is a release by its id; `release:<version>` by its semantic version;
+  `env:<key>` what is live there. `branch:` answers `UNSUPPORTED_TARGET`.
+- **Tokens**: new read-only **CI tokens**, issued per project by owners in Settings, shown once,
+  hashed, revocable, audited, with the time they were last used. Runtime tokens are not reused.
+- **Other projects**: a sync entry for a project the token cannot reach answers `no_access`
+  (the CLI's contract); downloading another project's artifact answers `404`.
+- **Artifacts**: an environment's artifact is its Runtime's (tokens included); a release's has
+  no environment and no token. Both are rebuilt reproducibly, so the SHA-256 holds.
+- **no_change** compares the caller's id with the release (or, for `env:`, the deployment) it
+  resolved to. Contract: `docs/rules-sync.md`.
+
 #### Acceptance criteria
-- [ ] `POST /api/v1/rules-sync` resolves `main`, `commit:<id>`, `release:<version>`, `env:<key>` targets and returns the artifact location and sha256
-- [ ] Access with project tokens (read scope); tokens outside the project get `404`
-- [ ] Unchanged targets answer `no_change` when the caller sends its current id
+- [x] `POST /api/v1/rules-sync` resolves `main`, `commit:<id>`, `release:<version>`, `env:<key>` targets and returns the artifact location and sha256
+- [x] Access with project tokens (read scope); tokens outside the project get `404`
+- [x] Unchanged targets answer `no_change` when the caller sends its current id
 
 ---
 

@@ -356,6 +356,10 @@
     "decision_log_token": {
       "issued": "Jeton de journal créé",
       "revoked": "Jeton de journal révoqué"
+    },
+    "ci_token": {
+      "issued": "Jeton CI créé",
+      "revoked": "Jeton CI révoqué"
     }
   },
   "auditSentences": {
@@ -388,7 +392,9 @@
     "decisionLogPurged": "A purgé {records} décisions enregistrées de plus de {days} jours",
     "decisionLogSettingsUpdated": "A défini le champ de résultat du journal sur {field}",
     "decisionLogSettingsCleared": "A retiré le champ de résultat du journal",
-    "decisionRecordExplained": "A demandé l'explication de la décision {key} {reference}"
+    "decisionRecordExplained": "A demandé l'explication de la décision {key} {reference}",
+    "ciTokenIssued": "A créé le jeton CI « {name} »",
+    "ciTokenRevoked": "A révoqué le jeton CI « {name} »"
   },
   "ui": {
     "close": "Fermer",
@@ -837,5 +843,29 @@
     "runtimeSettings": "Réglages du Runtime",
     "oneEnvironment": "Ce jeton n'envoie que des décisions de {environment} : celles d'un autre environnement sont refusées.",
     "done": "Terminé"
+  },
+  "ciTokens": {
+    "title": "Jetons CI",
+    "description": "Les pipelines récupèrent les versions publiées de ce projet avec ces jetons. Cibles : main (la plus récente), release:1.4.0, commit:ID_DE_VERSION, env:staging ou env:production. Un jeton ne lit que ce projet.",
+    "create": "Nouveau jeton CI",
+    "creating": "Création…",
+    "createTitle": "Nouveau jeton CI",
+    "createDescription": "Un pipeline l'envoie pour télécharger les artefacts de ce projet. Il ne peut rien modifier.",
+    "name": "Nom",
+    "nameHint": "Le pipeline qui l'utilise, pour le retrouver.",
+    "namePlaceholder": "loan-service deploy",
+    "shownOnce": "Copiez-le maintenant : il n'est affiché qu'une fois. Studio n'en garde qu'une empreinte.",
+    "pipelineSettings": "Réglages du pipeline",
+    "targets": "Le pipeline appelle /api/v1/rules-sync avec le jeton en bearer et télécharge l'artefact indiqué.",
+    "done": "Terminé",
+    "empty": "Aucun jeton CI. Créez-en un par pipeline qui récupère les versions de ce projet.",
+    "emptyReadOnly": "Aucun jeton CI. Les propriétaires les créent.",
+    "lastUsed": "utilisé",
+    "neverUsed": "jamais utilisé",
+    "revoke": "Révoquer",
+    "revokedBadge": "Révoqué",
+    "revokeTitle": "Révoquer « {name} » ?",
+    "revokeConfirm": "Les pipelines qui l'utilisent sont refusés aussitôt. Action définitive.",
+    "revoked": "Jeton CI « {name} » révoqué."
   }
 }

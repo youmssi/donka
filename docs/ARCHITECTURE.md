@@ -79,6 +79,15 @@ release, connector nodes answering from the recorded trace (`ConnectorAdapter::r
 says whether the result is identical. A worker purges records past
 `DONKA_DECISION_LOG_RETENTION_DAYS`, one audit event per project purged.
 
+## Rules sync
+
+CI pipelines pull a project's artifact with a **CI token** an owner issued in the project's
+settings (read-only, one project, hashed). `POST /api/v1/rules-sync` resolves `main` (newest
+release), `commit:<release id>`, `release:<version>` or `env:<key>` and answers where to
+download the artifact and its SHA-256; a token reaching another project gets `no_access`, and
+its downloads `404`. Artifacts are rebuilt from the database, reproducibly, so the checksum
+holds. Contract: [`rules-sync.md`](rules-sync.md).
+
 ## Explanations
 
 When the installation sets `DONKA_EXPLAIN_URL`, any project member can ask Studio to explain a
@@ -98,6 +107,7 @@ web app shows no explain control.
   only be deleted by the retention purge, which the table's trigger lets through.
 - Decision records are encrypted at rest; decision-log tokens are hashed and scoped to one
   environment.
+- CI tokens are read-only, scoped to one project, hashed and revocable.
 - Explanations are off by default; a record leaves Studio only without its project's redacted
   fields, and each time is audited.
 - The browser never holds a Runtime token. Fieldkit calls the Runtime through the customer's backend.

@@ -136,6 +136,13 @@ pub enum Action {
     #[serde(rename = "decision_record.explained")]
     #[sqlx(rename = "decision_record.explained")]
     DecisionRecordExplained,
+    /// A project's CI token (DNK-20).
+    #[serde(rename = "ci_token.issued")]
+    #[sqlx(rename = "ci_token.issued")]
+    CiTokenIssued,
+    #[serde(rename = "ci_token.revoked")]
+    #[sqlx(rename = "ci_token.revoked")]
+    CiTokenRevoked,
 }
 
 impl Action {
@@ -178,6 +185,8 @@ impl Action {
             Self::DecisionLogTokenIssued => "decision_log_token.issued",
             Self::DecisionLogTokenRevoked => "decision_log_token.revoked",
             Self::DecisionRecordExplained => "decision_record.explained",
+            Self::CiTokenIssued => "ci_token.issued",
+            Self::CiTokenRevoked => "ci_token.revoked",
         }
     }
 }
@@ -361,6 +370,9 @@ mod tests {
             Action::ApprovalApproved,
             Action::ApprovalRejected,
             Action::ApprovalWithdrawn,
+            Action::DecisionRecordExplained,
+            Action::CiTokenIssued,
+            Action::CiTokenRevoked,
         ] {
             assert_eq!(
                 serde_json::to_value(action).unwrap(),

@@ -1,6 +1,11 @@
 //! The release artifact Donka Runtime reads (docs/artifact-format.md): one
 //! zip per project and environment, `.config/project.json` (format 2) and one
-//! entry per decision, named by its key so graphs find each other.
+//! entry per decision, named by its key so graphs find each other. A release
+//! pulled by CI outside an environment (DNK-20) has no environment and lists
+//! no token, so a Runtime given it refuses every request.
+//!
+//! The zip is deterministic: the same input gives the same bytes, so a
+//! checksum promised before a download matches the download.
 
 use serde_json::{json, Value};
 use std::io::{Cursor, Write};
@@ -17,13 +22,19 @@ pub struct ArtifactInput<'a> {
     pub project_name: &'a str,
     pub release_id: String,
     pub release_version: String,
+    /// The environment deployed to; `None` for a release pulled on its own.
+    pub deployment: Option<DeploymentInput<'a>>,
+    /// `(decision key, JDM graph)`.
+    pub decisions: Vec<(String, Value)>,
+}
+
+/// A deployment of the release to an environment.
+pub struct DeploymentInput<'a> {
     pub environment: &'a str,
-    pub deployment_id: String,
+    pub id: String,
     pub deployed_at: String,
     /// `(token id, sha256 hex)` of the environment's live tokens.
     pub token_hashes: Vec<(String, String)>,
-    /// `(decision key, JDM graph)`.
-    pub decisions: Vec<(String, Value)>,
 }
 
 /// The object an artifact is written to in the bucket: `staging/credit-pme`.
@@ -32,7 +43,7 @@ pub fn object_key(environment: &str, project_key: &str) -> String {
 }
 
 pub fn config(input: &ArtifactInput<'_>) -> Value {
-    json!({
+    let mut config = json!({
         "version": FORMAT_VERSION,
         "project": { "id": input.project_id, "key": input.project_key, "name": input.project_name },
         "release": {
@@ -40,20 +51,30 @@ pub fn config(input: &ArtifactInput<'_>) -> Value {
             "version": input.release_version,
             "status": "published"
         },
-        "environment": {
+        "accessTokenHashes": [],
+    });
+    if let Some(deployment) = &input.deployment {
+        config["environment"] = json!({
             // Environments are a fixed pair per project; this id is stable for both.
-            "id": format!("{}/{}", input.project_id, input.environment),
-            "key": input.environment,
-            "name": environment_name(input.environment)
-        },
-        "accessTokenHashes": input.token_hashes.iter().map(|(id, hash)| json!({
-            "id": id,
-            "environment": input.environment,
-            "algorithm": "sha256",
-            "hash": hash
-        })).collect::<Vec<_>>(),
-        "deployment": { "id": input.deployment_id, "createdAt": input.deployed_at }
-    })
+            "id": format!("{}/{}", input.project_id, deployment.environment),
+            "key": deployment.environment,
+            "name": environment_name(deployment.environment)
+        });
+        config["accessTokenHashes"] = deployment
+            .token_hashes
+            .iter()
+            .map(|(id, hash)| {
+                json!({
+                    "id": id,
+                    "environment": deployment.environment,
+                    "algorithm": "sha256",
+                    "hash": hash
+                })
+            })
+            .collect();
+        config["deployment"] = json!({ "id": deployment.id, "createdAt": deployment.deployed_at });
+    }
+    config
 }
 
 /// Zips the artifact.
@@ -94,10 +115,12 @@ mod tests {
             project_name: "Crédit PME",
             release_id: "r-1".into(),
             release_version: "1.2.0".into(),
-            environment: "staging",
-            deployment_id: "d-1".into(),
-            deployed_at: "2026-10-02T09:00:00Z".into(),
-            token_hashes: vec![("t-1".into(), donka_shared::secret::hash("dnk_test_token"))],
+            deployment: Some(DeploymentInput {
+                environment: "staging",
+                id: "d-1".into(),
+                deployed_at: "2026-10-02T09:00:00Z".into(),
+                token_hashes: vec![("t-1".into(), donka_shared::secret::hash("dnk_test_token"))],
+            }),
             decisions: vec![
                 (
                     "bureau/normalize".into(),
@@ -141,5 +164,22 @@ mod tests {
             "plain tokens are never written"
         );
         assert_eq!(object_key("staging", "credit-pme"), "staging/credit-pme");
+    }
+
+    #[test]
+    fn the_same_input_gives_the_same_bytes() {
+        assert_eq!(build(&input()).unwrap(), build(&input()).unwrap());
+    }
+
+    #[test]
+    fn a_release_on_its_own_has_no_environment_and_no_token() {
+        let config = config(&ArtifactInput {
+            deployment: None,
+            ..input()
+        });
+        assert!(config.get("environment").is_none());
+        assert!(config.get("deployment").is_none());
+        assert_eq!(config["accessTokenHashes"], json!([]));
+        assert_eq!(config["release"]["version"], "1.2.0");
     }
 }

@@ -239,13 +239,13 @@ fn notes_schema() -> impl Into<RefOr<Schema>> {
         ))
 }
 
-fn token_name_schema() -> impl Into<RefOr<Schema>> {
+pub(crate) fn token_name_schema() -> impl Into<RefOr<Schema>> {
     ObjectBuilder::new()
         .schema_type(Type::String)
         .min_length(Some(1))
         .max_length(Some(MAX_TOKEN_NAME_CHARS))
         .description(Some(
-            "Who uses the token, e.g. the loan origination system.",
+            "Who uses the token, e.g. the loan origination system or a CI pipeline.",
         ))
 }
 

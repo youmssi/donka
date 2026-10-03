@@ -4,6 +4,7 @@ import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-quer
 
 import {
   getApproval,
+  listCiTokens,
   getRelease,
   listApprovals,
   listEnvironments,
@@ -27,6 +28,7 @@ const keys = {
   approvals: (projectId: string, offset: number) => ['project', projectId, 'releases', 'approvals', offset] as const,
   approval: (projectId: string, id: string) => ['project', projectId, 'releases', 'approval', id] as const,
   rollbackTargets: (projectId: string) => ['project', projectId, 'releases', 'rollback-targets'] as const,
+  ciTokens: (projectId: string) => ['project', projectId, 'releases', 'ci-tokens'] as const,
 };
 
 export function useReleaseList(projectId: string, offset: number) {
@@ -65,6 +67,10 @@ export function useEnvironments(projectId: string) {
 
 export function useTokens(projectId: string, env: EnvironmentName) {
   return useQuery({ queryKey: keys.tokens(projectId, env), queryFn: () => listTokens(projectId, env) });
+}
+
+export function useCiTokens(projectId: string) {
+  return useQuery({ queryKey: keys.ciTokens(projectId), queryFn: () => listCiTokens(projectId) });
 }
 
 export function useApprovals(projectId: string, offset: number) {
