@@ -1,8 +1,8 @@
 'use client';
 
-import { ChevronRight, CircleCheck, CircleX, Eye, RotateCcw } from 'lucide-react';
+import { ChevronRight, CircleCheck, CircleX, Eye, RotateCcw, Sparkles } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
 
 import { ErrorAlert } from '@/components/shared/error-alert';
@@ -17,8 +17,8 @@ import { Link } from '@/i18n/navigation';
 import { ProjectFrame, projectHref, type Project } from '@/modules/project';
 
 import { Duration, EnvironmentBadge, Outcome } from './decision-log-page';
-import type { DecisionRecord, Replay } from './schema';
-import { useRecord, useReplay } from './useDecisionLog';
+import type { DecisionRecord, ExplainLanguage, Explanation, Replay } from './schema';
+import { useExplain, useRecord, useReplay } from './useDecisionLog';
 
 /** One decision a Runtime made: what it was asked, what it answered, and a replay. */
 export function RecordPage() {
@@ -35,6 +35,8 @@ function RecordView({ project, id }: { project: Project; id: string }) {
   const common = useTranslations('common');
   const query = useRecord(project.id, id);
   const replay = useReplay(project.id, id);
+  const explain = useExplain(project.id, id);
+  const locale = useLocale();
   const result = query.data;
 
   if (!id || (result && !result.ok && result.error.code === 'RECORD_NOT_FOUND')) {
@@ -70,16 +72,36 @@ function RecordView({ project, id }: { project: Project; id: string }) {
         description={t('recordOf', { key: record.decisionKey })}
         badges={<Outcome record={record} />}
         actions={
-          <Button variant="outline" disabled={replay.isPending} onClick={() => replay.mutate()}>
-            {replay.isPending ? <Spinner /> : <RotateCcw aria-hidden />}
-            {replay.isPending ? t('replaying') : t('replay')}
-          </Button>
+          <>
+            {/* Shown only when the installation explains decisions. */}
+            {record.explainable ? (
+              <Button
+                variant="outline"
+                disabled={explain.isPending}
+                onClick={() => explain.mutate(locale as ExplainLanguage)}
+              >
+                {explain.isPending ? <Spinner /> : <Sparkles aria-hidden />}
+                {explain.isPending ? t('explaining') : t('explain')}
+              </Button>
+            ) : null}
+            <Button variant="outline" disabled={replay.isPending} onClick={() => replay.mutate()}>
+              {replay.isPending ? <Spinner /> : <RotateCcw aria-hidden />}
+              {replay.isPending ? t('replaying') : t('replay')}
+            </Button>
+          </>
         }
       />
       <Alert>
         <Eye aria-hidden />
-        <AlertDescription>{t('viewAudited')}</AlertDescription>
+        <AlertDescription>{record.explainable ? t('viewAuditedExplain') : t('viewAudited')}</AlertDescription>
       </Alert>
+      {explain.data ? (
+        explain.data.ok ? (
+          <ExplanationCard explanation={explain.data.data} />
+        ) : (
+          <ErrorAlert error={explain.data.error} title={t('explainFailedTitle')} />
+        )
+      ) : null}
       {replayed ? (
         replayed.ok ? (
           <ReplayResult record={record} replay={replayed.data} />
@@ -149,6 +171,25 @@ function Detail({ label, children }: { label: string; children: ReactNode }) {
       <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd>{children}</dd>
     </div>
+  );
+}
+
+/** What the installation's LLM wrote; it only explains, it changes nothing. */
+function ExplanationCard({ explanation }: { explanation: Explanation }) {
+  const t = useTranslations('decisionLog');
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Sparkles className="size-4" aria-hidden />
+          {t('explanationTitle')}
+        </CardTitle>
+        <CardDescription>{t('explanationNote', { model: explanation.model })}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <p className="text-sm leading-relaxed whitespace-pre-wrap">{explanation.explanation}</p>
+      </CardContent>
+    </Card>
   );
 }
 

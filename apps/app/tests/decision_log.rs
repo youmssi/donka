@@ -678,3 +678,341 @@ async fn records_past_retention_are_purged_and_each_purge_is_audited(db: PgPool)
     assert_eq!(event["details"]["records"], 1);
     assert_eq!(event["details"]["retentionDays"], RETENTION_DAYS);
 }
+
+// ----- Explanations (DNK-19) -------------------------------------------------
+
+/// A fake LLM endpoint: records what it is sent, answers what it is told.
+#[derive(Clone)]
+struct Llm {
+    sent: std::sync::Arc<std::sync::Mutex<Vec<Value>>>,
+    answer: std::sync::Arc<std::sync::Mutex<(StatusCode, Value)>>,
+}
+
+impl Llm {
+    async fn start() -> (Self, String) {
+        use axum::routing::post;
+        let llm = Llm {
+            sent: Default::default(),
+            answer: std::sync::Arc::new(std::sync::Mutex::new(answering("No answer set."))),
+        };
+        let app = axum::Router::new()
+            .route(
+                "/v1/messages",
+                post(
+                    |axum::extract::State(llm): axum::extract::State<Llm>,
+                     axum::Json(body): axum::Json<Value>| async move {
+                        llm.sent.lock().unwrap().push(body);
+                        let (status, answer) = llm.answer.lock().unwrap().clone();
+                        (status, axum::Json(answer))
+                    },
+                ),
+            )
+            .with_state(llm.clone());
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/v1/messages", listener.local_addr().unwrap());
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        (llm, url)
+    }
+
+    fn answer(&self, status: StatusCode, body: Value) {
+        *self.answer.lock().unwrap() = (status, body);
+    }
+
+    /// The text of the last request's user message.
+    fn last_prompt(&self) -> String {
+        let sent = self.sent.lock().unwrap();
+        sent.last().unwrap()["messages"][0]["content"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    }
+}
+
+fn answering(text: &str) -> (StatusCode, Value) {
+    (
+        StatusCode::OK,
+        json!({ "model": "bank-llm", "stop_reason": "end_turn", "content": [{ "type": "text", "text": text }] }),
+    )
+}
+
+async fn explaining_app(db: PgPool) -> (TestApp, Llm) {
+    let (llm, url) = Llm::start().await;
+    let app = with_explainer(
+        db,
+        donka_explain::Settings {
+            url,
+            api_key: "llm-key".into(),
+            protocol: donka_explain::Protocol::Anthropic,
+            model: "bank-llm".into(),
+            timeout: std::time::Duration::from_secs(5),
+            fallbacks: false,
+        },
+    );
+    (app, llm)
+}
+
+async fn explain(app: &TestApp, session: &str, p: &str, id: &str, language: &str) -> Reply {
+    call(
+        app,
+        "POST",
+        &format!("/projects/{p}/decision-log/{id}/explain"),
+        Some(json!({ "language": language })),
+        session,
+    )
+    .await
+}
+
+async fn actions(app: &TestApp, admin: &str, p: &str) -> Vec<String> {
+    call(app, "GET", &format!("/projects/{p}/audit"), None, admin)
+        .await
+        .body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["action"].as_str().unwrap().to_owned())
+        .collect()
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn explanations_are_off_unless_configured(db: PgPool) {
+    let app = with_database(db);
+    let (admin, p, rid) = released(&app).await;
+    let token = staging_token(&app, &admin).await;
+    let logged = record(&p, &rid, now(&app), json!({}));
+    feed(&app, Some(&token), json!([logged])).await;
+    let id = logged["id"].as_str().unwrap();
+
+    let opened = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/decision-log/{id}"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(opened.body["explainable"], false);
+    let settings = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/decision-log/settings"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(settings.body["explainEnabled"], false);
+    assert_eq!(settings.body["redactedFields"], json!([]));
+
+    assert_error(
+        &explain(&app, &admin, &p, id, "en").await,
+        StatusCode::NOT_FOUND,
+        "NOT_FOUND",
+    );
+    assert!(!actions(&app, &admin, &p)
+        .await
+        .contains(&"decision_record.explained".to_owned()));
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn a_member_reads_an_explanation_without_the_redacted_fields(db: PgPool) {
+    let (app, llm) = explaining_app(db).await;
+    let (admin, p, rid) = released(&app).await;
+    let token = staging_token(&app, &admin).await;
+    let logged = record(&p, &rid, now(&app), json!({ "reference": "APP-7" }));
+    feed(&app, Some(&token), json!([logged])).await;
+    let id = logged["id"].as_str().unwrap();
+
+    let settings = call(
+        &app,
+        "PUT",
+        &format!("/projects/{p}/decision-log/settings"),
+        Some(json!({ "outcomeField": "output", "redactedFields": ["applicant.nationalId"] })),
+        &admin,
+    )
+    .await;
+    assert_eq!(settings.status, StatusCode::OK, "{}", settings.body);
+    assert_eq!(
+        settings.body["redactedFields"],
+        json!(["applicant.nationalId"])
+    );
+    assert_eq!(settings.body["explainEnabled"], true);
+
+    let vera = signed_in_user(&app, VIEWER, false).await;
+    call(
+        &app,
+        "POST",
+        &format!("/projects/{p}/members"),
+        Some(json!({ "email": VIEWER, "role": "viewer" })),
+        &admin,
+    )
+    .await;
+    let opened = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/decision-log/{id}"),
+        None,
+        &vera,
+    )
+    .await;
+    assert_eq!(opened.body["explainable"], true);
+    // Opening still shows everything; only what leaves Studio is redacted.
+    assert_eq!(
+        opened.body["input"]["applicant"]["nationalId"],
+        "CM-1984-0042"
+    );
+
+    let (status, body) = answering("Le revenu dépasse le seuil de la table.");
+    llm.answer(status, body);
+    let explained = explain(&app, &vera, &p, id, "fr").await;
+    assert_eq!(explained.status, StatusCode::OK, "{}", explained.body);
+    assert_eq!(
+        explained.body["explanation"],
+        "Le revenu dépasse le seuil de la table."
+    );
+    assert_eq!(explained.body["model"], "bank-llm");
+
+    let prompt = llm.last_prompt();
+    assert!(!prompt.contains("CM-1984-0042"), "{prompt}");
+    assert!(!prompt.contains("nationalId"), "{prompt}");
+    assert!(prompt.contains("\"input\":12"), "{prompt}");
+    assert!(prompt.contains("\"release\":\"1.0.0\""), "{prompt}");
+    assert!(prompt.ends_with("Write the explanation in French."));
+
+    // Each explanation is audited for the reader who asked.
+    let audit = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/audit?action=decision_record.explained"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(audit.body["total"], 1, "{}", audit.body);
+    assert_eq!(audit.body["items"][0]["actor"]["email"], VIEWER);
+    assert_eq!(audit.body["items"][0]["details"]["reference"], "APP-7");
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn a_failed_or_declined_explanation_says_so(db: PgPool) {
+    let (app, llm) = explaining_app(db).await;
+    let (admin, p, rid) = released(&app).await;
+    let token = staging_token(&app, &admin).await;
+    let logged = record(&p, &rid, now(&app), json!({}));
+    feed(&app, Some(&token), json!([logged])).await;
+    let id = logged["id"].as_str().unwrap();
+
+    llm.answer(
+        StatusCode::INTERNAL_SERVER_ERROR,
+        json!({ "error": "overloaded" }),
+    );
+    assert_error(
+        &explain(&app, &admin, &p, id, "en").await,
+        StatusCode::BAD_GATEWAY,
+        "EXPLAIN_UNAVAILABLE",
+    );
+    llm.answer(
+        StatusCode::OK,
+        json!({ "stop_reason": "refusal", "content": [] }),
+    );
+    assert_error(
+        &explain(&app, &admin, &p, id, "en").await,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "EXPLAIN_DECLINED",
+    );
+    // The record was sent both times, so both are audited.
+    let explained = actions(&app, &admin, &p)
+        .await
+        .into_iter()
+        .filter(|a| a == "decision_record.explained")
+        .count();
+    assert_eq!(explained, 2);
+
+    // Nothing is sent for a record that is not there or a project one cannot see.
+    let sent = llm.sent.lock().unwrap().len();
+    assert_error(
+        &explain(&app, &admin, &p, &Uuid::new_v4().to_string(), "en").await,
+        StatusCode::NOT_FOUND,
+        "RECORD_NOT_FOUND",
+    );
+    let otto = signed_in_user(&app, OUTSIDER, false).await;
+    assert_error(
+        &explain(&app, &otto, &p, id, "en").await,
+        StatusCode::NOT_FOUND,
+        "PROJECT_NOT_FOUND",
+    );
+    assert_error(
+        &explain(&app, &admin, &p, id, "de").await,
+        StatusCode::BAD_REQUEST,
+        "INVALID_REQUEST",
+    );
+    assert_eq!(llm.sent.lock().unwrap().len(), sent);
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn owners_list_the_redacted_fields(db: PgPool) {
+    let app = with_database(db);
+    let (admin, p, _) = released(&app).await;
+    let path = format!("/projects/{p}/decision-log/settings");
+    let put = |body: Value| {
+        let (app, admin, path) = (&app, admin.clone(), path.clone());
+        async move { call(app, "PUT", &path, Some(body), &admin).await }
+    };
+
+    for bad in [
+        json!(["a-b"]),
+        json!([""]),
+        json!((0..=50).map(|i| format!("f{i}")).collect::<Vec<_>>()),
+    ] {
+        assert_error(
+            &put(json!({ "outcomeField": null, "redactedFields": bad })).await,
+            StatusCode::BAD_REQUEST,
+            "INVALID_REQUEST",
+        );
+    }
+    let set = put(json!({ "outcomeField": "decision", "redactedFields": [" applicant.name ", "applicant.name", "iban"] })).await;
+    assert_eq!(
+        set.body["redactedFields"],
+        json!(["applicant.name", "iban"])
+    );
+    // Left out, the list stays; the outcome field is replaced as before.
+    let kept = put(json!({ "outcomeField": null })).await;
+    assert_eq!(
+        kept.body["redactedFields"],
+        json!(["applicant.name", "iban"])
+    );
+    assert_eq!(kept.body["outcomeField"], Value::Null);
+
+    let audit = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/audit?action=decision_log.settings_updated"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(
+        audit.body["items"][1]["details"]["to"]["redactedFields"],
+        json!(["applicant.name", "iban"])
+    );
+
+    let vera = signed_in_user(&app, VIEWER, false).await;
+    call(
+        &app,
+        "POST",
+        &format!("/projects/{p}/members"),
+        Some(json!({ "email": VIEWER, "role": "editor" })),
+        &admin,
+    )
+    .await;
+    assert_error(
+        &call(
+            &app,
+            "PUT",
+            &path,
+            Some(json!({ "outcomeField": null, "redactedFields": [] })),
+            &vera,
+        )
+        .await,
+        StatusCode::FORBIDDEN,
+        "FORBIDDEN",
+    );
+}

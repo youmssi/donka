@@ -11,6 +11,7 @@ use axum::Json;
 use donka_decision::{DecisionError, MAX_SCENARIO_NAME_CHARS};
 use donka_decision_log::DecisionLogError;
 use donka_engine::RuntimeError;
+use donka_explain::ExplainError;
 use donka_identity::IdentityError;
 use donka_project::ProjectError;
 use donka_release::{ReleaseError, MAX_NOTES_CHARS, MAX_TOKEN_NAME_CHARS};
@@ -106,6 +107,10 @@ pub enum ApiError {
     InvalidLogToken,
     #[error("too many records in one batch")]
     BatchTooLarge,
+    #[error("the explanation service declined")]
+    ExplainDeclined,
+    #[error("explanation service: {0}")]
+    ExplainUnavailable(String),
     #[error("database unavailable")]
     DatabaseUnavailable,
     #[error("no such endpoint")]
@@ -224,6 +229,15 @@ impl From<ReleaseError> for ApiError {
     }
 }
 
+impl From<ExplainError> for ApiError {
+    fn from(err: ExplainError) -> Self {
+        match err {
+            ExplainError::Declined => Self::ExplainDeclined,
+            other => Self::ExplainUnavailable(other.to_string()),
+        }
+    }
+}
+
 impl From<DecisionLogError> for ApiError {
     fn from(err: DecisionLogError) -> Self {
         match err {
@@ -237,6 +251,10 @@ impl From<DecisionLogError> for ApiError {
             DecisionLogError::BatchTooLarge => Self::BatchTooLarge,
             DecisionLogError::InvalidOutcomeField => Self::InvalidField {
                 field: "outcomeField",
+                message: err.to_string(),
+            },
+            DecisionLogError::InvalidRedactedFields => Self::InvalidField {
+                field: "redactedFields",
                 message: err.to_string(),
             },
             DecisionLogError::RecordNotFound => Self::RecordNotFound,
@@ -543,6 +561,20 @@ impl IntoResponse for ApiError {
                     "Send at most {} records at once.",
                     donka_decision_log::MAX_BATCH_RECORDS
                 ),
+                None,
+                None,
+            ),
+            Self::ExplainDeclined => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "EXPLAIN_DECLINED",
+                "The explanation service declined to explain this decision.".to_owned(),
+                None,
+                None,
+            ),
+            Self::ExplainUnavailable(_) => (
+                StatusCode::BAD_GATEWAY,
+                "EXPLAIN_UNAVAILABLE",
+                "The explanation service did not answer. Try again in a moment.".to_owned(),
                 None,
                 None,
             ),

@@ -396,8 +396,9 @@ export interface paths {
     /** The project's decision-log settings (any member). */
     get: operations['settings'];
     /**
-     * Names the output field read as each new record's outcome (owners).
-     *     Records already stored keep the outcome they arrived with.
+     * Names the output field read as each new record's outcome and the fields
+     *     removed before a record is explained (owners). Records already stored keep
+     *     the outcome they arrived with.
      */
     put: operations['update_settings'];
     post?: never;
@@ -421,6 +422,28 @@ export interface paths {
     get: operations['get'];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/decision-log/{record_id}/explain': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Explains a record in plain language with the installation's LLM endpoint
+     *     (any member). The project's redacted fields are removed first. Audited
+     *     (`decision_record.explained`) before anything is sent. `404` when the
+     *     installation does not explain decisions.
+     */
+    post: operations['explain'];
     delete?: never;
     options?: never;
     head?: never;
@@ -1009,7 +1032,8 @@ export interface components {
       | 'decision_log.purged'
       | 'decision_log.settings_updated'
       | 'decision_log_token.issued'
-      | 'decision_log_token.revoked';
+      | 'decision_log_token.revoked'
+      | 'decision_record.explained';
     AddMemberRequest: {
       /** @description Email of an existing Studio account. */
       email: string;
@@ -1148,6 +1172,25 @@ export interface components {
        *     (`decision`, `result.band`); `null` for none. Read when a record arrives.
        */
       outcomeField?: string | null;
+      /**
+       * @description Fields removed from a record before it is sent to be explained, as
+       *     dotted paths; left out, they stay as they are.
+       */
+      redactedFields?: string[] | null;
+    };
+    DecisionLogSettingsResponse: {
+      /** @description Whether this installation explains decisions (`DONKA_EXPLAIN_URL`). */
+      explainEnabled: boolean;
+      /**
+       * @description The output field whose value is a record's outcome, as a dotted path
+       *     (`decision`, `result.band`); `null` for none. Read when a record arrives.
+       */
+      outcomeField?: string | null;
+      /**
+       * @description Fields removed from a record before it is sent to be explained, as
+       *     dotted paths (`applicant.nationalId`).
+       */
+      redactedFields: string[];
     };
     DecisionResponse: components['schemas']['DecisionSummaryResponse'] & {
       /** @description A JDM decision graph. */
@@ -1283,6 +1326,21 @@ export interface components {
       message: string;
       /** @description Same value as the `x-request-id` response header; quote it when reporting a problem. */
       requestId: string;
+    };
+    /**
+     * @description The language Studio is read in.
+     * @enum {string}
+     */
+    ExplainLanguage: 'en' | 'fr';
+    ExplainRequest: {
+      /** @description The language to explain in: the reader's. */
+      language: components['schemas']['ExplainLanguage'];
+    };
+    ExplainResponse: {
+      /** @description Plain text, in the language asked for. Shown only: it changes nothing. */
+      explanation: string;
+      /** @description The model that answered, as the endpoint names it. */
+      model: string;
     };
     /** @description A batch of records, as a Runtime sends it (docs/decision-log-feed.md). */
     FeedBatch: {
@@ -1435,6 +1493,8 @@ export interface components {
     RecordResponse: components['schemas']['RecordSummaryResponse'] & {
       /** @description The error the caller received, when it failed. */
       error?: unknown;
+      /** @description Whether this installation can explain the record (DNK-19). */
+      explainable: boolean;
       /** @description What the decision was asked. */
       input: unknown;
       /** @description What it answered, when it succeeded. */
@@ -2813,7 +2873,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          'application/json': components['schemas']['DecisionLogSettingsBody'];
+          'application/json': components['schemas']['DecisionLogSettingsResponse'];
         };
       };
       /** @description PROJECT_NOT_FOUND */
@@ -2847,10 +2907,10 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          'application/json': components['schemas']['DecisionLogSettingsBody'];
+          'application/json': components['schemas']['DecisionLogSettingsResponse'];
         };
       };
-      /** @description Not a dotted path of field names (INVALID_REQUEST) */
+      /** @description Not dotted paths of field names (INVALID_REQUEST) */
       400: {
         headers: {
           [name: string]: unknown;
@@ -2910,6 +2970,59 @@ export interface operations {
       };
       /** @description PROJECT_NOT_FOUND or RECORD_NOT_FOUND */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  explain: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        record_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ExplainRequest'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ExplainResponse'];
+        };
+      };
+      /** @description NOT_FOUND (explanations are off), PROJECT_NOT_FOUND or RECORD_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description The service declined to explain it (EXPLAIN_DECLINED) */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description The service failed or did not answer (EXPLAIN_UNAVAILABLE) */
+      502: {
         headers: {
           [name: string]: unknown;
         };

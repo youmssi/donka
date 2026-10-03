@@ -1,4 +1,4 @@
-import { duration, isEmptyRange, readFilters, settingsSchema, toQuery } from './schema';
+import { duration, fieldLines, isEmptyRange, readFilters, settingsSchema, toQuery } from './schema';
 
 it('reads the filters from the address and drops what the API would refuse', () => {
   const params = new URLSearchParams({
@@ -51,7 +51,15 @@ it('shows durations in the unit that reads best', () => {
 });
 
 it('takes an outcome field as dotted names, or nothing', () => {
-  for (const good of ['', 'decision', 'result.band'])
-    expect(settingsSchema.safeParse({ outcomeField: good }).success).toBe(true);
-  for (const bad of ['1st', 'a-b', 'a..b']) expect(settingsSchema.safeParse({ outcomeField: bad }).success).toBe(false);
+  const valid = (outcomeField: string) => settingsSchema.safeParse({ outcomeField, redactedFields: '' }).success;
+  for (const good of ['', 'decision', 'result.band']) expect(valid(good)).toBe(true);
+  for (const bad of ['1st', 'a-b', 'a..b']) expect(valid(bad)).toBe(false);
+});
+
+it('takes redacted fields one per line, at most 50', () => {
+  const valid = (redactedFields: string) => settingsSchema.safeParse({ outcomeField: '', redactedFields }).success;
+  expect(fieldLines(' applicant.nationalId \n\n iban ')).toEqual(['applicant.nationalId', 'iban']);
+  expect(valid('applicant.nationalId\niban\n')).toBe(true);
+  expect(valid('applicant national id')).toBe(false);
+  expect(valid(Array.from({ length: 51 }, (_, i) => `f${i}`).join('\n'))).toBe(false);
 });

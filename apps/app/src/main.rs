@@ -120,6 +120,12 @@ async fn main() -> anyhow::Result<()> {
         config.public_url.clone(),
     ));
 
+    let explainer = config.explain.clone().map(|settings| {
+        tracing::info!(url = %settings.url, model = %settings.model, "decisions can be explained");
+        donka_explain::Explainer::new(settings)
+            .unwrap_or_else(|err| exit_with(&format!("DONKA_EXPLAIN_URL {err}")))
+    });
+
     if let Some(dir) = &config.web_dir {
         donka_app::web::check_export(dir).unwrap_or_else(|err| exit_with(&err));
     }
@@ -132,6 +138,7 @@ async fn main() -> anyhow::Result<()> {
             decisions,
             releases,
             decision_log,
+            explainer,
             audit,
             cookies,
         },

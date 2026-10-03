@@ -60,6 +60,8 @@ pub struct AppState {
     pub decisions: Decisions,
     pub releases: Releases,
     pub decision_log: DecisionLog,
+    /// Explains logged decisions; `None` when the installation does not (DNK-19).
+    pub explainer: Option<donka_explain::Explainer>,
     pub audit: AuditLog,
     pub cookies: CookieSettings,
 }
@@ -155,6 +157,7 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
         .routes(routes!(routes::decision_log::search))
         .routes(routes!(routes::decision_log::get))
         .routes(routes!(routes::decision_log::replay))
+        .routes(routes!(routes::decision_log::explain))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             auth::require_session,

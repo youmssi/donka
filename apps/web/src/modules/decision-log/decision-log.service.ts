@@ -2,9 +2,12 @@ import { attempt, failure, http, success, type ActionResult } from '@/components
 
 import type {
   DecisionRecord,
+  ExplainLanguage,
+  Explanation,
   IssuedLogToken,
   LogQuery,
   LogSettings,
+  LogSettingsChange,
   LogToken,
   RecordList,
   Replay,
@@ -41,6 +44,18 @@ export function replayRecord(projectId: string, id: string): Promise<ActionResul
   });
 }
 
+/** Asks the installation's LLM endpoint to explain a record; audited, and sent without the redacted fields. */
+export function explainRecord(
+  projectId: string,
+  id: string,
+  language: ExplainLanguage,
+): Promise<ActionResult<Explanation>> {
+  return attempt(async () => {
+    const response = await http.post(`${log(projectId)}/${encodeURIComponent(id)}/explain`, { json: { language } });
+    return response.ok ? success(await response.json<Explanation>()) : failure(response);
+  });
+}
+
 export function getSettings(projectId: string): Promise<ActionResult<LogSettings>> {
   return attempt(async () => {
     const response = await http.get(`${log(projectId)}/settings`);
@@ -48,7 +63,7 @@ export function getSettings(projectId: string): Promise<ActionResult<LogSettings
   });
 }
 
-export function saveSettings(projectId: string, settings: LogSettings): Promise<ActionResult<LogSettings>> {
+export function saveSettings(projectId: string, settings: LogSettingsChange): Promise<ActionResult<LogSettings>> {
   return attempt(async () => {
     const response = await http.put(`${log(projectId)}/settings`, { json: settings });
     return response.ok ? success(await response.json<LogSettings>()) : failure(response);

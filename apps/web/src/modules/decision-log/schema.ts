@@ -10,13 +10,18 @@ export type DecisionRecord = ApiSchemas['RecordResponse'];
 export type Replay = ApiSchemas['ReplayResponse'];
 export type RecordStatus = ApiSchemas['RecordStatus'];
 export type EnvironmentName = ApiSchemas['EnvironmentName'];
-export type LogSettings = ApiSchemas['DecisionLogSettingsBody'];
+export type LogSettings = ApiSchemas['DecisionLogSettingsResponse'];
+export type LogSettingsChange = ApiSchemas['DecisionLogSettingsBody'];
+export type Explanation = ApiSchemas['ExplainResponse'];
+export type ExplainLanguage = ApiSchemas['ExplainLanguage'];
 export type LogToken = ApiSchemas['LogTokenResponse'];
 export type IssuedLogToken = ApiSchemas['IssuedLogTokenResponse'];
 
 // Limits come from the API contract, so the forms and the server never disagree.
 export const TOKEN_NAME_MAX = openapi.components.schemas.IssueLogTokenRequest.properties.name.maxLength;
 export const OUTCOME_FIELD_MAX = 200;
+export const REDACTED_FIELDS_MAX =
+  openapi.components.schemas.DecisionLogSettingsBody.properties.redactedFields.maxItems;
 
 const ENVIRONMENTS: readonly EnvironmentName[] = ['production', 'staging'];
 const STATUSES: readonly RecordStatus[] = ['succeeded', 'failed'];
@@ -100,12 +105,24 @@ export function feedUrl(origin: string): string {
 // `decision`, `result.band`: field names joined by dots (the API checks the same).
 const FIELD_PATH = /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/;
 
+/** Redacted fields as the form holds them: one dotted path per line. */
+export function fieldLines(text: string): string[] {
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
 export const settingsSchema = z.object({
   outcomeField: z
     .string()
     .trim()
     .max(OUTCOME_FIELD_MAX, 'maxLength')
     .refine((value) => value === '' || FIELD_PATH.test(value), 'fieldPath'),
+  redactedFields: z
+    .string()
+    .refine((text) => fieldLines(text).every((line) => FIELD_PATH.test(line)), 'fieldPathLines')
+    .refine((text) => new Set(fieldLines(text)).size <= REDACTED_FIELDS_MAX, 'fieldPathCount'),
 });
 export type SettingsValues = z.infer<typeof settingsSchema>;
 

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/shared", "crates/engine", "crates/db", "crates/audit", "crates/identity", "crates/mail", "crates/project", "crates/decision", "crates/storage", "crates/release", "crates/decision-log", "apps/app"]
+members = ["crates/shared", "crates/engine", "crates/db", "crates/audit", "crates/identity", "crates/mail", "crates/project", "crates/decision", "crates/storage", "crates/release", "crates/decision-log", "crates/explain", "apps/app"]
 
 [workspace.package]
 version = "0.1.0"
@@ -40,6 +40,9 @@ object_store = { version = "0.14", features = ["aws"] }
 url = "2"
 zip = { version = "8", default-features = false, features = ["deflate"] }
 zen-engine = { version = "=2.0.1", features = ["arbitrary_precision"] }
+# Explanations from the customer's LLM endpoint (DNK-19); rustls with the system trust
+# store, so an endpoint behind a bank's internal CA is honoured.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-native-roots"] }
 # Connector nodes, the same handler the Runtime runs; Studio uses its mock mode only (no `live`).
 donka-connectors = { git = "https://github.com/youmssi/donka-runtime", rev = "56af4927ac8fe0cf0f1fd90cb00913b705921f2f" }
 
@@ -54,6 +57,7 @@ donka-mail = { path = "crates/mail" }
 donka-storage = { path = "crates/storage" }
 donka-release = { path = "crates/release" }
 donka-decision-log = { path = "crates/decision-log" }
+donka-explain = { path = "crates/explain" }
 
 # Adopted from gorules/zen: no unsafe code, no unwrap() outside tests (clippy.toml allows it there).
 [workspace.lints.rust]

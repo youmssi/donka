@@ -375,6 +375,8 @@ function useSentence(event: AuditEvent): string {
       return t('decisionRecordViewed', { key: detail(event, 'decisionKey'), reference: detail(event, 'reference') });
     case 'decision_record.replayed':
       return t('decisionRecordReplayed', { key: detail(event, 'decisionKey'), reference: detail(event, 'reference') });
+    case 'decision_record.explained':
+      return t('decisionRecordExplained', { key: detail(event, 'decisionKey'), reference: detail(event, 'reference') });
     case 'decision_log.purged':
       return t('decisionLogPurged', { records: detail(event, 'records'), days: detail(event, 'retentionDays') });
     case 'decision_log.settings_updated': {

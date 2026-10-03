@@ -36,6 +36,8 @@ pub use feed::{Payload, Rejection, Status, MAX_TEXT_CHARS};
 /// Records one batch may hold; the Runtime sends 100 by default.
 pub const MAX_BATCH_RECORDS: usize = 1000;
 pub const MAX_TOKEN_NAME_CHARS: usize = 100;
+/// Fields a project may list as never leaving Studio in an explanation.
+pub const MAX_REDACTED_FIELDS: usize = 50;
 /// Every decision-log token starts with this, so a leaked one is easy to recognise.
 const TOKEN_PREFIX: &str = "dnk_log_";
 
@@ -54,6 +56,10 @@ pub enum DecisionLogError {
     BatchTooLarge,
     #[error("the outcome field is a dotted path of field names, e.g. decision or result.band")]
     InvalidOutcomeField,
+    #[error(
+        "redacted fields are at most {MAX_REDACTED_FIELDS} dotted paths, e.g. applicant.nationalId"
+    )]
+    InvalidRedactedFields,
     #[error("decision record not found")]
     RecordNotFound,
     #[error("the record cannot be read: {0}")]
@@ -122,10 +128,21 @@ pub struct Receipt {
     pub rejected: Vec<(Uuid, Rejection)>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Settings {
     /// The output field whose value is a record's outcome.
     pub outcome_field: Option<String>,
+    /// Fields removed from a record before it is sent to be explained
+    /// (dotted paths, e.g. `applicant.nationalId`), in the order given.
+    pub redacted_fields: Vec<String>,
+}
+
+/// A change to the settings; a field left `None` keeps its value.
+#[derive(Debug, Clone, Default)]
+pub struct SettingsChange {
+    /// `Some(None)` removes the outcome field.
+    pub outcome_field: Option<Option<String>>,
+    pub redacted_fields: Option<Vec<String>>,
 }
 
 /// What a search narrows to; every field is optional.
@@ -377,7 +394,9 @@ impl DecisionLog {
             let outcome_field = match outcome_fields.get(&record.project_id) {
                 Some(field) => field.clone(),
                 None => {
-                    let field = outcome_field(&mut tx, record.project_id).await?;
+                    let field = stored_settings(&mut tx, record.project_id, false)
+                        .await?
+                        .outcome_field;
                     outcome_fields.insert(record.project_id, field.clone());
                     field
                 }
@@ -434,40 +453,47 @@ impl DecisionLog {
     /// The project's decision-log settings (any member).
     pub async fn settings(&self, access: &Access) -> Result<Settings, DecisionLogError> {
         let mut conn = self.pool.acquire().await?;
-        Ok(Settings {
-            outcome_field: outcome_field(&mut conn, access.project_id()).await?,
-        })
+        Ok(stored_settings(&mut conn, access.project_id(), false).await?)
     }
 
-    /// Names the output field read as each new record's outcome (owners).
-    /// Records already stored keep the outcome they arrived with.
+    /// Changes the outcome field read from each new record and the fields
+    /// removed before a record is explained (owners). Records already stored
+    /// keep the outcome they arrived with.
     pub async fn update_settings(
         &self,
         access: &Access,
-        outcome_field: Option<&str>,
+        change: SettingsChange,
     ) -> Result<Settings, DecisionLogError> {
-        let field = outcome_field.map(str::trim).filter(|f| !f.is_empty());
-        if let Some(field) = field {
+        let outcome_field = change
+            .outcome_field
+            .map(|field| field.map(|f| f.trim().to_owned()).filter(|f| !f.is_empty()));
+        if let Some(Some(field)) = &outcome_field {
             if !valid_field_path(field) {
                 return Err(DecisionLogError::InvalidOutcomeField);
             }
         }
+        let redacted_fields = change.redacted_fields.map(normalize_fields).transpose()?;
+
         let now = self.clock.now();
         let mut tx = self.pool.begin().await?;
         donka_project::authorize_change(&mut tx, access, Role::Owner).await?;
-        let before = outcome_field_for_update(&mut tx, access.project_id()).await?;
-        if before.as_deref() == field {
-            return Ok(Settings {
-                outcome_field: before,
-            });
+        let before = stored_settings(&mut tx, access.project_id(), true).await?;
+        let after = Settings {
+            outcome_field: outcome_field.unwrap_or_else(|| before.outcome_field.clone()),
+            redacted_fields: redacted_fields.unwrap_or_else(|| before.redacted_fields.clone()),
+        };
+        if after == before {
+            return Ok(before);
         }
         sqlx::query(
-            "INSERT INTO decision_log_settings (project_id, outcome_field, updated_by, updated_at) \
-             VALUES ($1, $2, $3, $4) ON CONFLICT (project_id) DO UPDATE \
-             SET outcome_field = $2, updated_by = $3, updated_at = $4",
+            "INSERT INTO decision_log_settings \
+             (project_id, outcome_field, redacted_fields, updated_by, updated_at) \
+             VALUES ($1, $2, $3, $4, $5) ON CONFLICT (project_id) DO UPDATE \
+             SET outcome_field = $2, redacted_fields = $3, updated_by = $4, updated_at = $5",
         )
         .bind(access.project_id())
-        .bind(field)
+        .bind(&after.outcome_field)
+        .bind(&after.redacted_fields)
         .bind(access.user_id())
         .bind(now)
         .execute(&mut *tx)
@@ -481,15 +507,13 @@ impl DecisionLog {
             )
             .in_project(access.project_id())
             .with_details(json!({
-                "from": { "outcomeField": before },
-                "to": { "outcomeField": field },
+                "from": settings_details(&before),
+                "to": settings_details(&after),
             })),
         )
         .await?;
         tx.commit().await?;
-        Ok(Settings {
-            outcome_field: field.map(str::to_owned),
-        })
+        Ok(after)
     }
 
     // ----- Records (members) ------------------------------------------------
@@ -575,6 +599,28 @@ impl DecisionLog {
             status,
             output,
             error,
+        })
+    }
+
+    /// Opens a record to send it to be explained (any member), with the
+    /// project's redacted fields removed. Audited before anything leaves Studio.
+    pub async fn explain_source(
+        &self,
+        access: &Access,
+        id: Uuid,
+    ) -> Result<Record, DecisionLogError> {
+        let (record, payload) = self
+            .open(access, id, Action::DecisionRecordExplained)
+            .await?;
+        let mut conn = self.pool.acquire().await?;
+        let settings = stored_settings(&mut conn, access.project_id(), false).await?;
+        drop(conn);
+        let release = self.releases.get(access, record.summary.release_id).await?;
+        Ok(Record {
+            release_version: release.summary.version.to_string(),
+            received_at: record.received_at,
+            summary: record.summary,
+            payload: redact(payload, &settings.redacted_fields),
         })
     }
 
@@ -713,29 +759,125 @@ fn valid_field_path(path: &str) -> bool {
         })
 }
 
-async fn outcome_field(
+/// The project's settings; `lock` holds them for the transaction's update.
+async fn stored_settings(
     conn: &mut sqlx::PgConnection,
     project: Uuid,
-) -> Result<Option<String>, sqlx::Error> {
-    let row: Option<(Option<String>,)> =
-        sqlx::query_as("SELECT outcome_field FROM decision_log_settings WHERE project_id = $1")
-            .bind(project)
-            .fetch_optional(conn)
-            .await?;
-    Ok(row.and_then(|(field,)| field))
-}
-
-async fn outcome_field_for_update(
-    conn: &mut sqlx::PgConnection,
-    project: Uuid,
-) -> Result<Option<String>, sqlx::Error> {
-    let row: Option<(Option<String>,)> = sqlx::query_as(
-        "SELECT outcome_field FROM decision_log_settings WHERE project_id = $1 FOR UPDATE",
-    )
+    lock: bool,
+) -> Result<Settings, sqlx::Error> {
+    let row: Option<(Option<String>, Vec<String>)> = sqlx::query_as(sql(format!(
+        "SELECT outcome_field, redacted_fields FROM decision_log_settings WHERE project_id = $1{}",
+        if lock { " FOR UPDATE" } else { "" }
+    )))
     .bind(project)
     .fetch_optional(conn)
     .await?;
-    Ok(row.and_then(|(field,)| field))
+    Ok(row
+        .map(|(outcome_field, redacted_fields)| Settings {
+            outcome_field,
+            redacted_fields,
+        })
+        .unwrap_or_default())
+}
+
+fn settings_details(settings: &Settings) -> Value {
+    json!({
+        "outcomeField": settings.outcome_field,
+        "redactedFields": settings.redacted_fields,
+    })
+}
+
+/// Trims, checks and removes duplicates, keeping the order given.
+fn normalize_fields(fields: Vec<String>) -> Result<Vec<String>, DecisionLogError> {
+    let mut kept: Vec<String> = Vec::new();
+    for field in fields {
+        let field = field.trim().to_owned();
+        if field.is_empty() || !valid_field_path(&field) {
+            return Err(DecisionLogError::InvalidRedactedFields);
+        }
+        if !kept.contains(&field) {
+            kept.push(field);
+        }
+    }
+    if kept.len() > MAX_REDACTED_FIELDS {
+        return Err(DecisionLogError::InvalidRedactedFields);
+    }
+    Ok(kept)
+}
+
+/// The payload without the `fields` (dotted paths): removed from what the
+/// decision read and answered, and from what each node of the trace received
+/// and returned. Values the engine traced under an expression naming a field
+/// (a decision table's `reference_map`) go too.
+pub fn redact(payload: Payload, fields: &[String]) -> Payload {
+    if fields.is_empty() {
+        return payload;
+    }
+    let paths: Vec<Vec<&str>> = fields.iter().map(|f| f.split('.').collect()).collect();
+    let strip = |mut value: Value| {
+        for path in &paths {
+            remove_path(&mut value, path);
+        }
+        value
+    };
+    let trace = payload.trace.map(|mut trace| {
+        if let Some(nodes) = trace.as_object_mut() {
+            for node in nodes.values_mut() {
+                for key in ["input", "output", "traceData"] {
+                    if let Some(part) = node.get_mut(key) {
+                        *part = strip(part.take());
+                    }
+                }
+                if let Some(map) = node
+                    .pointer_mut("/traceData/reference_map")
+                    .and_then(Value::as_object_mut)
+                {
+                    map.retain(|expression, _| !names_field(expression, fields));
+                }
+            }
+        }
+        trace
+    });
+    Payload {
+        input: strip(payload.input),
+        output: payload.output.map(strip),
+        error: payload.error,
+        trace,
+    }
+}
+
+fn remove_path(value: &mut Value, path: &[&str]) {
+    match value {
+        // A path through a list applies to each of its items.
+        Value::Array(items) => {
+            for item in items {
+                remove_path(item, path);
+            }
+        }
+        Value::Object(object) => match path {
+            [] => {}
+            [last] => {
+                object.remove(*last);
+            }
+            [first, rest @ ..] => {
+                if let Some(child) = object.get_mut(*first) {
+                    remove_path(child, rest);
+                }
+            }
+        },
+        _ => {}
+    }
+}
+
+/// Whether an expression is a redacted field or something inside it.
+fn names_field(expression: &str, fields: &[String]) -> bool {
+    let expression = expression.trim();
+    fields.iter().any(|field| {
+        expression == field
+            || expression
+                .strip_prefix(field.as_str())
+                .is_some_and(|rest| rest.starts_with(['.', '[']))
+    })
 }
 
 /// A replay's failure as the record shows one: the engine's own error document.
@@ -762,5 +904,76 @@ mod tests {
         for bad in ["", ".", "a.", "1st", "a-b", "a..b", "a b"] {
             assert!(!valid_field_path(bad), "{bad}");
         }
+    }
+
+    fn payload() -> Payload {
+        Payload {
+            input: json!({
+                "applicant": { "nationalId": "CM-1", "income": 150000, "name": "Ada" },
+                "loans": [{ "iban": "CM21", "amount": 10 }, { "iban": "CM22", "amount": 20 }]
+            }),
+            output: Some(json!({ "applicant": { "nationalId": "CM-1" }, "decision": "approve" })),
+            error: None,
+            trace: Some(json!({
+                "table": {
+                    "name": "limits",
+                    "input": { "applicant": { "nationalId": "CM-1", "income": 150000 } },
+                    "output": { "decision": "approve" },
+                    "traceData": { "reference_map": {
+                        "applicant.nationalId": "CM-1",
+                        "applicant.nationalId[0]": "C",
+                        "applicant.nationalIdType": "passport",
+                        "applicant.income": 150000
+                    } }
+                }
+            })),
+        }
+    }
+
+    #[test]
+    fn redaction_removes_fields_wherever_the_record_holds_them() {
+        let fields = vec!["applicant.nationalId".to_owned(), "loans.iban".to_owned()];
+        let redacted = redact(payload(), &fields);
+        assert_eq!(
+            redacted.input,
+            json!({
+                "applicant": { "income": 150000, "name": "Ada" },
+                "loans": [{ "amount": 10 }, { "amount": 20 }]
+            })
+        );
+        assert_eq!(
+            redacted.output,
+            Some(json!({ "applicant": {}, "decision": "approve" }))
+        );
+        let trace = redacted.trace.unwrap();
+        assert_eq!(
+            trace["table"]["input"],
+            json!({ "applicant": { "income": 150000 } })
+        );
+        assert_eq!(
+            trace["table"]["traceData"]["reference_map"],
+            json!({ "applicant.nationalIdType": "passport", "applicant.income": 150000 })
+        );
+        assert!(!serde_json::to_string(&trace).unwrap().contains("CM-1"));
+    }
+
+    #[test]
+    fn nothing_listed_changes_nothing() {
+        let unchanged = redact(payload(), &[]);
+        assert_eq!(unchanged.input, payload().input);
+        assert_eq!(unchanged.trace, payload().trace);
+    }
+
+    #[test]
+    fn redacted_fields_are_checked_and_deduplicated() {
+        let fields = |list: &[&str]| list.iter().map(|f| (*f).to_owned()).collect::<Vec<_>>();
+        assert_eq!(
+            normalize_fields(fields(&[" a.b ", "c", "a.b"])).unwrap(),
+            fields(&["a.b", "c"])
+        );
+        assert!(normalize_fields(fields(&["a-b"])).is_err());
+        assert!(normalize_fields(fields(&[""])).is_err());
+        let many: Vec<String> = (0..=MAX_REDACTED_FIELDS).map(|i| format!("f{i}")).collect();
+        assert!(normalize_fields(many).is_err());
     }
 }

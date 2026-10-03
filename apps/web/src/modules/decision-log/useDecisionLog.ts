@@ -2,8 +2,16 @@
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { getRecord, getSettings, listTokens, replayRecord, saveSettings, searchRecords } from './decision-log.service';
-import type { LogQuery, LogSettings } from './schema';
+import {
+  explainRecord,
+  getRecord,
+  getSettings,
+  listTokens,
+  replayRecord,
+  saveSettings,
+  searchRecords,
+} from './decision-log.service';
+import type { ExplainLanguage, LogQuery, LogSettingsChange } from './schema';
 
 const keys = {
   search: (projectId: string, query: LogQuery, offset: number) =>
@@ -37,6 +45,10 @@ export function useReplay(projectId: string, id: string) {
   return useMutation({ mutationFn: () => replayRecord(projectId, id) });
 }
 
+export function useExplain(projectId: string, id: string) {
+  return useMutation({ mutationFn: (language: ExplainLanguage) => explainRecord(projectId, id, language) });
+}
+
 export function useLogSettings(projectId: string) {
   return useQuery({ queryKey: keys.settings(projectId), queryFn: () => getSettings(projectId) });
 }
@@ -44,7 +56,7 @@ export function useLogSettings(projectId: string) {
 export function useSaveLogSettings(projectId: string) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (settings: LogSettings) => saveSettings(projectId, settings),
+    mutationFn: (settings: LogSettingsChange) => saveSettings(projectId, settings),
     onSuccess: (result) => {
       if (result.ok) client.setQueryData(keys.settings(projectId), result);
     },
