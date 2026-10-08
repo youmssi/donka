@@ -18,6 +18,8 @@ pub struct Config {
     pub public_url: String,
     /// Send the session cookie only over HTTPS. Turn off only for local HTTP.
     pub cookie_secure: bool,
+    /// Export traces and request metrics over OTLP (`DONKA_OTEL_ENABLED`); off by default.
+    pub otel_enabled: bool,
     pub session_idle_minutes: u32,
     pub sign_in_max_failures: u32,
     pub sign_in_lock_minutes: u32,
@@ -167,6 +169,7 @@ impl Config {
             db_max_connections: positive(&get, "DONKA_DB_MAX_CONNECTIONS")?.unwrap_or(10),
             public_url,
             cookie_secure: boolean(&get, "DONKA_COOKIE_SECURE", true)?,
+            otel_enabled: boolean(&get, "DONKA_OTEL_ENABLED", false)?,
             session_idle_minutes: positive(&get, "DONKA_SESSION_IDLE_MINUTES")?.unwrap_or(480),
             sign_in_max_failures: positive(&get, "DONKA_SIGN_IN_MAX_FAILURES")?.unwrap_or(5),
             sign_in_lock_minutes: positive(&get, "DONKA_SIGN_IN_LOCK_MINUTES")?.unwrap_or(15),
@@ -347,6 +350,7 @@ mod tests {
         assert!(config.db_migrate);
         assert_eq!(config.db_max_connections, 10);
         assert!(config.cookie_secure);
+        assert!(!config.otel_enabled);
         assert_eq!(config.session_idle_minutes, 480);
         assert_eq!(config.sign_in_max_failures, 5);
         assert_eq!(config.sign_in_lock_minutes, 15);

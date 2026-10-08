@@ -571,9 +571,9 @@ zen, agent-public and the CLI already solved many problems Donka meets. Copying 
 **Type:** feature · **Repos:** S · **Dependencies:** DNK-26 · **Size:** M
 
 #### Acceptance criteria
-- [ ] Traces and request metrics exported over OTLP when `DONKA_OTEL_ENABLED=true`; nothing exported by default
-- [ ] The request id is attached to every span
-- [ ] No personal data or secrets in span attributes
+- [x] Traces and request metrics exported over OTLP when `DONKA_OTEL_ENABLED=true`; nothing exported by default
+- [x] The request id is attached to every span
+- [x] No personal data or secrets in span attributes
 
 ---
 
