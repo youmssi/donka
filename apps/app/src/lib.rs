@@ -10,6 +10,7 @@ pub mod error;
 pub mod extract;
 pub mod publish_worker;
 pub mod purge_worker;
+pub mod rate_limit;
 pub mod request_id;
 pub mod routes;
 pub mod telemetry;
@@ -65,6 +66,8 @@ pub struct AppState {
     pub explainer: Option<donka_explain::Explainer>,
     pub audit: AuditLog,
     pub cookies: CookieSettings,
+    /// Per-client-address limits on sign-in and password reset (DNK-32).
+    pub auth_limits: rate_limit::AuthLimits,
 }
 
 #[derive(OpenApi)]

@@ -5,7 +5,7 @@
 
 use crate::request_id;
 use axum::extract::rejection::JsonRejection;
-use axum::http::StatusCode;
+use axum::http::{header, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use donka_decision::{DecisionError, MAX_SCENARIO_NAME_CHARS};
@@ -148,6 +148,9 @@ pub enum ApiError {
         field: &'static str,
         message: String,
     },
+    /// Too many requests from one client address; retry after the duration.
+    #[error("rate limited")]
+    RateLimited(std::time::Duration),
     #[error("internal error: {0}")]
     Internal(String),
 }
@@ -339,6 +342,10 @@ impl From<JsonRejection> for ApiError {
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let request_id = request_id::current().unwrap_or_default();
+        let retry_after = match &self {
+            Self::RateLimited(wait) => Some(retry_after_seconds(*wait)),
+            _ => None,
+        };
         let (status, code, message, fields, details) = match self {
             Self::InvalidRequest(reason) => (
                 StatusCode::BAD_REQUEST,
@@ -710,6 +717,16 @@ impl IntoResponse for ApiError {
                 Some(BTreeMap::from([(field.to_owned(), message)])),
                 None,
             ),
+            Self::RateLimited(wait) => {
+                let seconds = retry_after_seconds(wait);
+                (
+                    StatusCode::TOO_MANY_REQUESTS,
+                    "RATE_LIMITED",
+                    format!("Too many attempts from this address. Try again in {seconds} seconds."),
+                    None,
+                    Some(serde_json::json!({ "retryAfterSeconds": seconds })),
+                )
+            }
             Self::Internal(reason) => {
                 tracing::error!(%reason, "unexpected failure");
                 (
@@ -729,6 +746,17 @@ impl IntoResponse for ApiError {
             fields,
             details,
         };
-        (status, Json(body)).into_response()
+        let mut response = (status, Json(body)).into_response();
+        if let Some(seconds) = retry_after {
+            response
+                .headers_mut()
+                .insert(header::RETRY_AFTER, HeaderValue::from(seconds));
+        }
+        response
     }
+}
+
+/// Whole seconds, rounded up so a client that waits that long is let through.
+fn retry_after_seconds(wait: std::time::Duration) -> u64 {
+    wait.as_secs() + u64::from(wait.subsec_nanos() > 0)
 }

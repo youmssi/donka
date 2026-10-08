@@ -6,6 +6,7 @@ use axum::http::{header, Request, StatusCode};
 use axum::Router;
 use chrono::{TimeZone, Utc};
 use donka_app::auth::{CookieSettings, CSRF_HEADER, SESSION_COOKIE};
+use donka_app::rate_limit::AuthLimits;
 use donka_app::{router, AppState};
 use donka_audit::AuditLog;
 use donka_db::{DbOptions, PgPool};
@@ -64,7 +65,17 @@ pub fn build_with_web(
     base: &str,
     web_dir: Option<&std::path::Path>,
 ) -> TestApp {
-    assemble(db, runtime, base, web_dir, None)
+    assemble(db, runtime, base, web_dir, None, generous_limits())
+}
+
+/// Limits no ordinary test reaches: every request in tests comes from the same address.
+fn generous_limits() -> AuthLimits {
+    AuthLimits::new(10_000, 10_000, Vec::new())
+}
+
+/// An app with the given sign-in and password-reset limits.
+pub fn with_auth_limits(db: PgPool, limits: AuthLimits) -> TestApp {
+    assemble(db, Arc::new(ZenRuntime::new(1)), BASE, None, None, limits)
 }
 
 /// An app that explains decisions with the endpoint in `settings`.
@@ -76,6 +87,7 @@ pub fn with_explainer(db: PgPool, settings: donka_explain::Settings) -> TestApp 
         BASE,
         None,
         Some(explainer),
+        generous_limits(),
     )
 }
 
@@ -85,6 +97,7 @@ fn assemble(
     base: &str,
     web_dir: Option<&std::path::Path>,
     explainer: Option<donka_explain::Explainer>,
+    auth_limits: AuthLimits,
 ) -> TestApp {
     let clock = Arc::new(ManualClock::new(
         Utc.with_ymd_and_hms(2026, 9, 28, 9, 0, 0).unwrap(),
@@ -129,6 +142,7 @@ fn assemble(
                 secure: true,
                 max_age_seconds: 8 * 3600,
             },
+            auth_limits,
         },
         base,
         web_dir,

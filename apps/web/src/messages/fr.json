@@ -76,7 +76,8 @@
     "ALREADY_LIVE": "Cette release est déjà celle en service en production.",
     "RECORD_NOT_FOUND": "Cette décision enregistrée n'existe pas dans ce projet.",
     "EXPLAIN_DECLINED": "Le service d'explication a refusé d'expliquer cette décision.",
-    "EXPLAIN_UNAVAILABLE": "Le service d'explication n'a pas répondu. Réessayez dans un instant."
+    "EXPLAIN_UNAVAILABLE": "Le service d'explication n'a pas répondu. Réessayez dans un instant.",
+    "RATE_LIMITED": "Trop de tentatives depuis votre réseau. Réessayez dans {seconds, plural, one {# seconde} other {# secondes}}."
   },
   "validation": {
     "email": "Saisissez une adresse e-mail valide.",

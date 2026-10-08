@@ -2716,6 +2716,16 @@
               }
             },
             "description": "Not an email address (INVALID_REQUEST)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Too many reset requests from this address (RATE_LIMITED); `Retry-After` says when to try again"
           }
         },
         "summary": "Emails a one-time link to choose a new password. Answers the same whether or\nnot the address has an account, so it cannot be used to find accounts.",
@@ -2801,6 +2811,16 @@
               }
             },
             "description": "Missing CSRF header (CSRF_REQUIRED)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Too many sign-in attempts from this address (RATE_LIMITED); `Retry-After` says when to try again"
           }
         },
         "summary": "Signs in and sets the httpOnly session cookie.",

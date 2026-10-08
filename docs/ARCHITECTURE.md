@@ -111,6 +111,8 @@ the query string, headers or bodies. The Runtime has its own switch (`OTEL_ENABL
 ## Security baseline
 
 - Session cookies (argon2 password hashes) for Studio users. Owner / editor / viewer per project.
+- Sign-in locks an account after repeated failures, and sign-in and password reset are limited
+  per client address (429 with `Retry-After`); `X-Forwarded-For` is read only from trusted proxies.
 - Runtime access tokens are hashed, scoped to one environment, and rotatable.
 - Logs and exported spans name routes, not paths or query strings: no tokens or personal data.
 - Audit and decision-log tables are append-only at the database level; decision records can
