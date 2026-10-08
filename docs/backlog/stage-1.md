@@ -528,16 +528,20 @@ donka-runtime; Studio depends on it for simulation (mock mode).
 Customers buy time to a live scorecard, not an empty canvas.
 
 #### Acceptance criteria
-- [ ] Importable project "Retail credit": person scorecard with reason codes and bands
-- [ ] Importable project "SME treasury evaluation"
-- [ ] Each ships with test scenarios that pass and a short guide (EN/FR)
+- [x] Importable project "Retail credit": person scorecard with reason codes and bands
+- [x] Importable project "SME treasury evaluation"
+- [x] Each ships with test scenarios that pass and a short guide (EN/FR)
 
 #### Decision
-[INTERACTIVE STEP] Which bureaus and which currency/market conventions to model first.
-- Option A: one country's credit bureau and currency, chosen with the pilot customer
-- Option B: generic, bureau-agnostic scores only
-Recommendation: A, once the pilot customer is known. Implementation of market-specific parts
-stops here until decided.
+Option A, decided by the product owner: the pilot customer's market, **Cameroon (CEMAC)**, with
+amounts in **FCFA (XAF)** and reason codes in English and French. Bureau data is an input the
+lender's system fills from the source it consults (a private bureau or the central bank's risk
+register), so the packs do not depend on one bureau's API. Policy values are expert defaults,
+marked for the pilot's risk team to confirm; they are not regulatory values.
+
+Packs live in `packs/` (format 1: manifest, decisions, scenarios, guides) and are imported with
+`scripts/import-pack.sh`; CI imports each one and checks its scenarios. Import from the web app is
+DNK-43.
 
 ---
 
@@ -856,3 +860,73 @@ written before: the install guide tells operators not to change it.
 - [ ] A command re-seals old records with the new key, resumable, audited; afterwards the old key
       can be removed
 - [ ] The install and operations guide (EN/FR) describes the rotation
+
+---
+
+### DNK-41 — First-run onboarding
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-24, DNK-43 · **Size:** M
+
+#### Why
+A new analyst lands on an empty project list. They should reach "my first decision answered by
+the Runtime" in minutes, and find their way around the editor and the release screens without a
+training session.
+
+#### Decisions
+- A **Get started** checklist on the projects page, driven by real state from the API (a project
+  exists, a simulation ran, a version is saved, a release is live on staging, a Runtime token
+  exists), not by "tour seen" flags. Each step links to where it is done; it disappears once done.
+- Its first step imports a starter pack (DNK-43).
+- Short guided tours (4 to 6 steps) with driver.js (MIT, no dependencies, works with the static
+  export): the decision editor, releases and environments. Each runs once, can be replayed from a
+  Help menu, and can always be skipped.
+- Tours are translated (next-intl), follow the theme, work with the keyboard and respect reduced
+  motion. "Seen" is kept per user on the server, so tours do not replay on another device.
+
+#### Acceptance criteria
+- [ ] The checklist shows each step's real state and links to it; it hides when complete
+- [ ] Editor and releases tours, English and French, replayable from Help, skippable
+- [ ] Tour state per user on the server (additive API)
+- [ ] Checked at 390 px and desktop, light and dark
+
+---
+
+### DNK-42 — Wording that fits any industry
+
+**Type:** chore · **Repos:** S · **Dependencies:** DNK-19 · **Size:** S
+
+#### Why
+Donka decides anything that takes JSON in and gives JSON out: insurance, mobile money,
+e-commerce, public sector. A few texts assume a bank and a loan applicant, which tells a
+non-bank prospect the product is not for them.
+
+#### Acceptance criteria
+- [ ] The explanation prompt speaks of "the organisation's business rules" and "the person or case
+      decided", not of a bank and an applicant
+- [ ] Hints and placeholders use neutral examples (`customer.id`, "Order discounts")
+- [ ] English and French; product docs keep credit as the first example, not the only one
+
+---
+
+### DNK-43 — Packs: import, duplicate, export
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-24, DNK-37 · **Size:** M
+
+#### Why
+Starter packs import with a script today (DNK-24). Analysts should import one from the web app,
+copy any project to start another product, and turn their own project into a pack another team or
+installation can import.
+
+#### Decisions
+- The pack format is DNK-24's (`packs/README.md`), extended with the input contract (DNK-37).
+- What a copy carries: decisions (latest draft or a chosen version), test scenarios, input
+  contract, decision-log settings. What it never carries: releases, deployments, tokens, decision
+  records (personal data) and members (the person copying becomes the only owner).
+- A copy has no link back: a newer pack never overwrites it. Its audit log starts with where it
+  came from ("created from pack Retail credit 1.2", "duplicated from project X").
+
+#### Acceptance criteria
+- [ ] Import a pack from a catalogue in the web app, under a key and name of one's choice
+- [ ] Duplicate a project; export a project as a pack file and import it in another installation
+- [ ] Packs "KYC risk rating" and "Mobile money tiered limits" (CEMAC), with scenarios and guides
+- [ ] Audited; English and French

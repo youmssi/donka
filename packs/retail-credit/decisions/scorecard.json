@@ -1,0 +1,929 @@
+{
+  "nodes": [
+    {
+      "id": "request",
+      "type": "inputNode",
+      "name": "Request",
+      "position": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "policy",
+      "type": "expressionNode",
+      "name": "Credit policy",
+      "content": {
+        "expressions": [
+          {
+            "id": "policy0",
+            "key": "minAge",
+            "value": "21"
+          },
+          {
+            "id": "policy1",
+            "key": "maxAgeAtMaturity",
+            "value": "65"
+          },
+          {
+            "id": "policy2",
+            "key": "minMonthlyIncome",
+            "value": "75000"
+          },
+          {
+            "id": "policy3",
+            "key": "maxDebtToIncome",
+            "value": "0.40"
+          },
+          {
+            "id": "policy4",
+            "key": "maxDaysPastDue",
+            "value": "90"
+          },
+          {
+            "id": "policy5",
+            "key": "maxTermMonths",
+            "value": "60"
+          },
+          {
+            "id": "policy6",
+            "key": "maxAmount",
+            "value": "10000000"
+          },
+          {
+            "id": "policy7",
+            "key": "annualRate",
+            "value": "0.16"
+          }
+        ],
+        "passThrough": true,
+        "outputPath": "policy"
+      },
+      "position": {
+        "x": 320,
+        "y": 0
+      }
+    },
+    {
+      "id": "afford",
+      "type": "decisionNode",
+      "name": "Affordability",
+      "content": {
+        "key": "affordability",
+        "passThrough": true,
+        "outputPath": "affordability"
+      },
+      "position": {
+        "x": 640,
+        "y": 0
+      }
+    },
+    {
+      "id": "age",
+      "type": "decisionTableNode",
+      "name": "Points: age",
+      "content": {
+        "hitPolicy": "first",
+        "passThrough": true,
+        "inputs": [
+          {
+            "id": "agei0",
+            "name": "Age",
+            "field": "applicant.age"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "ageo0",
+            "name": "Points",
+            "field": "points.age"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "ager0",
+            "agei0": "< 25",
+            "ageo0": "5"
+          },
+          {
+            "_id": "ager1",
+            "agei0": "[25..35)",
+            "ageo0": "15"
+          },
+          {
+            "_id": "ager2",
+            "agei0": "[35..50)",
+            "ageo0": "25"
+          },
+          {
+            "_id": "ager3",
+            "agei0": "",
+            "ageo0": "20"
+          }
+        ]
+      },
+      "position": {
+        "x": 960,
+        "y": 0
+      }
+    },
+    {
+      "id": "job",
+      "type": "decisionTableNode",
+      "name": "Points: employment",
+      "content": {
+        "hitPolicy": "first",
+        "passThrough": true,
+        "inputs": [
+          {
+            "id": "jobi0",
+            "name": "Employment",
+            "field": "applicant.employment"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "jobo0",
+            "name": "Points",
+            "field": "points.employment"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "jobr0",
+            "jobi0": "\"public\"",
+            "jobo0": "30"
+          },
+          {
+            "_id": "jobr1",
+            "jobi0": "\"private\"",
+            "jobo0": "22"
+          },
+          {
+            "_id": "jobr2",
+            "jobi0": "\"self-employed\"",
+            "jobo0": "12"
+          },
+          {
+            "_id": "jobr3",
+            "jobi0": "",
+            "jobo0": "5"
+          }
+        ]
+      },
+      "position": {
+        "x": 0,
+        "y": 180
+      }
+    },
+    {
+      "id": "tenure",
+      "type": "decisionTableNode",
+      "name": "Points: time in job",
+      "content": {
+        "hitPolicy": "first",
+        "passThrough": true,
+        "inputs": [
+          {
+            "id": "tenurei0",
+            "name": "Months in job",
+            "field": "applicant.monthsInJob"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "tenureo0",
+            "name": "Points",
+            "field": "points.tenure"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "tenurer0",
+            "tenurei0": "< 12",
+            "tenureo0": "0"
+          },
+          {
+            "_id": "tenurer1",
+            "tenurei0": "[12..36)",
+            "tenureo0": "10"
+          },
+          {
+            "_id": "tenurer2",
+            "tenurei0": "[36..120)",
+            "tenureo0": "18"
+          },
+          {
+            "_id": "tenurer3",
+            "tenurei0": "",
+            "tenureo0": "25"
+          }
+        ]
+      },
+      "position": {
+        "x": 320,
+        "y": 180
+      }
+    },
+    {
+      "id": "dti",
+      "type": "decisionTableNode",
+      "name": "Points: debt-to-income",
+      "content": {
+        "hitPolicy": "first",
+        "passThrough": true,
+        "inputs": [
+          {
+            "id": "dtii0",
+            "name": "Debt-to-income",
+            "field": "affordability.debtToIncome"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "dtio0",
+            "name": "Points",
+            "field": "points.debtToIncome"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "dtir0",
+            "dtii0": "<= 0.2",
+            "dtio0": "30"
+          },
+          {
+            "_id": "dtir1",
+            "dtii0": "<= 0.3",
+            "dtio0": "20"
+          },
+          {
+            "_id": "dtir2",
+            "dtii0": "<= policy.maxDebtToIncome",
+            "dtio0": "8"
+          },
+          {
+            "_id": "dtir3",
+            "dtii0": "",
+            "dtio0": "0"
+          }
+        ]
+      },
+      "position": {
+        "x": 640,
+        "y": 180
+      }
+    },
+    {
+      "id": "history",
+      "type": "decisionTableNode",
+      "name": "Points: credit history",
+      "content": {
+        "hitPolicy": "first",
+        "passThrough": true,
+        "inputs": [
+          {
+            "id": "historyi0",
+            "name": "Worst days past due",
+            "field": "bureau.worstDaysPastDue"
+          },
+          {
+            "id": "historyi1",
+            "name": "Active loans",
+            "field": "bureau.activeLoans"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "historyo0",
+            "name": "Points",
+            "field": "points.history"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "historyr0",
+            "historyi0": "> 30",
+            "historyi1": "",
+            "historyo0": "0"
+          },
+          {
+            "_id": "historyr1",
+            "historyi0": "> 0",
+            "historyi1": "",
+            "historyo0": "15"
+          },
+          {
+            "_id": "historyr2",
+            "historyi0": "",
+            "historyi1": ">= 3",
+            "historyo0": "18"
+          },
+          {
+            "_id": "historyr3",
+            "historyi0": "",
+            "historyi1": "",
+            "historyo0": "30"
+          }
+        ]
+      },
+      "position": {
+        "x": 960,
+        "y": 180
+      }
+    },
+    {
+      "id": "salary",
+      "type": "decisionTableNode",
+      "name": "Points: salary domiciled",
+      "content": {
+        "hitPolicy": "first",
+        "passThrough": true,
+        "inputs": [
+          {
+            "id": "salaryi0",
+            "name": "Salary paid here",
+            "field": "applicant.salaryDomiciled"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "salaryo0",
+            "name": "Points",
+            "field": "points.salaryDomiciled"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "salaryr0",
+            "salaryi0": "true",
+            "salaryo0": "20"
+          },
+          {
+            "_id": "salaryr1",
+            "salaryi0": "",
+            "salaryo0": "5"
+          }
+        ]
+      },
+      "position": {
+        "x": 0,
+        "y": 360
+      }
+    },
+    {
+      "id": "score",
+      "type": "expressionNode",
+      "name": "Score",
+      "content": {
+        "expressions": [
+          {
+            "id": "score0",
+            "key": "score",
+            "value": "points.age + points.employment + points.tenure + points.debtToIncome + points.history + points.salaryDomiciled"
+          }
+        ],
+        "passThrough": true
+      },
+      "position": {
+        "x": 320,
+        "y": 360
+      }
+    },
+    {
+      "id": "band",
+      "type": "decisionTableNode",
+      "name": "Band",
+      "content": {
+        "hitPolicy": "first",
+        "passThrough": true,
+        "inputs": [
+          {
+            "id": "bandi0",
+            "name": "Score",
+            "field": "score"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "bando0",
+            "name": "Band",
+            "field": "band"
+          },
+          {
+            "id": "bando1",
+            "name": "Decision",
+            "field": "bandDecision"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "bandr0",
+            "bandi0": ">= 120",
+            "bando0": "\"A\"",
+            "bando1": "\"approve\""
+          },
+          {
+            "_id": "bandr1",
+            "bandi0": ">= 100",
+            "bando0": "\"B\"",
+            "bando1": "\"approve\""
+          },
+          {
+            "_id": "bandr2",
+            "bandi0": ">= 80",
+            "bando0": "\"C\"",
+            "bando1": "\"refer\""
+          },
+          {
+            "_id": "bandr3",
+            "bandi0": ">= 60",
+            "bando0": "\"D\"",
+            "bando1": "\"decline\""
+          },
+          {
+            "_id": "bandr4",
+            "bandi0": "",
+            "bando0": "\"E\"",
+            "bando1": "\"decline\""
+          }
+        ]
+      },
+      "position": {
+        "x": 640,
+        "y": 360
+      }
+    },
+    {
+      "id": "knockouts",
+      "type": "decisionTableNode",
+      "name": "Knock-out rules",
+      "content": {
+        "hitPolicy": "collect",
+        "passThrough": true,
+        "inputs": [
+          {
+            "id": "knockoutsi0",
+            "name": "Age",
+            "field": "applicant.age"
+          },
+          {
+            "id": "knockoutsi1",
+            "name": "Age at maturity",
+            "field": "applicant.age + loan.termMonths / 12"
+          },
+          {
+            "id": "knockoutsi2",
+            "name": "Monthly income",
+            "field": "applicant.monthlyIncome"
+          },
+          {
+            "id": "knockoutsi3",
+            "name": "Debt-to-income",
+            "field": "affordability.debtToIncome"
+          },
+          {
+            "id": "knockoutsi4",
+            "name": "Worst days past due",
+            "field": "bureau.worstDaysPastDue"
+          },
+          {
+            "id": "knockoutsi5",
+            "name": "Term (months)",
+            "field": "loan.termMonths"
+          },
+          {
+            "id": "knockoutsi6",
+            "name": "Amount",
+            "field": "loan.amount"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "knockoutso0",
+            "name": "Code",
+            "field": "code"
+          },
+          {
+            "id": "knockoutso1",
+            "name": "English",
+            "field": "en"
+          },
+          {
+            "id": "knockoutso2",
+            "name": "Français",
+            "field": "fr"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "knockoutsr0",
+            "knockoutsi0": "< policy.minAge",
+            "knockoutsi1": "",
+            "knockoutsi2": "",
+            "knockoutsi3": "",
+            "knockoutsi4": "",
+            "knockoutsi5": "",
+            "knockoutsi6": "",
+            "knockoutso0": "\"K01\"",
+            "knockoutso1": "\"Applicant is below the minimum age.\"",
+            "knockoutso2": "\"Le demandeur n'a pas l'âge minimum.\""
+          },
+          {
+            "_id": "knockoutsr1",
+            "knockoutsi0": "",
+            "knockoutsi1": "> policy.maxAgeAtMaturity",
+            "knockoutsi2": "",
+            "knockoutsi3": "",
+            "knockoutsi4": "",
+            "knockoutsi5": "",
+            "knockoutsi6": "",
+            "knockoutso0": "\"K02\"",
+            "knockoutso1": "\"The loan would end after the maximum age.\"",
+            "knockoutso2": "\"Le prêt se terminerait après l'âge maximum.\""
+          },
+          {
+            "_id": "knockoutsr2",
+            "knockoutsi0": "",
+            "knockoutsi1": "",
+            "knockoutsi2": "< policy.minMonthlyIncome",
+            "knockoutsi3": "",
+            "knockoutsi4": "",
+            "knockoutsi5": "",
+            "knockoutsi6": "",
+            "knockoutso0": "\"K03\"",
+            "knockoutso1": "\"Monthly income is below the minimum.\"",
+            "knockoutso2": "\"Le revenu mensuel est inférieur au minimum.\""
+          },
+          {
+            "_id": "knockoutsr3",
+            "knockoutsi0": "",
+            "knockoutsi1": "",
+            "knockoutsi2": "",
+            "knockoutsi3": "> policy.maxDebtToIncome",
+            "knockoutsi4": "",
+            "knockoutsi5": "",
+            "knockoutsi6": "",
+            "knockoutso0": "\"K04\"",
+            "knockoutso1": "\"Repayments would exceed the debt-to-income limit.\"",
+            "knockoutso2": "\"Les remboursements dépasseraient le taux d'endettement maximum.\""
+          },
+          {
+            "_id": "knockoutsr4",
+            "knockoutsi0": "",
+            "knockoutsi1": "",
+            "knockoutsi2": "",
+            "knockoutsi3": "",
+            "knockoutsi4": "> policy.maxDaysPastDue",
+            "knockoutsi5": "",
+            "knockoutsi6": "",
+            "knockoutso0": "\"K05\"",
+            "knockoutso1": "\"The bureau reports serious arrears.\"",
+            "knockoutso2": "\"Le bureau de crédit signale des impayés graves.\""
+          },
+          {
+            "_id": "knockoutsr5",
+            "knockoutsi0": "",
+            "knockoutsi1": "",
+            "knockoutsi2": "",
+            "knockoutsi3": "",
+            "knockoutsi4": "",
+            "knockoutsi5": "> policy.maxTermMonths",
+            "knockoutsi6": "",
+            "knockoutso0": "\"K06\"",
+            "knockoutso1": "\"The term is longer than the product allows.\"",
+            "knockoutso2": "\"La durée dépasse le maximum du produit.\""
+          },
+          {
+            "_id": "knockoutsr6",
+            "knockoutsi0": "",
+            "knockoutsi1": "",
+            "knockoutsi2": "",
+            "knockoutsi3": "",
+            "knockoutsi4": "",
+            "knockoutsi5": "",
+            "knockoutsi6": "> policy.maxAmount",
+            "knockoutso0": "\"K07\"",
+            "knockoutso1": "\"The amount is above the product maximum.\"",
+            "knockoutso2": "\"Le montant dépasse le maximum du produit.\""
+          }
+        ],
+        "outputPath": "knockouts"
+      },
+      "position": {
+        "x": 960,
+        "y": 360
+      }
+    },
+    {
+      "id": "reasons",
+      "type": "decisionTableNode",
+      "name": "Reason codes",
+      "content": {
+        "hitPolicy": "collect",
+        "passThrough": true,
+        "inputs": [
+          {
+            "id": "reasonsi0",
+            "name": "Debt-to-income points",
+            "field": "points.debtToIncome"
+          },
+          {
+            "id": "reasonsi1",
+            "name": "History points",
+            "field": "points.history"
+          },
+          {
+            "id": "reasonsi2",
+            "name": "Active loans",
+            "field": "bureau.activeLoans"
+          },
+          {
+            "id": "reasonsi3",
+            "name": "Tenure points",
+            "field": "points.tenure"
+          },
+          {
+            "id": "reasonsi4",
+            "name": "Employment points",
+            "field": "points.employment"
+          },
+          {
+            "id": "reasonsi5",
+            "name": "Salary points",
+            "field": "points.salaryDomiciled"
+          },
+          {
+            "id": "reasonsi6",
+            "name": "Bureau checked",
+            "field": "bureau.checked"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "reasonso0",
+            "name": "Code",
+            "field": "code"
+          },
+          {
+            "id": "reasonso1",
+            "name": "English",
+            "field": "en"
+          },
+          {
+            "id": "reasonso2",
+            "name": "Français",
+            "field": "fr"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "reasonsr0",
+            "reasonsi0": "<= 8",
+            "reasonsi1": "",
+            "reasonsi2": "",
+            "reasonsi3": "",
+            "reasonsi4": "",
+            "reasonsi5": "",
+            "reasonsi6": "",
+            "reasonso0": "\"R10\"",
+            "reasonso1": "\"High debt-to-income ratio.\"",
+            "reasonso2": "\"Taux d'endettement élevé.\""
+          },
+          {
+            "_id": "reasonsr1",
+            "reasonsi0": "",
+            "reasonsi1": "<= 15",
+            "reasonsi2": "",
+            "reasonsi3": "",
+            "reasonsi4": "",
+            "reasonsi5": "",
+            "reasonsi6": "",
+            "reasonso0": "\"R20\"",
+            "reasonso1": "\"Late payments in the last 24 months.\"",
+            "reasonso2": "\"Retards de paiement au cours des 24 derniers mois.\""
+          },
+          {
+            "_id": "reasonsr2",
+            "reasonsi0": "",
+            "reasonsi1": "",
+            "reasonsi2": ">= 3",
+            "reasonsi3": "",
+            "reasonsi4": "",
+            "reasonsi5": "",
+            "reasonsi6": "",
+            "reasonso0": "\"R21\"",
+            "reasonso1": "\"Several loans are already active.\"",
+            "reasonso2": "\"Plusieurs crédits sont déjà en cours.\""
+          },
+          {
+            "_id": "reasonsr3",
+            "reasonsi0": "",
+            "reasonsi1": "",
+            "reasonsi2": "",
+            "reasonsi3": "== 0",
+            "reasonsi4": "",
+            "reasonsi5": "",
+            "reasonsi6": "",
+            "reasonso0": "\"R30\"",
+            "reasonso1": "\"Less than a year in the current job.\"",
+            "reasonso2": "\"Moins d'un an dans l'emploi actuel.\""
+          },
+          {
+            "_id": "reasonsr4",
+            "reasonsi0": "",
+            "reasonsi1": "",
+            "reasonsi2": "",
+            "reasonsi3": "",
+            "reasonsi4": "<= 12",
+            "reasonsi5": "",
+            "reasonsi6": "",
+            "reasonso0": "\"R40\"",
+            "reasonso1": "\"Income from self-employment or informal work.\"",
+            "reasonso2": "\"Revenus d'une activité indépendante ou informelle.\""
+          },
+          {
+            "_id": "reasonsr5",
+            "reasonsi0": "",
+            "reasonsi1": "",
+            "reasonsi2": "",
+            "reasonsi3": "",
+            "reasonsi4": "",
+            "reasonsi5": "< 20",
+            "reasonsi6": "",
+            "reasonso0": "\"R50\"",
+            "reasonso1": "\"Salary is not paid into this bank.\"",
+            "reasonso2": "\"Le salaire n'est pas domicilié dans la banque.\""
+          },
+          {
+            "_id": "reasonsr6",
+            "reasonsi0": "",
+            "reasonsi1": "",
+            "reasonsi2": "",
+            "reasonsi3": "",
+            "reasonsi4": "",
+            "reasonsi5": "",
+            "reasonsi6": "false",
+            "reasonso0": "\"R60\"",
+            "reasonso1": "\"No credit bureau check: an analyst must review.\"",
+            "reasonso2": "\"Pas de consultation du bureau de crédit : un analyste doit revoir le dossier.\""
+          }
+        ],
+        "outputPath": "reasons"
+      },
+      "position": {
+        "x": 0,
+        "y": 540
+      }
+    },
+    {
+      "id": "decision",
+      "type": "expressionNode",
+      "name": "Decision",
+      "content": {
+        "expressions": [
+          {
+            "id": "decision0",
+            "key": "decision",
+            "value": "len(knockouts) > 0 ? 'decline' : (bandDecision == 'approve' and bureau.checked == false ? 'refer' : bandDecision)"
+          },
+          {
+            "id": "decision1",
+            "key": "band",
+            "value": "band"
+          },
+          {
+            "id": "decision2",
+            "key": "score",
+            "value": "score"
+          },
+          {
+            "id": "decision3",
+            "key": "reasons",
+            "value": "flatten([knockouts, reasons])"
+          },
+          {
+            "id": "decision4",
+            "key": "installment",
+            "value": "affordability.installment"
+          },
+          {
+            "id": "decision5",
+            "key": "debtToIncome",
+            "value": "affordability.debtToIncome"
+          },
+          {
+            "id": "decision6",
+            "key": "maxAmount",
+            "value": "affordability.maxAmount"
+          },
+          {
+            "id": "decision7",
+            "key": "points",
+            "value": "points"
+          }
+        ],
+        "passThrough": false
+      },
+      "position": {
+        "x": 320,
+        "y": 540
+      }
+    },
+    {
+      "id": "response",
+      "type": "outputNode",
+      "name": "Response",
+      "position": {
+        "x": 640,
+        "y": 540
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "type": "edge",
+      "sourceId": "request",
+      "targetId": "policy"
+    },
+    {
+      "id": "e2",
+      "type": "edge",
+      "sourceId": "policy",
+      "targetId": "afford"
+    },
+    {
+      "id": "e3",
+      "type": "edge",
+      "sourceId": "afford",
+      "targetId": "age"
+    },
+    {
+      "id": "e4",
+      "type": "edge",
+      "sourceId": "age",
+      "targetId": "job"
+    },
+    {
+      "id": "e5",
+      "type": "edge",
+      "sourceId": "job",
+      "targetId": "tenure"
+    },
+    {
+      "id": "e6",
+      "type": "edge",
+      "sourceId": "tenure",
+      "targetId": "dti"
+    },
+    {
+      "id": "e7",
+      "type": "edge",
+      "sourceId": "dti",
+      "targetId": "history"
+    },
+    {
+      "id": "e8",
+      "type": "edge",
+      "sourceId": "history",
+      "targetId": "salary"
+    },
+    {
+      "id": "e9",
+      "type": "edge",
+      "sourceId": "salary",
+      "targetId": "score"
+    },
+    {
+      "id": "e10",
+      "type": "edge",
+      "sourceId": "score",
+      "targetId": "band"
+    },
+    {
+      "id": "e11",
+      "type": "edge",
+      "sourceId": "band",
+      "targetId": "knockouts"
+    },
+    {
+      "id": "e12",
+      "type": "edge",
+      "sourceId": "knockouts",
+      "targetId": "reasons"
+    },
+    {
+      "id": "e13",
+      "type": "edge",
+      "sourceId": "reasons",
+      "targetId": "decision"
+    },
+    {
+      "id": "e14",
+      "type": "edge",
+      "sourceId": "decision",
+      "targetId": "response"
+    }
+  ]
+}

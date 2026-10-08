@@ -131,6 +131,7 @@ curl -s -b jar -X POST localhost:8080/api/v1/simulate -H 'x-donka-csrf: 1' \
 | Page | What it covers |
 | --- | --- |
 | [Install and operate](docs/install.md) · [Installer et exploiter](docs/install.fr.md) | Docker Compose install, smoke test, backups, upgrades, secrets |
+| [Starter packs](packs/README.md) | Ready-made credit projects for Cameroon (XAF) to import and adapt |
 | [Architecture](docs/ARCHITECTURE.md) | Modules, data flow, security baseline |
 | [Artifact format](docs/artifact-format.md) | What Studio publishes for the Runtime (`.config/project.json`) |
 | [Decision-log feed](docs/decision-log-feed.md) | How Runtimes send decisions to Studio |

@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "key": "retail-credit",
+  "name": { "en": "Retail credit", "fr": "Crédit aux particuliers" },
+  "description": {
+    "en": "Personal loan scorecard for Cameroon (CEMAC), amounts in XAF: affordability, points, bands, knock-out rules and reason codes in English and French.",
+    "fr": "Grille de score de prêt personnel pour le Cameroun (CEMAC), montants en XAF : capacité de remboursement, points, classes, règles d'exclusion et motifs en anglais et en français."
+  },
+  "market": "CM",
+  "currency": "XAF",
+  "entry": "scorecard",
+  "decisions": ["affordability", "scorecard"],
+  "decisionLog": { "outcomeField": "decision", "redactedFields": [] }
+}
