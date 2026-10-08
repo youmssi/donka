@@ -33,8 +33,9 @@ ARG SERVICE_VERSION=unknown
 ENV SERVICE_VERSION=$SERVICE_VERSION
 RUN cargo build --release --locked --package donka-app
 
-# No shell, no package manager; runs as the unprivileged `nonroot` user (uid 65532).
-FROM gcr.io/distroless/cc-debian12:nonroot
+# No shell, no package manager; runs as the unprivileged `nonroot` user (uid 65532). Same Debian
+# release as the build stage (13), so the binary finds the glibc it was linked against.
+FROM gcr.io/distroless/cc-debian13:nonroot
 COPY --from=builder /src/target/release/donka-app /usr/local/bin/donka-app
 COPY --from=web /src/apps/web/out /srv/web
 USER nonroot:nonroot
