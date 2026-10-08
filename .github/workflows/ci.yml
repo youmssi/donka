@@ -110,6 +110,52 @@ jobs:
           cache-to: type=gha,mode=max
       - run: scripts/check-image.sh donka-studio:ci ${{ github.sha }}
 
+  # The one-command install: `docker compose --profile full up` with its defaults, then the
+  # post-deploy smoke test against it. Images come from the same compose file (bake), cached.
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/bake-action@v6
+        with:
+          source: .
+          files: docker-compose.yml
+          targets: app,runtime
+          load: true
+          set: |
+            app.cache-from=type=gha
+            runtime.cache-from=type=gha,scope=runtime
+            runtime.cache-to=type=gha,mode=max,scope=runtime
+      - run: docker compose --profile full up -d
+      - name: First administrator
+        run: |
+          for _ in $(seq 1 90); do
+            curl -sf localhost:8080/api/v1/health >/dev/null && break
+            sleep 1
+          done
+          token=$(docker compose logs app | grep -o 'setup-password/?token=[A-Za-z0-9_-]*' | head -1 | cut -d= -f2)
+          [ -n "$token" ] || { echo "no password-setup link in the logs"; exit 1; }
+          curl -sS --fail-with-body -X POST localhost:8080/api/v1/auth/password-setup \
+            -H 'content-type: application/json' -H 'x-donka-csrf: 1' \
+            --data "{\"token\": \"$token\", \"password\": \"smoke test passphrase\"}"
+      - run: scripts/smoke.sh
+        env:
+          STUDIO_URL: http://localhost:8080
+          RUNTIME_URL: http://localhost:8090
+          DONKA_SMOKE_EMAIL: admin@donka.local
+          DONKA_SMOKE_PASSWORD: smoke test passphrase
+      # Idempotent: a second run reuses the smoke project.
+      - run: scripts/smoke.sh
+        env:
+          STUDIO_URL: http://localhost:8080
+          RUNTIME_URL: http://localhost:8090
+          DONKA_SMOKE_EMAIL: admin@donka.local
+          DONKA_SMOKE_PASSWORD: smoke test passphrase
+      - name: Logs
+        if: failure()
+        run: docker compose --profile full logs --tail 100
+
   # A release made in Studio reaches Donka Runtime through MinIO and answers with its token;
   # its bureau connector calls a fake bureau from the Runtime only.
   e2e:
