@@ -9,6 +9,7 @@ use axum::http::StatusCode;
 use axum::Json;
 use chrono::{DateTime, Utc};
 use donka_decision::{VersionSummary, MAX_MESSAGE_CHARS};
+use donka_engine::contract;
 use donka_shared::page::PageRequest;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -30,6 +31,45 @@ pub struct DecisionVersionResponse {
     pub restored_from: Option<i32>,
     /// How the project's test scenarios went when this version was saved.
     pub tests: TestSummaryResponse,
+}
+
+/// A version just saved, with what its author should know about the input contract.
+#[derive(Serialize, ToSchema)]
+pub struct SavedVersionResponse {
+    #[serde(flatten)]
+    pub version: DecisionVersionResponse,
+    /// Fields rules read but the input contract does not declare (`undeclared`), and required
+    /// fields no rule reads (`unread`). Empty when the decision has no contract.
+    pub warnings: Vec<ContractWarningResponse>,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum ContractWarningKind {
+    Undeclared,
+    Unread,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct ContractWarningResponse {
+    pub kind: ContractWarningKind,
+    /// The field, as a dotted path (`applicant.age`).
+    pub path: String,
+}
+
+impl From<contract::Warning> for ContractWarningResponse {
+    fn from(warning: contract::Warning) -> Self {
+        match warning {
+            contract::Warning::Undeclared { path } => Self {
+                kind: ContractWarningKind::Undeclared,
+                path,
+            },
+            contract::Warning::Unread { path } => Self {
+                kind: ContractWarningKind::Unread,
+                path,
+            },
+        }
+    }
 }
 
 #[derive(Serialize, ToSchema)]
@@ -126,12 +166,12 @@ pub async fn list(
     params(("project_id" = Uuid, Path), ("decision_id" = Uuid, Path)),
     request_body = SaveVersionRequest,
     responses(
-        (status = 201, body = DecisionVersionResponse),
+        (status = 201, body = SavedVersionResponse),
         (status = 400, description = "Missing or too long message (INVALID_REQUEST)", body = ErrorBody),
         (status = 403, description = "Viewers cannot save versions (FORBIDDEN)", body = ErrorBody),
         (status = 404, description = "PROJECT_NOT_FOUND or DECISION_NOT_FOUND", body = ErrorBody),
         (status = 409, description = "DECISION_CONFLICT (the draft moved on) or PROJECT_ARCHIVED", body = ErrorBody),
-        (status = 422, description = "Nothing changed since the latest version (VERSION_UNCHANGED, details: version)", body = ErrorBody),
+        (status = 422, description = "Nothing changed since the latest version (VERSION_UNCHANGED, details: version), or the input schema is not a usable JSON Schema object (INVALID_CONTRACT)", body = ErrorBody),
     )
 )]
 pub async fn save(
@@ -139,14 +179,20 @@ pub async fn save(
     ProjectAccess(access): ProjectAccess,
     DecisionId(id): DecisionId,
     ApiJson(req): ApiJson<SaveVersionRequest>,
-) -> Result<(StatusCode, Json<DecisionVersionResponse>), ApiError> {
+) -> Result<(StatusCode, Json<SavedVersionResponse>), ApiError> {
     let saved = state
         .decisions
         .save_version(&access, id, req.revision, &req.message)
         .await;
-    let version = conflict_or(&state, saved).await?;
-    let emails = emails(&state, [Some(version.created_by)]).await?;
-    Ok((StatusCode::CREATED, Json(response(&emails, version))))
+    let saved = conflict_or(&state, saved).await?;
+    let emails = emails(&state, [Some(saved.summary.created_by)]).await?;
+    Ok((
+        StatusCode::CREATED,
+        Json(SavedVersionResponse {
+            version: response(&emails, saved.summary),
+            warnings: saved.warnings.into_iter().map(Into::into).collect(),
+        }),
+    ))
 }
 
 /// One version with its content, to compare or restore (any member).

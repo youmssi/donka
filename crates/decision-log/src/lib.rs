@@ -14,7 +14,7 @@
 use chrono::{DateTime, Duration, Utc};
 use donka_audit::{Action, Event};
 use donka_db::PgPool;
-use donka_engine::{Bundle, DecisionRuntime, EvaluateOptions, RuntimeError};
+use donka_engine::{contract, Bundle, DecisionRuntime, EvaluateOptions, RuntimeError};
 use donka_identity::User;
 use donka_project::{Access, ProjectError, Role};
 use donka_release::{Environment, ReleaseError, Releases};
@@ -603,7 +603,9 @@ impl DecisionLog {
     }
 
     /// Opens a record to send it to be explained (any member), with the
-    /// project's redacted fields removed. Audited before anything leaves Studio.
+    /// project's redacted fields removed, and the fields its decision's input contract marks
+    /// as personal data (`pii`, DNK-37) without listing them again. Audited before anything
+    /// leaves Studio.
     pub async fn explain_source(
         &self,
         access: &Access,
@@ -616,11 +618,26 @@ impl DecisionLog {
         let settings = stored_settings(&mut conn, access.project_id(), false).await?;
         drop(conn);
         let release = self.releases.get(access, record.summary.release_id).await?;
+        let contents = self
+            .releases
+            .contents(access, record.summary.release_id)
+            .await?;
+        let mut fields = settings.redacted_fields;
+        if let Some(schema) = contents
+            .get(&record.summary.decision_key)
+            .and_then(|content| contract::input_schema(content).ok().flatten())
+        {
+            for field in contract::pii_fields(&schema) {
+                if !fields.contains(&field) {
+                    fields.push(field);
+                }
+            }
+        }
         Ok(Record {
             release_version: release.summary.version.to_string(),
             received_at: record.received_at,
             summary: record.summary,
-            payload: redact(payload, &settings.redacted_fields),
+            payload: redact(payload, &fields),
         })
     }
 

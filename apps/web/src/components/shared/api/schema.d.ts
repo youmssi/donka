@@ -1225,6 +1225,24 @@ export interface components {
       revokedAt?: string | null;
       revokedBy?: null | components['schemas']['PersonRef'];
     };
+    /** @enum {string} */
+    ContractChangeKind:
+      'added' | 'removed' | 'nowRequired' | 'nowOptional' | 'typeChanged' | 'narrowed' | 'widened' | 'presentation';
+    /** @description One change to a decision's input contract. */
+    ContractChangeResponse: {
+      /** @description Callers that worked with the old contract may be refused by the new one. */
+      breaking: boolean;
+      kind: components['schemas']['ContractChangeKind'];
+      /** @description The field, as a dotted path (`applicant.age`). */
+      path: string;
+    };
+    /** @enum {string} */
+    ContractWarningKind: 'undeclared' | 'unread';
+    ContractWarningResponse: {
+      kind: components['schemas']['ContractWarningKind'];
+      /** @description The field, as a dotted path (`applicant.age`). */
+      path: string;
+    };
     CreateDecisionRequest: {
       /** @description A JDM decision graph. */
       content?: {
@@ -1263,6 +1281,8 @@ export interface components {
     };
     DecisionChangeResponse: {
       change: components['schemas']['ChangeResponse'];
+      /** @description How the decision's input contract changes, breaking changes first. */
+      contract: components['schemas']['ContractChangeResponse'][];
       /** Format: uuid */
       decisionId: string;
       /**
@@ -1774,6 +1794,14 @@ export interface components {
        * @description The draft revision the editor shows: the version is exactly that draft.
        */
       revision: number;
+    };
+    /** @description A version just saved, with what its author should know about the input contract. */
+    SavedVersionResponse: components['schemas']['DecisionVersionResponse'] & {
+      /**
+       * @description Fields rules read but the input contract does not declare (`undeclared`), and required
+       *     fields no rule reads (`unread`). Empty when the decision has no contract.
+       */
+      warnings: components['schemas']['ContractWarningResponse'][];
     };
     ScenarioListResponse: {
       items: components['schemas']['ScenarioResponse'][];
@@ -3756,7 +3784,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          'application/json': components['schemas']['DecisionVersionResponse'];
+          'application/json': components['schemas']['SavedVersionResponse'];
         };
       };
       /** @description Missing or too long message (INVALID_REQUEST) */
@@ -3795,7 +3823,7 @@ export interface operations {
           'application/json': components['schemas']['ErrorBody'];
         };
       };
-      /** @description Nothing changed since the latest version (VERSION_UNCHANGED, details: version) */
+      /** @description Nothing changed since the latest version (VERSION_UNCHANGED, details: version), or the input schema is not a usable JSON Schema object (INVALID_CONTRACT) */
       422: {
         headers: {
           [name: string]: unknown;

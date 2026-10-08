@@ -148,6 +148,9 @@ pub enum ApiError {
         field: &'static str,
         message: String,
     },
+    /// The input contract is not a usable JSON Schema; why, in words.
+    #[error("invalid input contract: {0}")]
+    InvalidContract(String),
     /// Too many requests from one client address; retry after the duration.
     #[error("rate limited")]
     RateLimited(std::time::Duration),
@@ -181,6 +184,7 @@ impl From<DecisionError> for ApiError {
             DecisionError::Unchanged(version) => Self::VersionUnchanged(version),
             DecisionError::ScenarioNotFound => Self::ScenarioNotFound,
             DecisionError::ScenarioNameTaken => Self::ScenarioNameTaken,
+            DecisionError::InvalidContract(reason) => Self::InvalidContract(reason),
             DecisionError::InvalidScenario(field) => Self::InvalidField {
                 field,
                 message: match field {
@@ -716,6 +720,13 @@ impl IntoResponse for ApiError {
                 format!("Check the {field} field."),
                 Some(BTreeMap::from([(field.to_owned(), message)])),
                 None,
+            ),
+            Self::InvalidContract(reason) => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "INVALID_CONTRACT",
+                format!("The input fields cannot be used: {reason}."),
+                None,
+                Some(serde_json::json!({ "reason": reason })),
             ),
             Self::RateLimited(wait) => {
                 let seconds = retry_after_seconds(wait);

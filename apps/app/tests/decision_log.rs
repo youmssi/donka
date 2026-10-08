@@ -59,6 +59,11 @@ fn table() -> Value {
 /// A project whose release 1.0.0 (`limit`, a table: input 12 → output 10) is
 /// live on staging. Returns (admin session, project id, release id).
 async fn released(app: &TestApp) -> (String, String, String) {
+    released_with(app, table()).await
+}
+
+/// [`released`], with `content` as the decision `limit`.
+async fn released_with(app: &TestApp, content: Value) -> (String, String, String) {
     let admin = signed_in_admin(app).await;
     let p = call(
         app,
@@ -76,7 +81,7 @@ async fn released(app: &TestApp) -> (String, String, String) {
         app,
         "POST",
         &format!("/projects/{p}/decisions"),
-        Some(json!({ "key": "limit", "content": table() })),
+        Some(json!({ "key": "limit", "content": content })),
         &admin,
     )
     .await;
@@ -1015,4 +1020,40 @@ async fn owners_list_the_redacted_fields(db: PgPool) {
         StatusCode::FORBIDDEN,
         "FORBIDDEN",
     );
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn fields_the_contract_marks_as_personal_data_never_leave_studio(db: PgPool) {
+    let (app, llm) = explaining_app(db).await;
+    // The decision's input contract marks the national ID as personal data (DNK-37); the
+    // project's own list stays empty.
+    let mut content = table();
+    let schema = json!({
+        "type": "object",
+        "properties": {
+            "input": { "type": "number" },
+            "applicant": { "type": "object", "properties": {
+                "nationalId": { "type": "string", "x-donka": { "pii": true } }
+            }}
+        }
+    });
+    for node in content["nodes"].as_array_mut().unwrap() {
+        if node["type"] == "inputNode" {
+            node["content"] = json!({ "schema": schema.to_string() });
+        }
+    }
+    let (admin, p, rid) = released_with(&app, content).await;
+    let token = staging_token(&app, &admin).await;
+    let logged = record(&p, &rid, now(&app), json!({}));
+    feed(&app, Some(&token), json!([logged])).await;
+    let id = logged["id"].as_str().unwrap();
+
+    let (status, body) = answering("The amount is above the table's threshold.");
+    llm.answer(status, body);
+    let explained = explain(&app, &admin, &p, id, "en").await;
+    assert_eq!(explained.status, StatusCode::OK, "{}", explained.body);
+    let prompt = llm.last_prompt();
+    assert!(!prompt.contains("CM-1984-0042"), "{prompt}");
+    assert!(!prompt.contains("nationalId"), "{prompt}");
+    assert!(prompt.contains("\"input\":12"), "{prompt}");
 }

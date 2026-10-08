@@ -10,6 +10,7 @@ use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::Json;
 use chrono::{DateTime, Utc};
+use donka_engine::contract;
 use donka_identity::Locale;
 use donka_project::Role;
 use donka_release::{
@@ -105,6 +106,55 @@ pub struct DecisionChangeResponse {
     pub to_version: Option<i32>,
     /// The scenarios' results on the version the release brings.
     pub tests: Option<TestSummaryResponse>,
+    /// How the decision's input contract changes, breaking changes first.
+    pub contract: Vec<ContractChangeResponse>,
+}
+
+/// One change to a decision's input contract.
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ContractChangeResponse {
+    /// The field, as a dotted path (`applicant.age`).
+    pub path: String,
+    pub kind: ContractChangeKind,
+    /// Callers that worked with the old contract may be refused by the new one.
+    pub breaking: bool,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum ContractChangeKind {
+    Added,
+    Removed,
+    NowRequired,
+    NowOptional,
+    TypeChanged,
+    /// Fewer values accepted (a tighter limit, fewer allowed values, a new pattern or format).
+    Narrowed,
+    /// More values accepted.
+    Widened,
+    /// Labels, help or the personal-data mark changed; what callers send is the same.
+    Presentation,
+}
+
+impl From<contract::Change> for ContractChangeResponse {
+    fn from(change: contract::Change) -> Self {
+        use contract::ChangeKind as K;
+        Self {
+            path: change.path,
+            kind: match change.kind {
+                K::Added => ContractChangeKind::Added,
+                K::Removed => ContractChangeKind::Removed,
+                K::NowRequired => ContractChangeKind::NowRequired,
+                K::NowOptional => ContractChangeKind::NowOptional,
+                K::TypeChanged => ContractChangeKind::TypeChanged,
+                K::Narrowed => ContractChangeKind::Narrowed,
+                K::Widened => ContractChangeKind::Widened,
+                K::Presentation => ContractChangeKind::Presentation,
+            },
+            breaking: change.breaking,
+        }
+    }
 }
 
 /// What an approver reviews: the request, production now, what changes and the tests.
@@ -366,6 +416,7 @@ fn change(c: DecisionChange) -> DecisionChangeResponse {
         from_version: c.from_version,
         to_version: c.to_version,
         tests: c.tests.map(Into::into),
+        contract: c.contract.into_iter().map(Into::into).collect(),
     }
 }
 

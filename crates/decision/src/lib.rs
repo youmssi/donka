@@ -31,7 +31,9 @@ mod versions;
 pub use compare::{Match, Mismatch};
 pub use scenarios::{Scenario, ScenarioFields, MAX_SCENARIO_NAME_CHARS};
 pub use testing::{TestResult, TestStatus, TestSummary};
-pub use versions::{FrozenVersion, ReleaseSnapshot, Version, VersionSummary, MAX_MESSAGE_CHARS};
+pub use versions::{
+    FrozenVersion, ReleaseSnapshot, SavedVersion, Version, VersionSummary, MAX_MESSAGE_CHARS,
+};
 
 pub const MAX_KEY_CHARS: usize = 120;
 /// The key rule as a regular expression, for API clients: lowercase words with
@@ -101,6 +103,9 @@ pub enum DecisionError {
     /// {MAX_SCENARIO_NAME_CHARS} characters, an input and an expected output that are objects.
     #[error("invalid scenario {0}")]
     InvalidScenario(&'static str),
+    /// The input contract (the input node's JSON Schema) cannot be used; why, in words.
+    #[error("{0}")]
+    InvalidContract(String),
     #[error(transparent)]
     Project(#[from] ProjectError),
     #[error(transparent)]

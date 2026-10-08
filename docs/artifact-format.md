@@ -10,9 +10,10 @@ One zip per project and environment, stored at `<environment>/<project-key>` in 
 extension):
 
 ```
-.config/project.json       release metadata and the tokens it accepts
-person-score               a JDM decision graph, named by its key (no extension)
-bureau/normalize           decisions in folders keep their path
+.config/project.json                               release metadata and the tokens it accepts
+.config/contracts/person-score/input.schema.json   a decision's input contract, when it has one
+person-score                                       a JDM decision graph, named by its key (no extension)
+bureau/normalize                                   decisions in folders keep their path
 ```
 
 An entry is named exactly by the decision key, so a decision node that calls `bureau/normalize`
@@ -76,6 +77,24 @@ A release pulled by a CI pipeline outside an environment (`release:`, `commit:` 
 Test vector: the token `dnk_test_token` hashes to
 `d4d813b79f07c455e68458c955824329d902dd5f8e7b0c250fb3f05b3f68c840`. The Runtime checks it in its
 tests; Studio checks it too once it issues tokens (DNK-14).
+
+## Input contracts
+
+Since DNK-37 (additive). A decision whose input node holds a JSON Schema has that schema written,
+as a JSON object, at `.config/contracts/<decision key>/input.schema.json`. It is the same schema
+the graph's input node carries, so the engine validates requests against exactly what the file
+says; the file exists so that a form or a pipeline (Donka CLI, DNK-38) can read the contract of
+a release without parsing graphs.
+
+- Draft-07, the version the engine validates with. The root is always `"type": "object"`: the
+  request's `context`.
+- Presentation hints sit beside the standard keywords under `x-donka`, which validation ignores:
+  `label` and `help` (`{ "en": …, "fr": … }`), `widget`, `order`, `step`, and `pii: true` for
+  personal data. Studio removes `pii` fields from what it sends to be explained.
+- Entries under `.config/` are not decisions: Runtimes skip them when loading, so older Runtimes
+  read these artifacts unchanged.
+- A Runtime refuses a request that breaks the contract with `400`; see the Runtime's
+  `docs/contracts.md` for the answer's shape.
 
 ## Connector nodes
 

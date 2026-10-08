@@ -1142,13 +1142,28 @@ async fn the_review_shows_what_changes_the_tests_and_the_notes(db: PgPool) {
     let revision = score["revision"].as_i64().unwrap();
     let mut changed = calling("bureau/normalize");
     changed["nodes"][1]["name"] = json!("normalize");
+    // Version 2 also gets an input contract (DNK-37): `input` is now required.
+    let contract = json!({
+        "type": "object",
+        "required": ["input"],
+        "properties": { "input": { "type": "number" } }
+    });
+    changed["nodes"][0]["content"] = json!({ "schema": contract.to_string() });
     save_draft(&app, &grace, &base, changed, revision).await;
     let v = save_version(&app, &grace, &base, revision + 1, "Second").await;
     assert_eq!(v.status, StatusCode::CREATED, "{}", v.body);
+    assert_eq!(v.body["warnings"], json!([]), "the child decision reads `input`");
     let next = release(&app, &grace, &p, "minor", "Score v2 for SMEs").await;
     let next_id = next.body["id"].as_str().unwrap().to_owned();
     deploy(&app, &grace, &p, "staging", &next_id).await;
     app.releases.publish_due().await.unwrap();
+    // The artifact carries the contract where Runtimes that do not know it never look.
+    let artifact = read_zip(app.store.get("staging/credit-pme").unwrap());
+    assert_eq!(
+        artifact[".config/contracts/person-score/input.schema.json"],
+        contract
+    );
+    assert!(!artifact.contains_key(".config/contracts/bureau/normalize/input.schema.json"));
 
     let asked = approval(&app, &grace, &p, &next_id).await;
     let id = asked.body["id"].as_str().unwrap();
@@ -1169,8 +1184,13 @@ async fn the_review_shows_what_changes_the_tests_and_the_notes(db: PgPool) {
     assert_eq!(changes[0]["change"], "changed");
     assert_eq!(changes[0]["fromVersion"], 1);
     assert_eq!(changes[0]["toVersion"], 2);
+    assert_eq!(
+        changes[0]["contract"],
+        json!([{ "path": "input", "kind": "added", "breaking": true }])
+    );
     assert_eq!(changes[1]["key"], "bureau/normalize");
     assert_eq!(changes[1]["change"], "unchanged");
+    assert_eq!(changes[1]["contract"], json!([]));
     assert!(review.body["tests"]["passed"].is_i64());
     assert_eq!(review.body["canDecide"], true);
 

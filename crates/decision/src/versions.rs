@@ -7,12 +7,13 @@
 
 use chrono::{DateTime, Utc};
 use donka_audit::{Action, Event};
+use donka_engine::contract;
 use donka_project::{authorize_change, Access, Role};
 use donka_shared::page::{Page, PageRequest};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
-use crate::testing::{TestSummary, SUMMARY_JOIN};
+use crate::testing::{latest_siblings, TestSummary, SUMMARY_JOIN};
 use crate::{
     fetch, lock_at, sql, write_draft, Decision, DecisionError, DecisionSummary, Decisions, Tx,
 };
@@ -37,6 +38,14 @@ pub struct VersionSummary {
 const VERSION_COLUMNS: &str = "v.number, v.message, v.created_at, v.created_by, v.restored_from, \
      coalesce(t.passed, 0) AS passed, coalesce(t.failed, 0) AS failed, coalesce(t.errors, 0) AS errors";
 
+/// A version just saved, with what its author should know about its input contract.
+#[derive(Debug, Clone)]
+pub struct SavedVersion {
+    pub summary: VersionSummary,
+    /// Fields rules read but the contract does not declare, and required fields no rule reads.
+    pub warnings: Vec<contract::Warning>,
+}
+
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct Version {
     #[sqlx(flatten)]
@@ -48,13 +57,15 @@ pub struct Version {
 impl Decisions {
     /// Saves the draft, as it is at `base_revision`, as the next version (editors).
     /// The editor sends the revision it shows, so the version is what the person saw.
+    /// A version's input contract must be a usable JSON Schema: the engine would ignore a
+    /// broken one, and every request would then go through unchecked.
     pub async fn save_version(
         &self,
         access: &Access,
         id: Uuid,
         base_revision: i32,
         message: &str,
-    ) -> Result<VersionSummary, DecisionError> {
+    ) -> Result<SavedVersion, DecisionError> {
         let message = check_message(message)?;
         let mut tx = self.pool.begin().await?;
         authorize_change(&mut tx, access, Role::Editor).await?;
@@ -66,6 +77,8 @@ impl Decisions {
             .bind(id)
             .fetch_one(&mut *tx)
             .await?;
+        let schema = contract::input_schema(&content)
+            .map_err(|err| DecisionError::InvalidContract(err.to_string()))?;
         let mut version = self
             .insert_version(&mut tx, access, &current, &content, &message, None)
             .await?;
@@ -85,8 +98,19 @@ impl Decisions {
             ),
         )
         .await?;
+        let warnings = match &schema {
+            Some(schema) => {
+                let mut contents = latest_siblings(&mut tx, access, current.id).await?;
+                contents.insert(current.key.clone(), content);
+                contract::check(&contents, &current.key, schema)
+            }
+            None => Vec::new(),
+        };
         tx.commit().await?;
-        Ok(version)
+        Ok(SavedVersion {
+            summary: version,
+            warnings,
+        })
     }
 
     /// The decision's versions, newest first (any member).
