@@ -815,3 +815,26 @@ the rules it feeds.
 - Fieldkit's own renderer (Stage 2); the check reads a plain JSON Schema-based form definition
   so any form library can use it
 
+---
+
+### DNK-39 — One logo family for Donka and its products
+
+**Type:** chore · **Repos:** S, R, C · **Dependencies:** DNK-36 · **Size:** S
+
+#### Why
+Studio shows a letter "D" as its logo and the READMEs carry the same placeholder. Donka needs a
+real mark that also tells Studio, Runtime, CLI and Fieldkit apart.
+
+#### Decision
+Direction A of the proposal: the "Decision D", a D holding an input that runs into a decision
+node. One rounded tile and stroke for the family; each product has its own glyph and colour
+(Runtime: D with a forward chevron, teal; CLI: a prompt, slate; Fieldkit: a field and a ticked
+checkbox, amber). The wordmark is lowercase **donka** in Geist Bold, outlined.
+
+#### Acceptance criteria
+- [x] Marks and light/dark lockups for Donka, Studio, Runtime, CLI and Fieldkit in `docs/brand/`,
+      with usage rules
+- [x] Studio's header, sidebar and browser tab show the mark, coloured by the theme
+- [x] Studio's and the CLI's README banners show their product's mark
+- [ ] The Runtime's README banner shows its mark (after DNK-22, one story at a time per repo)
+
