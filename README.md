@@ -1,10 +1,61 @@
-# Donka Studio
+![Donka Studio](.github/assets/banner.svg)
 
-Donka is a decision management platform for credit and risk teams. Analysts build scoring rules
-visually, test them, get them approved by a second person, and release them to a runtime that
-customer systems call. Every production decision can be explained and replayed.
+<h1 align="center">Donka Studio</h1>
 
-It is built on the open-source [ZEN engine](https://github.com/gorules/zen) (MIT).
+<p align="center">
+    Build, test, approve and release credit decisions, then explain every one of them
+</p>
+
+<p align="center">
+    <a href="https://github.com/youmssi/donka/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/youmssi/donka/ci.yml?branch=develop&label=CI" alt="CI"/></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-proprietary-555" alt="License: proprietary"/></a>
+    <img src="https://img.shields.io/badge/rust-stable-b7410e?logo=rust&logoColor=white" alt="Rust stable"/>
+    <img src="https://img.shields.io/badge/Next.js-static%20export-000?logo=nextdotjs&logoColor=white" alt="Next.js static export"/>
+    <img src="https://img.shields.io/badge/PostgreSQL-16-4169e1?logo=postgresql&logoColor=white" alt="PostgreSQL 16"/>
+    <img src="https://img.shields.io/badge/zen--engine-2.0.1-1d4f91" alt="zen-engine 2.0.1"/>
+    <img src="https://img.shields.io/badge/i18n-English%20%C2%B7%20Fran%C3%A7ais-1d4f91" alt="English and French"/>
+</p>
+
+<p align="center">
+    <a href="docs/ARCHITECTURE.md">Architecture</a> ·
+    <a href="docs/ROADMAP.md">Roadmap</a> ·
+    <a href="docs/backlog/stage-1.md">Backlog</a> ·
+    <a href="docs/adr/README.md">Decisions</a> ·
+    <a href="CONTRIBUTING.md">Contributing</a>
+</p>
+
+## Introduction
+
+Donka is a decision management platform for credit and risk teams at banks and microfinance
+lenders. Analysts build scoring rules visually, test them, get them approved by a second person
+and release them to a Runtime that customer systems call. Every production decision can be
+found, explained in plain language and replayed.
+
+Donka Studio is the control plane: the web app where that work happens and the service behind
+it. It is self-hosted, one installation per customer, and built on the open-source
+[ZEN engine](https://github.com/gorules/zen) (MIT).
+
+## Features
+
+- **Visual authoring**: decision graphs, decision tables and expressions in the JDM editor, with
+  autosave and conflict detection
+- **Simulation and test scenarios**: run a decision on sample input, save it as a scenario, and
+  see every scenario's result each time a version is saved
+- **Versions and diff**: save versions, compare any two side by side, restore an older one
+- **Releases and environments**: frozen, semantically versioned releases deployed to `staging`
+  and `production`, with per-environment Runtime tokens
+- **Four-eyes approvals**: production needs a second person, who reviews the diff and the test
+  results; nobody approves their own release
+- **Rollback**: put a previous release back live in one step, audited
+- **Connectors**: call a credit bureau, KYC or AML provider from a decision, with mocks in Studio
+  and secrets kept on the Runtime
+- **Decision log and replay**: every production decision, encrypted at rest, searchable by
+  reference, outcome or date, and replayable against its release
+- **Plain-language explanations**: an answer in English or French from your own LLM endpoint,
+  with sensitive fields kept out
+- **Audit log**: every change, by whom and when, filterable and exportable to CSV
+- **CI/CD**: pipelines pull release artifacts with read-only CI tokens and the
+  [Donka CLI](https://github.com/youmssi/donka-cli)
 
 ## How the pieces fit
 
@@ -15,66 +66,40 @@ Applicant ─▶ Fieldkit form ─▶ Customer backend ──evaluate──▶ D
                                                                  │    ▼
                                                    Release storage ◀── Donka Studio (this repo)
                                                    (MinIO / S3)        web + app + Postgres
+                                                         │
+                                                         └──▶ CI/CD pipelines (Donka CLI)
 ```
 
-| Repo | What it is |
-|---|---|
-| **youmssi/donka** (this repo) | Studio: authoring, versions, tests, releases, approvals, audit, decision log, AI explain |
-| [youmssi/donka-runtime](https://github.com/youmssi/donka-runtime) | Serves decisions from published releases (fork of `gorules/agent-public`) |
-| [youmssi/donka-cli](https://github.com/youmssi/donka-cli) | Pulls releases into CI/CD, MCP bridge (fork of `gorules/cli`) |
+| Repository | What it is |
+| --- | --- |
+| **youmssi/donka** (this repo) | Studio: authoring, tests, releases, approvals, audit, decision log, explanations |
+| [youmssi/donka-runtime](https://github.com/youmssi/donka-runtime) | Serves decisions from published releases (fork of `gorules/agent-public`, MIT) |
+| [youmssi/donka-cli](https://github.com/youmssi/donka-cli) | Pulls releases into CI/CD pipelines (fork of `gorules/cli`, MIT) |
 
-Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · Decisions: [docs/adr/](docs/adr/README.md) ·
-Plan: [docs/ROADMAP.md](docs/ROADMAP.md) · Stories: [docs/backlog/](docs/backlog/stage-1.md)
+## Quick start
 
-**Contributing:** read [AGENTS.md](AGENTS.md) and [CONTRIBUTING.md](CONTRIBUTING.md) first. Work happens
-on `dnk-<n>-<slug>` branches, squash-merged into `develop`.
-
-## Repository layout
-
-```
-apps/app        Studio backend service (Rust, Axum)
-apps/web        Studio web app (Next.js static export, shadcn/Radix, jdm-editor)
-crates/engine   The only code that calls zen-engine (DecisionRuntime trait + ZenRuntime)
-crates/audit    Append-only audit log of every state change
-crates/decision Decisions of a project and their drafts
-crates/db       PostgreSQL pool, migrations, readiness
-crates/identity Users, sign-in with lockout, sessions, invitations, password reset
-crates/mail     Mailer trait and its SMTP implementation
-crates/project  Projects, members and roles
-crates/shared   Clock and pagination shared by the modules
-migrations      PostgreSQL migrations (sqlx), forward-only
-docs            Architecture, ADRs, roadmap, backlog, engineering guides
-```
-
-## Develop
-
-Requirements: Rust stable, Node 22 + pnpm, Docker (for Postgres, MinIO and Mailpit).
+Requirements: Rust stable, Node 22 with pnpm, Docker (Postgres, MinIO and Mailpit).
 
 ```bash
 docker compose up -d postgres minio mailpit
 export DATABASE_URL=postgres://donka:donka@localhost:5432/donka
-cargo test --workspace          # unit + integration tests (integration tests need DATABASE_URL)
-cargo run -p donka-app          # Studio app on :8080, API under /api/v1, migrations applied at start
-# Health: /api/v1/health · Readiness: /api/v1/ready · OpenAPI: /api/v1/openapi.json
+
+DONKA_BOOTSTRAP_ADMIN_EMAIL=you@bank.example DONKA_PUBLIC_URL=http://localhost:3000 \
+DONKA_COOKIE_SECURE=false cargo run -p donka-app      # API on :8080 under /api/v1
+
+pnpm --dir apps/web install && pnpm --dir apps/web dev  # web app on http://localhost:3000
 ```
 
-Web app, in a second terminal (hot reload on :3000; `/api` is forwarded to the app on :8080, or to
-`DONKA_DEV_API_ORIGIN`):
+On first start the app prints a one-time link to choose your password. Invitation and reset
+emails land in Mailpit (http://localhost:8025). Every setting is listed in
+[.env.example](.env.example).
 
-```bash
-pnpm --dir apps/web install
-pnpm --dir apps/web dev          # http://localhost:3000
-```
+<details>
+<summary>More: production build, health endpoints, calling the API</summary>
 
-First run: start the app with `DONKA_BOOTSTRAP_ADMIN_EMAIL=you@bank.example`,
-`DONKA_PUBLIC_URL=http://localhost:3000` and `DONKA_COOKIE_SECURE=false` (local HTTP). It prints a
-one-time link to choose your password; invitation and reset emails land in Mailpit
-(http://localhost:8025).
-
-To try the production setup, build the export and let the app serve it on one origin:
-`pnpm --dir apps/web build && DONKA_WEB_DIR=apps/web/out cargo run -p donka-app`.
-
-The API directly: every request that changes data must send the `x-donka-csrf: 1` header.
+- **One origin, as in production**: `pnpm --dir apps/web build && DONKA_WEB_DIR=apps/web/out cargo run -p donka-app`
+- **Health** `/api/v1/health` · **Readiness** `/api/v1/ready` · **OpenAPI** `/api/v1/openapi.json`
+- **The API directly**: every request that changes data sends the `x-donka-csrf: 1` header.
 
 ```bash
 curl -s -c jar -X POST localhost:8080/api/v1/auth/sign-in -H 'x-donka-csrf: 1' \
@@ -84,7 +109,32 @@ curl -s -b jar -X POST localhost:8080/api/v1/simulate -H 'x-donka-csrf: 1' \
   -d '{ "decisions": { "table": <a JDM graph> }, "key": "table", "context": { "input": 12 } }'
 ```
 
+</details>
+
+## Documentation
+
+| Page | What it covers |
+| --- | --- |
+| [Architecture](docs/ARCHITECTURE.md) | Modules, data flow, security baseline |
+| [Artifact format](docs/artifact-format.md) | What Studio publishes for the Runtime (`.config/project.json`) |
+| [Decision-log feed](docs/decision-log-feed.md) | How Runtimes send decisions to Studio |
+| [Rules sync](docs/rules-sync.md) | How CI pipelines pull release artifacts |
+| [Engineering guides](docs/engineering/) | Principles, backend and frontend conventions |
+| [Decisions (ADRs)](docs/adr/README.md) · [Roadmap](docs/ROADMAP.md) · [Backlog](docs/backlog/stage-1.md) | Why, what next, and the stories |
+
+## Contributing
+
+Read [AGENTS.md](AGENTS.md) and [CONTRIBUTING.md](CONTRIBUTING.md) first. Each story gets a
+`dnk-<n>-<slug>` branch, squash-merged into `develop`; the repository map is in
+[AGENTS.md](AGENTS.md#8-repository-map).
+
+```bash
+cargo fmt --all --check && cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo test --workspace --locked                      # integration tests need DATABASE_URL
+pnpm --dir apps/web lint && pnpm --dir apps/web typecheck && pnpm --dir apps/web test
+```
+
 ## License
 
-Donka Studio is proprietary (see [LICENSE](LICENSE)). Open-source components keep their own
-licenses; see [NOTICE](NOTICE).
+Donka Studio is proprietary, see [LICENSE](LICENSE). Open-source components keep their own
+licenses, see [NOTICE](NOTICE).

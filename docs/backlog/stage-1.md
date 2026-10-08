@@ -713,3 +713,27 @@ everywhere, using the shadcn component made for each job and its documented usag
 - [x] No hand-made list, label, pager or status box remains where a shadcn component fits
 - [x] Behaviour, text and tests are unchanged except where a component improves accessibility
 - [x] Screens checked on desktop and 390 px, English and French, light and dark
+
+---
+
+### DNK-36 — READMEs that present each repository
+
+**Type:** docs · **Repos:** S, R, C · **Dependencies:** DNK-21 · **Size:** S
+
+#### Why
+The READMEs grew as reference manuals. Someone landing on a repository should see at a glance
+what it is, what it does, how to try it and where to read more, the same way in all three.
+
+#### Decisions
+- One layout everywhere: banner, centred name and tagline, badges, links; then Introduction,
+  Features, Quick start, Documentation, Contributing, License.
+- Badges show facts only (CI, license, stack, how it ships). No contributor counts.
+- Reference content moves to `docs/` pages linked from the README (Runtime: configuration,
+  connectors, decision log, rules OpenAPI; CLI: pull, CI templates, MCP bridge); nothing is lost.
+- One banner design (`.github/assets/banner.svg`) per repository, in Studio's colours.
+
+#### Acceptance criteria
+- [x] The three READMEs follow the same layout and link to each other
+- [x] Every section removed from a README lives on in a `docs/` page
+- [x] Version pins in the CLI docs are still updated by release-please
+
