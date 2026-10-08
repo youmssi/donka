@@ -76,7 +76,8 @@
     "ALREADY_LIVE": "This release is already the one production runs.",
     "RECORD_NOT_FOUND": "This decision record does not exist in this project.",
     "EXPLAIN_DECLINED": "The explanation service declined to explain this decision.",
-    "EXPLAIN_UNAVAILABLE": "The explanation service did not answer. Try again in a moment."
+    "EXPLAIN_UNAVAILABLE": "The explanation service did not answer. Try again in a moment.",
+    "RATE_LIMITED": "Too many attempts from your network. Try again in {seconds, plural, one {# second} other {# seconds}}."
   },
   "validation": {
     "email": "Enter a valid email address.",

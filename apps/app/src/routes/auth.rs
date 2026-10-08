@@ -1,6 +1,7 @@
 use crate::auth::CurrentUser;
 use crate::error::{ApiError, ErrorBody};
 use crate::extract::ApiJson;
+use crate::rate_limit::ClientAddr;
 use crate::AppState;
 use axum::extract::State;
 use axum::http::{header, StatusCode};
@@ -70,12 +71,15 @@ impl From<User> for UserResponse {
         (status = 200, description = "Signed in; the session cookie is set", body = UserResponse),
         (status = 401, description = "Email or password is incorrect, or the account is locked (INVALID_CREDENTIALS)", body = ErrorBody),
         (status = 403, description = "Missing CSRF header (CSRF_REQUIRED)", body = ErrorBody),
+        (status = 429, description = "Too many sign-in attempts from this address (RATE_LIMITED); `Retry-After` says when to try again", body = ErrorBody),
     )
 )]
 pub async fn sign_in(
     State(state): State<AppState>,
+    client: ClientAddr,
     ApiJson(req): ApiJson<SignInRequest>,
 ) -> Result<Response, ApiError> {
+    client.check(&state.auth_limits.sign_in)?;
     let (token, user) = state.identity.sign_in(&req.email, &req.password).await?;
     Ok((
         [(header::SET_COOKIE, state.cookies.session(token.expose()))],
@@ -152,12 +156,15 @@ pub async fn password_setup(
     responses(
         (status = 202, description = "If the address has an account, a reset link is on its way"),
         (status = 400, description = "Not an email address (INVALID_REQUEST)", body = ErrorBody),
+        (status = 429, description = "Too many reset requests from this address (RATE_LIMITED); `Retry-After` says when to try again", body = ErrorBody),
     )
 )]
 pub async fn password_reset(
     State(state): State<AppState>,
+    client: ClientAddr,
     ApiJson(req): ApiJson<PasswordResetRequest>,
 ) -> Result<StatusCode, ApiError> {
+    client.check(&state.auth_limits.password_reset)?;
     state.identity.request_password_reset(&req.email).await?;
     Ok(StatusCode::ACCEPTED)
 }

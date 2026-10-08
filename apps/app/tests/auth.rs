@@ -9,6 +9,7 @@ use donka_db::PgPool;
 use donka_identity::Locale;
 use serde_json::json;
 use support::*;
+use tower::ServiceExt;
 
 // --- first administrator and password setup ----------------------------------
 
@@ -328,4 +329,117 @@ async fn state_changing_requests_without_the_csrf_header_are_refused(db: PgPool)
 
     assert_error(&reply, StatusCode::FORBIDDEN, "CSRF_REQUIRED");
     assert!(reply.set_cookie.is_none());
+}
+
+// --- rate limits (DNK-32) ----------------------------------------------------
+
+/// A request as it arrives from `peer`, optionally through a proxy's `X-Forwarded-For`.
+fn from(
+    peer: &str,
+    forwarded_for: Option<&str>,
+    path: &str,
+    body: &serde_json::Value,
+) -> Request<Body> {
+    let mut req = post(path, body, None);
+    let addr: std::net::SocketAddr = format!("{peer}:40000").parse().unwrap();
+    req.extensions_mut()
+        .insert(axum::extract::ConnectInfo(addr));
+    if let Some(value) = forwarded_for {
+        req.headers_mut()
+            .insert("x-forwarded-for", value.parse().unwrap());
+    }
+    req
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn sign_in_is_limited_per_client_address(db: PgPool) {
+    let app = with_auth_limits(
+        db,
+        donka_app::rate_limit::AuthLimits::new(2, 100, Vec::new()),
+    );
+    admin_with_password(&app).await;
+    let path = format!("{BASE}/auth/sign-in");
+    // Wrong passwords against different accounts: the limit counts the address, not the account.
+    for email in ["ada@bank.example", "bob@bank.example"] {
+        let body = json!({ "email": email, "password": "wrong" });
+        let reply = send(&app.router, from("203.0.113.7", None, &path, &body)).await;
+        assert_eq!(reply.status, StatusCode::UNAUTHORIZED);
+    }
+
+    // Even the right password is refused while the address is over its limit.
+    let right = json!({ "email": ADMIN_EMAIL, "password": ADMIN_PASSWORD });
+    let res = app
+        .router
+        .clone()
+        .oneshot(from("203.0.113.7", None, &path, &right))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::TOO_MANY_REQUESTS);
+    let retry_after: u64 = res.headers()["retry-after"]
+        .to_str()
+        .unwrap()
+        .parse()
+        .unwrap();
+    assert!((1..=30).contains(&retry_after), "{retry_after}");
+    let reply = send(&app.router, from("203.0.113.7", None, &path, &right)).await;
+    assert_eq!(reply.body["code"], "RATE_LIMITED");
+    assert!(reply.body["details"]["retryAfterSeconds"].as_u64().unwrap() >= 1);
+    assert!(reply.set_cookie.is_none());
+
+    // Another address is not affected.
+    let reply = send(&app.router, from("198.51.100.4", None, &path, &right)).await;
+    assert_eq!(reply.status, StatusCode::OK);
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn password_reset_is_limited_per_client_address(db: PgPool) {
+    let app = with_auth_limits(
+        db,
+        donka_app::rate_limit::AuthLimits::new(100, 1, Vec::new()),
+    );
+    admin_with_password(&app).await;
+    let path = format!("{BASE}/auth/password-reset");
+    let body = json!({ "email": ADMIN_EMAIL });
+    let first = send(&app.router, from("203.0.113.7", None, &path, &body)).await;
+    assert_eq!(first.status, StatusCode::ACCEPTED);
+    let second = send(&app.router, from("203.0.113.7", None, &path, &body)).await;
+    assert_eq!(second.status, StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(second.body["code"], "RATE_LIMITED");
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn forwarded_for_counts_only_through_a_trusted_proxy(db: PgPool) {
+    let proxy = "10.0.0.2/32".parse().unwrap();
+    let app = with_auth_limits(
+        db,
+        donka_app::rate_limit::AuthLimits::new(1, 100, vec![proxy]),
+    );
+    let path = format!("{BASE}/auth/sign-in");
+    let body = json!({ "email": "nobody@bank.example", "password": "wrong" });
+
+    // Behind the proxy, two clients each have their own budget.
+    for client in ["203.0.113.7", "203.0.113.8"] {
+        let reply = send(&app.router, from("10.0.0.2", Some(client), &path, &body)).await;
+        assert_eq!(reply.status, StatusCode::UNAUTHORIZED, "{client}");
+    }
+    let again = send(
+        &app.router,
+        from("10.0.0.2", Some("203.0.113.7"), &path, &body),
+    )
+    .await;
+    assert_eq!(again.status, StatusCode::TOO_MANY_REQUESTS);
+
+    // A client that is not the proxy cannot pick its address with the header.
+    let direct = send(
+        &app.router,
+        from("192.0.2.1", Some("203.0.113.9"), &path, &body),
+    )
+    .await;
+    assert_eq!(direct.status, StatusCode::UNAUTHORIZED);
+    let forged = send(
+        &app.router,
+        from("192.0.2.1", Some("203.0.113.10"), &path, &body),
+    )
+    .await;
+    assert_eq!(forged.status, StatusCode::TOO_MANY_REQUESTS);
 }

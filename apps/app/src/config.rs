@@ -23,6 +23,12 @@ pub struct Config {
     pub session_idle_minutes: u32,
     pub sign_in_max_failures: u32,
     pub sign_in_lock_minutes: u32,
+    /// Sign-in attempts per minute from one client address (DNK-32).
+    pub sign_in_rate_limit: u32,
+    /// Password-reset requests per minute from one client address.
+    pub password_reset_rate_limit: u32,
+    /// Reverse proxies whose `X-Forwarded-For` names the client (addresses or CIDR ranges).
+    pub trusted_proxies: Vec<ipnet::IpNet>,
     /// On an empty database, create this administrator and print a setup link.
     pub bootstrap_admin_email: Option<String>,
     /// Language of the first administrator (others choose theirs when invited).
@@ -173,6 +179,10 @@ impl Config {
             session_idle_minutes: positive(&get, "DONKA_SESSION_IDLE_MINUTES")?.unwrap_or(480),
             sign_in_max_failures: positive(&get, "DONKA_SIGN_IN_MAX_FAILURES")?.unwrap_or(5),
             sign_in_lock_minutes: positive(&get, "DONKA_SIGN_IN_LOCK_MINUTES")?.unwrap_or(15),
+            sign_in_rate_limit: positive(&get, "DONKA_SIGN_IN_RATE_LIMIT")?.unwrap_or(10),
+            password_reset_rate_limit: positive(&get, "DONKA_PASSWORD_RESET_RATE_LIMIT")?
+                .unwrap_or(5),
+            trusted_proxies: trusted_proxies(&get)?,
             bootstrap_admin_email: get("DONKA_BOOTSTRAP_ADMIN_EMAIL")
                 .filter(|v| !v.trim().is_empty()),
             default_locale,
@@ -275,6 +285,30 @@ where
             _ => Err(invalid(var, "must be a positive number")),
         })
         .transpose()
+}
+
+/// `DONKA_TRUSTED_PROXIES`: comma-separated addresses or CIDR ranges; none by default.
+fn trusted_proxies(
+    get: &impl Fn(&str) -> Option<String>,
+) -> Result<Vec<ipnet::IpNet>, ConfigError> {
+    let Some(list) = get("DONKA_TRUSTED_PROXIES") else {
+        return Ok(Vec::new());
+    };
+    list.split(',')
+        .map(str::trim)
+        .filter(|entry| !entry.is_empty())
+        .map(|entry| {
+            entry
+                .parse::<ipnet::IpNet>()
+                .or_else(|_| entry.parse::<std::net::IpAddr>().map(ipnet::IpNet::from))
+                .map_err(|_| {
+                    invalid(
+                        "DONKA_TRUSTED_PROXIES",
+                        "must list IP addresses or CIDR ranges, e.g. 10.0.0.5,172.16.0.0/12",
+                    )
+                })
+        })
+        .collect()
 }
 
 fn boolean(
@@ -567,6 +601,40 @@ mod tests {
             let err = load(&[("DONKA_API_BASE_PATH", bad)]).unwrap_err();
             assert_eq!(err.var, "DONKA_API_BASE_PATH", "{bad}");
         }
+    }
+
+    #[test]
+    fn rate_limits_and_trusted_proxies() {
+        let config = load(&[]).unwrap();
+        assert_eq!(config.sign_in_rate_limit, 10);
+        assert_eq!(config.password_reset_rate_limit, 5);
+        assert!(config.trusted_proxies.is_empty());
+
+        let config = load(&[
+            ("DONKA_SIGN_IN_RATE_LIMIT", "3"),
+            ("DONKA_PASSWORD_RESET_RATE_LIMIT", "1"),
+            ("DONKA_TRUSTED_PROXIES", "10.0.0.5, 172.16.0.0/12,::1"),
+        ])
+        .unwrap();
+        assert_eq!(config.sign_in_rate_limit, 3);
+        assert_eq!(config.password_reset_rate_limit, 1);
+        let proxies: Vec<String> = config
+            .trusted_proxies
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        assert_eq!(proxies, ["10.0.0.5/32", "172.16.0.0/12", "::1/128"]);
+
+        assert_eq!(
+            load(&[("DONKA_TRUSTED_PROXIES", "10.0.0.0/33")])
+                .unwrap_err()
+                .var,
+            "DONKA_TRUSTED_PROXIES"
+        );
+        assert_eq!(
+            load(&[("DONKA_SIGN_IN_RATE_LIMIT", "0")]).unwrap_err().var,
+            "DONKA_SIGN_IN_RATE_LIMIT"
+        );
     }
 
     #[test]

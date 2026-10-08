@@ -624,10 +624,10 @@ Lockout protects one account, and one pending email per user protects one inbox.
 how fast one client can try many accounts or ask for many reset emails (found in DNK-5).
 
 #### Acceptance criteria
-- [ ] Per-client-address limits on `POST /auth/sign-in` and `POST /auth/password-reset` from
+- [x] Per-client-address limits on `POST /auth/sign-in` and `POST /auth/password-reset` from
       configuration; exceeding one returns `429 RATE_LIMITED` with `Retry-After`
-- [ ] The client address honours a configured trusted proxy (`X-Forwarded-For` only from it)
-- [ ] The web app shows the translated message and when to retry
+- [x] The client address honours a configured trusted proxy (`X-Forwarded-For` only from it)
+- [x] The web app shows the translated message and when to retry
 
 ---
 

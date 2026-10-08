@@ -985,6 +985,7 @@ dependencies = [
  "donka-shared",
  "donka-storage",
  "http-body-util",
+ "ipnet",
  "opentelemetry",
  "opentelemetry-otlp",
  "opentelemetry_sdk",

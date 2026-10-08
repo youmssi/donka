@@ -60,6 +60,10 @@ DONKA_SMTP_URL=smtp://user:pass@mail.banque.example:587?tls=required
 DONKA_SMTP_FROM=Donka <donka@banque.example>
 ```
 
+Derrière un proxy inverse, définissez aussi `DONKA_TRUSTED_PROXIES` avec son adresse (ou le
+réseau Docker, par exemple `172.16.0.0/12`) : la connexion et la réinitialisation du mot de passe
+sont limitées par adresse cliente, et sans ce paramètre tous les clients partagent celle du proxy.
+
 Définissez-les avant le premier démarrage : PostgreSQL et MinIO prennent leur mot de passe à la
 création de leurs données (la section 5 explique comment les changer ensuite). Tous les autres
 paramètres de Studio, listés dans [.env.example](../.env.example), peuvent aller dans le même

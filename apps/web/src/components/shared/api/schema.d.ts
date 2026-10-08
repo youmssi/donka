@@ -2072,6 +2072,15 @@ export interface operations {
           'application/json': components['schemas']['ErrorBody'];
         };
       };
+      /** @description Too many reset requests from this address (RATE_LIMITED); `Retry-After` says when to try again */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
     };
   };
   password_setup: {
@@ -2138,6 +2147,15 @@ export interface operations {
       };
       /** @description Missing CSRF header (CSRF_REQUIRED) */
       403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Too many sign-in attempts from this address (RATE_LIMITED); `Retry-After` says when to try again */
+      429: {
         headers: {
           [name: string]: unknown;
         };

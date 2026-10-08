@@ -47,6 +47,17 @@ it('shows one message for wrong credentials, without a reference', async () => {
   expect(router.replace).not.toHaveBeenCalled();
 });
 
+it('says when to try again after too many attempts', async () => {
+  signInMock.mockResolvedValue({
+    ok: false,
+    error: { code: 'RATE_LIMITED', requestId: 'r-3', details: { retryAfterSeconds: 42 } },
+  });
+  renderWithProviders(<SignInForm />);
+  await submit('ada@bank.example', 'password');
+  expect(await screen.findByText('Too many attempts from your network. Try again in 42 seconds.')).toBeInTheDocument();
+  expect(screen.queryByText(/r-3/)).not.toBeInTheDocument();
+});
+
 it('shows the reference for a failure on the server side', async () => {
   signInMock.mockResolvedValue({ ok: false, error: { code: 'UNEXPECTED', requestId: 'r-2' } });
   renderWithProviders(<SignInForm />);
