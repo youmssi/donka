@@ -2,6 +2,8 @@ import { attempt, failure, http, success, type ActionResult } from '@/components
 
 import type {
   Approval,
+  CiToken,
+  IssuedCiToken,
   ApprovalList,
   ApprovalReview,
   Deployment,
@@ -99,6 +101,28 @@ export function issueToken(projectId: string, env: EnvironmentName, name: string
 export function revokeToken(projectId: string, env: EnvironmentName, id: string): Promise<ActionResult<null>> {
   return attempt(async () => {
     const response = await http.delete(`${environment(projectId, env)}/tokens/${encodeURIComponent(id)}`);
+    return response.ok ? success(null) : failure(response);
+  });
+}
+
+/** Read-only tokens CI pipelines pull the project's artifacts with (`POST /rules-sync`). */
+export function listCiTokens(projectId: string): Promise<ActionResult<CiToken[]>> {
+  return attempt(async () => {
+    const response = await http.get(`${project(projectId)}/ci-tokens`);
+    return response.ok ? success((await response.json<{ items: CiToken[] }>()).items) : failure(response);
+  });
+}
+
+export function issueCiToken(projectId: string, name: string): Promise<ActionResult<IssuedCiToken>> {
+  return attempt(async () => {
+    const response = await http.post(`${project(projectId)}/ci-tokens`, { json: { name } });
+    return response.ok ? success(await response.json<IssuedCiToken>()) : failure(response);
+  });
+}
+
+export function revokeCiToken(projectId: string, id: string): Promise<ActionResult<null>> {
+  return attempt(async () => {
+    const response = await http.delete(`${project(projectId)}/ci-tokens/${encodeURIComponent(id)}`);
     return response.ok ? success(null) : failure(response);
   });
 }

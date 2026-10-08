@@ -30,10 +30,15 @@ use uuid::Uuid;
 pub mod approval;
 pub mod artifact;
 mod emails;
+pub mod sync;
 
 pub use approval::{
     Approval, ApprovalReview, ApprovalStatus, Approver, Change, DecisionChange, Language,
     MAX_REASON_CHARS,
+};
+pub use sync::{
+    ArtifactPath, CiAccess, CiToken, IssuedCiToken, Resolved, SyncOutcome, SyncProject,
+    SyncRequest, Target, MAX_SYNC_DEPLOYMENTS,
 };
 
 pub const MAX_NOTES_CHARS: usize = 2000;
@@ -133,6 +138,11 @@ pub enum ReleaseError {
     DeploymentNotFound,
     #[error("token not found")]
     TokenNotFound,
+    /// A CI token that is unknown or revoked.
+    #[error("invalid CI token")]
+    InvalidCiToken,
+    #[error("the artifact could not be built: {0}")]
+    Artifact(String),
     /// These decisions have no saved version yet: a release must hold every decision.
     #[error("decisions without a version: {}", .0.join(", "))]
     Unversioned(Vec<String>),
@@ -811,13 +821,15 @@ impl Releases {
                 project_name: &due.project_name,
                 release_id: due.release_id.to_string(),
                 release_version: due.version.to_string(),
-                environment: &due.environment,
-                deployment_id: due.id.to_string(),
-                deployed_at: now.to_rfc3339(),
-                token_hashes: tokens
-                    .into_iter()
-                    .map(|(id, hash)| (id.to_string(), hash))
-                    .collect(),
+                deployment: Some(artifact::DeploymentInput {
+                    environment: &due.environment,
+                    id: due.id.to_string(),
+                    deployed_at: now.to_rfc3339(),
+                    token_hashes: tokens
+                        .into_iter()
+                        .map(|(id, hash)| (id.to_string(), hash))
+                        .collect(),
+                }),
                 decisions,
             };
             let key = artifact::object_key(&due.environment, &due.project_key);

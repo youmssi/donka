@@ -57,6 +57,10 @@ Each `accessTokenHashes` entry:
 | `algorithm` | `sha256`, the only one today. An entry naming another algorithm never matches. |
 | `hash` | Lowercase hex SHA-256 of the token's UTF-8 bytes. |
 
+A release pulled by a CI pipeline outside an environment (`release:`, `commit:` or `main`,
+[`rules-sync.md`](rules-sync.md)) has no `environment` and no `deployment`, and an empty
+`accessTokenHashes`: a Runtime given it refuses every request, as no token is listed.
+
 ## Token rules
 
 - A token is a long random secret: at least 32 random bytes, shown once when Studio issues it

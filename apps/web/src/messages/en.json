@@ -356,6 +356,10 @@
     "decision_log_token": {
       "issued": "Decision-log token issued",
       "revoked": "Decision-log token revoked"
+    },
+    "ci_token": {
+      "issued": "CI token issued",
+      "revoked": "CI token revoked"
     }
   },
   "auditSentences": {
@@ -388,7 +392,9 @@
     "decisionLogPurged": "Purged {records} decision records older than {days} days",
     "decisionLogSettingsUpdated": "Set the decision log's outcome field to {field}",
     "decisionLogSettingsCleared": "Removed the decision log's outcome field",
-    "decisionRecordExplained": "Asked for an explanation of the {key} decision {reference}"
+    "decisionRecordExplained": "Asked for an explanation of the {key} decision {reference}",
+    "ciTokenIssued": "Created the CI token “{name}”",
+    "ciTokenRevoked": "Revoked the CI token “{name}”"
   },
   "ui": {
     "close": "Close",
@@ -837,5 +843,29 @@
     "runtimeSettings": "Runtime settings",
     "oneEnvironment": "This token only sends {environment} decisions: records from another environment are refused.",
     "done": "Done"
+  },
+  "ciTokens": {
+    "title": "CI tokens",
+    "description": "Pipelines pull this project's releases with these tokens. Targets: main (the newest release), release:1.4.0, commit:RELEASE_ID, env:staging or env:production. A token only reads this project.",
+    "create": "New CI token",
+    "creating": "Creating…",
+    "createTitle": "New CI token",
+    "createDescription": "A pipeline sends it to download this project's release artifacts. It cannot change anything.",
+    "name": "Name",
+    "nameHint": "Which pipeline uses it, to find it later.",
+    "namePlaceholder": "loan-service deploy",
+    "shownOnce": "Copy it now: it is shown only once. Studio keeps only a fingerprint.",
+    "pipelineSettings": "Pipeline settings",
+    "targets": "The pipeline posts to /api/v1/rules-sync with the token as a bearer and downloads the artifact it is given.",
+    "done": "Done",
+    "empty": "No CI tokens. Create one for each pipeline that pulls this project's releases.",
+    "emptyReadOnly": "No CI tokens. Owners create them.",
+    "lastUsed": "last used",
+    "neverUsed": "never used",
+    "revoke": "Revoke",
+    "revokedBadge": "Revoked",
+    "revokeTitle": "Revoke “{name}”?",
+    "revokeConfirm": "Pipelines using it are refused at once. This cannot be undone.",
+    "revoked": "CI token “{name}” revoked."
   }
 }

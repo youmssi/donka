@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # End to end: a release made in Studio reaches Donka Runtime and answers with a token, its
-# "bureau score" connector calls the bureau from the Runtime only, and every decision the
-# Runtime makes lands in Studio's decision log, where it is found, opened and replayed.
+# "bureau score" connector calls the bureau from the Runtime only, a CI pipeline pulls what is
+# live on staging, and every decision the Runtime makes lands in Studio's decision log, where it
+# is found, opened and replayed.
 #
 # Needs a running Studio (fresh database, DONKA_BOOTSTRAP_ADMIN_EMAIL set, its console output in
 # STUDIO_LOG) and scripts/fake-bureau.py at BUREAU_URL with FAKE_BUREAU_KEY set. The script
@@ -109,6 +110,20 @@ grep -qF "$BUREAU_SECRET" <<<"$(studio GET "$P/releases/$(jq -r .id <<<"$release
 
 deployment=$(studio GET "$P/environments" | jq -r '.items[] | select(.environment == "staging") | .live.releaseVersion')
 [ "$deployment" = "1.0.0" ] || fail "Studio does not show 1.0.0 live on staging"
+# CI pulls what is live on staging with a project CI token, checksum verified.
+ci_token=$(studio POST "$P/ci-tokens" '{"name": "e2e pipeline"}' | jq -r .token)
+pulled=$(curl -sS --fail-with-body -X POST "$API/rules-sync" -H "Authorization: Bearer $ci_token" \
+  -H 'content-type: application/json' --data '{"deployments": [{"project": "e2e-credit", "target": "env:staging"}]}')
+[ "$(jq -r '.deployments[0].action' <<<"$pulled")" = load ] || fail "CI could not resolve staging: $pulled"
+artifact=$(mktemp)
+curl -sS --fail-with-body -H "Authorization: Bearer $ci_token" -o "$artifact" \
+  "$API$(jq -r '.deployments[0].artifact.url' <<<"$pulled")"
+[ "$(sha256sum "$artifact" | cut -d' ' -f1)" = "$(jq -r '.deployments[0].artifact.sha256' <<<"$pulled")" ] \
+  || fail "the CI download does not match its checksum"
+[ "$(unzip -p "$artifact" .config/project.json | jq -r .environment.key)" = staging ] \
+  || fail "the CI artifact is not staging's"
+rm -f "$artifact"
+
 # The decision log: a decision with the caller's reference, the trace not asked for.
 headers=$(mktemp)
 logged=$(curl -sS --fail-with-body -D "$headers" -X POST "$RUNTIME_URL/api/projects/e2e-credit/evaluate/person-score" \
@@ -143,4 +158,4 @@ replayed=$(studio POST "$P/decision-log/$decision_id/replay")
 studio GET "$P/audit?action=decision_record.replayed" | jq -e '.total == 1' >/dev/null \
   || fail "the replay is not in the audit log"
 
-echo "e2e: release 1.0.0 is live on staging, the Runtime answers with its token, the bureau connector scores from the Runtime, and the decision is logged, found and replayed"
+echo "e2e: release 1.0.0 is live on staging, the Runtime answers with its token, the bureau connector scores from the Runtime, CI pulls staging, and the decision is logged, found and replayed"
