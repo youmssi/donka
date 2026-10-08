@@ -67,6 +67,8 @@ unsafe_code = "forbid"
 unwrap_used = "deny"
 
 [profile.release]
-lto = true
+# Thin LTO: a code change relinks in about 3.5 minutes instead of 8.5 (4 cores), for a binary
+# about 7% larger. More codegen units gained no time and grew the binary by 30%.
+lto = "thin"
 codegen-units = 1
 strip = "symbols"
