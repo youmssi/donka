@@ -97,6 +97,8 @@ emails land in Mailpit (http://localhost:8025). Every setting is listed in
 <details>
 <summary>More: production build, health endpoints, calling the API</summary>
 
+- **The container image**: `docker build -f apps/app/Dockerfile --build-arg SERVICE_VERSION=1.0.0 -t donka-studio .`,
+  then `scripts/check-image.sh donka-studio 1.0.0` (non-root, healthy, reports its version)
 - **One origin, as in production**: `pnpm --dir apps/web build && DONKA_WEB_DIR=apps/web/out cargo run -p donka-app`
 - **Health** `/api/v1/health` · **Readiness** `/api/v1/ready` · **OpenAPI** `/api/v1/openapi.json`
 - **The API directly**: every request that changes data sends the `x-donka-csrf: 1` header.

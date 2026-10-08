@@ -78,6 +78,38 @@ jobs:
       - run: pnpm api:generate && git diff --exit-code -- src/components/shared/api/schema.d.ts
       - run: pnpm build
 
+  # The Studio image, built as it ships but not pushed: dependencies in their own cached layer,
+  # a non-root user, and the version it was built with.
+  image:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: donka
+          POSTGRES_PASSWORD: donka
+          POSTGRES_DB: donka
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U donka"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/app/Dockerfile
+          build-args: SERVICE_VERSION=${{ github.sha }}
+          tags: donka-studio:ci
+          load: true
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - run: scripts/check-image.sh donka-studio:ci ${{ github.sha }}
+
   # A release made in Studio reaches Donka Runtime through MinIO and answers with its token;
   # its bureau connector calls a fake bureau from the Runtime only.
   e2e:
