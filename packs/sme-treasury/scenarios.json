@@ -1,0 +1,246 @@
+[
+  {
+    "decision": "evaluation",
+    "name": "Established trader, growing",
+    "input": {
+      "business": {
+        "sector": "trade",
+        "yearsActive": 8,
+        "monthlyTurnover": 25000000,
+        "turnoverTrend": 1.15,
+        "averageBalance": 6000000,
+        "monthlyDebtService": 500000,
+        "taxRegistered": true
+      },
+      "request": {
+        "product": "overdraft",
+        "amount": 5000000
+      },
+      "bureau": {
+        "checked": true,
+        "paymentIncidents": 0,
+        "worstDaysPastDue": 0
+      }
+    },
+    "expected": {
+      "decision": "approve",
+      "band": "A",
+      "score": 120,
+      "recommendedLimit": 5000000,
+      "reasons": []
+    },
+    "match": "partial"
+  },
+  {
+    "decision": "evaluation",
+    "name": "Services firm asking above capacity",
+    "input": {
+      "business": {
+        "sector": "services",
+        "yearsActive": 12,
+        "monthlyTurnover": 8000000,
+        "turnoverTrend": 1.3,
+        "averageBalance": 4000000,
+        "monthlyDebtService": 300000,
+        "taxRegistered": true
+      },
+      "request": {
+        "product": "short-term-loan",
+        "amount": 5000000,
+        "termMonths": 12
+      },
+      "bureau": {
+        "checked": true,
+        "paymentIncidents": 0,
+        "worstDaysPastDue": 0
+      }
+    },
+    "expected": {
+      "decision": "approve",
+      "band": "A",
+      "score": 130,
+      "recommendedLimit": 2000000,
+      "reasons": [
+        {
+          "code": "R71",
+          "en": "The request is above the business's capacity: the limit is reduced.",
+          "fr": "La demande dépasse la capacité de l'entreprise : la limite est réduite."
+        }
+      ]
+    },
+    "match": "partial"
+  },
+  {
+    "decision": "evaluation",
+    "name": "Young business with falling turnover",
+    "input": {
+      "business": {
+        "sector": "construction",
+        "yearsActive": 3,
+        "monthlyTurnover": 12000000,
+        "turnoverTrend": 0.85,
+        "averageBalance": 1000000,
+        "monthlyDebtService": 600000,
+        "taxRegistered": false
+      },
+      "request": {
+        "product": "overdraft",
+        "amount": 2000000
+      },
+      "bureau": {
+        "checked": true,
+        "paymentIncidents": 0,
+        "worstDaysPastDue": 10
+      }
+    },
+    "expected": {
+      "decision": "refer",
+      "band": "C",
+      "score": 70,
+      "recommendedLimit": 2000000,
+      "reasons": [
+        {
+          "code": "R61",
+          "en": "Turnover is falling.",
+          "fr": "Le chiffre d'affaires baisse."
+        },
+        {
+          "code": "R64",
+          "en": "No tax ID (NIU) on file.",
+          "fr": "Pas de numéro d'identifiant unique (NIU) au dossier."
+        },
+        {
+          "code": "R65",
+          "en": "Late payments in the last 24 months.",
+          "fr": "Retards de paiement au cours des 24 derniers mois."
+        },
+        {
+          "code": "R66",
+          "en": "Young business.",
+          "fr": "Entreprise jeune."
+        }
+      ]
+    },
+    "match": "partial"
+  },
+  {
+    "decision": "evaluation",
+    "name": "Business younger than two years",
+    "input": {
+      "business": {
+        "sector": "trade",
+        "yearsActive": 1,
+        "monthlyTurnover": 6000000,
+        "turnoverTrend": 1.4,
+        "averageBalance": 800000,
+        "monthlyDebtService": 0,
+        "taxRegistered": true
+      },
+      "request": {
+        "product": "overdraft",
+        "amount": 1000000
+      },
+      "bureau": {
+        "checked": true,
+        "paymentIncidents": 0,
+        "worstDaysPastDue": 0
+      }
+    },
+    "expected": {
+      "decision": "decline",
+      "band": "A",
+      "score": 105,
+      "recommendedLimit": 0,
+      "reasons": [
+        {
+          "code": "K11",
+          "en": "The business is younger than the minimum.",
+          "fr": "L'entreprise est plus jeune que le minimum."
+        },
+        {
+          "code": "R66",
+          "en": "Young business.",
+          "fr": "Entreprise jeune."
+        }
+      ]
+    },
+    "match": "partial"
+  },
+  {
+    "decision": "evaluation",
+    "name": "Returned cheques",
+    "input": {
+      "business": {
+        "sector": "manufacturing",
+        "yearsActive": 15,
+        "monthlyTurnover": 30000000,
+        "turnoverTrend": 1.05,
+        "averageBalance": 9000000,
+        "monthlyDebtService": 1500000,
+        "taxRegistered": true
+      },
+      "request": {
+        "product": "overdraft",
+        "amount": 6000000
+      },
+      "bureau": {
+        "checked": true,
+        "paymentIncidents": 4,
+        "worstDaysPastDue": 0
+      }
+    },
+    "expected": {
+      "decision": "decline",
+      "band": "A",
+      "score": 125,
+      "recommendedLimit": 0,
+      "reasons": [
+        {
+          "code": "K15",
+          "en": "Too many payment incidents (e.g. returned cheques).",
+          "fr": "Trop d'incidents de paiement (par exemple chèques impayés)."
+        }
+      ]
+    },
+    "match": "partial"
+  },
+  {
+    "decision": "evaluation",
+    "name": "Thin repayment cover",
+    "input": {
+      "business": {
+        "sector": "agriculture",
+        "yearsActive": 6,
+        "monthlyTurnover": 10000000,
+        "turnoverTrend": 1.0,
+        "averageBalance": 2500000,
+        "monthlyDebtService": 1100000,
+        "taxRegistered": true
+      },
+      "request": {
+        "product": "short-term-loan",
+        "amount": 2000000,
+        "termMonths": 12
+      },
+      "bureau": {
+        "checked": true,
+        "paymentIncidents": 0,
+        "worstDaysPastDue": 0
+      }
+    },
+    "expected": {
+      "decision": "refer",
+      "band": "B",
+      "score": 80,
+      "recommendedLimit": 2000000,
+      "reasons": [
+        {
+          "code": "R62",
+          "en": "Repayment cover is below the policy minimum: an analyst must review.",
+          "fr": "La couverture des remboursements est sous le minimum : un analyste doit revoir le dossier."
+        }
+      ]
+    },
+    "match": "partial"
+  }
+]

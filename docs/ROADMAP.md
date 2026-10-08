@@ -43,6 +43,9 @@ docker-compose for PostgreSQL, MinIO and Mailpit.
 | 25 | DNK-37 One input contract for the rules and the form | S R |
 | 26 | DNK-38 Forms pull and check the input contract | C |
 | 27 | DNK-40 Rotate the decision-log key | S |
+| 28 | DNK-43 Packs: import, duplicate, export | S |
+| 29 | DNK-41 First-run onboarding | S |
+| 30 | DNK-42 Wording that fits any industry | S |
 
 Practices from the upstream codebases, scheduled next to the stories that need them:
 DNK-26 `/version` (after DNK-4), DNK-28 container builds (before DNK-23), DNK-29 Storybook

@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "key": "sme-treasury",
+  "name": { "en": "SME treasury evaluation", "fr": "Évaluation de trésorerie PME" },
+  "description": {
+    "en": "Overdraft and short-term loan evaluation for small businesses in Cameroon (CEMAC), amounts in XAF: capacity by sector, debt service cover, points, bands and reason codes in English and French.",
+    "fr": "Évaluation de découvert et de crédit court terme pour les PME au Cameroun (CEMAC), montants en XAF : capacité par secteur, couverture du service de la dette, points, classes et motifs en anglais et en français."
+  },
+  "market": "CM",
+  "currency": "XAF",
+  "entry": "evaluation",
+  "decisions": ["evaluation"],
+  "decisionLog": { "outcomeField": "decision", "redactedFields": [] }
+}

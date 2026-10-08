@@ -1,0 +1,997 @@
+{
+  "nodes": [
+    {
+      "id": "request",
+      "type": "inputNode",
+      "name": "Request",
+      "position": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "policy",
+      "type": "expressionNode",
+      "name": "Credit policy",
+      "content": {
+        "expressions": [
+          {
+            "id": "policy0",
+            "key": "minYearsActive",
+            "value": "2"
+          },
+          {
+            "id": "policy1",
+            "key": "minDebtServiceCover",
+            "value": "1.2"
+          },
+          {
+            "id": "policy2",
+            "key": "maxDaysPastDue",
+            "value": "90"
+          },
+          {
+            "id": "policy3",
+            "key": "maxPaymentIncidents",
+            "value": "2"
+          },
+          {
+            "id": "policy4",
+            "key": "annualRate",
+            "value": "0.14"
+          }
+        ],
+        "passThrough": true,
+        "outputPath": "policy"
+      },
+      "position": {
+        "x": 320,
+        "y": 0
+      }
+    },
+    {
+      "id": "sector",
+      "type": "decisionTableNode",
+      "name": "Sector factors",
+      "content": {
+        "hitPolicy": "first",
+        "passThrough": true,
+        "inputs": [
+          {
+            "id": "sectori0",
+            "name": "Sector",
+            "field": "business.sector"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "sectoro0",
+            "name": "Limit share of turnover",
+            "field": "sector.limitShare"
+          },
+          {
+            "id": "sectoro1",
+            "name": "Cash margin",
+            "field": "sector.cashMargin"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "sectorr0",
+            "sectori0": "\"trade\"",
+            "sectoro0": "0.30",
+            "sectoro1": "0.10"
+          },
+          {
+            "_id": "sectorr1",
+            "sectori0": "\"services\"",
+            "sectoro0": "0.25",
+            "sectoro1": "0.20"
+          },
+          {
+            "_id": "sectorr2",
+            "sectori0": "\"manufacturing\"",
+            "sectoro0": "0.25",
+            "sectoro1": "0.15"
+          },
+          {
+            "_id": "sectorr3",
+            "sectori0": "\"agriculture\"",
+            "sectoro0": "0.20",
+            "sectoro1": "0.15"
+          },
+          {
+            "_id": "sectorr4",
+            "sectori0": "\"construction\"",
+            "sectoro0": "0.20",
+            "sectoro1": "0.12"
+          },
+          {
+            "_id": "sectorr5",
+            "sectori0": "",
+            "sectoro0": "0.15",
+            "sectoro1": "0.10"
+          }
+        ]
+      },
+      "position": {
+        "x": 640,
+        "y": 0
+      }
+    },
+    {
+      "id": "service",
+      "type": "expressionNode",
+      "name": "New debt service",
+      "content": {
+        "expressions": [
+          {
+            "id": "service0",
+            "key": "newDebtService",
+            "value": "request.product == 'overdraft' ? round(request.amount * policy.annualRate / 12) : round(request.amount * (policy.annualRate / 12) / (1 - (1 + policy.annualRate / 12) ^ (-request.termMonths)))"
+          },
+          {
+            "id": "service1",
+            "key": "capacityLimit",
+            "value": "floor(business.monthlyTurnover * sector.limitShare / 100000) * 100000"
+          },
+          {
+            "id": "service2",
+            "key": "monthlyCashFlow",
+            "value": "round(business.monthlyTurnover * sector.cashMargin)"
+          }
+        ],
+        "passThrough": true,
+        "outputPath": "calc"
+      },
+      "position": {
+        "x": 960,
+        "y": 0
+      }
+    },
+    {
+      "id": "cover",
+      "type": "expressionNode",
+      "name": "Cover ratios",
+      "content": {
+        "expressions": [
+          {
+            "id": "cover0",
+            "key": "debtServiceCover",
+            "value": "round(calc.monthlyCashFlow / (business.monthlyDebtService + calc.newDebtService) * 100) / 100"
+          },
+          {
+            "id": "cover1",
+            "key": "balanceCover",
+            "value": "round(business.averageBalance / (business.monthlyDebtService + calc.newDebtService) * 100) / 100"
+          },
+          {
+            "id": "cover2",
+            "key": "recommendedLimit",
+            "value": "min([request.amount, calc.capacityLimit])"
+          }
+        ],
+        "passThrough": true,
+        "outputPath": "ratios"
+      },
+      "position": {
+        "x": 0,
+        "y": 180
+      }
+    },
+    {
+      "id": "years",
+      "type": "decisionTableNode",
+      "name": "Points: years active",
+      "content": {
+        "hitPolicy": "first",
+        "passThrough": true,
+        "inputs": [
+          {
+            "id": "yearsi0",
+            "name": "Years",
+            "field": "business.yearsActive"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "yearso0",
+            "name": "Points",
+            "field": "points.years"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "yearsr0",
+            "yearsi0": "< 2",
+            "yearso0": "0"
+          },
+          {
+            "_id": "yearsr1",
+            "yearsi0": "[2..5)",
+            "yearso0": "10"
+          },
+          {
+            "_id": "yearsr2",
+            "yearsi0": "[5..10)",
+            "yearso0": "20"
+          },
+          {
+            "_id": "yearsr3",
+            "yearsi0": "",
+            "yearso0": "25"
+          }
+        ]
+      },
+      "position": {
+        "x": 320,
+        "y": 180
+      }
+    },
+    {
+      "id": "trend",
+      "type": "decisionTableNode",
+      "name": "Points: turnover trend",
+      "content": {
+        "hitPolicy": "first",
+        "passThrough": true,
+        "inputs": [
+          {
+            "id": "trendi0",
+            "name": "Last 3 months ÷ previous 3",
+            "field": "business.turnoverTrend"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "trendo0",
+            "name": "Points",
+            "field": "points.trend"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "trendr0",
+            "trendi0": "< 0.8",
+            "trendo0": "0"
+          },
+          {
+            "_id": "trendr1",
+            "trendi0": "< 1",
+            "trendo0": "10"
+          },
+          {
+            "_id": "trendr2",
+            "trendi0": "< 1.2",
+            "trendo0": "20"
+          },
+          {
+            "_id": "trendr3",
+            "trendi0": "",
+            "trendo0": "25"
+          }
+        ]
+      },
+      "position": {
+        "x": 640,
+        "y": 180
+      }
+    },
+    {
+      "id": "dscr",
+      "type": "decisionTableNode",
+      "name": "Points: debt service cover",
+      "content": {
+        "hitPolicy": "first",
+        "passThrough": true,
+        "inputs": [
+          {
+            "id": "dscri0",
+            "name": "Cover",
+            "field": "ratios.debtServiceCover"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "dscro0",
+            "name": "Points",
+            "field": "points.debtServiceCover"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "dscrr0",
+            "dscri0": "< 1.2",
+            "dscro0": "0"
+          },
+          {
+            "_id": "dscrr1",
+            "dscri0": "< 1.5",
+            "dscro0": "10"
+          },
+          {
+            "_id": "dscrr2",
+            "dscri0": "< 2",
+            "dscro0": "20"
+          },
+          {
+            "_id": "dscrr3",
+            "dscri0": "",
+            "dscro0": "30"
+          }
+        ]
+      },
+      "position": {
+        "x": 960,
+        "y": 180
+      }
+    },
+    {
+      "id": "balance",
+      "type": "decisionTableNode",
+      "name": "Points: balance cover",
+      "content": {
+        "hitPolicy": "first",
+        "passThrough": true,
+        "inputs": [
+          {
+            "id": "balancei0",
+            "name": "Cover",
+            "field": "ratios.balanceCover"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "balanceo0",
+            "name": "Points",
+            "field": "points.balanceCover"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "balancer0",
+            "balancei0": "< 1",
+            "balanceo0": "0"
+          },
+          {
+            "_id": "balancer1",
+            "balancei0": "< 3",
+            "balanceo0": "10"
+          },
+          {
+            "_id": "balancer2",
+            "balancei0": "",
+            "balanceo0": "20"
+          }
+        ]
+      },
+      "position": {
+        "x": 0,
+        "y": 360
+      }
+    },
+    {
+      "id": "tax",
+      "type": "decisionTableNode",
+      "name": "Points: tax ID (NIU)",
+      "content": {
+        "hitPolicy": "first",
+        "passThrough": true,
+        "inputs": [
+          {
+            "id": "taxi0",
+            "name": "Registered",
+            "field": "business.taxRegistered"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "taxo0",
+            "name": "Points",
+            "field": "points.taxRegistered"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "taxr0",
+            "taxi0": "true",
+            "taxo0": "10"
+          },
+          {
+            "_id": "taxr1",
+            "taxi0": "",
+            "taxo0": "0"
+          }
+        ]
+      },
+      "position": {
+        "x": 320,
+        "y": 360
+      }
+    },
+    {
+      "id": "history",
+      "type": "decisionTableNode",
+      "name": "Points: credit history",
+      "content": {
+        "hitPolicy": "first",
+        "passThrough": true,
+        "inputs": [
+          {
+            "id": "historyi0",
+            "name": "Worst days past due",
+            "field": "bureau.worstDaysPastDue"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "historyo0",
+            "name": "Points",
+            "field": "points.history"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "historyr0",
+            "historyi0": "> 30",
+            "historyo0": "0"
+          },
+          {
+            "_id": "historyr1",
+            "historyi0": "> 0",
+            "historyo0": "10"
+          },
+          {
+            "_id": "historyr2",
+            "historyi0": "",
+            "historyo0": "20"
+          }
+        ]
+      },
+      "position": {
+        "x": 640,
+        "y": 360
+      }
+    },
+    {
+      "id": "score",
+      "type": "expressionNode",
+      "name": "Score",
+      "content": {
+        "expressions": [
+          {
+            "id": "score0",
+            "key": "score",
+            "value": "points.years + points.trend + points.debtServiceCover + points.balanceCover + points.taxRegistered + points.history"
+          }
+        ],
+        "passThrough": true
+      },
+      "position": {
+        "x": 960,
+        "y": 360
+      }
+    },
+    {
+      "id": "band",
+      "type": "decisionTableNode",
+      "name": "Band",
+      "content": {
+        "hitPolicy": "first",
+        "passThrough": true,
+        "inputs": [
+          {
+            "id": "bandi0",
+            "name": "Score",
+            "field": "score"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "bando0",
+            "name": "Band",
+            "field": "band"
+          },
+          {
+            "id": "bando1",
+            "name": "Decision",
+            "field": "bandDecision"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "bandr0",
+            "bandi0": ">= 100",
+            "bando0": "\"A\"",
+            "bando1": "\"approve\""
+          },
+          {
+            "_id": "bandr1",
+            "bandi0": ">= 80",
+            "bando0": "\"B\"",
+            "bando1": "\"approve\""
+          },
+          {
+            "_id": "bandr2",
+            "bandi0": ">= 60",
+            "bando0": "\"C\"",
+            "bando1": "\"refer\""
+          },
+          {
+            "_id": "bandr3",
+            "bandi0": "",
+            "bando0": "\"D\"",
+            "bando1": "\"decline\""
+          }
+        ]
+      },
+      "position": {
+        "x": 0,
+        "y": 540
+      }
+    },
+    {
+      "id": "knockouts",
+      "type": "decisionTableNode",
+      "name": "Knock-out rules",
+      "content": {
+        "hitPolicy": "collect",
+        "passThrough": true,
+        "inputs": [
+          {
+            "id": "knockoutsi0",
+            "name": "Years active",
+            "field": "business.yearsActive"
+          },
+          {
+            "id": "knockoutsi1",
+            "name": "Monthly turnover",
+            "field": "business.monthlyTurnover"
+          },
+          {
+            "id": "knockoutsi2",
+            "name": "Debt service cover",
+            "field": "ratios.debtServiceCover"
+          },
+          {
+            "id": "knockoutsi3",
+            "name": "Worst days past due",
+            "field": "bureau.worstDaysPastDue"
+          },
+          {
+            "id": "knockoutsi4",
+            "name": "Payment incidents",
+            "field": "bureau.paymentIncidents"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "knockoutso0",
+            "name": "Code",
+            "field": "code"
+          },
+          {
+            "id": "knockoutso1",
+            "name": "English",
+            "field": "en"
+          },
+          {
+            "id": "knockoutso2",
+            "name": "Français",
+            "field": "fr"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "knockoutsr0",
+            "knockoutsi0": "< policy.minYearsActive",
+            "knockoutsi1": "",
+            "knockoutsi2": "",
+            "knockoutsi3": "",
+            "knockoutsi4": "",
+            "knockoutso0": "\"K11\"",
+            "knockoutso1": "\"The business is younger than the minimum.\"",
+            "knockoutso2": "\"L'entreprise est plus jeune que le minimum.\""
+          },
+          {
+            "_id": "knockoutsr1",
+            "knockoutsi0": "",
+            "knockoutsi1": "<= 0",
+            "knockoutsi2": "",
+            "knockoutsi3": "",
+            "knockoutsi4": "",
+            "knockoutso0": "\"K12\"",
+            "knockoutso1": "\"No turnover on record.\"",
+            "knockoutso2": "\"Aucun chiffre d'affaires enregistré.\""
+          },
+          {
+            "_id": "knockoutsr2",
+            "knockoutsi0": "",
+            "knockoutsi1": "",
+            "knockoutsi2": "< 1",
+            "knockoutsi3": "",
+            "knockoutsi4": "",
+            "knockoutso0": "\"K13\"",
+            "knockoutso1": "\"Cash flow does not cover the repayments.\"",
+            "knockoutso2": "\"La trésorerie ne couvre pas les remboursements.\""
+          },
+          {
+            "_id": "knockoutsr3",
+            "knockoutsi0": "",
+            "knockoutsi1": "",
+            "knockoutsi2": "",
+            "knockoutsi3": "> policy.maxDaysPastDue",
+            "knockoutsi4": "",
+            "knockoutso0": "\"K14\"",
+            "knockoutso1": "\"The bureau reports serious arrears.\"",
+            "knockoutso2": "\"Le bureau de crédit signale des impayés graves.\""
+          },
+          {
+            "_id": "knockoutsr4",
+            "knockoutsi0": "",
+            "knockoutsi1": "",
+            "knockoutsi2": "",
+            "knockoutsi3": "",
+            "knockoutsi4": "> policy.maxPaymentIncidents",
+            "knockoutso0": "\"K15\"",
+            "knockoutso1": "\"Too many payment incidents (e.g. returned cheques).\"",
+            "knockoutso2": "\"Trop d'incidents de paiement (par exemple chèques impayés).\""
+          }
+        ],
+        "outputPath": "knockouts"
+      },
+      "position": {
+        "x": 320,
+        "y": 540
+      }
+    },
+    {
+      "id": "reasons",
+      "type": "decisionTableNode",
+      "name": "Reason codes",
+      "content": {
+        "hitPolicy": "collect",
+        "passThrough": true,
+        "inputs": [
+          {
+            "id": "reasonsi0",
+            "name": "Trend",
+            "field": "business.turnoverTrend"
+          },
+          {
+            "id": "reasonsi1",
+            "name": "Cover",
+            "field": "ratios.debtServiceCover"
+          },
+          {
+            "id": "reasonsi2",
+            "name": "Balance cover",
+            "field": "ratios.balanceCover"
+          },
+          {
+            "id": "reasonsi3",
+            "name": "Tax ID",
+            "field": "business.taxRegistered"
+          },
+          {
+            "id": "reasonsi4",
+            "name": "History points",
+            "field": "points.history"
+          },
+          {
+            "id": "reasonsi5",
+            "name": "Years active",
+            "field": "business.yearsActive"
+          },
+          {
+            "id": "reasonsi6",
+            "name": "Above capacity",
+            "field": "request.amount > calc.capacityLimit"
+          },
+          {
+            "id": "reasonsi7",
+            "name": "Bureau checked",
+            "field": "bureau.checked"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "reasonso0",
+            "name": "Code",
+            "field": "code"
+          },
+          {
+            "id": "reasonso1",
+            "name": "English",
+            "field": "en"
+          },
+          {
+            "id": "reasonso2",
+            "name": "Français",
+            "field": "fr"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "reasonsr0",
+            "reasonsi0": "< 1",
+            "reasonsi1": "",
+            "reasonsi2": "",
+            "reasonsi3": "",
+            "reasonsi4": "",
+            "reasonsi5": "",
+            "reasonsi6": "",
+            "reasonsi7": "",
+            "reasonso0": "\"R61\"",
+            "reasonso1": "\"Turnover is falling.\"",
+            "reasonso2": "\"Le chiffre d'affaires baisse.\""
+          },
+          {
+            "_id": "reasonsr1",
+            "reasonsi0": "",
+            "reasonsi1": "[1..policy.minDebtServiceCover)",
+            "reasonsi2": "",
+            "reasonsi3": "",
+            "reasonsi4": "",
+            "reasonsi5": "",
+            "reasonsi6": "",
+            "reasonsi7": "",
+            "reasonso0": "\"R62\"",
+            "reasonso1": "\"Repayment cover is below the policy minimum: an analyst must review.\"",
+            "reasonso2": "\"La couverture des remboursements est sous le minimum : un analyste doit revoir le dossier.\""
+          },
+          {
+            "_id": "reasonsr2",
+            "reasonsi0": "",
+            "reasonsi1": "",
+            "reasonsi2": "< 1",
+            "reasonsi3": "",
+            "reasonsi4": "",
+            "reasonsi5": "",
+            "reasonsi6": "",
+            "reasonsi7": "",
+            "reasonso0": "\"R63\"",
+            "reasonso1": "\"Low average balance.\"",
+            "reasonso2": "\"Solde moyen faible.\""
+          },
+          {
+            "_id": "reasonsr3",
+            "reasonsi0": "",
+            "reasonsi1": "",
+            "reasonsi2": "",
+            "reasonsi3": "false",
+            "reasonsi4": "",
+            "reasonsi5": "",
+            "reasonsi6": "",
+            "reasonsi7": "",
+            "reasonso0": "\"R64\"",
+            "reasonso1": "\"No tax ID (NIU) on file.\"",
+            "reasonso2": "\"Pas de numéro d'identifiant unique (NIU) au dossier.\""
+          },
+          {
+            "_id": "reasonsr4",
+            "reasonsi0": "",
+            "reasonsi1": "",
+            "reasonsi2": "",
+            "reasonsi3": "",
+            "reasonsi4": "< 20",
+            "reasonsi5": "",
+            "reasonsi6": "",
+            "reasonsi7": "",
+            "reasonso0": "\"R65\"",
+            "reasonso1": "\"Late payments in the last 24 months.\"",
+            "reasonso2": "\"Retards de paiement au cours des 24 derniers mois.\""
+          },
+          {
+            "_id": "reasonsr5",
+            "reasonsi0": "",
+            "reasonsi1": "",
+            "reasonsi2": "",
+            "reasonsi3": "",
+            "reasonsi4": "",
+            "reasonsi5": "< 5",
+            "reasonsi6": "",
+            "reasonsi7": "",
+            "reasonso0": "\"R66\"",
+            "reasonso1": "\"Young business.\"",
+            "reasonso2": "\"Entreprise jeune.\""
+          },
+          {
+            "_id": "reasonsr6",
+            "reasonsi0": "",
+            "reasonsi1": "",
+            "reasonsi2": "",
+            "reasonsi3": "",
+            "reasonsi4": "",
+            "reasonsi5": "",
+            "reasonsi6": "true",
+            "reasonsi7": "",
+            "reasonso0": "\"R71\"",
+            "reasonso1": "\"The request is above the business's capacity: the limit is reduced.\"",
+            "reasonso2": "\"La demande dépasse la capacité de l'entreprise : la limite est réduite.\""
+          },
+          {
+            "_id": "reasonsr7",
+            "reasonsi0": "",
+            "reasonsi1": "",
+            "reasonsi2": "",
+            "reasonsi3": "",
+            "reasonsi4": "",
+            "reasonsi5": "",
+            "reasonsi6": "",
+            "reasonsi7": "false",
+            "reasonso0": "\"R60\"",
+            "reasonso1": "\"No credit bureau check: an analyst must review.\"",
+            "reasonso2": "\"Pas de consultation du bureau de crédit : un analyste doit revoir le dossier.\""
+          }
+        ],
+        "outputPath": "reasons"
+      },
+      "position": {
+        "x": 640,
+        "y": 540
+      }
+    },
+    {
+      "id": "decision",
+      "type": "expressionNode",
+      "name": "Decision",
+      "content": {
+        "expressions": [
+          {
+            "id": "decision0",
+            "key": "decision",
+            "value": "len(knockouts) > 0 ? 'decline' : (bandDecision == 'approve' and (bureau.checked == false or ratios.debtServiceCover < policy.minDebtServiceCover) ? 'refer' : bandDecision)"
+          },
+          {
+            "id": "decision1",
+            "key": "band",
+            "value": "band"
+          },
+          {
+            "id": "decision2",
+            "key": "score",
+            "value": "score"
+          },
+          {
+            "id": "decision3",
+            "key": "recommendedLimit",
+            "value": "len(knockouts) > 0 or bandDecision == 'decline' ? 0 : ratios.recommendedLimit"
+          },
+          {
+            "id": "decision4",
+            "key": "reasons",
+            "value": "flatten([knockouts, reasons])"
+          },
+          {
+            "id": "decision5",
+            "key": "debtServiceCover",
+            "value": "ratios.debtServiceCover"
+          },
+          {
+            "id": "decision6",
+            "key": "capacityLimit",
+            "value": "calc.capacityLimit"
+          },
+          {
+            "id": "decision7",
+            "key": "points",
+            "value": "points"
+          }
+        ],
+        "passThrough": false
+      },
+      "position": {
+        "x": 960,
+        "y": 540
+      }
+    },
+    {
+      "id": "response",
+      "type": "outputNode",
+      "name": "Response",
+      "position": {
+        "x": 0,
+        "y": 720
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "type": "edge",
+      "sourceId": "request",
+      "targetId": "policy"
+    },
+    {
+      "id": "e2",
+      "type": "edge",
+      "sourceId": "policy",
+      "targetId": "sector"
+    },
+    {
+      "id": "e3",
+      "type": "edge",
+      "sourceId": "sector",
+      "targetId": "service"
+    },
+    {
+      "id": "e4",
+      "type": "edge",
+      "sourceId": "service",
+      "targetId": "cover"
+    },
+    {
+      "id": "e5",
+      "type": "edge",
+      "sourceId": "cover",
+      "targetId": "years"
+    },
+    {
+      "id": "e6",
+      "type": "edge",
+      "sourceId": "years",
+      "targetId": "trend"
+    },
+    {
+      "id": "e7",
+      "type": "edge",
+      "sourceId": "trend",
+      "targetId": "dscr"
+    },
+    {
+      "id": "e8",
+      "type": "edge",
+      "sourceId": "dscr",
+      "targetId": "balance"
+    },
+    {
+      "id": "e9",
+      "type": "edge",
+      "sourceId": "balance",
+      "targetId": "tax"
+    },
+    {
+      "id": "e10",
+      "type": "edge",
+      "sourceId": "tax",
+      "targetId": "history"
+    },
+    {
+      "id": "e11",
+      "type": "edge",
+      "sourceId": "history",
+      "targetId": "score"
+    },
+    {
+      "id": "e12",
+      "type": "edge",
+      "sourceId": "score",
+      "targetId": "band"
+    },
+    {
+      "id": "e13",
+      "type": "edge",
+      "sourceId": "band",
+      "targetId": "knockouts"
+    },
+    {
+      "id": "e14",
+      "type": "edge",
+      "sourceId": "knockouts",
+      "targetId": "reasons"
+    },
+    {
+      "id": "e15",
+      "type": "edge",
+      "sourceId": "reasons",
+      "targetId": "decision"
+    },
+    {
+      "id": "e16",
+      "type": "edge",
+      "sourceId": "decision",
+      "targetId": "response"
+    }
+  ]
+}

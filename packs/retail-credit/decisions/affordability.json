@@ -1,0 +1,132 @@
+{
+  "nodes": [
+    {
+      "id": "request",
+      "type": "inputNode",
+      "name": "Request",
+      "position": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "rate",
+      "type": "expressionNode",
+      "name": "Monthly rate",
+      "content": {
+        "expressions": [
+          {
+            "id": "rate0",
+            "key": "monthlyRate",
+            "value": "policy.annualRate / 12"
+          },
+          {
+            "id": "rate1",
+            "key": "annuityFactor",
+            "value": "1 - (1 + policy.annualRate / 12) ^ (-loan.termMonths)"
+          }
+        ],
+        "passThrough": true,
+        "outputPath": "calc"
+      },
+      "position": {
+        "x": 320,
+        "y": 0
+      }
+    },
+    {
+      "id": "pay",
+      "type": "expressionNode",
+      "name": "Instalments",
+      "content": {
+        "expressions": [
+          {
+            "id": "pay0",
+            "key": "installment",
+            "value": "round(loan.amount * calc.monthlyRate / calc.annuityFactor)"
+          },
+          {
+            "id": "pay1",
+            "key": "maxInstallment",
+            "value": "max([0, floor(applicant.monthlyIncome * policy.maxDebtToIncome - applicant.monthlyDebtPayments)])"
+          }
+        ],
+        "passThrough": true,
+        "outputPath": "pay"
+      },
+      "position": {
+        "x": 640,
+        "y": 0
+      }
+    },
+    {
+      "id": "result",
+      "type": "expressionNode",
+      "name": "Affordability",
+      "content": {
+        "expressions": [
+          {
+            "id": "result0",
+            "key": "installment",
+            "value": "pay.installment"
+          },
+          {
+            "id": "result1",
+            "key": "debtToIncome",
+            "value": "applicant.monthlyIncome > 0 ? round((applicant.monthlyDebtPayments + pay.installment) / applicant.monthlyIncome * 1000) / 1000 : 99"
+          },
+          {
+            "id": "result2",
+            "key": "maxInstallment",
+            "value": "pay.maxInstallment"
+          },
+          {
+            "id": "result3",
+            "key": "maxAmount",
+            "value": "floor(pay.maxInstallment * calc.annuityFactor / calc.monthlyRate / 10000) * 10000"
+          }
+        ],
+        "passThrough": false
+      },
+      "position": {
+        "x": 960,
+        "y": 0
+      }
+    },
+    {
+      "id": "response",
+      "type": "outputNode",
+      "name": "Response",
+      "position": {
+        "x": 0,
+        "y": 180
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "type": "edge",
+      "sourceId": "request",
+      "targetId": "rate"
+    },
+    {
+      "id": "e2",
+      "type": "edge",
+      "sourceId": "rate",
+      "targetId": "pay"
+    },
+    {
+      "id": "e3",
+      "type": "edge",
+      "sourceId": "pay",
+      "targetId": "result"
+    },
+    {
+      "id": "e4",
+      "type": "edge",
+      "sourceId": "result",
+      "targetId": "response"
+    }
+  ]
+}

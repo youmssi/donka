@@ -1,0 +1,310 @@
+[
+  {
+    "decision": "affordability",
+    "name": "1,000,000 XAF over 24 months at 16%",
+    "input": {
+      "applicant": {
+        "monthlyIncome": 300000,
+        "monthlyDebtPayments": 20000
+      },
+      "loan": {
+        "amount": 1000000,
+        "termMonths": 24
+      },
+      "policy": {
+        "annualRate": 0.16,
+        "maxDebtToIncome": 0.4
+      }
+    },
+    "expected": {
+      "debtToIncome": 0.23,
+      "installment": 48963,
+      "maxAmount": 2040000,
+      "maxInstallment": 100000
+    },
+    "match": "exact"
+  },
+  {
+    "decision": "scorecard",
+    "name": "Civil servant, clean history",
+    "input": {
+      "applicant": {
+        "age": 38,
+        "employment": "public",
+        "monthsInJob": 96,
+        "monthlyIncome": 450000,
+        "monthlyDebtPayments": 40000,
+        "salaryDomiciled": true
+      },
+      "loan": {
+        "amount": 2500000,
+        "termMonths": 36
+      },
+      "bureau": {
+        "checked": true,
+        "paymentIncidents": 0,
+        "activeLoans": 1,
+        "worstDaysPastDue": 0
+      }
+    },
+    "expected": {
+      "decision": "approve",
+      "band": "A",
+      "score": 143,
+      "reasons": []
+    },
+    "match": "partial"
+  },
+  {
+    "decision": "scorecard",
+    "name": "Private employee, salary paid elsewhere",
+    "input": {
+      "applicant": {
+        "age": 29,
+        "employment": "private",
+        "monthsInJob": 30,
+        "monthlyIncome": 320000,
+        "monthlyDebtPayments": 0,
+        "salaryDomiciled": false
+      },
+      "loan": {
+        "amount": 1500000,
+        "termMonths": 24
+      },
+      "bureau": {
+        "checked": true,
+        "paymentIncidents": 0,
+        "activeLoans": 0,
+        "worstDaysPastDue": 0
+      }
+    },
+    "expected": {
+      "decision": "approve",
+      "band": "B",
+      "score": 102,
+      "reasons": [
+        {
+          "code": "R50",
+          "en": "Salary is not paid into this bank.",
+          "fr": "Le salaire n'est pas domicilié dans la banque."
+        }
+      ]
+    },
+    "match": "partial"
+  },
+  {
+    "decision": "scorecard",
+    "name": "Trader with recent late payments",
+    "input": {
+      "applicant": {
+        "age": 44,
+        "employment": "self-employed",
+        "monthsInJob": 60,
+        "monthlyIncome": 380000,
+        "monthlyDebtPayments": 60000,
+        "salaryDomiciled": false
+      },
+      "loan": {
+        "amount": 1000000,
+        "termMonths": 18
+      },
+      "bureau": {
+        "checked": true,
+        "paymentIncidents": 1,
+        "activeLoans": 2,
+        "worstDaysPastDue": 15
+      }
+    },
+    "expected": {
+      "decision": "refer",
+      "band": "C",
+      "score": 83,
+      "reasons": [
+        {
+          "code": "R10",
+          "en": "High debt-to-income ratio.",
+          "fr": "Taux d'endettement élevé."
+        },
+        {
+          "code": "R20",
+          "en": "Late payments in the last 24 months.",
+          "fr": "Retards de paiement au cours des 24 derniers mois."
+        },
+        {
+          "code": "R40",
+          "en": "Income from self-employment or informal work.",
+          "fr": "Revenus d'une activité indépendante ou informelle."
+        },
+        {
+          "code": "R50",
+          "en": "Salary is not paid into this bank.",
+          "fr": "Le salaire n'est pas domicilié dans la banque."
+        }
+      ]
+    },
+    "match": "partial"
+  },
+  {
+    "decision": "scorecard",
+    "name": "Repayments above the debt-to-income limit",
+    "input": {
+      "applicant": {
+        "age": 35,
+        "employment": "public",
+        "monthsInJob": 48,
+        "monthlyIncome": 250000,
+        "monthlyDebtPayments": 50000,
+        "salaryDomiciled": true
+      },
+      "loan": {
+        "amount": 3000000,
+        "termMonths": 36
+      },
+      "bureau": {
+        "checked": true,
+        "paymentIncidents": 0,
+        "activeLoans": 1,
+        "worstDaysPastDue": 0
+      }
+    },
+    "expected": {
+      "decision": "decline",
+      "band": "A",
+      "score": 123,
+      "reasons": [
+        {
+          "code": "K04",
+          "en": "Repayments would exceed the debt-to-income limit.",
+          "fr": "Les remboursements dépasseraient le taux d'endettement maximum."
+        },
+        {
+          "code": "R10",
+          "en": "High debt-to-income ratio.",
+          "fr": "Taux d'endettement élevé."
+        }
+      ]
+    },
+    "match": "partial"
+  },
+  {
+    "decision": "scorecard",
+    "name": "Applicant under 21",
+    "input": {
+      "applicant": {
+        "age": 19,
+        "employment": "private",
+        "monthsInJob": 6,
+        "monthlyIncome": 150000,
+        "monthlyDebtPayments": 0,
+        "salaryDomiciled": true
+      },
+      "loan": {
+        "amount": 300000,
+        "termMonths": 12
+      },
+      "bureau": {
+        "checked": true,
+        "paymentIncidents": 0,
+        "activeLoans": 0,
+        "worstDaysPastDue": 0
+      }
+    },
+    "expected": {
+      "decision": "decline",
+      "band": "B",
+      "score": 107,
+      "reasons": [
+        {
+          "code": "K01",
+          "en": "Applicant is below the minimum age.",
+          "fr": "Le demandeur n'a pas l'âge minimum."
+        },
+        {
+          "code": "R30",
+          "en": "Less than a year in the current job.",
+          "fr": "Moins d'un an dans l'emploi actuel."
+        }
+      ]
+    },
+    "match": "partial"
+  },
+  {
+    "decision": "scorecard",
+    "name": "Serious arrears at the bureau",
+    "input": {
+      "applicant": {
+        "age": 41,
+        "employment": "private",
+        "monthsInJob": 120,
+        "monthlyIncome": 600000,
+        "monthlyDebtPayments": 0,
+        "salaryDomiciled": true
+      },
+      "loan": {
+        "amount": 2000000,
+        "termMonths": 24
+      },
+      "bureau": {
+        "checked": true,
+        "paymentIncidents": 2,
+        "activeLoans": 1,
+        "worstDaysPastDue": 120
+      }
+    },
+    "expected": {
+      "decision": "decline",
+      "band": "A",
+      "score": 122,
+      "reasons": [
+        {
+          "code": "K05",
+          "en": "The bureau reports serious arrears.",
+          "fr": "Le bureau de crédit signale des impayés graves."
+        },
+        {
+          "code": "R20",
+          "en": "Late payments in the last 24 months.",
+          "fr": "Retards de paiement au cours des 24 derniers mois."
+        }
+      ]
+    },
+    "match": "partial"
+  },
+  {
+    "decision": "scorecard",
+    "name": "Strong profile without a bureau check",
+    "input": {
+      "applicant": {
+        "age": 38,
+        "employment": "public",
+        "monthsInJob": 96,
+        "monthlyIncome": 450000,
+        "monthlyDebtPayments": 40000,
+        "salaryDomiciled": true
+      },
+      "loan": {
+        "amount": 2500000,
+        "termMonths": 36
+      },
+      "bureau": {
+        "checked": false,
+        "paymentIncidents": 0,
+        "activeLoans": 0,
+        "worstDaysPastDue": 0
+      }
+    },
+    "expected": {
+      "decision": "refer",
+      "band": "A",
+      "score": 143,
+      "reasons": [
+        {
+          "code": "R60",
+          "en": "No credit bureau check: an analyst must review.",
+          "fr": "Pas de consultation du bureau de crédit : un analyste doit revoir le dossier."
+        }
+      ]
+    },
+    "match": "partial"
+  }
+]
