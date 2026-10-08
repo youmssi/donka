@@ -4,6 +4,7 @@ import { Check, ChevronsUpDown, LogOut, Monitor, Moon, Sun } from 'lucide-react'
 import { useTranslations } from 'next-intl';
 import { useTheme } from 'next-themes';
 
+import { BrandMark } from '@/components/shared/brand-mark';
 import { LOCALE_NAMES, useLocaleSwitch } from '@/components/shared/language-switch';
 import { initials } from '@/components/shared/person';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -67,12 +68,7 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild tooltip={app('name')}>
               <Link href="/" onClick={close}>
-                <span
-                  aria-hidden
-                  className="grid size-8 shrink-0 place-items-center rounded-md bg-sidebar-primary font-semibold text-sidebar-primary-foreground"
-                >
-                  D
-                </span>
+                <BrandMark className="size-8 bg-sidebar-primary text-sidebar-primary-foreground" />
                 <span className="grid leading-tight">
                   <span className="font-semibold">{app('name')}</span>
                   <span className="text-xs text-muted-foreground">Studio</span>

@@ -153,6 +153,7 @@ crates/<module>/     one crate per business module
 migrations/          PostgreSQL migrations (sqlx), forward-only; <UTC timestamp>_<what>.sql
 scripts/             repo scripts (engine version drift check, end-to-end release test)
 docs/adr/            architecture decision records
+docs/brand/          logo family: marks, lockups, usage rules
 docs/backlog/        stories with acceptance criteria
 docs/engineering/    principles, backend and frontend guides
 docs/templates/      story and ADR templates
