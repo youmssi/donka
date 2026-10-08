@@ -504,8 +504,8 @@ donka-runtime; Studio depends on it for simulation (mock mode).
 **Type:** feature · **Repos:** R · **Dependencies:** DNK-12 · **Size:** S
 
 #### Acceptance criteria
-- [ ] Per-token request limit from configuration; exceeding it returns `429` with `Retry-After`
-- [ ] Limits do not apply to health endpoints
+- [x] Per-token request limit from configuration; exceeding it returns `429` with `Retry-After`
+- [x] Limits do not apply to health endpoints
 
 ---
 
@@ -582,9 +582,9 @@ zen, agent-public and the CLI already solved many problems Donka meets. Copying 
 **Type:** build · **Repos:** S · **Dependencies:** DNK-3 · **Size:** S
 
 #### Acceptance criteria
-- [ ] The Dockerfile builds dependencies in a layer that only `Cargo.toml`/`Cargo.lock` changes invalidate
-- [ ] The image runs as a non-root user and passes `SERVICE_VERSION` through
-- [ ] CI builds the image on every pull request (no push yet)
+- [x] The Dockerfile builds dependencies in a layer that only `Cargo.toml`/`Cargo.lock` changes invalidate
+- [x] The image runs as a non-root user and passes `SERVICE_VERSION` through
+- [x] CI builds the image on every pull request (no push yet)
 
 ---
 
