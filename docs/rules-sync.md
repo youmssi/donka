@@ -1,8 +1,9 @@
 # Rules sync
 
 How a CI pipeline pulls a project's release artifact from Studio (DNK-20). The Donka CLI
-(`donka pull`, DNK-21) speaks this API; any pipeline can call it directly. Changes are
-**additive only**.
+(`donka pull`, [youmssi/donka-cli](https://github.com/youmssi/donka-cli), DNK-21) speaks this API
+and ships GitHub, GitLab and Azure templates around it; any pipeline can also call it directly.
+Changes are **additive only**, and donka-cli's tests follow this page.
 
 ## Token
 

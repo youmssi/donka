@@ -482,11 +482,20 @@ donka-runtime; Studio depends on it for simulation (mock mode).
 
 **Type:** chore · **Repos:** C · **Dependencies:** DNK-20 · **Size:** M
 
+#### Decisions (taken in the story)
+- **Shipping**: nothing goes to npm. Each GitHub release of donka-cli (tagged `vX.Y.Z`) carries
+  `donka-cli-X.Y.Z.tgz`; the templates run it with `npx --package`, and a `cli-package` setting
+  points them at a mirror inside the bank's network.
+- **Webhook payload**: removed from the templates. Studio does not start pipelines, so each
+  pipeline sets its project and target; a Studio-triggered pipeline would be a later story.
+- **Tests**: donka-cli tests the built CLI and each template's script against a fake Studio that
+  follows `docs/rules-sync.md`, and CI runs the GitHub action itself.
+
 #### Acceptance criteria
-- [ ] Command `donka`, package `@donka/cli`, variables `DONKA_URL`, `DONKA_TOKEN`, `DONKA_PROJECT`, `DONKA_TARGET`
-- [ ] `donka pull` works against DNK-20 for every target, with the same exit codes
-- [ ] GitHub, GitLab and Azure templates renamed and tested
-- [ ] Upstream publishing under GoRules names removed
+- [x] Command `donka`, package `@donka/cli`, variables `DONKA_URL`, `DONKA_TOKEN`, `DONKA_PROJECT`, `DONKA_TARGET`
+- [x] `donka pull` works against DNK-20 for every target, with the same exit codes
+- [x] GitHub, GitLab and Azure templates renamed and tested
+- [x] Upstream publishing under GoRules names removed
 
 ---
 
