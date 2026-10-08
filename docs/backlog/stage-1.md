@@ -514,9 +514,9 @@ donka-runtime; Studio depends on it for simulation (mock mode).
 **Type:** feature · **Repos:** S · **Dependencies:** DNK-15, DNK-18 · **Size:** M
 
 #### Acceptance criteria
-- [ ] `docker compose --profile full up` starts Studio, Runtime, PostgreSQL and MinIO with working defaults
-- [ ] Installation and operations guide in English and French (backup, upgrade, rotation of secrets)
-- [ ] Post-deploy smoke script: health, ready, simulate, evaluate on the Runtime
+- [x] `docker compose --profile full up` starts Studio, Runtime, PostgreSQL and MinIO with working defaults
+- [x] Installation and operations guide in English and French (backup, upgrade, rotation of secrets)
+- [x] Post-deploy smoke script: health, ready, simulate, evaluate on the Runtime
 
 ---
 
