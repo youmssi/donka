@@ -63,6 +63,17 @@ configuration and the **name** of a secret; values come from the Runtime's envir
 (`DONKA_SECRET_<NAME>`). Timeouts, retries and a circuit breaker are enforced by the handler, not
 by rule authors. The node format is in `docs/artifact-format.md`.
 
+## Input contracts
+
+A decision's input contract is the JSON Schema on its input node (draft-07, what zen-engine
+validates with), edited in Studio as a table of **Input fields** or as raw JSON. It travels with
+the graph, so each version and each release freezes it, and every Runtime enforces it: a request
+that breaks it gets `400` naming the field. `crates/engine/src/contract.rs` holds everything
+Studio does with it: refusing an unusable schema when a version is saved, warning when rules read
+undeclared fields or nobody reads a required one, telling breaking from compatible changes on
+the approval screen, and finding the `pii` fields removed before an explanation. Artifacts also
+carry each contract as `.config/contracts/<key>/input.schema.json` for forms and pipelines.
+
 ## Decision log
 
 Every decision a Runtime makes is sent to Studio in the background (`src/decision_log.rs` in the

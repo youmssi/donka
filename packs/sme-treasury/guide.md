@@ -41,6 +41,9 @@ test scenarios, all passing. Import it again under another key
 | `bureau.paymentIncidents` | number | Payment incidents (e.g. returned cheques), 12 months |
 | `bureau.worstDaysPastDue` | number | Worst arrears reported, in days |
 
+These fields are the evaluation's input contract (**Input fields** in the editor): the Runtime
+refuses a request that lacks one or breaks its limits with `400`, naming the field.
+
 ## What it answers
 
 ```json

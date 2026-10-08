@@ -754,9 +754,11 @@ field, nothing tells the form, and the mismatch is found in production. Analysts
 builders need one definition, released with the rules, that both sides are checked against.
 
 #### Decision
-- **JSON Schema (2020-12) on the input node of the project's entry decision** is the contract.
+- **JSON Schema on the input node of the project's entry decision** is the contract.
   zen-engine 2.0.1 already validates requests against it, so the Runtime enforces the same
-  definition the form is built from.
+  definition the form is built from. The engine validates with **draft-07** (found while
+  building it; the story first said 2020-12), so contracts are written as draft-07: the keywords
+  a form needs (type, required, limits, allowed values, format) are the same in both.
 - **Presentation hints** live beside it as `x-donka` annotations the engine ignores: label and
   help in English and French, widget, order, step, `pii: true`. The form may override them.
 - **Released with the rules**: the schema is frozen in each release and travels in the artifact
@@ -776,16 +778,16 @@ builders need one definition, released with the rules, that both sides are check
 | Decision log | Redaction listed by hand | Fields marked `pii` are redacted from explanations by default |
 
 #### Acceptance criteria
-- [ ] Analysts edit the input fields of a decision in a table; the JSON Schema is generated, and
+- [x] Analysts edit the input fields of a decision in a table; the JSON Schema is generated, and
       editing the raw schema stays possible
-- [ ] The schema is saved with each version and frozen in each release
-- [ ] Saving warns about fields read by rules but not declared, and declared required fields no
+- [x] The schema is saved with each version and frozen in each release
+- [x] Saving warns about fields read by rules but not declared, and declared required fields no
       rule reads
-- [ ] The approval screen shows contract changes and flags breaking ones
-- [ ] Artifacts and rules-sync carry `input.schema.json` (artifact format: additive, documented)
-- [ ] The Runtime refuses a request that breaks the contract with `400` and the field's path
-- [ ] `pii` fields are redacted from explanations without listing them again
-- [ ] Labels and help in English and French
+- [x] The approval screen shows contract changes and flags breaking ones
+- [x] Artifacts and rules-sync carry `input.schema.json` (artifact format: additive, documented)
+- [x] The Runtime refuses a request that breaks the contract with `400` and the field's path
+- [x] `pii` fields are redacted from explanations without listing them again
+- [x] Labels and help in English and French
 
 #### Out of scope
 - Rendering forms (Fieldkit), and the CLI side (DNK-38)

@@ -467,7 +467,14 @@ async fn saving_a_version_reports_fields_the_contract_and_the_rules_disagree_on(
         "required": ["region"],
         "properties": { "region": { "type": "string" } }
     });
-    save_draft(&app, &admin, &base, table_with_contract(&schema.to_string()), 1).await;
+    save_draft(
+        &app,
+        &admin,
+        &base,
+        table_with_contract(&schema.to_string()),
+        1,
+    )
+    .await;
     let saved = save_version(&app, &admin, &base, 2, "With a contract").await;
     assert_eq!(saved.status, StatusCode::CREATED, "{}", saved.body);
     assert_eq!(saved.body["number"], 1);
@@ -485,7 +492,14 @@ async fn saving_a_version_reports_fields_the_contract_and_the_rules_disagree_on(
         "required": ["input"],
         "properties": { "input": { "type": "number" } }
     });
-    save_draft(&app, &admin, &base, table_with_contract(&schema.to_string()), 2).await;
+    save_draft(
+        &app,
+        &admin,
+        &base,
+        table_with_contract(&schema.to_string()),
+        2,
+    )
+    .await;
     let saved = save_version(&app, &admin, &base, 3, "Contract fixed").await;
     assert_eq!(saved.status, StatusCode::CREATED, "{}", saved.body);
     assert_eq!(saved.body["warnings"], json!([]));
@@ -499,13 +513,24 @@ async fn a_version_with_a_broken_contract_is_refused(db: PgPool) {
     let base = format!("/projects/{p}/decisions/{id}");
     for (revision, schema) in [
         (1, "{ not json".to_owned()),
-        (2, json!({ "type": "object", "required": "input" }).to_string()),
+        (
+            2,
+            json!({ "type": "object", "required": "input" }).to_string(),
+        ),
         (3, json!({ "type": "array" }).to_string()),
     ] {
         save_draft(&app, &admin, &base, table_with_contract(&schema), revision).await;
         let refused = save_version(&app, &admin, &base, revision + 1, "Broken").await;
-        assert_error(&refused, StatusCode::UNPROCESSABLE_ENTITY, "INVALID_CONTRACT");
-        assert!(refused.body["details"]["reason"].is_string(), "{}", refused.body);
+        assert_error(
+            &refused,
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "INVALID_CONTRACT",
+        );
+        assert!(
+            refused.body["details"]["reason"].is_string(),
+            "{}",
+            refused.body
+        );
     }
     let history = call(&app, "GET", &format!("{base}/versions"), None, &admin).await;
     assert_eq!(history.body["total"], 0);

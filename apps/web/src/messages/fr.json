@@ -77,7 +77,8 @@
     "RECORD_NOT_FOUND": "Cette décision enregistrée n'existe pas dans ce projet.",
     "EXPLAIN_DECLINED": "Le service d'explication a refusé d'expliquer cette décision.",
     "EXPLAIN_UNAVAILABLE": "Le service d'explication n'a pas répondu. Réessayez dans un instant.",
-    "RATE_LIMITED": "Trop de tentatives depuis votre réseau. Réessayez dans {seconds, plural, one {# seconde} other {# secondes}}."
+    "RATE_LIMITED": "Trop de tentatives depuis votre réseau. Réessayez dans {seconds, plural, one {# seconde} other {# secondes}}.",
+    "INVALID_CONTRACT": "Les champs d'entrée ne sont pas utilisables en l'état. Corrigez-les dans Champs d'entrée, puis enregistrez de nouveau la version."
   },
   "validation": {
     "email": "Saisissez une adresse e-mail valide.",
@@ -96,7 +97,12 @@
     "wholeNumberMax": "Saisissez un nombre entier jusqu'à {max}, ou laissez vide.",
     "fieldPath": "Utilisez des noms de champs séparés par des points, par exemple decision ou result.band.",
     "fieldPathLines": "Écrivez un champ par ligne, en noms séparés par des points, par exemple applicant.nationalId.",
-    "fieldPathCount": "Indiquez au plus {max} champs."
+    "fieldPathCount": "Indiquez au plus {max} champs.",
+    "fieldPathSegments": "Utilisez des noms de lettres, chiffres et tirets bas reliés par des points, par exemple applicant.age.",
+    "fieldPathTaken": "Un autre champ porte déjà ce nom.",
+    "number": "Saisissez un nombre, ou laissez vide.",
+    "minAboveMax": "Le maximum est inférieur au minimum.",
+    "allowedValues": "Séparez les valeurs par des virgules ; pour un champ numérique, uniquement des nombres."
   },
   "signIn": {
     "title": "Connexion",
@@ -691,7 +697,21 @@
     "withdrawConfirm": "Les propriétaires ne peuvent plus l’approuver. Vous pourrez la refaire plus tard.",
     "approvedDone": "Release {version} approuvée : publication en production.",
     "rejectedDone": "Release {version} refusée.",
-    "withdrawnDone": "Demande retirée."
+    "withdrawnDone": "Demande retirée.",
+    "contractBreaking": "Champs d'entrée : {count, plural, one {# changement incompatible} other {# changements incompatibles}}",
+    "contractCompatible": "Champs d'entrée : changements compatibles",
+    "breaking": "Incompatible",
+    "compatible": "Compatible",
+    "contractKinds": {
+      "added": "ajouté",
+      "removed": "supprimé",
+      "nowRequired": "désormais obligatoire",
+      "nowOptional": "désormais facultatif",
+      "typeChanged": "type modifié",
+      "narrowed": "accepte moins de valeurs",
+      "widened": "accepte plus de valeurs",
+      "presentation": "libellé, aide ou marque de donnée personnelle modifiés"
+    }
   },
   "rollback": {
     "action": "Revenir en arrière",
@@ -868,5 +888,67 @@
     "revokeTitle": "Révoquer « {name} » ?",
     "revokeConfirm": "Les pipelines qui l'utilisent sont refusés aussitôt. Action définitive.",
     "revoked": "Jeton CI « {name} » révoqué."
+  },
+  "inputFields": {
+    "open": "Champs d'entrée",
+    "title": "Champs d'entrée",
+    "description": "Ce qu'une requête vers cette décision doit contenir. Le Runtime refuse une requête qui ne respecte pas ces règles en nommant le champ ; les formulaires sont construits à partir de la même définition.",
+    "fieldsTab": "Champs",
+    "jsonTab": "JSON Schema",
+    "emptyTitle": "Aucun champ d'entrée",
+    "emptyDescription": "Les requêtes ne sont pas vérifiées. Ajoutez les champs que lit cette décision pour les vérifier et indiquer aux auteurs de formulaires ce qu'il faut envoyer.",
+    "add": "Ajouter un champ",
+    "addTitle": "Ajouter un champ d'entrée",
+    "editTitle": "Modifier {path}",
+    "dialogDescription": "Son nom, son type et ses règles sont vérifiés à chaque requête ; les libellés et l'aide servent aux formulaires.",
+    "field": "Champ",
+    "type": "Type",
+    "rules": "Règles",
+    "label": "Libellé",
+    "required": "Obligatoire",
+    "pii": "Donnée personnelle",
+    "piiLong": "Donnée personnelle (jamais envoyée pour explication)",
+    "edit": "Modifier {path}",
+    "remove": "Supprimer {path}",
+    "pathHint": "Noms de champs reliés par des points, comme les règles le lisent, par exemple applicant.age.",
+    "minimum": "Minimum",
+    "maximum": "Maximum",
+    "minLength": "Longueur minimale",
+    "maxLength": "Longueur maximale",
+    "format": "Format",
+    "values": "Valeurs autorisées",
+    "valuesHint": "Séparées par des virgules ; laissez vide pour accepter toute valeur.",
+    "labelEn": "Libellé (anglais)",
+    "labelFr": "Libellé (français)",
+    "helpEn": "Aide (anglais)",
+    "helpFr": "Aide (français)",
+    "saveField": "Enregistrer le champ",
+    "between": "de {min} à {max}",
+    "atLeast": "au moins {min}",
+    "atMost": "au plus {max}",
+    "characters": "{range} caractères",
+    "oneOf": "parmi {values}",
+    "types": {
+      "string": "Texte",
+      "number": "Nombre",
+      "integer": "Nombre entier",
+      "boolean": "Oui / non"
+    },
+    "formats": {
+      "none": "Aucun",
+      "date": "Date",
+      "email": "E-mail"
+    },
+    "jsonLabel": "JSON Schema (draft-07)",
+    "jsonHint": "Pour ce que le tableau ne sait pas exprimer, comme les listes ou les motifs. Libellés et aide se placent sous \"x-donka\".",
+    "applyJson": "Appliquer",
+    "jsonOnly": "Ce schéma utilise des règles que le tableau ne sait pas afficher (listes, motifs ou combinaisons). Modifiez-le dans l'onglet JSON Schema.",
+    "unreadable": "Le schéma du nœud Request n'est pas un JSON valide. Corrigez-le dans l'onglet JSON Schema : d'ici là, les requêtes ne sont pas vérifiées et la version ne peut pas être enregistrée.",
+    "noInputNode": "Ajoutez d'abord un nœud Request au graphe : les champs d'entrée y sont conservés.",
+    "warningsTitle": "Version {number} : champs d'entrée à vérifier",
+    "undeclared": "{path} est lu par les règles mais n'est pas un champ d'entrée : les requêtes peuvent ne pas le contenir.",
+    "unread": "{path} est obligatoire mais aucune règle ne le lit : les appelants l'envoient pour rien.",
+    "review": "Revoir les champs d'entrée",
+    "dismiss": "Fermer"
   }
 }

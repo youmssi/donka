@@ -1152,7 +1152,11 @@ async fn the_review_shows_what_changes_the_tests_and_the_notes(db: PgPool) {
     save_draft(&app, &grace, &base, changed, revision).await;
     let v = save_version(&app, &grace, &base, revision + 1, "Second").await;
     assert_eq!(v.status, StatusCode::CREATED, "{}", v.body);
-    assert_eq!(v.body["warnings"], json!([]), "the child decision reads `input`");
+    assert_eq!(
+        v.body["warnings"],
+        json!([]),
+        "the child decision reads `input`"
+    );
     let next = release(&app, &grace, &p, "minor", "Score v2 for SMEs").await;
     let next_id = next.body["id"].as_str().unwrap().to_owned();
     deploy(&app, &grace, &p, "staging", &next_id).await;

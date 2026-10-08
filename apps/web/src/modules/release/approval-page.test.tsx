@@ -54,11 +54,16 @@ const review = (overrides: Partial<ApprovalReview> = {}): ApprovalReview => ({
       fromVersion: 1,
       toVersion: 2,
       tests: { passed: 1, failed: 1, errors: 0 },
+      contract: [
+        { path: 'applicant.income', kind: 'nowRequired', breaking: true },
+        { path: 'applicant.city', kind: 'added', breaking: false },
+      ],
     },
     {
       key: 'bureau/normalize',
       decisionId: 'd-1',
       change: 'unchanged',
+      contract: [],
       fromVersion: 1,
       toVersion: 1,
       tests: { passed: 2, failed: 0, errors: 0 },
@@ -87,6 +92,12 @@ it('shows what changes in production, the tests and the notes', async () => {
   expect(screen.queryByRole('button', { name: 'Compare bureau/normalize' })).not.toBeInTheDocument();
   expect(screen.getByText('Score v2 for SMEs')).toBeInTheDocument();
   expect(screen.getByText(/Some scenarios fail/)).toBeInTheDocument();
+  // The input fields change too: the breaking change is marked.
+  expect(screen.getByText('Input fields: 1 breaking change')).toBeInTheDocument();
+  expect(screen.getByText('applicant.income')).toBeInTheDocument();
+  expect(screen.getByText('now required')).toBeInTheDocument();
+  expect(screen.getByText('Breaking')).toBeInTheDocument();
+  expect(screen.getByText('Compatible')).toBeInTheDocument();
 });
 
 it('lets an owner who did not make the release approve it', async () => {

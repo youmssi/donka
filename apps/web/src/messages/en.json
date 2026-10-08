@@ -77,7 +77,8 @@
     "RECORD_NOT_FOUND": "This decision record does not exist in this project.",
     "EXPLAIN_DECLINED": "The explanation service declined to explain this decision.",
     "EXPLAIN_UNAVAILABLE": "The explanation service did not answer. Try again in a moment.",
-    "RATE_LIMITED": "Too many attempts from your network. Try again in {seconds, plural, one {# second} other {# seconds}}."
+    "RATE_LIMITED": "Too many attempts from your network. Try again in {seconds, plural, one {# second} other {# seconds}}.",
+    "INVALID_CONTRACT": "The input fields cannot be used as they are. Fix them in Input fields, then save the version again."
   },
   "validation": {
     "email": "Enter a valid email address.",
@@ -96,7 +97,12 @@
     "wholeNumberMax": "Enter a whole number up to {max}, or leave it empty.",
     "fieldPath": "Use field names joined by dots, e.g. decision or result.band.",
     "fieldPathLines": "Write one field per line, as names joined by dots, e.g. applicant.nationalId.",
-    "fieldPathCount": "List at most {max} fields."
+    "fieldPathCount": "List at most {max} fields.",
+    "fieldPathSegments": "Use names of letters, digits and underscores joined by dots, e.g. applicant.age.",
+    "fieldPathTaken": "Another field already has this name.",
+    "number": "Enter a number, or leave it empty.",
+    "minAboveMax": "The maximum is below the minimum.",
+    "allowedValues": "Separate values with commas; for a number field, numbers only."
   },
   "signIn": {
     "title": "Sign in",
@@ -691,7 +697,21 @@
     "withdrawConfirm": "Owners can no longer approve it. You can ask again later.",
     "approvedDone": "Release {version} approved: publishing to production.",
     "rejectedDone": "Release {version} rejected.",
-    "withdrawnDone": "Request withdrawn."
+    "withdrawnDone": "Request withdrawn.",
+    "contractBreaking": "Input fields: {count, plural, one {# breaking change} other {# breaking changes}}",
+    "contractCompatible": "Input fields: compatible changes",
+    "breaking": "Breaking",
+    "compatible": "Compatible",
+    "contractKinds": {
+      "added": "added",
+      "removed": "removed",
+      "nowRequired": "now required",
+      "nowOptional": "now optional",
+      "typeChanged": "type changed",
+      "narrowed": "accepts fewer values",
+      "widened": "accepts more values",
+      "presentation": "label, help or personal-data mark changed"
+    }
   },
   "rollback": {
     "action": "Roll back",
@@ -868,5 +888,67 @@
     "revokeTitle": "Revoke “{name}”?",
     "revokeConfirm": "Pipelines using it are refused at once. This cannot be undone.",
     "revoked": "CI token “{name}” revoked."
+  },
+  "inputFields": {
+    "open": "Input fields",
+    "title": "Input fields",
+    "description": "What a request to this decision must contain. The Runtime refuses a request that breaks these rules, naming the field; forms are built from the same definition.",
+    "fieldsTab": "Fields",
+    "jsonTab": "JSON Schema",
+    "emptyTitle": "No input fields yet",
+    "emptyDescription": "Requests are not checked. Add the fields this decision reads to check them and to tell form builders what to send.",
+    "add": "Add field",
+    "addTitle": "Add an input field",
+    "editTitle": "Edit {path}",
+    "dialogDescription": "Its name, type and rules are checked on every request; labels and help are for forms.",
+    "field": "Field",
+    "type": "Type",
+    "rules": "Rules",
+    "label": "Label",
+    "required": "Required",
+    "pii": "Personal data",
+    "piiLong": "Personal data (never sent to be explained)",
+    "edit": "Edit {path}",
+    "remove": "Remove {path}",
+    "pathHint": "Field names joined by dots, as rules read it, e.g. applicant.age.",
+    "minimum": "Minimum",
+    "maximum": "Maximum",
+    "minLength": "Minimum length",
+    "maxLength": "Maximum length",
+    "format": "Format",
+    "values": "Allowed values",
+    "valuesHint": "Comma-separated; leave empty to accept any value.",
+    "labelEn": "Label (English)",
+    "labelFr": "Label (French)",
+    "helpEn": "Help (English)",
+    "helpFr": "Help (French)",
+    "saveField": "Save field",
+    "between": "{min} to {max}",
+    "atLeast": "at least {min}",
+    "atMost": "at most {max}",
+    "characters": "{range} characters",
+    "oneOf": "one of {values}",
+    "types": {
+      "string": "Text",
+      "number": "Number",
+      "integer": "Whole number",
+      "boolean": "Yes / no"
+    },
+    "formats": {
+      "none": "None",
+      "date": "Date",
+      "email": "Email"
+    },
+    "jsonLabel": "JSON Schema (draft-07)",
+    "jsonHint": "For what the table cannot express, such as lists or patterns. Labels and help go under \"x-donka\".",
+    "applyJson": "Apply",
+    "jsonOnly": "This schema uses rules the table cannot show (lists, patterns or combinations). Edit it in the JSON Schema tab.",
+    "unreadable": "The schema on the Request node is not valid JSON. Fix it in the JSON Schema tab: until then, requests are not checked and the version cannot be saved.",
+    "noInputNode": "Add a Request node to the graph first: the input fields are kept on it.",
+    "warningsTitle": "Version {number}: input fields to check",
+    "undeclared": "{path} is read by the rules but is not an input field: requests may not carry it.",
+    "unread": "{path} is required but no rule reads it: callers send it for nothing.",
+    "review": "Review input fields",
+    "dismiss": "Dismiss"
   }
 }

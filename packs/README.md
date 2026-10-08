@@ -23,7 +23,8 @@ PROJECT_KEY=salary-advance PROJECT_NAME="Salary advance" scripts/import-pack.sh 
 packs/<key>/
   pack.json        key, name and description (en, fr), market, currency, entry decision,
                    decisions in dependency order, decision-log settings
-  decisions/       one JDM graph per decision, named by its key
+  decisions/       one JDM graph per decision, named by its key; an entry decision carries its
+                   input contract (JSON Schema, DNK-37) on its Request node
   scenarios.json   test scenarios: decision key, name, input, expected, match
   guide.md         what it reads and answers, the policy to confirm, how to adapt it
   guide.fr.md

@@ -123,6 +123,8 @@ async fn import(app: &TestApp, session: &str, pack: &Path, key: &str) -> Value {
         )
         .await;
         assert_eq!(reply.status, StatusCode::CREATED, "{key}: {}", reply.body);
+        // Each decision's input contract matches what its rules read (DNK-37).
+        assert_eq!(reply.body["warnings"], json!([]), "{key}");
         tests = reply.body["tests"].clone();
     }
     tests
