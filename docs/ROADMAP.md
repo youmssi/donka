@@ -40,6 +40,8 @@ docker-compose for PostgreSQL, MinIO and Mailpit.
 | 22 | DNK-22 Runtime rate limits | R |
 | 23 | DNK-23 One-command install | S |
 | 24 | DNK-24 Credit starter pack | S |
+| 25 | DNK-37 One input contract for the rules and the form | S R |
+| 26 | DNK-38 Forms pull and check the input contract | C |
 
 Practices from the upstream codebases, scheduled next to the stories that need them:
 DNK-26 `/version` (after DNK-4), DNK-28 container builds (before DNK-23), DNK-29 Storybook
@@ -47,7 +49,8 @@ DNK-26 `/version` (after DNK-4), DNK-28 container builds (before DNK-23), DNK-29
 first release PR), DNK-32 rate limits on sign-in and password reset (before the pilot).
 
 ## Stage 2: governance depth
-Branches, N-eyes approvals, webhooks, GitSync, more connectors, Fieldkit Stage 1.
+Branches, N-eyes approvals, webhooks, GitSync, more connectors, Fieldkit Stage 1 (rendering
+forms from the DNK-37 input contract).
 
 ## Stage 3: enterprise
 SSO/OIDC, global roles, path coverage, policy-document editor, MCP bridge in Studio, SOC 2

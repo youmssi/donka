@@ -737,3 +737,81 @@ what it is, what it does, how to try it and where to read more, the same way in 
 - [x] Every section removed from a README lives on in a `docs/` page
 - [x] Version pins in the CLI docs are still updated by release-please
 
+---
+
+### DNK-37 — One input contract for the rules and the form
+
+**Type:** feature · **Repos:** S, R · **Dependencies:** DNK-14, DNK-20 · **Size:** L
+
+#### Why
+The fields a credit decision needs are defined twice today: implicitly in the rules (what the
+expressions read) and again by hand in the application form. When an analyst renames or adds a
+field, nothing tells the form, and the mismatch is found in production. Analysts and form
+builders need one definition, released with the rules, that both sides are checked against.
+
+#### Decision
+- **JSON Schema (2020-12) on the input node of the project's entry decision** is the contract.
+  zen-engine 2.0.1 already validates requests against it, so the Runtime enforces the same
+  definition the form is built from.
+- **Presentation hints** live beside it as `x-donka` annotations the engine ignores: label and
+  help in English and French, widget, order, step, `pii: true`. The form may override them.
+- **Released with the rules**: the schema is frozen in each release and travels in the artifact
+  and over rules-sync, so `release 1.4.0` always means the same fields.
+- Not an export/import file: an imported copy drifts silently; a pinned, checked contract does
+  not.
+
+#### Behaviour
+
+| Where | Before | After |
+|---|---|---|
+| Studio, decision editor | Input fields are implicit | An **Input fields** table: name, type, required, limits, allowed values, format, labels (EN/FR), PII |
+| Studio, saving a version | No field checks | Warns when a rule reads a field missing from the contract, or a required field no rule reads |
+| Studio, approval screen | Rules diff only | Also lists contract changes, marked **breaking** (removed, renamed, now required, narrower) or **compatible** |
+| Release artifact / rules-sync | Decisions only | Adds `input.schema.json` per entry decision (additive) |
+| Runtime | Accepts any input | Answers `400` naming the field when a request breaks the contract (engine validation) |
+| Decision log | Redaction listed by hand | Fields marked `pii` are redacted from explanations by default |
+
+#### Acceptance criteria
+- [ ] Analysts edit the input fields of a decision in a table; the JSON Schema is generated, and
+      editing the raw schema stays possible
+- [ ] The schema is saved with each version and frozen in each release
+- [ ] Saving warns about fields read by rules but not declared, and declared required fields no
+      rule reads
+- [ ] The approval screen shows contract changes and flags breaking ones
+- [ ] Artifacts and rules-sync carry `input.schema.json` (artifact format: additive, documented)
+- [ ] The Runtime refuses a request that breaks the contract with `400` and the field's path
+- [ ] `pii` fields are redacted from explanations without listing them again
+- [ ] Labels and help in English and French
+
+#### Out of scope
+- Rendering forms (Fieldkit), and the CLI side (DNK-38)
+- Output contracts (what a decision returns), a later story
+
+---
+
+### DNK-38 — Forms pull and check the input contract
+
+**Type:** feature · **Repos:** C · **Dependencies:** DNK-37 · **Size:** M
+
+#### Why
+A form team needs to start from the contract and know, in CI, the day their form stops matching
+the rules it feeds.
+
+#### Behaviour
+
+| Command | What it does |
+|---|---|
+| `donka form pull --project credit-pme --target env:production` | Downloads the input contract(s) of a target, like `donka pull` does artifacts |
+| `donka form check --contract input.schema.json --form <form definition>` | Fails (exit `1`) when a field is missing, renamed, of another type, or required on one side only; lists every difference |
+
+#### Acceptance criteria
+- [ ] `donka form pull` resolves every rules-sync target and verifies the checksum
+- [ ] `donka form check` reports each difference with its field path; exit codes follow the CLI's
+      contract
+- [ ] The GitHub, GitLab and Azure templates gain a contract check step, tested like the pull
+- [ ] A form definition can be generated from the contract as a starting point
+
+#### Out of scope
+- Fieldkit's own renderer (Stage 2); the check reads a plain JSON Schema-based form definition
+  so any form library can use it
+
