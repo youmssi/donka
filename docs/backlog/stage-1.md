@@ -514,9 +514,9 @@ donka-runtime; Studio depends on it for simulation (mock mode).
 **Type:** feature · **Repos:** S · **Dependencies:** DNK-15, DNK-18 · **Size:** M
 
 #### Acceptance criteria
-- [ ] `docker compose --profile full up` starts Studio, Runtime, PostgreSQL and MinIO with working defaults
-- [ ] Installation and operations guide in English and French (backup, upgrade, rotation of secrets)
-- [ ] Post-deploy smoke script: health, ready, simulate, evaluate on the Runtime
+- [x] `docker compose --profile full up` starts Studio, Runtime, PostgreSQL and MinIO with working defaults
+- [x] Installation and operations guide in English and French (backup, upgrade, rotation of secrets)
+- [x] Post-deploy smoke script: health, ready, simulate, evaluate on the Runtime
 
 ---
 
@@ -836,5 +836,23 @@ checkbox, amber). The wordmark is lowercase **donka** in Geist Bold, outlined.
       with usage rules
 - [x] Studio's header, sidebar and browser tab show the mark, coloured by the theme
 - [x] Studio's and the CLI's README banners show their product's mark
-- [ ] The Runtime's README banner shows its mark (after DNK-22, one story at a time per repo)
+- [x] The Runtime's README banner shows its mark (after DNK-22, one story at a time per repo)
 
+---
+
+### DNK-40 — Rotate the decision-log key
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-18, DNK-23 · **Size:** M
+
+#### Why
+Every decision record is encrypted with `DONKA_DECISION_LOG_KEY`, and Studio reads records with
+that key only. A key that may have leaked cannot be replaced today without losing every record
+written before: the install guide tells operators not to change it.
+
+#### Acceptance criteria
+- [ ] Studio takes a new key and keeps reading records sealed with the previous ones (each record
+      names its key: `key_id`)
+- [ ] New records are sealed with the new key only
+- [ ] A command re-seals old records with the new key, resumable, audited; afterwards the old key
+      can be removed
+- [ ] The install and operations guide (EN/FR) describes the rotation

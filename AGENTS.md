@@ -151,7 +151,7 @@ crates/decision-log/ decision records sent by Runtimes (feed, tokens, encryption
 crates/explain/      plain-language explanations from the customer's LLM endpoint (Messages API or OpenAI-compatible)
 crates/<module>/     one crate per business module
 migrations/          PostgreSQL migrations (sqlx), forward-only; <UTC timestamp>_<what>.sql
-scripts/             repo scripts (engine version drift check, end-to-end release test, image check)
+scripts/             repo scripts (engine version drift check, end-to-end release test, image check, post-deploy smoke test)
 docs/adr/            architecture decision records
 docs/brand/          logo family: marks, lockups, usage rules
 docs/backlog/        stories with acceptance criteria

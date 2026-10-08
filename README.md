@@ -76,12 +76,25 @@ Applicant ─▶ Fieldkit form ─▶ Customer backend ──evaluate──▶ D
 | [youmssi/donka-runtime](https://github.com/youmssi/donka-runtime) | Serves decisions from published releases (fork of `gorules/agent-public`, MIT) |
 | [youmssi/donka-cli](https://github.com/youmssi/donka-cli) | Pulls releases into CI/CD pipelines (fork of `gorules/cli`, MIT) |
 
-## Quick start
+## Install
+
+Studio, a Runtime, PostgreSQL and MinIO on one server, with defaults that work out of the box:
+
+```bash
+docker compose --profile full up -d                 # Studio on :8080, Runtime (staging) on :8090
+docker compose logs app | grep setup-password       # the first administrator's one-time link
+```
+
+Then set your own secrets and run the post-deploy smoke test: the
+[install and operations guide](docs/install.md) ([français](docs/install.fr.md)) covers it,
+with backups, upgrades and the rotation of secrets.
+
+## Quick start (development)
 
 Requirements: Rust stable, Node 22 with pnpm, Docker (Postgres, MinIO and Mailpit).
 
 ```bash
-docker compose up -d postgres minio mailpit
+docker compose up -d postgres minio minio-init mailpit
 export DATABASE_URL=postgres://donka:donka@localhost:5432/donka
 
 DONKA_BOOTSTRAP_ADMIN_EMAIL=you@bank.example DONKA_PUBLIC_URL=http://localhost:3000 \
@@ -117,6 +130,7 @@ curl -s -b jar -X POST localhost:8080/api/v1/simulate -H 'x-donka-csrf: 1' \
 
 | Page | What it covers |
 | --- | --- |
+| [Install and operate](docs/install.md) · [Installer et exploiter](docs/install.fr.md) | Docker Compose install, smoke test, backups, upgrades, secrets |
 | [Architecture](docs/ARCHITECTURE.md) | Modules, data flow, security baseline |
 | [Artifact format](docs/artifact-format.md) | What Studio publishes for the Runtime (`.config/project.json`) |
 | [Decision-log feed](docs/decision-log-feed.md) | How Runtimes send decisions to Studio |

@@ -1,17 +1,28 @@
-# Local development and single-server installs.
-#   docker compose up -d postgres minio mailpit   # backing services only (Mailpit UI: http://localhost:8025)
-#   docker compose --profile full up -d        # everything (needs ../donka-runtime checked out next to this repo)
+# Single-server installs and local development.
+#
+#   docker compose --profile full up -d                # Studio, Runtime, PostgreSQL, MinIO, Mailpit
+#   docker compose up -d postgres minio minio-init mailpit   # backing services only, for development
+#
+# Every setting has a working default for a first look on one machine. Before real use, put
+# your own values in a `.env` file next to this one (see docs/install.md): the database and
+# storage passwords, the decision-log key, the public URL and the mail server.
 name: donka
+
+x-storage-credentials: &storage-credentials
+  AWS_ACCESS_KEY_ID: ${DONKA_STORAGE_ACCESS_KEY_ID:-donka}
+  AWS_SECRET_ACCESS_KEY: ${DONKA_STORAGE_SECRET_ACCESS_KEY:-donka-secret}
 
 services:
   postgres:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: donka
-      POSTGRES_PASSWORD: donka
+      POSTGRES_PASSWORD: ${DONKA_POSTGRES_PASSWORD:-donka}
       POSTGRES_DB: donka
-    ports: ["5432:5432"]
+    # Reachable from this machine only; Studio reaches it on the compose network.
+    ports: ["127.0.0.1:5432:5432"]
     volumes: [postgres:/var/lib/postgresql/data]
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U donka"]
       interval: 5s
@@ -23,56 +34,88 @@ services:
     image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
     command: server /data --console-address :9001
     environment:
-      MINIO_ROOT_USER: donka
-      MINIO_ROOT_PASSWORD: donka-secret
-    ports: ["9000:9000", "9001:9001"]
+      MINIO_ROOT_USER: ${DONKA_STORAGE_ACCESS_KEY_ID:-donka}
+      MINIO_ROOT_PASSWORD: ${DONKA_STORAGE_SECRET_ACCESS_KEY:-donka-secret}
+    ports: ["127.0.0.1:9000:9000", "127.0.0.1:9001:9001"]
     volumes: [minio:/data]
+    restart: unless-stopped
 
   # Creates the release bucket once MinIO is up.
   minio-init:
     image: pgsty/mc:RELEASE.2026-09-16T00-00-00Z
     depends_on: [minio]
+    environment: *storage-credentials
     entrypoint: >
-      sh -c "until mc alias set local http://minio:9000 donka donka-secret; do sleep 1; done;
+      sh -c "until mc alias set local http://minio:9000 $$AWS_ACCESS_KEY_ID $$AWS_SECRET_ACCESS_KEY; do sleep 1; done;
              mc mb --ignore-existing local/donka-releases"
 
+  # Catches every email Studio sends (http://localhost:8025). Point DONKA_SMTP_URL at your
+  # mail server for real use.
   mailpit:
     image: axllent/mailpit:v1.31.3
-    ports: ["8025:8025", "1025:1025"]
+    ports: ["127.0.0.1:8025:8025", "127.0.0.1:1025:1025"]
+    restart: unless-stopped
 
   app:
     profiles: [full]
-    build: { context: ., dockerfile: apps/app/Dockerfile }
-    env_file: .env
+    build:
+      context: .
+      dockerfile: apps/app/Dockerfile
+      args:
+        SERVICE_VERSION: ${DONKA_VERSION:-unknown}
+    image: donka-studio:${DONKA_VERSION:-local}
+    # Every other DONKA_* setting (.env.example) can be added to .env and is passed through.
+    env_file:
+      - path: .env
+        required: false
     environment:
-      DATABASE_URL: postgres://donka:donka@postgres:5432/donka
-      DONKA_SMTP_URL: smtp://mailpit:1025
+      DATABASE_URL: postgres://donka:${DONKA_POSTGRES_PASSWORD:-donka}@postgres:5432/donka
+      DONKA_PUBLIC_URL: ${DONKA_PUBLIC_URL:-http://localhost:8080}
+      # Plain HTTP works for a first look; behind HTTPS, set DONKA_COOKIE_SECURE=true.
+      DONKA_COOKIE_SECURE: ${DONKA_COOKIE_SECURE:-false}
+      # On an empty database, this administrator is created and a one-time password-setup
+      # link is printed: `docker compose logs app | grep setup-password`.
+      DONKA_BOOTSTRAP_ADMIN_EMAIL: ${DONKA_BOOTSTRAP_ADMIN_EMAIL:-admin@donka.local}
+      DONKA_SMTP_URL: ${DONKA_SMTP_URL:-smtp://mailpit:1025}
+      DONKA_SMTP_FROM: ${DONKA_SMTP_FROM:-Donka <donka@localhost>}
       DONKA_STORAGE_URL: s3://donka-releases
       DONKA_STORAGE_ENDPOINT: http://minio:9000
+      DONKA_STORAGE_REGION: us-east-1
+      DONKA_STORAGE_ACCESS_KEY_ID: ${DONKA_STORAGE_ACCESS_KEY_ID:-donka}
+      DONKA_STORAGE_SECRET_ACCESS_KEY: ${DONKA_STORAGE_SECRET_ACCESS_KEY:-donka-secret}
+      # The default key is public (it is in this file): generate your own before real use.
+      DONKA_DECISION_LOG_KEY: ${DONKA_DECISION_LOG_KEY:-cVJvqYsVeZAWH3ozwFWpgWbLUS5bhWIY88xqwroQSTQ=}
     depends_on:
       postgres: { condition: service_healthy }
       mailpit: { condition: service_started }
       minio-init: { condition: service_completed_successfully }
     ports: ["8080:8080"]
+    restart: unless-stopped
 
   # One Runtime per environment; this one serves staging (PROVIDER__PREFIX picks the environment).
   runtime:
     profiles: [full]
-    build: ../donka-runtime
+    # Built from the Runtime's repository. For Runtime development, set
+    # DONKA_RUNTIME_SOURCE=../donka-runtime to build your checkout instead.
+    build: ${DONKA_RUNTIME_SOURCE:-https://github.com/youmssi/donka-runtime.git#develop}
+    image: donka-runtime:${DONKA_VERSION:-local}
     environment:
+      <<: *storage-credentials
       PROVIDER__TYPE: S3
       PROVIDER__BUCKET: donka-releases
       PROVIDER__REGION: us-east-1
       PROVIDER__ENDPOINT: http://minio:9000
       PROVIDER__FORCE_PATH_STYLE: "true"
       PROVIDER__PREFIX: staging/
-      AWS_ACCESS_KEY_ID: donka
-      AWS_SECRET_ACCESS_KEY: donka-secret
-      # To send its decisions to Studio's decision log, add a token issued under Runtimes:
-      # DECISION_LOG__URL: http://app:8080/api/v1/decision-log/records
-      # DECISION_LOG__TOKEN: dnk_log_...
-    depends_on: [minio-init]
+    # The Runtime's other settings (docs/install.md), e.g. DECISION_LOG__URL and
+    # DECISION_LOG__TOKEN to send its decisions to Studio's decision log.
+    env_file:
+      - path: runtime.env
+        required: false
+    depends_on:
+      minio-init: { condition: service_completed_successfully }
     ports: ["8090:8080"]
+    restart: unless-stopped
 
 volumes:
   postgres:
