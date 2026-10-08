@@ -13,23 +13,19 @@ use donka_release::{ReleaseSettings, Releases};
 use donka_shared::clock::SystemClock;
 use donka_storage::ObjectStorage;
 use std::sync::Arc;
-use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-                "warn,donka_app=info,donka_identity=info,tower_http=info".into()
-            }),
-        )
-        .init();
-
     // One clear line for operators; a bad setting is not a crash worth a backtrace.
     let config = match Config::from_env() {
         Ok(config) => config,
         Err(err) => exit_with(&format!("invalid configuration: {err}")),
     };
+    let telemetry = donka_app::telemetry::init(config.otel_enabled)
+        .unwrap_or_else(|err| exit_with(&format!("DONKA_OTEL_ENABLED: {err}")));
+    if config.otel_enabled {
+        tracing::info!("traces and request metrics are exported over OTLP");
+    }
     let runtime: Arc<dyn DecisionRuntime> = Arc::new(match config.engine_workers {
         Some(n) => ZenRuntime::new(n),
         None => ZenRuntime::default(),
@@ -154,11 +150,32 @@ async fn main() -> anyhow::Result<()> {
         config.api_base_path
     );
     axum::serve(listener, app)
-        .with_graceful_shutdown(async {
-            let _ = tokio::signal::ctrl_c().await;
-        })
+        .with_graceful_shutdown(shutdown_signal())
         .await?;
+    telemetry.shutdown();
     Ok(())
+}
+
+/// Ctrl-C, or SIGTERM from a container runtime: stop taking requests, finish those in flight.
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        let _ = tokio::signal::ctrl_c().await;
+    };
+    #[cfg(unix)]
+    let terminate = async {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut signal) => {
+                signal.recv().await;
+            }
+            Err(_) => std::future::pending::<()>().await,
+        }
+    };
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+    tokio::select! {
+        () = ctrl_c => {},
+        () = terminate => {},
+    }
 }
 
 /// Startup failures an operator must fix (configuration, database): one line, no backtrace.

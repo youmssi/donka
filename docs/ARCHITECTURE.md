@@ -99,10 +99,20 @@ explanation is written in the reader's language and only shown; the model has no
 nothing it says is stored or acted on. With the feature off, the endpoint answers `404` and the
 web app shows no explain control.
 
+## Observability
+
+Studio logs to standard output. With `DONKA_OTEL_ENABLED=true` it also exports traces and the
+`http.server.request.duration` metric over OTLP (HTTP), to wherever the standard
+`OTEL_EXPORTER_OTLP_*` variables point; nothing leaves the process otherwise
+(`apps/app/src/telemetry.rs`). Every span carries the request id (`donka.request_id`, the
+`x-request-id` a user can quote) and the route template (`/projects/{id}`), never the raw path,
+the query string, headers or bodies. The Runtime has its own switch (`OTEL_ENABLED`).
+
 ## Security baseline
 
 - Session cookies (argon2 password hashes) for Studio users. Owner / editor / viewer per project.
 - Runtime access tokens are hashed, scoped to one environment, and rotatable.
+- Logs and exported spans name routes, not paths or query strings: no tokens or personal data.
 - Audit and decision-log tables are append-only at the database level; decision records can
   only be deleted by the retention purge, which the table's trigger lets through.
 - Decision records are encrypted at rest; decision-log tokens are hashed and scoped to one

@@ -1,6 +1,7 @@
 //! A request id on every request: reused from `x-request-id` when the caller
 //! sends a safe one, generated otherwise. It is returned in the response header,
-//! attached to the tracing span, and available to error responses.
+//! attached to the tracing span (and to every exported span, see `telemetry`), and available
+//! to error responses.
 
 use axum::extract::Request;
 use axum::http::{HeaderName, HeaderValue};
@@ -35,7 +36,8 @@ pub async fn middleware(req: Request, next: Next) -> Response {
         "request",
         request_id = %id,
         method = %req.method(),
-        path = %req.uri().path(),
+        // The route template, not the path: no ids or tokens in logs or exported spans.
+        route = %crate::telemetry::route(&req),
     );
     let mut response = CURRENT
         .scope(id.clone(), next.run(req))

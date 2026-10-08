@@ -12,6 +12,7 @@ pub mod publish_worker;
 pub mod purge_worker;
 pub mod request_id;
 pub mod routes;
+pub mod telemetry;
 pub mod web;
 
 use auth::CookieSettings;
@@ -201,8 +202,22 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
         .layer(security_header(X_FRAME_OPTIONS, "DENY"))
         // Setup links carry their token in the query string: never send it to another site.
         .layer(security_header(REFERRER_POLICY, "same-origin"))
-        .layer(TraceLayer::new_for_http().on_response(DefaultOnResponse::new().level(Level::INFO)))
+        .layer(
+            TraceLayer::new_for_http()
+                // Not the default span: it records the full URI, query string included, and a
+                // password-setup link carries its token there.
+                .make_span_with(|req: &axum::http::Request<_>| {
+                    tracing::info_span!(
+                        "http",
+                        method = %req.method(),
+                        route = %telemetry::route(req),
+                        request_id = %request_id::current().unwrap_or_default(),
+                    )
+                })
+                .on_response(DefaultOnResponse::new().level(Level::INFO)),
+        )
         .layer(CompressionLayer::new())
+        .layer(middleware::from_fn(telemetry::record_request))
         .layer(middleware::from_fn(request_id::middleware))
 }
 
