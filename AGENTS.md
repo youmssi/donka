@@ -156,5 +156,5 @@ docs/adr/            architecture decision records
 docs/backlog/        stories with acceptance criteria
 docs/engineering/    principles, backend and frontend guides
 docs/templates/      story and ADR templates
-.github/             PR template, CI workflow
+.github/             PR template, CI workflow, README banner (assets/)
 ```
