@@ -33,8 +33,8 @@ curl -sS --fail-with-body -c "$work/jar" -X POST "$API/auth/sign-in" \
   >/dev/null || fail "could not sign in as $DONKA_EMAIL"
 
 (cd "$pack" && zip -qr "$work/pack.zip" .)
-imported=$(curl -sS --fail-with-body -b "$work/jar" -X POST -G "$API/packs/import" \
-  --data-urlencode "key=$key" --data-urlencode "name=$name" \
+query=$(jq -rn --arg k "$key" --arg n "$name" '"key=\($k|@uri)&name=\($n|@uri)"')
+imported=$(curl -sS --fail-with-body -b "$work/jar" -X POST "$API/packs/import?$query" \
   -H 'content-type: application/zip' -H 'x-donka-csrf: 1' \
   --data-binary "@$work/pack.zip") || fail "could not import $pack: $imported"
 
