@@ -97,6 +97,32 @@ impl std::str::FromStr for Locale {
     }
 }
 
+/// A guided tour of a Studio screen (DNK-41). Seen once per user, on any device.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[serde(rename_all = "lowercase")]
+#[sqlx(type_name = "text", rename_all = "lowercase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub enum Tour {
+    Editor,
+    Releases,
+    Environments,
+}
+
+impl std::str::FromStr for Tour {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "editor" => Ok(Self::Editor),
+            "releases" => Ok(Self::Releases),
+            "environments" => Ok(Self::Environments),
+            other => Err(format!(
+                "unknown tour '{other}' (expected editor, releases or environments)"
+            )),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, sqlx::FromRow)]
 pub struct User {
     pub id: Uuid,
@@ -574,6 +600,30 @@ impl Identity {
             is_admin: session.is_admin,
             locale: session.locale,
         })
+    }
+
+    /// The tours this user has seen or skipped.
+    pub async fn tours_seen(&self, user: Uuid) -> Result<Vec<Tour>, IdentityError> {
+        let rows: Vec<(Tour,)> =
+            sqlx::query_as("SELECT tour FROM user_tours WHERE user_id = $1 ORDER BY tour")
+                .bind(user)
+                .fetch_all(&self.pool)
+                .await?;
+        Ok(rows.into_iter().map(|(tour,)| tour).collect())
+    }
+
+    /// Notes that the user saw or skipped a tour; seeing it again changes nothing.
+    pub async fn mark_tour_seen(&self, user: Uuid, tour: Tour) -> Result<(), IdentityError> {
+        sqlx::query(
+            "INSERT INTO user_tours (user_id, tour, seen_at) VALUES ($1, $2, $3) \
+             ON CONFLICT (user_id, tour) DO NOTHING",
+        )
+        .bind(user)
+        .bind(tour)
+        .bind(self.clock.now())
+        .execute(&self.pool)
+        .await?;
+        Ok(())
     }
 
     /// Every Studio account, by email. Administrators only.

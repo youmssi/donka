@@ -21,7 +21,7 @@ use donka_shared::page::{Page, PageRequest};
 use donka_shared::secret::{self, IssuedSecret};
 use donka_storage::ArtifactStore;
 use serde_json::json;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fmt;
 use std::sync::Arc;
 use tokio::sync::Notify;
@@ -301,6 +301,13 @@ pub struct Deployment {
     pub last_error: Option<String>,
     pub next_attempt_at: Option<DateTime<Utc>>,
     pub published_at: Option<DateTime<Utc>>,
+}
+
+/// Of some projects, those with a release live on staging and those with a Runtime token.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ReleaseProgress {
+    pub live_on_staging: HashSet<Uuid>,
+    pub with_tokens: HashSet<Uuid>,
 }
 
 /// One environment of a project: what is live, the latest deployment asked
@@ -632,6 +639,29 @@ impl Releases {
     }
 
     // ----- Environments and deployments ----------------------------------
+
+    /// How far these projects got: a release live on staging, a Runtime token (DNK-41).
+    pub async fn progress(&self, accesses: &[Access]) -> Result<ReleaseProgress, ReleaseError> {
+        let ids: Vec<Uuid> = accesses.iter().map(Access::project_id).collect();
+        let live: Vec<(Uuid,)> = sqlx::query_as(
+            "SELECT DISTINCT project_id FROM deployments \
+             WHERE project_id = ANY($1) AND environment = 'staging' AND published_at IS NOT NULL",
+        )
+        .bind(&ids)
+        .fetch_all(&self.pool)
+        .await?;
+        let tokens: Vec<(Uuid,)> = sqlx::query_as(
+            "SELECT DISTINCT project_id FROM runtime_tokens \
+             WHERE project_id = ANY($1) AND revoked_at IS NULL",
+        )
+        .bind(&ids)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(ReleaseProgress {
+            live_on_staging: live.into_iter().map(|(id,)| id).collect(),
+            with_tokens: tokens.into_iter().map(|(id,)| id).collect(),
+        })
+    }
 
     /// Both environments: what is live, what was last asked for, how many tokens (any member).
     pub async fn environments(

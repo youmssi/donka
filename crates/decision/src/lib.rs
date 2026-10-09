@@ -20,7 +20,7 @@ use donka_engine::{Bundle, DecisionRuntime, RuntimeError};
 use donka_project::{authorize_change, Access, ProjectError, Role};
 use donka_shared::clock::Clock;
 use serde_json::{json, Value};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -360,6 +360,51 @@ fn empty_graph() -> Value {
 
 /// Checks a decision as [`Decisions::create`] and [`Decisions::save_version`] will: its key,
 /// a graph the engine accepts, and a usable input contract.
+/// Of some projects, those where a simulation ran and those where a decision has a version
+/// (the Get started checklist, DNK-41).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DecisionProgress {
+    pub simulated: HashSet<Uuid>,
+    pub versioned: HashSet<Uuid>,
+}
+
+impl Decisions {
+    /// Notes that a simulation ran in the project; only the first is kept.
+    pub async fn record_simulation(&self, access: &Access) -> Result<(), DecisionError> {
+        sqlx::query(
+            "INSERT INTO decision_simulations (project_id, first_at) VALUES ($1, $2) \
+             ON CONFLICT (project_id) DO NOTHING",
+        )
+        .bind(access.project_id())
+        .bind(self.clock.now())
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// How far these projects got: a simulation, a saved version.
+    pub async fn progress(&self, accesses: &[Access]) -> Result<DecisionProgress, DecisionError> {
+        let ids: Vec<Uuid> = accesses.iter().map(Access::project_id).collect();
+        let simulated: Vec<(Uuid,)> = sqlx::query_as(
+            "SELECT project_id FROM decision_simulations WHERE project_id = ANY($1)",
+        )
+        .bind(&ids)
+        .fetch_all(&self.pool)
+        .await?;
+        let versioned: Vec<(Uuid,)> = sqlx::query_as(
+            "SELECT DISTINCT d.project_id FROM decision_versions v \
+             JOIN decisions d ON d.id = v.decision_id WHERE d.project_id = ANY($1)",
+        )
+        .bind(&ids)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(DecisionProgress {
+            simulated: simulated.into_iter().map(|(id,)| id).collect(),
+            versioned: versioned.into_iter().map(|(id,)| id).collect(),
+        })
+    }
+}
+
 pub fn check_decision(key: &str, content: &Value) -> Result<(), DecisionError> {
     let key = check_key(key)?;
     check_content(&key, content)?;
