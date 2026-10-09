@@ -158,6 +158,14 @@ fn assemble_with_cipher(
         runtime.clone(),
         chrono::Duration::days(RETENTION_DAYS),
     );
+    let packs = donka_pack::Packs::new(
+        db.clone(),
+        clock.clone(),
+        projects.clone(),
+        decisions.clone(),
+        decision_log.clone(),
+        releases.clone(),
+    );
     let router = router(
         AppState {
             runtime,
@@ -169,6 +177,8 @@ fn assemble_with_cipher(
             decision_log: decision_log.clone(),
             explainer,
             audit,
+            packs,
+            catalogue: Arc::new(catalogue()),
             cookies: CookieSettings {
                 secure: true,
                 max_age_seconds: 8 * 3600,
@@ -187,6 +197,12 @@ fn assemble_with_cipher(
         releases,
         decision_log,
     }
+}
+
+/// The repository's packs, offered by every test app.
+pub fn catalogue() -> donka_pack::Catalogue {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packs");
+    donka_pack::Catalogue::load(&dir).unwrap()
 }
 
 /// An app whose database is unreachable (port 1 refuses immediately): only

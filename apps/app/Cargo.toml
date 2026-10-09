@@ -21,6 +21,7 @@ donka-db = { workspace = true }
 donka-engine = { workspace = true }
 donka-identity = { workspace = true, features = ["openapi"] }
 donka-mail = { workspace = true }
+donka-pack = { workspace = true }
 donka-project = { workspace = true, features = ["openapi"] }
 donka-release = { workspace = true }
 donka-shared = { workspace = true }

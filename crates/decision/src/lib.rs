@@ -29,7 +29,7 @@ mod scenarios;
 mod testing;
 mod versions;
 pub use compare::{Match, Mismatch};
-pub use scenarios::{Scenario, ScenarioFields, MAX_SCENARIO_NAME_CHARS};
+pub use scenarios::{check_scenario, Scenario, ScenarioFields, MAX_SCENARIO_NAME_CHARS};
 pub use testing::{TestResult, TestStatus, TestSummary};
 pub use versions::{
     FrozenVersion, ReleaseSnapshot, SavedVersion, Version, VersionSummary, MAX_MESSAGE_CHARS,
@@ -356,6 +356,16 @@ async fn write_draft(
 /// A decision with no node yet: what the editor opens on.
 fn empty_graph() -> Value {
     json!({ "nodes": [], "edges": [] })
+}
+
+/// Checks a decision as [`Decisions::create`] and [`Decisions::save_version`] will: its key,
+/// a graph the engine accepts, and a usable input contract.
+pub fn check_decision(key: &str, content: &Value) -> Result<(), DecisionError> {
+    let key = check_key(key)?;
+    check_content(&key, content)?;
+    donka_engine::contract::input_schema(content)
+        .map_err(|err| DecisionError::InvalidContract(err.to_string()))?;
+    Ok(())
 }
 
 fn check_key(key: &str) -> Result<String, DecisionError> {

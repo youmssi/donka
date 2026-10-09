@@ -261,6 +261,11 @@ async fn audit(
     Ok(())
 }
 
+/// Checks a scenario as [`Decisions::create_scenario`] will.
+pub fn check_scenario(fields: ScenarioFields) -> Result<ScenarioFields, DecisionError> {
+    check(fields)
+}
+
 fn check(fields: ScenarioFields) -> Result<ScenarioFields, DecisionError> {
     let name = fields.name.trim().to_owned();
     if name.is_empty() || name.chars().count() > MAX_SCENARIO_NAME_CHARS {

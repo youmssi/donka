@@ -32,7 +32,7 @@ pub struct ProjectResponse {
 }
 
 impl ProjectResponse {
-    fn new(project: Project, role: Role) -> Self {
+    pub(crate) fn new(project: Project, role: Role) -> Self {
         Self {
             id: project.id,
             key: project.key,
@@ -110,13 +110,13 @@ pub struct UpdateProjectRequest {
 
 // The project rules, published so the web app validates with the same limits.
 
-fn key_schema() -> utoipa::openapi::Object {
+pub(crate) fn key_schema() -> utoipa::openapi::Object {
     string_schema(MIN_KEY_CHARS, MAX_KEY_CHARS)
         .pattern(Some(KEY_PATTERN))
         .build()
 }
 
-fn name_schema() -> utoipa::openapi::Object {
+pub(crate) fn name_schema() -> utoipa::openapi::Object {
     string_schema(1, MAX_NAME_CHARS).build()
 }
 

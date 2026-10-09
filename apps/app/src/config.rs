@@ -64,6 +64,9 @@ pub struct Config {
     /// The customer's LLM endpoint that explains logged decisions; `None`
     /// (the default) turns explanations off. Holds a key: never log it.
     pub explain: Option<donka_explain::Settings>,
+    /// Folder of the packs offered when a project is created (DNK-43), one folder per
+    /// pack; none are offered when unset. Projects can still be made from a pack file.
+    pub packs_dir: Option<PathBuf>,
 }
 
 /// The web app calls the API here (apps/web `API_BASE`).
@@ -217,6 +220,9 @@ impl Config {
             decision_log_retention_days: positive(&get, "DONKA_DECISION_LOG_RETENTION_DAYS")?
                 .unwrap_or(1825),
             explain,
+            packs_dir: get("DONKA_PACKS_DIR")
+                .filter(|v| !v.trim().is_empty())
+                .map(PathBuf::from),
         })
     }
 }
@@ -431,6 +437,17 @@ mod tests {
         );
         let config = load(&[("DONKA_DECISION_LOG_RETENTION_DAYS", "365")]).unwrap();
         assert_eq!(config.decision_log_retention_days, 365);
+    }
+
+    #[test]
+    fn the_packs_folder_is_optional() {
+        assert_eq!(load(&[]).unwrap().packs_dir, None);
+        assert_eq!(
+            load(&[("DONKA_PACKS_DIR", "/srv/packs")])
+                .unwrap()
+                .packs_dir,
+            Some(PathBuf::from("/srv/packs"))
+        );
     }
 
     #[test]

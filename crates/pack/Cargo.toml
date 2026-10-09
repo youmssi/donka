@@ -1,0 +1,29 @@
+[package]
+name = "donka-pack"
+description = "Packs: import a project from a pack, duplicate a project, export one as a pack"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+publish = false
+
+[dependencies]
+donka-audit = { workspace = true }
+donka-db = { workspace = true }
+donka-decision = { workspace = true }
+donka-decision-log = { workspace = true }
+donka-identity = { workspace = true }
+donka-project = { workspace = true }
+donka-release = { workspace = true }
+donka-shared = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+zip = { workspace = true }
+
+[dev-dependencies]
+donka-engine = { workspace = true }
+
+[lints]
+workspace = true

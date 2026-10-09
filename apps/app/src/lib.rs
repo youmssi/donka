@@ -30,6 +30,7 @@ use donka_decision::Decisions;
 use donka_decision_log::DecisionLog;
 use donka_engine::DecisionRuntime;
 use donka_identity::Identity;
+use donka_pack::{Catalogue, Packs};
 use donka_project::Projects;
 use donka_release::Releases;
 use std::path::Path;
@@ -66,6 +67,9 @@ pub struct AppState {
     /// Explains logged decisions; `None` when the installation does not (DNK-19).
     pub explainer: Option<donka_explain::Explainer>,
     pub audit: AuditLog,
+    pub packs: Packs,
+    /// The packs this installation offers (DNK-43).
+    pub catalogue: Arc<Catalogue>,
     pub cookies: CookieSettings,
     /// Per-client-address limits on sign-in and password reset (DNK-32).
     pub auth_limits: rate_limit::AuthLimits,
@@ -148,6 +152,12 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
             routes::scenarios::update,
             routes::scenarios::delete
         ))
+        .routes(routes!(routes::packs::list))
+        .routes(routes!(routes::packs::inspect))
+        .routes(routes!(routes::packs::import))
+        .routes(routes!(routes::packs::import_file))
+        .routes(routes!(routes::packs::duplicate))
+        .routes(routes!(routes::packs::export))
         .routes(routes!(routes::audit::list))
         .routes(routes!(routes::audit::export))
         .routes(routes!(

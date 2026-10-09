@@ -68,6 +68,8 @@
           "project.updated",
           "project.archived",
           "project.restored",
+          "project.exported",
+          "project.duplicated",
           "member.added",
           "member.role_changed",
           "member.removed",
@@ -972,6 +974,34 @@
         ],
         "type": "string"
       },
+      "DuplicateProjectRequest": {
+        "properties": {
+          "key": {
+            "maxLength": 40,
+            "minLength": 2,
+            "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "releaseId": {
+            "description": "Copy the versions this release froze; each decision's current draft when absent.",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "name"
+        ],
+        "type": "object"
+      },
       "EnvironmentListResponse": {
         "properties": {
           "items": {
@@ -1158,6 +1188,22 @@
         ],
         "type": "object"
       },
+      "ImportedResponse": {
+        "properties": {
+          "project": {
+            "$ref": "#/components/schemas/ProjectResponse"
+          },
+          "tests": {
+            "$ref": "#/components/schemas/TestSummaryResponse",
+            "description": "How the scenarios went on the new project's first versions."
+          }
+        },
+        "required": [
+          "project",
+          "tests"
+        ],
+        "type": "object"
+      },
       "InvitationRequest": {
         "properties": {
           "email": {
@@ -1293,6 +1339,21 @@
         ],
         "type": "string"
       },
+      "LocalizedText": {
+        "properties": {
+          "en": {
+            "type": "string"
+          },
+          "fr": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "en",
+          "fr"
+        ],
+        "type": "object"
+      },
       "LogTokenListResponse": {
         "properties": {
           "items": {
@@ -1420,6 +1481,27 @@
         ],
         "type": "object"
       },
+      "NewProjectFields": {
+        "description": "The key and name of the new project.",
+        "properties": {
+          "key": {
+            "maxLength": 40,
+            "minLength": 2,
+            "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name"
+        ],
+        "type": "object"
+      },
       "NextVersionsResponse": {
         "description": "The version each bump would give the next release.",
         "properties": {
@@ -1437,6 +1519,81 @@
           "major",
           "minor",
           "patch"
+        ],
+        "type": "object"
+      },
+      "PackListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PackResponse"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "PackResponse": {
+        "properties": {
+          "currency": {
+            "description": "ISO currency code of the amounts, e.g. `XAF`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decisions": {
+            "description": "Decision keys, a decision another one calls before it.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "description": {
+            "$ref": "#/components/schemas/LocalizedText"
+          },
+          "entry": {
+            "description": "The decision a caller asks for.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "key": {
+            "type": "string"
+          },
+          "market": {
+            "description": "ISO country codes of the market the policy was written for, e.g. `CM`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "$ref": "#/components/schemas/LocalizedText"
+          },
+          "scenarios": {
+            "description": "Test scenarios the pack carries.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "version": {
+            "description": "The pack's own version, e.g. `1.2`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "description",
+          "decisions",
+          "scenarios"
         ],
         "type": "object"
       },
@@ -3138,6 +3295,262 @@
         "summary": "Liveness: answers as long as the process serves requests. Does not touch the database.",
         "tags": [
           "operations"
+        ]
+      }
+    },
+    "/packs": {
+      "get": {
+        "operationId": "list",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackListResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not signed in (UNAUTHENTICATED)"
+          }
+        },
+        "summary": "The packs this installation offers (`DONKA_PACKS_DIR`), by key.",
+        "tags": [
+          "packs"
+        ]
+      }
+    },
+    "/packs/import": {
+      "post": {
+        "operationId": "import_file",
+        "parameters": [
+          {
+            "description": "Lowercase letters, digits and single hyphens, starting with a letter. Cannot change later.",
+            "in": "query",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/zip": {}
+          },
+          "description": "A pack file (zip, at most 5 MB)"
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportedResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid key or name (INVALID_REQUEST)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not an administrator (FORBIDDEN)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Key already used (PROJECT_KEY_TAKEN)"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Larger than 5 MB (PACK_TOO_LARGE)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not a usable pack; why in details.reason (INVALID_PACK)"
+          }
+        },
+        "summary": "A new project from a pack file (administrators), e.g. one exported by another\ninstallation. The key and name of the new project are in the query string.",
+        "tags": [
+          "packs"
+        ]
+      }
+    },
+    "/packs/inspect": {
+      "post": {
+        "operationId": "inspect",
+        "requestBody": {
+          "content": {
+            "application/zip": {}
+          },
+          "description": "A pack file (zip, at most 5 MB)"
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Larger than 5 MB (PACK_TOO_LARGE)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not a usable pack; why in details.reason (INVALID_PACK)"
+          }
+        },
+        "summary": "Reads a pack file and says what it holds, without importing it.",
+        "tags": [
+          "packs"
+        ]
+      }
+    },
+    "/packs/{key}/import": {
+      "post": {
+        "operationId": "import",
+        "parameters": [
+          {
+            "description": "The pack's key, e.g. `retail-credit`.",
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewProjectFields"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportedResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid key or name (INVALID_REQUEST)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not an administrator (FORBIDDEN)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "No pack with this key (PACK_NOT_FOUND)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Key already used (PROJECT_KEY_TAKEN)"
+          }
+        },
+        "summary": "A new project from a pack of the catalogue (administrators). The importer becomes its\nonly owner; the decisions get a first version, which runs the pack's scenarios.",
+        "tags": [
+          "packs"
         ]
       }
     },
@@ -5563,6 +5976,98 @@
         ]
       }
     },
+    "/projects/{project_id}/duplicate": {
+      "post": {
+        "operationId": "duplicate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DuplicateProjectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportedResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid key or name (INVALID_REQUEST)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not an administrator (FORBIDDEN)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND or RELEASE_NOT_FOUND"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Key already used (PROJECT_KEY_TAKEN)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Nothing to copy (INVALID_PACK)"
+          }
+        },
+        "summary": "A new project with this project's decisions, scenarios and decision-log settings\n(administrators who are members). Releases, tokens, records and members stay behind.",
+        "tags": [
+          "packs"
+        ]
+      }
+    },
     "/projects/{project_id}/environments": {
       "get": {
         "operationId": "environments",
@@ -6050,6 +6555,74 @@
         "summary": "Revokes a Runtime token (owners); the environment's release is published again without it.",
         "tags": [
           "environments"
+        ]
+      }
+    },
+    "/projects/{project_id}/export": {
+      "get": {
+        "operationId": "export",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Export the versions this release froze; each decision's current draft when absent.",
+            "in": "query",
+            "name": "releaseId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/zip": {}
+            },
+            "description": "The pack file, `<key>.donka-pack.zip`"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not an owner (FORBIDDEN)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND or RELEASE_NOT_FOUND"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Nothing to export (INVALID_PACK)"
+          }
+        },
+        "summary": "The project as a pack file another team or installation imports (owners).",
+        "tags": [
+          "packs"
         ]
       }
     },
