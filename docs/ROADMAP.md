@@ -42,6 +42,7 @@ docker-compose for PostgreSQL, MinIO and Mailpit.
 | 24 | DNK-24 Credit starter pack | S |
 | 25 | DNK-37 One input contract for the rules and the form | S R |
 | 26 | DNK-38 Forms pull and check the input contract | C |
+| 26b | DNK-44 One form hook for Studio and Fieldkit | S |
 | 27 | DNK-40 Rotate the decision-log key | S |
 | 28 | DNK-43 Packs: import, duplicate, export | S |
 | 29 | DNK-41 First-run onboarding | S |

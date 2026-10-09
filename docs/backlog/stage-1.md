@@ -846,6 +846,42 @@ checkbox, amber). The wordmark is lowercase **donka** in Geist Bold, outlined.
 
 ---
 
+### DNK-44 — One form hook for Studio and Fieldkit
+
+**Type:** refactor · **Repos:** S · **Dependencies:** DNK-34, DNK-37 · **Size:** M
+
+#### Why
+Every Studio form builds its own `useForm`, passes an untyped field (`AnyFieldApi`) to its
+inputs and repeats the same submit button. TanStack Form's own guidance is to wrap it once in
+an app form hook (`createFormHook`) with pre-bound field and form components. That keeps forms
+short and typed end to end, and gives Fieldkit (Stage 2) the components it will pick per field
+from an input contract (ADR-005: one form engine, shared field patterns).
+
+#### Behaviour
+
+| Where | After |
+|---|---|
+| `components/shared/form/` | `createFormHookContexts` + `createFormHook` export `useAppForm` and `withForm`; field components (text, number, select, checkbox, …) read their field with `useFieldContext<T>()`; `SubmitButton` reads the form with `useFormContext()` |
+| Every form | Uses `useAppForm` and `form.AppField` / `form.AppForm`; no `form.Subscribe` copied for the submit button; large forms (input fields, connector node) split with `formOptions` + `withForm` |
+| Failed submit | Focus moves to the first invalid field (`onSubmitInvalid`, `aria-invalid`) |
+| Person using Studio | Nothing else changes: same fields, messages, timing of errors and layout |
+
+#### Acceptance criteria
+- [ ] One app form hook in `components/shared/form/`; no form calls `useForm` directly, and no
+      field component takes an `AnyFieldApi` prop
+- [ ] Every existing form moved to it with its behaviour unchanged; its tests still pass
+- [ ] A submit that fails validation focuses the first invalid field, tested
+- [ ] Validation timing kept as the frontend guide states (`onChange` + `onSubmit`, errors shown
+      once the field is left or the form submitted)
+- [ ] The frontend guide and ADR-005 describe the hook and how to add a field component
+- [ ] `@tanstack/react-form` pinned to an exact patch version (its types change between patches)
+
+#### Out of scope
+- Fieldkit itself and rendering forms from a contract (Stage 2)
+- New validation behaviour (`revalidateLogic`, async validators)
+
+---
+
 ### DNK-40 — Rotate the decision-log key
 
 **Type:** feature · **Repos:** S · **Dependencies:** DNK-18, DNK-23 · **Size:** M
