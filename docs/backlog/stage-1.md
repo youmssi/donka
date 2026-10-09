@@ -922,10 +922,10 @@ training session.
   motion. "Seen" is kept per user on the server, so tours do not replay on another device.
 
 #### Acceptance criteria
-- [ ] The checklist shows each step's real state and links to it; it hides when complete
-- [ ] Editor and releases tours, English and French, replayable from Help, skippable
-- [ ] Tour state per user on the server (additive API)
-- [ ] Checked at 390 px and desktop, light and dark
+- [x] The checklist shows each step's real state and links to it; it hides when complete
+- [x] Editor and releases tours, English and French, replayable from Help, skippable
+- [x] Tour state per user on the server (additive API)
+- [x] Checked at 390 px and desktop, light and dark
 
 ---
 

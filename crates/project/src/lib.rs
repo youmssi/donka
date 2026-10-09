@@ -250,6 +250,30 @@ impl Projects {
         Ok(Page { items, total })
     }
 
+    /// The user's active projects with their access, by name, at most `limit`: what onboarding
+    /// reads progress from (DNK-41).
+    pub async fn memberships(
+        &self,
+        user: Uuid,
+        limit: i64,
+    ) -> Result<Vec<(Access, ProjectSummary)>, ProjectError> {
+        let page = self
+            .list_for(user, Listing::Active, PageRequest { limit, offset: 0 })
+            .await?;
+        Ok(page
+            .items
+            .into_iter()
+            .map(|project| {
+                let access = Access {
+                    project_id: project.id,
+                    user_id: user,
+                    role: project.role,
+                };
+                (access, project)
+            })
+            .collect())
+    }
+
     /// The user's access to the project; `NotFound` when they are not a member,
     /// whether or not the project exists.
     pub async fn access(&self, user: Uuid, project_id: Uuid) -> Result<Access, ProjectError> {

@@ -997,5 +997,110 @@
     "export": "Exporter le fichier pack",
     "exporting": "Export…",
     "exported": "{file} téléchargé."
+  },
+  "tour": {
+    "next": "Suivant",
+    "previous": "Retour",
+    "done": "Terminer",
+    "skip": "Passer la visite",
+    "progress": "{current} sur {total}"
+  },
+  "help": {
+    "label": "Aide",
+    "tour": "Revoir la visite de cette page",
+    "noTour": "Pas de visite sur cette page",
+    "getStarted": "Liste « Pour commencer »"
+  },
+  "onboarding": {
+    "title": "Pour commencer",
+    "description": "D'un Studio vide à une décision appelée par vos systèmes, en cinq étapes.",
+    "progress": "{done} sur {total} faites.",
+    "done": "(fait)",
+    "toDo": "(à faire)",
+    "project": {
+      "title": "Démarrer un projet depuis un pack",
+      "description": "Un pack apporte des décisions, des scénarios de test et un guide à adapter à votre politique.",
+      "askAdmin": "Demandez à un administrateur de démarrer un projet depuis un pack et de vous y ajouter."
+    },
+    "simulation": {
+      "title": "Lancer une simulation",
+      "description": "Ouvrez une décision, puis le Simulateur (le bouton lecture à gauche du graphe), et lancez-la avec une entrée.",
+      "action": "Ouvrir les décisions de {project}"
+    },
+    "version": {
+      "title": "Enregistrer une version",
+      "description": "Une version fige la décision et exécute ses scénarios de test.",
+      "action": "Ouvrir les décisions de {project}"
+    },
+    "staging": {
+      "title": "La mettre en staging",
+      "description": "Créez une release, puis déployez-la en staging depuis Environnements.",
+      "action": "Ouvrir les releases de {project}"
+    },
+    "token": {
+      "title": "Créer un jeton Runtime",
+      "description": "Vos systèmes appellent le Runtime avec ce jeton pour obtenir des décisions de staging.",
+      "action": "Ouvrir les environnements de {project}"
+    }
+  },
+  "tours": {
+    "editor": {
+      "graph": {
+        "title": "Votre décision, sous forme de graphe",
+        "body": "Les données vont de la Requête, à travers tables et expressions, jusqu'à la Réponse. Le bouton lecture dans la barre à gauche du graphe ouvre le Simulateur, pour la lancer avec une entrée."
+      },
+      "status": {
+        "title": "Enregistré au fil de l'eau",
+        "body": "Chaque modification est gardée en brouillon. L'étiquette indique la version dont le brouillon est parti."
+      },
+      "fields": {
+        "title": "Champs d'entrée",
+        "body": "Ce que les appelants doivent envoyer : noms, types, libellés. Le Runtime refuse une requête qui ne les respecte pas."
+      },
+      "history": {
+        "title": "Historique",
+        "body": "Chaque version enregistrée, ses résultats de test, et de quoi en comparer ou en restaurer une."
+      },
+      "save": {
+        "title": "Enregistrer une version",
+        "body": "Une version fige la décision et exécute ses scénarios de test. Les releases sont faites de versions."
+      }
+    },
+    "releases": {
+      "new": {
+        "title": "Nouvelle release",
+        "body": "Une release fige la dernière version de chaque décision du projet, sous un numéro de version sémantique."
+      },
+      "list": {
+        "title": "Une release ne change jamais",
+        "body": "Chacune montre ce qu'elle a figé et où elle est en ligne. Ouvrez-en une pour voir ses décisions et ses tests."
+      },
+      "deploy": {
+        "title": "Déployer depuis Environnements",
+        "body": "Le staging reçoit une release en un clic ; le Runtime la prend en quelques secondes."
+      },
+      "approval": {
+        "title": "La production demande une seconde personne",
+        "body": "Demandez la production depuis Environnements : un autre propriétaire examine ce qui change et l'approuve."
+      }
+    },
+    "environments": {
+      "staging": {
+        "title": "Staging",
+        "body": "Ce qu'appellent vos systèmes de test : la release en ligne et tout déploiement en cours."
+      },
+      "deploy": {
+        "title": "Déployer une release",
+        "body": "Choisissez une release et déployez-la en staging."
+      },
+      "tokens": {
+        "title": "Jetons Runtime",
+        "body": "Vos systèmes appellent le Runtime avec un jeton par environnement. Il n'est affiché qu'une fois : gardez-le dans votre coffre à secrets."
+      },
+      "production": {
+        "title": "Production",
+        "body": "Seule la release en ligne en staging peut aller en production, une fois approuvée par un autre propriétaire."
+      }
+    }
   }
 }

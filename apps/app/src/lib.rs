@@ -152,6 +152,9 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
             routes::scenarios::update,
             routes::scenarios::delete
         ))
+        .routes(routes!(routes::onboarding::checklist))
+        .routes(routes!(routes::onboarding::tours))
+        .routes(routes!(routes::onboarding::tour_seen))
         .routes(routes!(routes::packs::list))
         .routes(routes!(routes::packs::inspect))
         .routes(routes!(routes::packs::import))
