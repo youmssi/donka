@@ -358,6 +358,7 @@
     },
     "decision_log": {
       "purged": "Décisions enregistrées purgées",
+      "resealed": "Décisions enregistrées rechiffrées",
       "settings_updated": "Réglages du journal des décisions modifiés"
     },
     "decision_log_token": {
@@ -397,6 +398,7 @@
     "decisionRecordViewed": "A ouvert la décision {key} {reference}",
     "decisionRecordReplayed": "A rejoué la décision {key} {reference}",
     "decisionLogPurged": "A purgé {records} décisions enregistrées de plus de {days} jours",
+    "decisionLogResealed": "A rechiffré {records} décisions enregistrées avec la clé actuelle",
     "decisionLogSettingsUpdated": "A défini le champ de résultat du journal sur {field}",
     "decisionLogSettingsCleared": "A retiré le champ de résultat du journal",
     "decisionRecordExplained": "A demandé l'explication de la décision {key} {reference}",

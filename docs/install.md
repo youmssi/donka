@@ -134,8 +134,9 @@ docker compose run --rm -v "$PWD/backups:/backups" --entrypoint sh minio-init -c
    mc mirror --overwrite local/donka-releases /backups/releases-$stamp"
 ```
 
-Keep `.env` and `runtime.env` in your secret store. **Without `DONKA_DECISION_LOG_KEY` the
-decision log cannot be read**, even from a backup.
+Keep `.env` and `runtime.env` in your secret store. **Without `DONKA_DECISION_LOG_KEY` (and,
+after a rotation, the keys in `DONKA_DECISION_LOG_PREVIOUS_KEYS`) the decision log cannot be
+read**, even from a backup.
 
 Copy the backups off the server and test a restore regularly. To restore, onto a stopped Studio:
 
@@ -191,10 +192,31 @@ docker compose --profile full up -d minio minio-init app runtime
 system that uses it, check that system works, then revoke the old token. Each step is in the
 audit log.
 
-**Decision-log key**: records are encrypted with `DONKA_DECISION_LOG_KEY`, and Studio reads
-them with that key only. Do not change it: records written before the change could no longer
-be read. If you suspect it leaked, restrict access to the database and its backups: the key
-alone does not give access to records. Rotating the key is planned (DNK-40).
+**Decision-log key**: records are encrypted with `DONKA_DECISION_LOG_KEY`. Replace it when it
+may have leaked, when someone who knew it leaves, or if you started with the default key from
+`docker-compose.yml`. Each record names the key it was sealed with, so nothing is lost:
+
+1. Generate a new key: `openssl rand -base64 32`.
+2. In `.env`, move the current value to `DONKA_DECISION_LOG_PREVIOUS_KEYS` (several keys are
+   separated by commas) and set `DONKA_DECISION_LOG_KEY` to the new key. Do not drop the old
+   value: records sealed with it could no longer be read.
+3. `docker compose up -d app`. Studio seals new records with the new key and still reads the
+   old ones with the previous key; its log lists the keys still in use.
+4. Re-seal the old records with the new key:
+
+   ```bash
+   docker compose exec app donka-app decision-log reseal
+   ```
+
+   It works in batches of 500, each recorded in the project's audit log (*Decision records
+   re-sealed*). It can be stopped and run again: it carries on with the records left. When it
+   names a key that is missing, add that key to `DONKA_DECISION_LOG_PREVIOUS_KEYS` first.
+5. When it says no record uses the old key any more, remove it from
+   `DONKA_DECISION_LOG_PREVIOUS_KEYS` and run `docker compose up -d app` again.
+
+Backups taken before the re-seal still hold records sealed with the old key: keep the old key
+with those backups, in your secret store, until they expire. If the key leaked, also restrict
+access to the database and its backups: the key alone does not give access to records.
 
 **User passwords**: people change theirs with *Forgot your password?* on the sign-in page.
 

@@ -358,6 +358,7 @@
     },
     "decision_log": {
       "purged": "Decision records purged",
+      "resealed": "Decision records re-sealed",
       "settings_updated": "Decision log settings changed"
     },
     "decision_log_token": {
@@ -397,6 +398,7 @@
     "decisionRecordViewed": "Opened the {key} decision {reference}",
     "decisionRecordReplayed": "Replayed the {key} decision {reference}",
     "decisionLogPurged": "Purged {records} decision records older than {days} days",
+    "decisionLogResealed": "Re-sealed {records} decision records with the current key",
     "decisionLogSettingsUpdated": "Set the decision log's outcome field to {field}",
     "decisionLogSettingsCleared": "Removed the decision log's outcome field",
     "decisionRecordExplained": "Asked for an explanation of the {key} decision {reference}",

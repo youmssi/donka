@@ -383,6 +383,8 @@ function useSentence(event: AuditEvent): string {
       return t('decisionRecordExplained', { key: detail(event, 'decisionKey'), reference: detail(event, 'reference') });
     case 'decision_log.purged':
       return t('decisionLogPurged', { records: detail(event, 'records'), days: detail(event, 'retentionDays') });
+    case 'decision_log.resealed':
+      return t('decisionLogResealed', { records: detail(event, 'records') });
     case 'decision_log.settings_updated': {
       const field = detail(event, 'to', 'outcomeField');
       return field ? t('decisionLogSettingsUpdated', { field }) : t('decisionLogSettingsCleared');

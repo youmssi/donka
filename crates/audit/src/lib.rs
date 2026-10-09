@@ -123,6 +123,11 @@ pub enum Action {
     #[serde(rename = "decision_log.purged")]
     #[sqlx(rename = "decision_log.purged")]
     DecisionLogPurged,
+    /// Records sealed with a previous key were re-sealed with the current one
+    /// (DNK-40); no actor: an operator runs the command.
+    #[serde(rename = "decision_log.resealed")]
+    #[sqlx(rename = "decision_log.resealed")]
+    DecisionLogResealed,
     #[serde(rename = "decision_log.settings_updated")]
     #[sqlx(rename = "decision_log.settings_updated")]
     DecisionLogSettingsUpdated,
@@ -181,6 +186,7 @@ impl Action {
             Self::DecisionRecordViewed => "decision_record.viewed",
             Self::DecisionRecordReplayed => "decision_record.replayed",
             Self::DecisionLogPurged => "decision_log.purged",
+            Self::DecisionLogResealed => "decision_log.resealed",
             Self::DecisionLogSettingsUpdated => "decision_log.settings_updated",
             Self::DecisionLogTokenIssued => "decision_log_token.issued",
             Self::DecisionLogTokenRevoked => "decision_log_token.revoked",

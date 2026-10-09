@@ -892,12 +892,12 @@ that key only. A key that may have leaked cannot be replaced today without losin
 written before: the install guide tells operators not to change it.
 
 #### Acceptance criteria
-- [ ] Studio takes a new key and keeps reading records sealed with the previous ones (each record
+- [x] Studio takes a new key and keeps reading records sealed with the previous ones (each record
       names its key: `key_id`)
-- [ ] New records are sealed with the new key only
-- [ ] A command re-seals old records with the new key, resumable, audited; afterwards the old key
+- [x] New records are sealed with the new key only
+- [x] A command re-seals old records with the new key, resumable, audited; afterwards the old key
       can be removed
-- [ ] The install and operations guide (EN/FR) describes the rotation
+- [x] The install and operations guide (EN/FR) describes the rotation
 
 ---
 

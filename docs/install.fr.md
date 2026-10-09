@@ -141,8 +141,9 @@ docker compose run --rm -v "$PWD/backups:/backups" --entrypoint sh minio-init -c
    mc mirror --overwrite local/donka-releases /backups/releases-$stamp"
 ```
 
-Gardez `.env` et `runtime.env` dans votre coffre à secrets. **Sans `DONKA_DECISION_LOG_KEY`, le
-journal des décisions est illisible**, même depuis une sauvegarde.
+Gardez `.env` et `runtime.env` dans votre coffre à secrets. **Sans `DONKA_DECISION_LOG_KEY` (et,
+après un renouvellement, les clés de `DONKA_DECISION_LOG_PREVIOUS_KEYS`), le journal des
+décisions est illisible**, même depuis une sauvegarde.
 
 Copiez les sauvegardes hors du serveur et testez une restauration régulièrement. Pour
 restaurer, Studio arrêté :
@@ -203,10 +204,34 @@ jeton, donnez-le au système qui l'utilise, vérifiez que ce système fonctionne
 l'ancien. Chaque étape est dans le journal d'audit.
 
 **Clé du journal des décisions** : les enregistrements sont chiffrés avec
-`DONKA_DECISION_LOG_KEY`, et Studio ne les lit qu'avec cette clé. Ne la changez pas : les
-enregistrements écrits avant le changement ne seraient plus lisibles. Si vous pensez qu'elle a
-fuité, restreignez l'accès à la base et à ses sauvegardes : la clé seule ne donne pas accès aux
-enregistrements. Le renouvellement de la clé est prévu (DNK-40).
+`DONKA_DECISION_LOG_KEY`. Remplacez-la si elle a pu fuiter, si une personne qui la connaissait
+part, ou si vous avez démarré avec la clé par défaut de `docker-compose.yml`. Chaque
+enregistrement indique la clé qui l'a chiffré, donc rien n'est perdu :
+
+1. Générez une nouvelle clé : `openssl rand -base64 32`.
+2. Dans `.env`, déplacez la valeur actuelle dans `DONKA_DECISION_LOG_PREVIOUS_KEYS` (plusieurs
+   clés sont séparées par des virgules) et mettez la nouvelle clé dans `DONKA_DECISION_LOG_KEY`.
+   Ne supprimez pas l'ancienne valeur : les enregistrements chiffrés avec elle ne seraient plus
+   lisibles.
+3. `docker compose up -d app`. Studio chiffre les nouveaux enregistrements avec la nouvelle clé
+   et lit toujours les anciens avec la précédente ; son journal liste les clés encore utilisées.
+4. Rechiffrez les anciens enregistrements avec la nouvelle clé :
+
+   ```bash
+   docker compose exec app donka-app decision-log reseal
+   ```
+
+   La commande avance par lots de 500, chacun inscrit au journal d'audit du projet
+   (*Décisions enregistrées rechiffrées*). Elle peut être arrêtée puis relancée : elle reprend
+   avec les enregistrements restants. Si elle nomme une clé manquante, ajoutez d'abord cette clé
+   à `DONKA_DECISION_LOG_PREVIOUS_KEYS`.
+5. Quand elle indique qu'aucun enregistrement n'utilise plus l'ancienne clé, retirez-la de
+   `DONKA_DECISION_LOG_PREVIOUS_KEYS` et relancez `docker compose up -d app`.
+
+Les sauvegardes faites avant le rechiffrement contiennent encore des enregistrements chiffrés
+avec l'ancienne clé : gardez l'ancienne clé avec ces sauvegardes, dans votre coffre à secrets,
+jusqu'à leur expiration. Si la clé a fuité, restreignez aussi l'accès à la base et à ses
+sauvegardes : la clé seule ne donne pas accès aux enregistrements.
 
 **Mots de passe des personnes** : chacun change le sien avec *Mot de passe oublié ?* sur la
 page de connexion.

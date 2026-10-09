@@ -22,7 +22,7 @@ use donka_shared::clock::Clock;
 use donka_shared::page::{Page, PageRequest};
 use donka_shared::secret::{self, IssuedSecret};
 use serde_json::{json, Value};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -728,6 +728,148 @@ impl DecisionLog {
             purged += deleted;
         }
         Ok(purged)
+    }
+}
+
+// ----- Key rotation (DNK-40) -----------------------------------------------
+
+/// Records still sealed with a key other than the current one.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KeyUsage {
+    pub key_id: String,
+    pub records: i64,
+    /// Whether `DONKA_DECISION_LOG_PREVIOUS_KEYS` holds this key.
+    pub configured: bool,
+}
+
+/// What re-sealing reads of a record.
+#[derive(sqlx::FromRow)]
+struct SealedRow {
+    id: Uuid,
+    project_id: Uuid,
+    key_id: String,
+    nonce: Vec<u8>,
+    payload: Vec<u8>,
+}
+
+impl DecisionLog {
+    /// The id of the key new records are sealed with.
+    pub fn key_id(&self) -> &str {
+        self.cipher.key_id()
+    }
+
+    /// For each key other than the current one, configured or still sealing
+    /// records, how many records it seals.
+    pub async fn previous_key_usage(&self) -> Result<Vec<KeyUsage>, DecisionLogError> {
+        // The keys in use, one index probe per key (a skip scan): the table can
+        // hold years of records and this runs at every start.
+        let keys: Vec<String> = sqlx::query_scalar(
+            "WITH RECURSIVE used(key_id) AS ( \
+                 SELECT min(key_id) FROM decision_records \
+                 UNION ALL \
+                 SELECT (SELECT min(key_id) FROM decision_records WHERE key_id > used.key_id) \
+                 FROM used WHERE used.key_id IS NOT NULL \
+             ) SELECT key_id FROM used WHERE key_id IS NOT NULL",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        let mut rows = Vec::new();
+        for key_id in keys.into_iter().filter(|key| key != self.cipher.key_id()) {
+            let records: i64 =
+                sqlx::query_scalar("SELECT count(*) FROM decision_records WHERE key_id = $1")
+                    .bind(&key_id)
+                    .fetch_one(&self.pool)
+                    .await?;
+            rows.push((key_id, records));
+        }
+        let configured = self.cipher.previous_key_ids();
+        let mut usage: Vec<KeyUsage> = rows
+            .into_iter()
+            .map(|(key_id, records)| KeyUsage {
+                configured: configured.contains(&key_id),
+                key_id,
+                records,
+            })
+            .collect();
+        // A previous key no record uses any more can be removed.
+        for key_id in configured {
+            if !usage.iter().any(|key| key.key_id == key_id) {
+                usage.push(KeyUsage {
+                    key_id,
+                    records: 0,
+                    configured: true,
+                });
+            }
+        }
+        usage.sort_by(|a, b| a.key_id.cmp(&b.key_id));
+        Ok(usage)
+    }
+
+    /// Re-seals up to `limit` records sealed with one of the previous keys with the
+    /// current one, in one transaction that also records, per project, how many were
+    /// re-sealed. Returns how many; zero once none is left. Stopping between
+    /// batches loses nothing: the next call starts with the records left.
+    pub async fn reseal_batch(&self, limit: i64) -> Result<u64, DecisionLogError> {
+        let mut tx = self.pool.begin().await?;
+        // The guard on decision_records lets this transaction, and only it,
+        // replace a record's key, nonce and payload.
+        sqlx::query("SELECT set_config('donka.reseal', 'on', true)")
+            .execute(&mut *tx)
+            .await?;
+        let rows: Vec<SealedRow> = sqlx::query_as(
+            // Through the (key_id, id) index: each batch reads only records
+            // still to re-seal, however many came before.
+            "SELECT id, project_id, key_id, nonce, payload FROM decision_records \
+             WHERE key_id = ANY($1) ORDER BY key_id, id LIMIT $2 FOR UPDATE SKIP LOCKED",
+        )
+        .bind(self.cipher.previous_key_ids())
+        .bind(limit)
+        .fetch_all(&mut *tx)
+        .await?;
+
+        let mut projects: BTreeMap<Uuid, (u64, BTreeSet<String>)> = BTreeMap::new();
+        for row in rows {
+            let (id, key_id) = (row.id, row.key_id);
+            let plaintext = self.cipher.open(
+                id,
+                &cipher::Sealed {
+                    key_id: key_id.clone(),
+                    nonce: row.nonce,
+                    ciphertext: row.payload,
+                },
+            )?;
+            let sealed = self.cipher.seal(id, &plaintext)?;
+            sqlx::query(
+                "UPDATE decision_records SET key_id = $2, nonce = $3, payload = $4 WHERE id = $1",
+            )
+            .bind(id)
+            .bind(&sealed.key_id)
+            .bind(&sealed.nonce)
+            .bind(&sealed.ciphertext)
+            .execute(&mut *tx)
+            .await?;
+            let entry = projects.entry(row.project_id).or_default();
+            entry.0 += 1;
+            entry.1.insert(key_id);
+        }
+
+        let mut resealed = 0;
+        for (project, (records, from)) in projects {
+            donka_audit::record(
+                &mut tx,
+                Event::new(self.clock.now(), None, Action::DecisionLogResealed)
+                    .in_project(project)
+                    .with_details(json!({
+                        "records": records,
+                        "fromKeys": from,
+                        "toKey": self.cipher.key_id(),
+                    })),
+            )
+            .await?;
+            resealed += records;
+        }
+        tx.commit().await?;
+        Ok(resealed)
     }
 }
 

@@ -684,6 +684,168 @@ async fn records_past_retention_are_purged_and_each_purge_is_audited(db: PgPool)
     assert_eq!(event["details"]["retentionDays"], RETENTION_DAYS);
 }
 
+// ----- Key rotation (DNK-40) -------------------------------------------------
+
+/// The key after a rotation, in tests.
+const NEW_KEY: &str = "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8=";
+
+async fn key_of(db: &PgPool, id: &Value) -> String {
+    sqlx::query_scalar("SELECT key_id FROM decision_records WHERE id = $1::uuid")
+        .bind(id.as_str().unwrap())
+        .fetch_one(db)
+        .await
+        .unwrap()
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn a_rotated_key_reads_old_records_and_reseal_moves_them_to_it(db: PgPool) {
+    let before = with_database(db.clone());
+    let (admin, p, rid) = released(&before).await;
+    let token = staging_token(&before, &admin).await;
+    let at = now(&before);
+    let old: Vec<Value> = (0..3)
+        .map(|i| record(&p, &rid, at - Duration::minutes(i), json!({})))
+        .collect();
+    feed(&before, Some(&token), json!(old)).await;
+    let old_key = key_of(&db, &old[0]["id"]).await;
+
+    // Studio restarted with the new key, the old one kept as previous.
+    let rotated = with_decision_log_keys(db.clone(), NEW_KEY, &[DECISION_LOG_KEY]);
+    let id = old[0]["id"].as_str().unwrap();
+    let view = call(
+        &rotated,
+        "GET",
+        &format!("/projects/{p}/decision-log/{id}"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(view.status, StatusCode::OK, "{}", view.body);
+    assert_eq!(view.body["output"]["output"], 10);
+
+    // New records are sealed with the new key only.
+    let new = record(&p, &rid, at, json!({}));
+    feed(&rotated, Some(&token), json!([new])).await;
+    let new_key = rotated.decision_log.key_id().to_owned();
+    assert_ne!(new_key, old_key);
+    assert_eq!(key_of(&db, &new["id"]).await, new_key);
+
+    // Without the previous key, the old records cannot be read, and the
+    // re-seal refuses to start, naming the key that is missing.
+    let without = with_decision_log_keys(db.clone(), NEW_KEY, &[]);
+    let unreadable = call(
+        &without,
+        "GET",
+        &format!("/projects/{p}/decision-log/{id}"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_ne!(unreadable.status, StatusCode::OK);
+    let mut out = Vec::new();
+    let err = donka_app::reseal::run(&without.decision_log, &mut out)
+        .await
+        .unwrap_err();
+    assert!(err.contains(&format!("{old_key} (3 records)")), "{err}");
+
+    // Batches commit one by one: stopping after the first loses nothing.
+    assert_eq!(rotated.decision_log.reseal_batch(2).await.unwrap(), 2);
+    let mut out = Vec::new();
+    assert_eq!(
+        donka_app::reseal::run(&rotated.decision_log, &mut out)
+            .await
+            .unwrap(),
+        1
+    );
+    let out = String::from_utf8(out).unwrap();
+    assert!(out.contains("Done: 1 records re-sealed"), "{out}");
+    assert!(
+        out.contains(&format!("No record uses {old_key} any more")),
+        "{out}"
+    );
+    assert_eq!(rotated.decision_log.reseal_batch(10).await.unwrap(), 0);
+
+    // Afterwards the new key alone reads every record.
+    for record in old.iter().chain([&new]) {
+        assert_eq!(key_of(&db, &record["id"]).await, new_key);
+        let id = record["id"].as_str().unwrap();
+        let view = call(
+            &without,
+            "GET",
+            &format!("/projects/{p}/decision-log/{id}"),
+            None,
+            &admin,
+        )
+        .await;
+        assert_eq!(view.status, StatusCode::OK, "{}", view.body);
+    }
+
+    // Each batch is audited, without an actor.
+    let audit = call(
+        &rotated,
+        "GET",
+        &format!("/projects/{p}/audit?action=decision_log.resealed"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(audit.body["total"], 2, "{}", audit.body);
+    let records: Vec<i64> = audit.body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|event| event["details"]["records"].as_i64().unwrap())
+        .collect();
+    assert_eq!(records.iter().sum::<i64>(), 3);
+    for event in audit.body["items"].as_array().unwrap() {
+        assert_eq!(event["actor"], Value::Null);
+        assert_eq!(event["details"]["fromKeys"], json!([old_key]));
+        assert_eq!(event["details"]["toKey"], new_key);
+    }
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn re_sealing_is_the_only_change_a_record_accepts(db: PgPool) {
+    let app = with_database(db.clone());
+    let (admin, p, rid) = released(&app).await;
+    let token = staging_token(&app, &admin).await;
+    feed(
+        &app,
+        Some(&token),
+        json!([record(&p, &rid, now(&app), json!({}))]),
+    )
+    .await;
+
+    let reseal = "SELECT set_config('donka.reseal', 'on', true)";
+    for (marked, statement) in [
+        // Not marked as a re-seal.
+        (
+            false,
+            "UPDATE decision_records SET key_id = 'other', nonce = nonce",
+        ),
+        // Marked, but changing something else too.
+        (
+            true,
+            "UPDATE decision_records SET key_id = 'other', outcome = 'approve'",
+        ),
+        // Marked, but keeping the same key.
+        (true, "UPDATE decision_records SET payload = payload"),
+        // Marked, but a column the grant does not cover.
+        (true, "UPDATE decision_records SET reference = 'x'"),
+    ] {
+        let mut tx = db.begin().await.unwrap();
+        if marked {
+            sqlx::query(reseal).execute(&mut *tx).await.unwrap();
+        }
+        let err = sqlx::query(statement).execute(&mut *tx).await.unwrap_err();
+        assert!(
+            err.to_string().contains("append-only")
+                || err.to_string().contains("permission denied"),
+            "{statement}: {err}"
+        );
+    }
+}
+
 // ----- Explanations (DNK-19) -------------------------------------------------
 
 /// A fake LLM endpoint: records what it is sent, answers what it is told.

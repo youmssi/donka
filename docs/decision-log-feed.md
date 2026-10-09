@@ -64,13 +64,15 @@ Records without a readable `id` are skipped and logged by Studio. Other answers:
 
 - Searchable fields (decision, reference, outcome, environment, status, time) are stored as
   they are. `input`, `output`, `error` and `trace` are encrypted together with AES-256-GCM under
-  `DONKA_DECISION_LOG_KEY`, the record id as associated data.
+  `DONKA_DECISION_LOG_KEY`, the record id as associated data. Each record names its key
+  (`key_id`): after a rotation, the keys in `DONKA_DECISION_LOG_PREVIOUS_KEYS` still open older
+  records until `donka-app decision-log reseal` re-seals them with the current key.
 - The **outcome** is read when the record arrives: `error` for a failed evaluation, otherwise the
   value at the project's outcome field (a dotted path such as `decision` or `result.band`) when
   it is a string, number or boolean.
-- Records cannot be changed. They are deleted only by the retention purge
-  (`DONKA_DECISION_LOG_RETENTION_DAYS`, five years by default), which records one audit event
-  per project it purges.
+- Records cannot be changed, except to re-seal them with the current key after a rotation. They
+  are deleted only by the retention purge (`DONKA_DECISION_LOG_RETENTION_DAYS`, five years by
+  default), which records one audit event per project it purges.
 - Any project member can search the log; opening or replaying a record is audited. Replay
   evaluates the record's input with its release, connector nodes answering with their output
   in the record's trace, so no outside service is called.
