@@ -1,14 +1,12 @@
 'use client';
 
-import { useForm } from '@tanstack/react-form';
 import { Plus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 
 import type { ActionError } from '@/components/shared/api';
 import { ErrorAlert } from '@/components/shared/error-alert';
-import { SubmitButton } from '@/components/shared/form/submit-button';
-import { TextField } from '@/components/shared/form/text-field';
+import { useAppForm } from '@/components/shared/form';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -35,7 +33,7 @@ export function CreateDecisionDialog({ project }: { project: Project }) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<ActionError | null>(null);
 
-  const form = useForm({
+  const form = useAppForm({
     defaultValues: { key: '' } satisfies CreateDecisionValues,
     validators: { onChange: createDecisionSchema, onSubmit: createDecisionSchema },
     onSubmit: async ({ value }) => {
@@ -71,47 +69,35 @@ export function CreateDecisionDialog({ project }: { project: Project }) {
           <DialogTitle>{t('createTitle')}</DialogTitle>
           <DialogDescription>{t('createDescription')}</DialogDescription>
         </DialogHeader>
-        <form
-          noValidate
-          className="grid gap-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void form.handleSubmit();
-          }}
-        >
-          {error ? <ErrorAlert error={error} /> : null}
-          <FieldGroup className="gap-2">
-            <form.Field name="key">
-              {(field) => (
-                <TextField
-                  field={field}
-                  label={t('key')}
-                  hint={t('keyHint')}
-                  placeholder="bureau/normalize"
-                  required
-                  autoFocus
-                  spellCheck={false}
-                  autoCapitalize="off"
-                  className="font-mono"
-                  messageValues={{ max: KEY_RULES.max }}
-                  serverError={error?.code === 'DECISION_KEY_TAKEN' ? t('keyTaken') : undefined}
-                />
-              )}
-            </form.Field>
-          </FieldGroup>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              {common('cancel')}
-            </Button>
-            <form.Subscribe selector={(state) => state.isSubmitting}>
-              {(isSubmitting) => (
-                <SubmitButton pending={isSubmitting} pendingLabel={t('creating')}>
-                  {t('create')}
-                </SubmitButton>
-              )}
-            </form.Subscribe>
-          </DialogFooter>
-        </form>
+        <form.AppForm>
+          <form.Form className="grid gap-4">
+            {error ? <ErrorAlert error={error} /> : null}
+            <FieldGroup className="gap-2">
+              <form.AppField name="key">
+                {(field) => (
+                  <field.TextField
+                    label={t('key')}
+                    hint={t('keyHint')}
+                    placeholder="bureau/normalize"
+                    required
+                    autoFocus
+                    spellCheck={false}
+                    autoCapitalize="off"
+                    className="font-mono"
+                    messageValues={{ max: KEY_RULES.max }}
+                    serverError={error?.code === 'DECISION_KEY_TAKEN' ? t('keyTaken') : undefined}
+                  />
+                )}
+              </form.AppField>
+            </FieldGroup>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                {common('cancel')}
+              </Button>
+              <form.SubmitButton pendingLabel={t('creating')}>{t('create')}</form.SubmitButton>
+            </DialogFooter>
+          </form.Form>
+        </form.AppForm>
       </DialogContent>
     </Dialog>
   );

@@ -1,11 +1,11 @@
 'use client';
 
-import { useForm } from '@tanstack/react-form';
 import { ScrollText, Search } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 
 import { DataTable, type DataTableColumn } from '@/components/shared/data-table';
+import { useAppForm } from '@/components/shared/form';
 import { DateRangeFilter } from '@/components/shared/date-range';
 import { ErrorAlert } from '@/components/shared/error-alert';
 import { When } from '@/components/shared/format';
@@ -164,7 +164,7 @@ function DecisionLog({ project }: { project: Project }) {
 /** Reference, decision and outcome: typed, applied together with Enter or the search button. */
 function TextFilters({ filters, onApply }: { filters: LogFilters; onApply: (change: Partial<LogFilters>) => void }) {
   const t = useTranslations('decisionLog');
-  const form = useForm({
+  const form = useAppForm({
     defaultValues: {
       reference: filters.reference ?? '',
       decision: filters.decision ?? '',
@@ -184,32 +184,27 @@ function TextFilters({ filters, onApply }: { filters: LogFilters; onApply: (chan
   ] as const;
 
   return (
-    <form
-      role="search"
-      className="flex flex-wrap items-center gap-2"
-      onSubmit={(event) => {
-        event.preventDefault();
-        void form.handleSubmit();
-      }}
-    >
-      {fields.map(({ name, label, className }) => (
-        <form.Field key={name} name={name}>
-          {(field) => (
-            <Input
-              aria-label={label}
-              placeholder={label}
-              className={`h-8 ${className}`}
-              value={field.state.value}
-              onChange={(event) => field.handleChange(event.target.value)}
-            />
-          )}
-        </form.Field>
-      ))}
-      <Button type="submit" size="sm" variant="secondary">
-        <Search aria-hidden />
-        {t('search')}
-      </Button>
-    </form>
+    <form.AppForm>
+      <form.Form role="search" className="flex flex-wrap items-center gap-2">
+        {fields.map(({ name, label, className }) => (
+          <form.AppField key={name} name={name}>
+            {(field) => (
+              <Input
+                aria-label={label}
+                placeholder={label}
+                className={`h-8 ${className}`}
+                value={field.state.value}
+                onChange={(event) => field.handleChange(event.target.value)}
+              />
+            )}
+          </form.AppField>
+        ))}
+        <Button type="submit" size="sm" variant="secondary">
+          <Search aria-hidden />
+          {t('search')}
+        </Button>
+      </form.Form>
+    </form.AppForm>
   );
 }
 

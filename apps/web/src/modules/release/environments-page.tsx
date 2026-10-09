@@ -1,6 +1,5 @@
 'use client';
 
-import { useForm } from '@tanstack/react-form';
 import { CircleAlert, KeyRound, Plus, Rocket, RotateCcw, ShieldCheck } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { Fragment, useId, useState, type ReactNode } from 'react';
@@ -8,8 +7,7 @@ import { toast } from 'sonner';
 
 import type { ActionError } from '@/components/shared/api';
 import { ErrorAlert } from '@/components/shared/error-alert';
-import { SubmitButton } from '@/components/shared/form/submit-button';
-import { TextField } from '@/components/shared/form/text-field';
+import { useAppForm } from '@/components/shared/form';
 import { When } from '@/components/shared/format';
 import { ShownOnceToken } from '@/components/shared/shown-once-token';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -506,7 +504,7 @@ function IssueTokenDialog({
   const [error, setError] = useState<ActionError | null>(null);
   const [issued, setIssued] = useState<IssuedToken | null>(null);
 
-  const form = useForm({
+  const form = useAppForm({
     defaultValues: { name: '' } satisfies TokenValues,
     validators: { onChange: tokenSchema, onSubmit: tokenSchema },
     onSubmit: async ({ value }) => {
@@ -540,43 +538,31 @@ function IssueTokenDialog({
             </DialogFooter>
           </div>
         ) : (
-          <form
-            noValidate
-            className="grid gap-4"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void form.handleSubmit();
-            }}
-          >
-            {error ? <ErrorAlert error={error} /> : null}
-            <FieldGroup className="gap-2">
-              <form.Field name="name">
-                {(field) => (
-                  <TextField
-                    field={field}
-                    label={t('name')}
-                    hint={t('nameHint')}
-                    placeholder={t('namePlaceholder')}
-                    required
-                    autoFocus
-                    messageValues={{ max: TOKEN_NAME_MAX }}
-                  />
-                )}
-              </form.Field>
-            </FieldGroup>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={onClose}>
-                {common('cancel')}
-              </Button>
-              <form.Subscribe selector={(state) => state.isSubmitting}>
-                {(isSubmitting) => (
-                  <SubmitButton pending={isSubmitting} pendingLabel={t('creating')}>
-                    {t('create')}
-                  </SubmitButton>
-                )}
-              </form.Subscribe>
-            </DialogFooter>
-          </form>
+          <form.AppForm>
+            <form.Form className="grid gap-4">
+              {error ? <ErrorAlert error={error} /> : null}
+              <FieldGroup className="gap-2">
+                <form.AppField name="name">
+                  {(field) => (
+                    <field.TextField
+                      label={t('name')}
+                      hint={t('nameHint')}
+                      placeholder={t('namePlaceholder')}
+                      required
+                      autoFocus
+                      messageValues={{ max: TOKEN_NAME_MAX }}
+                    />
+                  )}
+                </form.AppField>
+              </FieldGroup>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={onClose}>
+                  {common('cancel')}
+                </Button>
+                <form.SubmitButton pendingLabel={t('creating')}>{t('create')}</form.SubmitButton>
+              </DialogFooter>
+            </form.Form>
+          </form.AppForm>
         )}
       </DialogContent>
     </Dialog>

@@ -3,17 +3,23 @@ import type { ComponentProps } from 'react';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 
-/** A form's submit button: disabled with a spinner while the form is sent. */
+import { useFormContext } from './context';
+
+/** The form's submit button: disabled with a spinner while the form is sent. */
 export function SubmitButton({
-  pending,
   pendingLabel,
   children,
   ...props
-}: ComponentProps<typeof Button> & { pending: boolean; pendingLabel: string }) {
+}: ComponentProps<typeof Button> & { pendingLabel: string }) {
+  const form = useFormContext();
   return (
-    <Button type="submit" disabled={pending} {...props}>
-      {pending ? <Spinner /> : null}
-      {pending ? pendingLabel : children}
-    </Button>
+    <form.Subscribe selector={(state) => state.isSubmitting}>
+      {(pending) => (
+        <Button type="submit" disabled={pending} {...props}>
+          {pending ? <Spinner /> : null}
+          {pending ? pendingLabel : children}
+        </Button>
+      )}
+    </form.Subscribe>
   );
 }

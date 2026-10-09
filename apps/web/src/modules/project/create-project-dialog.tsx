@@ -1,6 +1,5 @@
 'use client';
 
-import { useForm } from '@tanstack/react-form';
 import { Plus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
@@ -8,8 +7,7 @@ import { toast } from 'sonner';
 
 import type { ActionError } from '@/components/shared/api';
 import { ErrorAlert } from '@/components/shared/error-alert';
-import { SubmitButton } from '@/components/shared/form/submit-button';
-import { TextField } from '@/components/shared/form/text-field';
+import { useAppForm } from '@/components/shared/form';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -44,7 +42,7 @@ export function CreateProjectDialog() {
   // The key follows the name until the person edits it themselves.
   const [keyEdited, setKeyEdited] = useState(false);
 
-  const form = useForm({
+  const form = useAppForm({
     defaultValues: { name: '', key: '', description: '' } satisfies CreateProjectValues,
     validators: { onChange: createProjectSchema, onSubmit: createProjectSchema },
     onSubmit: async ({ value }) => {
@@ -82,72 +80,57 @@ export function CreateProjectDialog() {
           <DialogTitle>{t('createTitle')}</DialogTitle>
           <DialogDescription>{t('createDescription')}</DialogDescription>
         </DialogHeader>
-        <form
-          noValidate
-          className="grid gap-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void form.handleSubmit();
-          }}
-        >
-          {error ? <ErrorAlert error={error} /> : null}
-          <FieldGroup className="gap-2">
-            <form.Field
-              name="name"
-              listeners={{
-                onChange: ({ value }) => {
-                  if (!keyEdited) form.setFieldValue('key', keyFromName(value));
-                },
-              }}
-            >
-              {(field) => (
-                <TextField field={field} label={t('name')} required autoFocus messageValues={{ max: NAME_MAX }} />
-              )}
-            </form.Field>
-            <form.Field
-              name="key"
-              listeners={{
-                onChange: () => setKeyEdited(true),
-              }}
-            >
-              {(field) => (
-                <TextField
-                  field={field}
-                  label={t('key')}
-                  hint={t('keyHint')}
-                  required
-                  spellCheck={false}
-                  autoCapitalize="off"
-                  className="font-mono"
-                  messageValues={{ min: KEY_RULES.min, max: KEY_RULES.max }}
-                />
-              )}
-            </form.Field>
-            <form.Field name="description">
-              {(field) => (
-                <TextField
-                  field={field}
-                  label={t('description')}
-                  hint={t('descriptionHint')}
-                  multiline
-                  messageValues={{ max: DESCRIPTION_MAX }}
-                />
-              )}
-            </form.Field>
-          </FieldGroup>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              {common('cancel')}
-            </Button>
-            <form.Subscribe selector={(state) => state.isSubmitting}>
-              {(isSubmitting) => (
-                <SubmitButton pending={isSubmitting} pendingLabel={t('creating')}>
-                  {t('create')}
-                </SubmitButton>
-              )}
-            </form.Subscribe>
-          </DialogFooter>
-        </form>
+        <form.AppForm>
+          <form.Form className="grid gap-4">
+            {error ? <ErrorAlert error={error} /> : null}
+            <FieldGroup className="gap-2">
+              <form.AppField
+                name="name"
+                listeners={{
+                  onChange: ({ value }) => {
+                    if (!keyEdited) form.setFieldValue('key', keyFromName(value));
+                  },
+                }}
+              >
+                {(field) => <field.TextField label={t('name')} required autoFocus messageValues={{ max: NAME_MAX }} />}
+              </form.AppField>
+              <form.AppField
+                name="key"
+                listeners={{
+                  onChange: () => setKeyEdited(true),
+                }}
+              >
+                {(field) => (
+                  <field.TextField
+                    label={t('key')}
+                    hint={t('keyHint')}
+                    required
+                    spellCheck={false}
+                    autoCapitalize="off"
+                    className="font-mono"
+                    messageValues={{ min: KEY_RULES.min, max: KEY_RULES.max }}
+                  />
+                )}
+              </form.AppField>
+              <form.AppField name="description">
+                {(field) => (
+                  <field.TextField
+                    label={t('description')}
+                    hint={t('descriptionHint')}
+                    multiline
+                    messageValues={{ max: DESCRIPTION_MAX }}
+                  />
+                )}
+              </form.AppField>
+            </FieldGroup>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                {common('cancel')}
+              </Button>
+              <form.SubmitButton pendingLabel={t('creating')}>{t('create')}</form.SubmitButton>
+            </DialogFooter>
+          </form.Form>
+        </form.AppForm>
       </DialogContent>
     </Dialog>
   );

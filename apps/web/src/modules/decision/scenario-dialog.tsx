@@ -1,14 +1,12 @@
 'use client';
 
-import { useForm } from '@tanstack/react-form';
 import { useTranslations } from 'next-intl';
-import { useId, useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 
 import type { ActionError } from '@/components/shared/api';
 import { ErrorAlert } from '@/components/shared/error-alert';
-import { SubmitButton } from '@/components/shared/form/submit-button';
-import { TextField } from '@/components/shared/form/text-field';
+import { useAppForm } from '@/components/shared/form';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -18,8 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { FieldGroup } from '@/components/ui/field';
 
 import { createScenario, updateScenario } from './decision.service';
 import { parseObject, SCENARIO_NAME_MAX, scenarioSchema, type Scenario, type ScenarioValues } from './schema';
@@ -69,10 +66,8 @@ export function ScenarioDialog({
   const common = useTranslations('common');
   const changed = useScenariosChanged(projectId);
   const [error, setError] = useState<ActionError | null>(null);
-  const decisionField = useId();
-  const matchField = useId();
 
-  const form = useForm({
+  const form = useAppForm({
     defaultValues: initial,
     validators: { onChange: scenarioSchema, onSubmit: scenarioSchema },
     onSubmit: async ({ value }) => {
@@ -110,118 +105,88 @@ export function ScenarioDialog({
           <DialogTitle>{scenarioId ? t('editTitle') : t('createTitle')}</DialogTitle>
           <DialogDescription>{t('dialogDescription')}</DialogDescription>
         </DialogHeader>
-        <form
-          noValidate
-          className="grid gap-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void form.handleSubmit();
-          }}
-        >
-          {error && error.code !== 'SCENARIO_NAME_TAKEN' ? <ErrorAlert error={error} /> : null}
-          <FieldGroup className="gap-2">
-            <div className="grid gap-x-4 sm:grid-cols-2">
-              <form.Field name="decisionId">
-                {(field) => (
-                  <Field className="gap-2 pb-7">
-                    <FieldLabel htmlFor={decisionField}>{t('decision')}</FieldLabel>
-                    <Select
-                      value={field.state.value}
-                      onValueChange={field.handleChange}
+        <form.AppForm>
+          <form.Form className="grid gap-4">
+            {error && error.code !== 'SCENARIO_NAME_TAKEN' ? <ErrorAlert error={error} /> : null}
+            <FieldGroup className="gap-2">
+              <div className="grid gap-x-4 sm:grid-cols-2">
+                <form.AppField name="decisionId">
+                  {(field) => (
+                    <field.SelectField
+                      label={t('decision')}
+                      placeholder={t('chooseDecision')}
+                      className="pb-7"
+                      triggerClassName="font-mono"
                       disabled={fixedDecision || Boolean(scenarioId)}
-                    >
-                      <SelectTrigger id={decisionField} className="w-full font-mono">
-                        <SelectValue placeholder={t('chooseDecision')} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {decisions.map((decision) => (
-                          <SelectItem key={decision.id} value={decision.id} className="font-mono">
-                            {decision.key}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                )}
-              </form.Field>
-              <form.Field name="name">
+                      options={decisions.map((decision) => ({
+                        value: decision.id,
+                        label: decision.key,
+                        className: 'font-mono',
+                      }))}
+                    />
+                  )}
+                </form.AppField>
+                <form.AppField name="name">
+                  {(field) => (
+                    <field.TextField
+                      label={t('name')}
+                      placeholder={t('namePlaceholder')}
+                      required
+                      autoFocus
+                      messageValues={{ max: SCENARIO_NAME_MAX }}
+                      serverError={error?.code === 'SCENARIO_NAME_TAKEN' ? t('nameTaken') : undefined}
+                    />
+                  )}
+                </form.AppField>
+              </div>
+              <div className="grid gap-x-4 sm:grid-cols-2">
+                <form.AppField name="input">
+                  {(field) => (
+                    <field.TextField
+                      label={t('input')}
+                      hint={t('inputHint')}
+                      multiline
+                      rows={8}
+                      spellCheck={false}
+                      className="font-mono text-xs"
+                    />
+                  )}
+                </form.AppField>
+                <form.AppField name="expected">
+                  {(field) => (
+                    <field.TextField
+                      label={t('expected')}
+                      hint={t('expectedHint')}
+                      multiline
+                      rows={8}
+                      spellCheck={false}
+                      className="font-mono text-xs"
+                    />
+                  )}
+                </form.AppField>
+              </div>
+              <form.AppField name="match">
                 {(field) => (
-                  <TextField
-                    field={field}
-                    label={t('name')}
-                    placeholder={t('namePlaceholder')}
-                    required
-                    autoFocus
-                    messageValues={{ max: SCENARIO_NAME_MAX }}
-                    serverError={error?.code === 'SCENARIO_NAME_TAKEN' ? t('nameTaken') : undefined}
+                  <field.SelectField
+                    label={t('match')}
+                    hint={field.state.value === 'partial' ? t('partialHint') : t('exactHint')}
+                    triggerClassName="sm:w-64"
+                    options={[
+                      { value: 'partial', label: t('partial') },
+                      { value: 'exact', label: t('exact') },
+                    ]}
                   />
                 )}
-              </form.Field>
-            </div>
-            <div className="grid gap-x-4 sm:grid-cols-2">
-              <form.Field name="input">
-                {(field) => (
-                  <TextField
-                    field={field}
-                    label={t('input')}
-                    hint={t('inputHint')}
-                    multiline
-                    rows={8}
-                    spellCheck={false}
-                    className="font-mono text-xs"
-                  />
-                )}
-              </form.Field>
-              <form.Field name="expected">
-                {(field) => (
-                  <TextField
-                    field={field}
-                    label={t('expected')}
-                    hint={t('expectedHint')}
-                    multiline
-                    rows={8}
-                    spellCheck={false}
-                    className="font-mono text-xs"
-                  />
-                )}
-              </form.Field>
-            </div>
-            <form.Field name="match">
-              {(field) => (
-                <Field className="gap-2">
-                  <FieldLabel htmlFor={matchField}>{t('match')}</FieldLabel>
-                  <Select
-                    value={field.state.value}
-                    onValueChange={(value) => field.handleChange(value as typeof field.state.value)}
-                  >
-                    <SelectTrigger id={matchField} className="w-full sm:w-64">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="partial">{t('partial')}</SelectItem>
-                      <SelectItem value="exact">{t('exact')}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FieldDescription>
-                    {field.state.value === 'partial' ? t('partialHint') : t('exactHint')}
-                  </FieldDescription>
-                </Field>
-              )}
-            </form.Field>
-          </FieldGroup>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={close}>
-              {common('cancel')}
-            </Button>
-            <form.Subscribe selector={(state) => state.isSubmitting}>
-              {(isSubmitting) => (
-                <SubmitButton pending={isSubmitting} pendingLabel={t('saving')}>
-                  {scenarioId ? t('save') : t('create')}
-                </SubmitButton>
-              )}
-            </form.Subscribe>
-          </DialogFooter>
-        </form>
+              </form.AppField>
+            </FieldGroup>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={close}>
+                {common('cancel')}
+              </Button>
+              <form.SubmitButton pendingLabel={t('saving')}>{scenarioId ? t('save') : t('create')}</form.SubmitButton>
+            </DialogFooter>
+          </form.Form>
+        </form.AppForm>
       </DialogContent>
     </Dialog>
   );

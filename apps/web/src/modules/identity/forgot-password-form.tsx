@@ -1,14 +1,12 @@
 'use client';
 
-import { useForm } from '@tanstack/react-form';
 import { MailCheck } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 
 import type { ActionError } from '@/components/shared/api';
 import { ErrorAlert } from '@/components/shared/error-alert';
-import { SubmitButton } from '@/components/shared/form/submit-button';
-import { TextField } from '@/components/shared/form/text-field';
+import { useAppForm } from '@/components/shared/form';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Link } from '@/i18n/navigation';
@@ -21,7 +19,7 @@ export function ForgotPasswordForm() {
   const [error, setError] = useState<ActionError | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
 
-  const form = useForm({
+  const form = useAppForm({
     defaultValues: { email: '' } satisfies ForgotPasswordValues,
     validators: { onChange: forgotPasswordSchema, onSubmit: forgotPasswordSchema },
     onSubmit: async ({ value }) => {
@@ -56,29 +54,18 @@ export function ForgotPasswordForm() {
             {backToSignIn}
           </>
         ) : (
-          <form
-            noValidate
-            className="grid gap-4"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void form.handleSubmit();
-            }}
-          >
-            {error ? <ErrorAlert error={error} /> : null}
-            <form.Field name="email">
-              {(field) => (
-                <TextField field={field} label={t('email')} type="email" autoComplete="email" required autoFocus />
-              )}
-            </form.Field>
-            <form.Subscribe selector={(state) => state.isSubmitting}>
-              {(isSubmitting) => (
-                <SubmitButton pending={isSubmitting} pendingLabel={t('submitting')} className="w-full">
-                  {t('submit')}
-                </SubmitButton>
-              )}
-            </form.Subscribe>
-            {backToSignIn}
-          </form>
+          <form.AppForm>
+            <form.Form className="grid gap-4">
+              {error ? <ErrorAlert error={error} /> : null}
+              <form.AppField name="email">
+                {(field) => <field.TextField label={t('email')} type="email" autoComplete="email" required autoFocus />}
+              </form.AppField>
+              <form.SubmitButton pendingLabel={t('submitting')} className="w-full">
+                {t('submit')}
+              </form.SubmitButton>
+              {backToSignIn}
+            </form.Form>
+          </form.AppForm>
         )}
       </CardContent>
     </Card>
