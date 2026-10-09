@@ -114,6 +114,8 @@ Dependencies go **one way only**: `app/ → Component → Cache hook → Service
     validation off, and moves focus to the first field in error when a submission is refused.
   - A large form is split into parts with `withForm`, sharing its options through
     `formOptions` (see the connector node's sections).
+  - Default values are a typed value (`const defaultValues: InviteValues = { … }`), never a cast:
+    TanStack Form infers the form's types from them, and `as` would hide a missing or mistyped field.
   - `@tanstack/react-form` is pinned to an exact version: its types can change in a patch
     release, so it is upgraded on purpose, with the checks.
 - The Zod schema is the single source of the form's rules; the server validates again.

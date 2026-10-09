@@ -133,8 +133,9 @@ function ReleaseForm({
   const [error, setError] = useState<ActionError | null>(null);
   const failing = preview.decisions.some((d) => d.tests.failed + d.tests.errors > 0);
 
+  const defaultValues: ReleaseValues = { bump: 'minor', notes: '' };
   const form = useAppForm({
-    defaultValues: { bump: 'minor', notes: '' } as ReleaseValues,
+    defaultValues,
     validators: { onChange: releaseSchema, onSubmit: releaseSchema },
     onSubmit: async ({ value }) => {
       setError(null);
