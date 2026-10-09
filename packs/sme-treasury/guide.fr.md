@@ -15,14 +15,13 @@ en FCFA (XAF).
 
 ## L'importer
 
-```bash
-STUDIO_URL=https://donka.banque.example DONKA_EMAIL=vous@banque.example DONKA_PASSWORD='...' \
-scripts/import-pack.sh packs/sme-treasury
-```
+Dans Studio, **Projets → Depuis un pack → Évaluation de trésorerie PME**, puis choisissez le nom
+et la clé du projet. Cela crée un projet avec la décision `evaluation`, une première version et 6
+scénarios de test, tous réussis. Importez-le de nouveau sous une autre clé pour en faire un autre
+produit.
 
-Cela crée le projet `sme-treasury` avec la décision `evaluation`, une première version et 6
-scénarios de test, tous réussis. Importez-le de nouveau sous une autre clé
-(`PROJECT_KEY=... PROJECT_NAME=...`) pour en faire un autre produit.
+Depuis un script, `scripts/import-pack.sh packs/sme-treasury` fait de même (voir le
+[README des packs](../README.md)).
 
 ## Ce qu'elle lit
 

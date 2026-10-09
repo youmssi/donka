@@ -60,6 +60,10 @@ Behind a reverse proxy, also set `DONKA_TRUSTED_PROXIES` to its address (or the 
 e.g. `172.16.0.0/12`): sign-in and password reset are limited per client address, and without
 it every client shares the proxy's.
 
+Administrators start projects from the packs in [packs/](../packs/README.md), which the image
+ships in `/srv/packs`. To offer your own, mount a folder of packs and point `DONKA_PACKS_DIR` at
+it; Studio does not start if one of them is invalid, and names it.
+
 Set these before the first start: PostgreSQL and MinIO take their passwords when their data
 is first created (section 5 explains how to change them later). Every other Studio setting in
 [.env.example](../.env.example) can be added to the same file.
@@ -228,4 +232,5 @@ access to the database and its backups: the key alone does not give access to re
 | `/api/v1/ready` answers 503 | PostgreSQL: `docker compose ps postgres`, then `docker compose logs postgres` |
 | A deployment stays *pending* | `docker compose logs app`: the publisher retries until the bucket answers |
 | The Runtime answers 404 for a project | It serves one environment (`PROVIDER__PREFIX`); check the release is live there |
+| Studio stops with `DONKA_PACKS_DIR` | A pack in that folder is invalid: the message names the pack and why |
 | No emails | Mailpit (http://localhost:8025) until `DONKA_SMTP_URL` points to your mail server |

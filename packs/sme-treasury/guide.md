@@ -14,14 +14,12 @@ codes in English and French. Amounts are in FCFA (XAF).
 
 ## Import it
 
-```bash
-STUDIO_URL=https://donka.bank.example DONKA_EMAIL=you@bank.example DONKA_PASSWORD='...' \
-scripts/import-pack.sh packs/sme-treasury
-```
+In Studio, **Projects → From a pack → SME treasury evaluation**, then choose the project's name
+and key. This creates a project with the decision `evaluation`, a first version and 6 test
+scenarios, all passing. Import it again under another key to start another product from it.
 
-This creates the project `sme-treasury` with the decision `evaluation`, a first version and 6
-test scenarios, all passing. Import it again under another key
-(`PROJECT_KEY=... PROJECT_NAME=...`) to start another product from it.
+From a script, `scripts/import-pack.sh packs/sme-treasury` does the same (see the
+[packs README](../README.md)).
 
 ## What it reads
 

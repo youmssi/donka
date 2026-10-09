@@ -964,7 +964,7 @@ installation can import.
   came from ("created from pack Retail credit 1.2", "duplicated from project X").
 
 #### Acceptance criteria
-- [ ] Import a pack from a catalogue in the web app, under a key and name of one's choice
-- [ ] Duplicate a project; export a project as a pack file and import it in another installation
-- [ ] Packs "KYC risk rating" and "Mobile money tiered limits" (CEMAC), with scenarios and guides
-- [ ] Audited; English and French
+- [x] Import a pack from a catalogue in the web app, under a key and name of one's choice
+- [x] Duplicate a project; export a project as a pack file and import it in another installation
+- [x] Packs "KYC risk rating" and "Mobile money tiered limits" (CEMAC), with scenarios and guides
+- [x] Audited; English and French
