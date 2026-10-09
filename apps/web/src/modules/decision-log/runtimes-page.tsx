@@ -1,16 +1,14 @@
 'use client';
 
-import { useForm } from '@tanstack/react-form';
 import { CircleAlert, Plus, RadioTower } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useId, useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 
 import type { ActionError } from '@/components/shared/api';
 import { DataTable, type DataTableColumn } from '@/components/shared/data-table';
 import { ErrorAlert } from '@/components/shared/error-alert';
-import { SubmitButton } from '@/components/shared/form/submit-button';
-import { TextField } from '@/components/shared/form/text-field';
+import { useAppForm } from '@/components/shared/form';
 import { When } from '@/components/shared/format';
 import { PageHeader } from '@/components/shared/layout/page-header';
 import { ShownOnceToken } from '@/components/shared/shown-once-token';
@@ -36,8 +34,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
-import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { FieldGroup } from '@/components/ui/field';
 
 import { EnvironmentBadge } from './decision-log-page';
 import { issueToken, revokeToken } from './decision-log.service';
@@ -197,9 +194,8 @@ function IssueDialog({ onClose }: { onClose: () => void }) {
   const changed = useLogTokensChanged();
   const [error, setError] = useState<ActionError | null>(null);
   const [issued, setIssued] = useState<IssuedLogToken | null>(null);
-  const environmentId = useId();
 
-  const form = useForm({
+  const form = useAppForm({
     defaultValues: { environment: 'production', name: '' } as TokenValues,
     validators: { onChange: tokenSchema, onSubmit: tokenSchema },
     onSubmit: async ({ value }) => {
@@ -241,61 +237,42 @@ function IssueDialog({ onClose }: { onClose: () => void }) {
             </DialogFooter>
           </div>
         ) : (
-          <form
-            noValidate
-            className="grid gap-4"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void form.handleSubmit();
-            }}
-          >
-            {error ? <ErrorAlert error={error} /> : null}
-            <FieldGroup className="gap-2">
-              <form.Field name="environment">
-                {(field) => (
-                  <Field className="gap-2">
-                    <FieldLabel htmlFor={environmentId}>{t('environment')}</FieldLabel>
-                    <Select
-                      value={field.state.value}
-                      onValueChange={(value) => field.handleChange(value as TokenValues['environment'])}
-                    >
-                      <SelectTrigger id={environmentId}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="production">{environments('production')}</SelectItem>
-                        <SelectItem value="staging">{environments('staging')}</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                )}
-              </form.Field>
-              <form.Field name="name">
-                {(field) => (
-                  <TextField
-                    field={field}
-                    label={t('name')}
-                    hint={t('nameHint')}
-                    placeholder={t('namePlaceholder')}
-                    required
-                    messageValues={{ max: TOKEN_NAME_MAX }}
-                  />
-                )}
-              </form.Field>
-            </FieldGroup>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={onClose}>
-                {common('cancel')}
-              </Button>
-              <form.Subscribe selector={(state) => state.isSubmitting}>
-                {(isSubmitting) => (
-                  <SubmitButton pending={isSubmitting} pendingLabel={t('creating')}>
-                    {t('create')}
-                  </SubmitButton>
-                )}
-              </form.Subscribe>
-            </DialogFooter>
-          </form>
+          <form.AppForm>
+            <form.Form className="grid gap-4">
+              {error ? <ErrorAlert error={error} /> : null}
+              <FieldGroup className="gap-2">
+                <form.AppField name="environment">
+                  {(field) => (
+                    <field.SelectField
+                      label={t('environment')}
+                      triggerClassName="w-fit"
+                      options={[
+                        { value: 'production', label: environments('production') },
+                        { value: 'staging', label: environments('staging') },
+                      ]}
+                    />
+                  )}
+                </form.AppField>
+                <form.AppField name="name">
+                  {(field) => (
+                    <field.TextField
+                      label={t('name')}
+                      hint={t('nameHint')}
+                      placeholder={t('namePlaceholder')}
+                      required
+                      messageValues={{ max: TOKEN_NAME_MAX }}
+                    />
+                  )}
+                </form.AppField>
+              </FieldGroup>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={onClose}>
+                  {common('cancel')}
+                </Button>
+                <form.SubmitButton pendingLabel={t('creating')}>{t('create')}</form.SubmitButton>
+              </DialogFooter>
+            </form.Form>
+          </form.AppForm>
         )}
       </DialogContent>
     </Dialog>

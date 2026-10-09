@@ -1,6 +1,5 @@
 'use client';
 
-import { useForm } from '@tanstack/react-form';
 import { ArrowRight, Check, CircleAlert, GitCompareArrows, Info, TriangleAlert, Undo2, X } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -9,8 +8,7 @@ import { toast } from 'sonner';
 
 import type { ActionError } from '@/components/shared/api';
 import { ErrorAlert } from '@/components/shared/error-alert';
-import { SubmitButton } from '@/components/shared/form/submit-button';
-import { TextField } from '@/components/shared/form/text-field';
+import { useAppForm } from '@/components/shared/form';
 import { When } from '@/components/shared/format';
 import { PageHeader } from '@/components/shared/layout/page-header';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -422,7 +420,7 @@ function RejectDialog({ project, review, onClose }: { project: Project; review: 
   const changed = useReleasesChanged(project.id);
   const [error, setError] = useState<ActionError | null>(null);
 
-  const form = useForm({
+  const form = useAppForm({
     defaultValues: { reason: '' } satisfies RejectValues,
     validators: { onChange: rejectSchema, onSubmit: rejectSchema },
     onSubmit: async ({ value }) => {
@@ -445,44 +443,34 @@ function RejectDialog({ project, review, onClose }: { project: Project; review: 
           <DialogTitle>{t('rejectTitle', { version: review.releaseVersion })}</DialogTitle>
           <DialogDescription>{t('rejectDescription')}</DialogDescription>
         </DialogHeader>
-        <form
-          noValidate
-          className="grid gap-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void form.handleSubmit();
-          }}
-        >
-          {error ? <ErrorAlert error={error} /> : null}
-          <FieldGroup className="gap-2">
-            <form.Field name="reason">
-              {(field) => (
-                <TextField
-                  field={field}
-                  label={t('reason')}
-                  hint={t('reasonHint')}
-                  multiline
-                  rows={4}
-                  required
-                  autoFocus
-                  messageValues={{ max: REASON_MAX }}
-                />
-              )}
-            </form.Field>
-          </FieldGroup>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
-              {common('cancel')}
-            </Button>
-            <form.Subscribe selector={(state) => state.isSubmitting}>
-              {(isSubmitting) => (
-                <SubmitButton variant="destructive" pending={isSubmitting} pendingLabel={t('rejecting')}>
-                  {t('reject')}
-                </SubmitButton>
-              )}
-            </form.Subscribe>
-          </DialogFooter>
-        </form>
+        <form.AppForm>
+          <form.Form className="grid gap-4">
+            {error ? <ErrorAlert error={error} /> : null}
+            <FieldGroup className="gap-2">
+              <form.AppField name="reason">
+                {(field) => (
+                  <field.TextField
+                    label={t('reason')}
+                    hint={t('reasonHint')}
+                    multiline
+                    rows={4}
+                    required
+                    autoFocus
+                    messageValues={{ max: REASON_MAX }}
+                  />
+                )}
+              </form.AppField>
+            </FieldGroup>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onClose}>
+                {common('cancel')}
+              </Button>
+              <form.SubmitButton variant="destructive" pendingLabel={t('rejecting')}>
+                {t('reject')}
+              </form.SubmitButton>
+            </DialogFooter>
+          </form.Form>
+        </form.AppForm>
       </DialogContent>
     </Dialog>
   );

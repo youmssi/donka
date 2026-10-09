@@ -1,6 +1,5 @@
 'use client';
 
-import { useForm } from '@tanstack/react-form';
 import { GitCompareArrows, History, MoreHorizontal, RotateCcw, Save } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
@@ -9,8 +8,7 @@ import { toast } from 'sonner';
 
 import type { ActionError, ActionResult } from '@/components/shared/api';
 import { ErrorAlert } from '@/components/shared/error-alert';
-import { SubmitButton } from '@/components/shared/form/submit-button';
-import { TextField } from '@/components/shared/form/text-field';
+import { useAppForm } from '@/components/shared/form';
 import { When } from '@/components/shared/format';
 import { cn } from '@/components/shared/utils';
 import {
@@ -109,7 +107,7 @@ export function SaveVersionDialog({
   const [error, setError] = useState<ActionError | null>(null);
   const unchanged = draft.version.latest !== null && !draft.version.changed;
 
-  const form = useForm({
+  const form = useAppForm({
     defaultValues: { message: '' } satisfies SaveVersionValues,
     validators: { onChange: saveVersionSchema, onSubmit: saveVersionSchema },
     onSubmit: async ({ value }) => {
@@ -159,43 +157,31 @@ export function SaveVersionDialog({
           <DialogTitle>{t('saveTitle', { number: next })}</DialogTitle>
           <DialogDescription>{t('saveDescription')}</DialogDescription>
         </DialogHeader>
-        <form
-          noValidate
-          className="grid gap-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void form.handleSubmit();
-          }}
-        >
-          {error ? <ErrorAlert error={error} /> : null}
-          <FieldGroup className="gap-2">
-            <form.Field name="message">
-              {(field) => (
-                <TextField
-                  field={field}
-                  label={t('message')}
-                  hint={t('messageHint')}
-                  multiline
-                  required
-                  autoFocus
-                  messageValues={{ max: MESSAGE_MAX }}
-                />
-              )}
-            </form.Field>
-          </FieldGroup>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              {common('cancel')}
-            </Button>
-            <form.Subscribe selector={(state) => state.isSubmitting}>
-              {(isSubmitting) => (
-                <SubmitButton pending={isSubmitting} pendingLabel={t('saving')}>
-                  {t('save')}
-                </SubmitButton>
-              )}
-            </form.Subscribe>
-          </DialogFooter>
-        </form>
+        <form.AppForm>
+          <form.Form className="grid gap-4">
+            {error ? <ErrorAlert error={error} /> : null}
+            <FieldGroup className="gap-2">
+              <form.AppField name="message">
+                {(field) => (
+                  <field.TextField
+                    label={t('message')}
+                    hint={t('messageHint')}
+                    multiline
+                    required
+                    autoFocus
+                    messageValues={{ max: MESSAGE_MAX }}
+                  />
+                )}
+              </form.AppField>
+            </FieldGroup>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                {common('cancel')}
+              </Button>
+              <form.SubmitButton pendingLabel={t('saving')}>{t('save')}</form.SubmitButton>
+            </DialogFooter>
+          </form.Form>
+        </form.AppForm>
       </DialogContent>
     </Dialog>
   );

@@ -1,6 +1,5 @@
 'use client';
 
-import { useForm } from '@tanstack/react-form';
 import { CircleCheck } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -8,8 +7,7 @@ import { useState } from 'react';
 
 import type { ActionError } from '@/components/shared/api';
 import { ErrorAlert } from '@/components/shared/error-alert';
-import { SubmitButton } from '@/components/shared/form/submit-button';
-import { TextField } from '@/components/shared/form/text-field';
+import { useAppForm } from '@/components/shared/form';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,7 +25,7 @@ export function SetupPasswordForm() {
   const [error, setError] = useState<ActionError | null>(null);
   const [done, setDone] = useState(false);
 
-  const form = useForm({
+  const form = useAppForm({
     defaultValues: { password: '', confirm: '' } satisfies SetupPasswordValues,
     validators: { onChange: setupPasswordSchema, onSubmit: setupPasswordSchema },
     onSubmit: async ({ value }) => {
@@ -70,43 +68,33 @@ export function SetupPasswordForm() {
       </CardHeader>
       <CardContent>
         {token ? (
-          <form
-            noValidate
-            className="grid gap-4"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void form.handleSubmit();
-            }}
-          >
-            {error ? (
-              <ErrorAlert error={error} action={error.code === 'INVALID_SETUP_LINK' ? requestNewLink : undefined} />
-            ) : null}
-            <form.Field name="password">
-              {(field) => (
-                <TextField
-                  field={field}
-                  label={t('password')}
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                  autoFocus
-                  messageValues={limits}
-                />
-              )}
-            </form.Field>
-            <form.Field name="confirm">
-              {(field) => (
-                <TextField field={field} label={t('confirm')} type="password" autoComplete="new-password" required />
-              )}
-            </form.Field>
-            <form.Subscribe selector={(state) => state.isSubmitting}>
-              {(isSubmitting) => (
-                <SubmitButton pending={isSubmitting} pendingLabel={t('submitting')} className="w-full">
-                  {t('submit')}
-                </SubmitButton>
-              )}
-            </form.Subscribe>
-          </form>
+          <form.AppForm>
+            <form.Form className="grid gap-4">
+              {error ? (
+                <ErrorAlert error={error} action={error.code === 'INVALID_SETUP_LINK' ? requestNewLink : undefined} />
+              ) : null}
+              <form.AppField name="password">
+                {(field) => (
+                  <field.TextField
+                    label={t('password')}
+                    type="password"
+                    autoComplete="new-password"
+                    required
+                    autoFocus
+                    messageValues={limits}
+                  />
+                )}
+              </form.AppField>
+              <form.AppField name="confirm">
+                {(field) => (
+                  <field.TextField label={t('confirm')} type="password" autoComplete="new-password" required />
+                )}
+              </form.AppField>
+              <form.SubmitButton pendingLabel={t('submitting')} className="w-full">
+                {t('submit')}
+              </form.SubmitButton>
+            </form.Form>
+          </form.AppForm>
         ) : (
           <div className="grid gap-4">
             <ErrorAlert error={{ code: 'INVALID_SETUP_LINK' }} />

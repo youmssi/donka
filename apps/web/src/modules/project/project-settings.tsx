@@ -1,14 +1,12 @@
 'use client';
 
-import { useForm } from '@tanstack/react-form';
 import { useTranslations } from 'next-intl';
 import { useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 
 import type { ActionError } from '@/components/shared/api';
 import { ErrorAlert } from '@/components/shared/error-alert';
-import { SubmitButton } from '@/components/shared/form/submit-button';
-import { TextField } from '@/components/shared/form/text-field';
+import { useAppForm } from '@/components/shared/form';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -55,7 +53,7 @@ function Details({ project }: { project: Project }) {
   const update = useUpdateProject(project.id);
   const [error, setError] = useState<ActionError | null>(null);
 
-  const form = useForm({
+  const form = useAppForm({
     defaultValues: { name: project.name, description: project.description },
     validators: { onChange: projectDetailsSchema, onSubmit: projectDetailsSchema },
     onSubmit: async ({ value }) => {
@@ -75,49 +73,38 @@ function Details({ project }: { project: Project }) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form
-          noValidate
-          className="grid gap-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void form.handleSubmit();
-          }}
-        >
-          {error ? <ErrorAlert error={error} /> : null}
-          <FieldGroup className="gap-2">
-            <form.Field name="name">
-              {(field) => (
-                <TextField
-                  field={field}
-                  label={fields('name')}
-                  required
-                  disabled={!editable}
-                  messageValues={{ max: NAME_MAX }}
-                />
-              )}
-            </form.Field>
-            <form.Field name="description">
-              {(field) => (
-                <TextField
-                  field={field}
-                  label={fields('description')}
-                  multiline
-                  disabled={!editable}
-                  messageValues={{ max: DESCRIPTION_MAX }}
-                />
-              )}
-            </form.Field>
-          </FieldGroup>
-          {editable ? (
-            <form.Subscribe selector={(state) => state.isSubmitting}>
-              {(isSubmitting) => (
-                <SubmitButton pending={isSubmitting} pendingLabel={common('saving')} className="w-fit">
-                  {common('save')}
-                </SubmitButton>
-              )}
-            </form.Subscribe>
-          ) : null}
-        </form>
+        <form.AppForm>
+          <form.Form className="grid gap-4">
+            {error ? <ErrorAlert error={error} /> : null}
+            <FieldGroup className="gap-2">
+              <form.AppField name="name">
+                {(field) => (
+                  <field.TextField
+                    label={fields('name')}
+                    required
+                    disabled={!editable}
+                    messageValues={{ max: NAME_MAX }}
+                  />
+                )}
+              </form.AppField>
+              <form.AppField name="description">
+                {(field) => (
+                  <field.TextField
+                    label={fields('description')}
+                    multiline
+                    disabled={!editable}
+                    messageValues={{ max: DESCRIPTION_MAX }}
+                  />
+                )}
+              </form.AppField>
+            </FieldGroup>
+            {editable ? (
+              <form.SubmitButton pendingLabel={common('saving')} className="w-fit">
+                {common('save')}
+              </form.SubmitButton>
+            ) : null}
+          </form.Form>
+        </form.AppForm>
       </CardContent>
     </Card>
   );

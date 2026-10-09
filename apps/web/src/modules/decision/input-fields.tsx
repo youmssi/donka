@@ -1,16 +1,14 @@
 'use client';
 
-import { useForm } from '@tanstack/react-form';
 import { ListChecks, Pencil, Plus, ShieldAlert, Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useId, useMemo, useState } from 'react';
 import { z } from 'zod';
 
-import { TextField } from '@/components/shared/form/text-field';
+import { useAppForm, withForm } from '@/components/shared/form';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -20,8 +18,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
-import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -39,9 +36,7 @@ import {
   schemaToFields,
   STRING_FORMATS,
   writeInputSchema,
-  type FieldType,
   type InputField,
-  type StringFormat,
 } from './contract';
 import { parseObject } from './schema';
 
@@ -354,6 +349,66 @@ function toField(value: FieldValues): InputField {
   };
 }
 
+/** The rules that depend on the field's type: limits for numbers, lengths and format for text, allowed values. */
+const TypeRules = withForm({
+  defaultValues: toValues(emptyField()),
+  render: function Render({ form }) {
+    const t = useTranslations('inputFields');
+    return (
+      <form.Subscribe selector={(state) => state.values.type}>
+        {(type) => (
+          <>
+            {type === 'number' || type === 'integer' ? (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <form.AppField name="minimum">
+                  {(field) => <field.TextField label={t('minimum')} inputMode="decimal" />}
+                </form.AppField>
+                <form.AppField name="maximum">
+                  {(field) => <field.TextField label={t('maximum')} inputMode="decimal" />}
+                </form.AppField>
+              </div>
+            ) : null}
+            {type === 'string' ? (
+              <div className="grid gap-4 sm:grid-cols-3">
+                <form.AppField name="minLength">
+                  {(field) => <field.TextField label={t('minLength')} inputMode="numeric" />}
+                </form.AppField>
+                <form.AppField name="maxLength">
+                  {(field) => <field.TextField label={t('maxLength')} inputMode="numeric" />}
+                </form.AppField>
+                <form.AppField name="format">
+                  {(field) => (
+                    <field.SelectField
+                      label={t('format')}
+                      emptyValue="none"
+                      options={[
+                        { value: 'none', label: t('formats.none') },
+                        { value: 'date', label: t('formats.date') },
+                        { value: 'email', label: t('formats.email') },
+                      ]}
+                    />
+                  )}
+                </form.AppField>
+              </div>
+            ) : null}
+            {type !== 'boolean' ? (
+              <form.AppField name="values">
+                {(field) => (
+                  <field.TextField
+                    label={t('values')}
+                    hint={t('valuesHint')}
+                    placeholder={type === 'string' ? 'public, private' : '12, 24, 36'}
+                  />
+                )}
+              </form.AppField>
+            ) : null}
+          </>
+        )}
+      </form.Subscribe>
+    );
+  },
+});
+
 function FieldDialog({
   initial,
   taken,
@@ -367,10 +422,8 @@ function FieldDialog({
 }) {
   const t = useTranslations('inputFields');
   const common = useTranslations('common');
-  const typeId = useId();
-  const formatId = useId();
   const schema = useMemo(() => fieldFormSchema(taken), [taken]);
-  const form = useForm({
+  const form = useAppForm({
     defaultValues: toValues(initial),
     validators: { onChange: schema, onSubmit: schema },
     onSubmit: ({ value }) => onSave(toField(value)),
@@ -383,155 +436,61 @@ function FieldDialog({
           <DialogTitle>{initial.path ? t('editTitle', { path: initial.path }) : t('addTitle')}</DialogTitle>
           <DialogDescription>{t('dialogDescription')}</DialogDescription>
         </DialogHeader>
-        <form
-          noValidate
-          className="grid gap-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void form.handleSubmit();
-          }}
-        >
-          <FieldGroup className="gap-4">
-            <div className="grid gap-4 sm:grid-cols-[2fr_1fr]">
-              <form.Field name="path">
-                {(field) => (
-                  <TextField
-                    field={field}
-                    label={t('field')}
-                    hint={t('pathHint')}
-                    placeholder="applicant.age"
-                    className="font-mono"
-                    autoFocus
-                    required
-                  />
-                )}
-              </form.Field>
-              <form.Field name="type">
-                {(field) => (
-                  <Field className="gap-2">
-                    <FieldLabel htmlFor={typeId}>{t('type')}</FieldLabel>
-                    <Select value={field.state.value} onValueChange={(v) => field.handleChange(v as FieldType)}>
-                      <SelectTrigger id={typeId} className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {FIELD_TYPES.map((type) => (
-                          <SelectItem key={type} value={type}>
-                            {t(`types.${type}`)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                )}
-              </form.Field>
-            </div>
-            <div className="flex flex-wrap gap-6">
-              <form.Field name="required">
-                {(field) => (
-                  <CheckboxField label={t('required')} checked={field.state.value} onChange={field.handleChange} />
-                )}
-              </form.Field>
-              <form.Field name="pii">
-                {(field) => (
-                  <CheckboxField label={t('piiLong')} checked={field.state.value} onChange={field.handleChange} />
-                )}
-              </form.Field>
-            </div>
-            <form.Subscribe selector={(state) => state.values.type}>
-              {(type) => (
-                <>
-                  {type === 'number' || type === 'integer' ? (
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <form.Field name="minimum">
-                        {(field) => <TextField field={field} label={t('minimum')} inputMode="decimal" />}
-                      </form.Field>
-                      <form.Field name="maximum">
-                        {(field) => <TextField field={field} label={t('maximum')} inputMode="decimal" />}
-                      </form.Field>
-                    </div>
-                  ) : null}
-                  {type === 'string' ? (
-                    <div className="grid gap-4 sm:grid-cols-3">
-                      <form.Field name="minLength">
-                        {(field) => <TextField field={field} label={t('minLength')} inputMode="numeric" />}
-                      </form.Field>
-                      <form.Field name="maxLength">
-                        {(field) => <TextField field={field} label={t('maxLength')} inputMode="numeric" />}
-                      </form.Field>
-                      <form.Field name="format">
-                        {(field) => (
-                          <Field className="gap-2">
-                            <FieldLabel htmlFor={formatId}>{t('format')}</FieldLabel>
-                            <Select
-                              value={field.state.value || 'none'}
-                              onValueChange={(v) => field.handleChange((v === 'none' ? '' : v) as StringFormat)}
-                            >
-                              <SelectTrigger id={formatId} className="w-full">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">{t('formats.none')}</SelectItem>
-                                <SelectItem value="date">{t('formats.date')}</SelectItem>
-                                <SelectItem value="email">{t('formats.email')}</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </Field>
-                        )}
-                      </form.Field>
-                    </div>
-                  ) : null}
-                  {type !== 'boolean' ? (
-                    <form.Field name="values">
-                      {(field) => (
-                        <TextField
-                          field={field}
-                          label={t('values')}
-                          hint={t('valuesHint')}
-                          placeholder={type === 'string' ? 'public, private' : '12, 24, 36'}
-                        />
-                      )}
-                    </form.Field>
-                  ) : null}
-                </>
-              )}
-            </form.Subscribe>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <form.Field name="labelEn">{(field) => <TextField field={field} label={t('labelEn')} />}</form.Field>
-              <form.Field name="labelFr">{(field) => <TextField field={field} label={t('labelFr')} />}</form.Field>
-              <form.Field name="helpEn">{(field) => <TextField field={field} label={t('helpEn')} />}</form.Field>
-              <form.Field name="helpFr">{(field) => <TextField field={field} label={t('helpFr')} />}</form.Field>
-            </div>
-          </FieldGroup>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onCancel}>
-              {common('cancel')}
-            </Button>
-            <Button type="submit">{t('saveField')}</Button>
-          </DialogFooter>
-        </form>
+        <form.AppForm>
+          <form.Form className="grid gap-4">
+            <FieldGroup className="gap-4">
+              <div className="grid gap-4 sm:grid-cols-[2fr_1fr]">
+                <form.AppField name="path">
+                  {(field) => (
+                    <field.TextField
+                      label={t('field')}
+                      hint={t('pathHint')}
+                      placeholder="applicant.age"
+                      className="font-mono"
+                      autoFocus
+                      required
+                    />
+                  )}
+                </form.AppField>
+                <form.AppField name="type">
+                  {(field) => (
+                    <field.SelectField
+                      label={t('type')}
+                      options={FIELD_TYPES.map((type) => ({ value: type, label: t(`types.${type}`) }))}
+                    />
+                  )}
+                </form.AppField>
+              </div>
+              <div className="flex flex-wrap gap-6">
+                <form.AppField name="required">
+                  {(field) => (
+                    <field.CheckboxField label={t('required')} className="w-auto gap-2" labelClassName="font-normal" />
+                  )}
+                </form.AppField>
+                <form.AppField name="pii">
+                  {(field) => (
+                    <field.CheckboxField label={t('piiLong')} className="w-auto gap-2" labelClassName="font-normal" />
+                  )}
+                </form.AppField>
+              </div>
+              <TypeRules form={form} />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <form.AppField name="labelEn">{(field) => <field.TextField label={t('labelEn')} />}</form.AppField>
+                <form.AppField name="labelFr">{(field) => <field.TextField label={t('labelFr')} />}</form.AppField>
+                <form.AppField name="helpEn">{(field) => <field.TextField label={t('helpEn')} />}</form.AppField>
+                <form.AppField name="helpFr">{(field) => <field.TextField label={t('helpFr')} />}</form.AppField>
+              </div>
+            </FieldGroup>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onCancel}>
+                {common('cancel')}
+              </Button>
+              <Button type="submit">{t('saveField')}</Button>
+            </DialogFooter>
+          </form.Form>
+        </form.AppForm>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function CheckboxField({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  const id = useId();
-  return (
-    <Field orientation="horizontal" className="w-auto gap-2">
-      <Checkbox id={id} checked={checked} onCheckedChange={(value) => onChange(value === true)} />
-      <FieldLabel htmlFor={id} className="font-normal">
-        {label}
-      </FieldLabel>
-    </Field>
   );
 }
 

@@ -1,15 +1,13 @@
 'use client';
 
-import { useForm } from '@tanstack/react-form';
 import { CircleAlert, Plus, TriangleAlert } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useId, useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 
 import type { ActionError } from '@/components/shared/api';
 import { ErrorAlert } from '@/components/shared/error-alert';
-import { SubmitButton } from '@/components/shared/form/submit-button';
-import { TextField } from '@/components/shared/form/text-field';
+import { useAppForm } from '@/components/shared/form';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,14 +19,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Link } from '@/i18n/navigation';
 import { decisionHref, type Project } from '@/modules/project';
 
 import { FrozenDecisions } from './frozen-decisions';
 import { createRelease, deployRelease } from './release.service';
-import { NOTES_MAX, releaseSchema, type Bump, type ReleasePreview, type ReleaseValues } from './schema';
+import { NOTES_MAX, releaseSchema, type ReleasePreview, type ReleaseValues } from './schema';
 import { useReleasePreview, useReleasesChanged } from './useReleases';
 
 /** "New release": what would be frozen, the version, the notes. */
@@ -134,10 +131,9 @@ function ReleaseForm({
   const errors = useTranslations('errors');
   const changed = useReleasesChanged(project.id);
   const [error, setError] = useState<ActionError | null>(null);
-  const bumpField = useId();
   const failing = preview.decisions.some((d) => d.tests.failed + d.tests.errors > 0);
 
-  const form = useForm({
+  const form = useAppForm({
     defaultValues: { bump: 'minor', notes: '' } as ReleaseValues,
     validators: { onChange: releaseSchema, onSubmit: releaseSchema },
     onSubmit: async ({ value }) => {
@@ -165,82 +161,73 @@ function ReleaseForm({
   });
 
   return (
-    <form
-      noValidate
-      className="grid min-h-0 gap-4"
-      onSubmit={(event) => {
-        event.preventDefault();
-        void form.handleSubmit();
-      }}
-    >
-      {error ? <ErrorAlert error={error} /> : null}
-      <div className="-mx-6 grid min-h-0 gap-4 overflow-y-auto px-6">
-        <FieldGroup className="gap-2">
-          {preview.latest ? (
-            <form.Field name="bump">
-              {(field) => (
-                <Field className="gap-2">
-                  <FieldLabel htmlFor={bumpField}>{t('version')}</FieldLabel>
-                  <Select value={field.state.value} onValueChange={(value) => field.handleChange(value as Bump)}>
-                    <SelectTrigger id={bumpField} className="w-full sm:w-72">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(['major', 'minor', 'patch'] as const).map((bump) => (
-                        <SelectItem key={bump} value={bump}>
+    <form.AppForm>
+      <form.Form className="grid min-h-0 gap-4">
+        {error ? <ErrorAlert error={error} /> : null}
+        <div className="-mx-6 grid min-h-0 gap-4 overflow-y-auto px-6">
+          <FieldGroup className="gap-2">
+            {preview.latest ? (
+              <form.AppField name="bump">
+                {(field) => (
+                  <field.SelectField
+                    label={t('version')}
+                    hint={t('latest', { version: preview.latest ?? '' })}
+                    triggerClassName="sm:w-72"
+                    options={(['major', 'minor', 'patch'] as const).map((bump) => ({
+                      value: bump,
+                      label: (
+                        <>
                           <span className="font-mono">{preview.next[bump]}</span>
                           <span className="text-muted-foreground">· {t(bump)}</span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FieldDescription>{t('latest', { version: preview.latest ?? '' })}</FieldDescription>
-                </Field>
-              )}
-            </form.Field>
-          ) : (
-            <Field className="gap-1">
-              <FieldLabel>{t('version')}</FieldLabel>
-              <p className="font-mono text-lg font-semibold">{preview.next.minor}</p>
-              <FieldDescription>{t('firstRelease')}</FieldDescription>
-            </Field>
-          )}
-          <form.Field name="notes">
-            {(field) => (
-              <TextField
-                field={field}
-                label={t('notes')}
-                hint={t('notesHint')}
-                multiline
-                rows={4}
-                required
-                autoFocus
-                messageValues={{ max: NOTES_MAX }}
-              />
+                        </>
+                      ),
+                    }))}
+                  />
+                )}
+              </form.AppField>
+            ) : (
+              <Field className="gap-1">
+                <FieldLabel>{t('version')}</FieldLabel>
+                <p className="font-mono text-lg font-semibold">{preview.next.minor}</p>
+                <FieldDescription>{t('firstRelease')}</FieldDescription>
+              </Field>
             )}
-          </form.Field>
-        </FieldGroup>
-        {failing ? (
-          <Alert>
-            <TriangleAlert aria-hidden />
-            <AlertTitle>{t('failingTitle')}</AlertTitle>
-            <AlertDescription>{t('failing')}</AlertDescription>
-          </Alert>
-        ) : null}
-        <FrozenDecisions decisions={preview.decisions} />
-      </div>
-      <DialogFooter>
-        <Button type="button" variant="outline" onClick={onClose}>
-          {common('cancel')}
-        </Button>
-        <form.Subscribe selector={(state) => [state.isSubmitting, state.values.bump] as const}>
-          {([isSubmitting, bump]) => (
-            <SubmitButton pending={isSubmitting} pendingLabel={t('creating')}>
-              {t('createVersion', { version: preview.next[bump] })}
-            </SubmitButton>
-          )}
-        </form.Subscribe>
-      </DialogFooter>
-    </form>
+            <form.AppField name="notes">
+              {(field) => (
+                <field.TextField
+                  label={t('notes')}
+                  hint={t('notesHint')}
+                  multiline
+                  rows={4}
+                  required
+                  autoFocus
+                  messageValues={{ max: NOTES_MAX }}
+                />
+              )}
+            </form.AppField>
+          </FieldGroup>
+          {failing ? (
+            <Alert>
+              <TriangleAlert aria-hidden />
+              <AlertTitle>{t('failingTitle')}</AlertTitle>
+              <AlertDescription>{t('failing')}</AlertDescription>
+            </Alert>
+          ) : null}
+          <FrozenDecisions decisions={preview.decisions} />
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>
+            {common('cancel')}
+          </Button>
+          <form.Subscribe selector={(state) => state.values.bump}>
+            {(bump) => (
+              <form.SubmitButton pendingLabel={t('creating')}>
+                {t('createVersion', { version: preview.next[bump] })}
+              </form.SubmitButton>
+            )}
+          </form.Subscribe>
+        </DialogFooter>
+      </form.Form>
+    </form.AppForm>
   );
 }

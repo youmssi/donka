@@ -90,8 +90,32 @@ Dependencies go **one way only**: `app/ → Component → Cache hook → Service
 
 - **TanStack Form + Zod** for every form (ADR-005), rendered with the shadcn `Field` family
   (`FieldGroup`, `Field`, `FieldLabel`, `FieldDescription`, `FieldError`) as in shadcn's
-  TanStack Form guide. Small wrappers that bind a TanStack field to them live in
-  `components/shared/form/`; no form builds its own label/error markup.
+  TanStack Form guide.
+- **One form hook**, `useAppForm` from `components/shared/form` (TanStack's `createFormHook`).
+  No form calls `useForm`, and no form builds its own label or error markup:
+
+  ```tsx
+  const form = useAppForm({ defaultValues, validators: { onChange: schema, onSubmit: schema }, onSubmit });
+  return (
+    <form.AppForm>
+      <form.Form className="grid gap-4">
+        <form.AppField name="name">{(field) => <field.TextField label={t('name')} required />}</form.AppField>
+        <form.SubmitButton pendingLabel={t('saving')}>{t('save')}</form.SubmitButton>
+      </form.Form>
+    </form.AppForm>
+  );
+  ```
+
+  - Field components (`TextField`, `SelectField`, `CheckboxField`) read their field with
+    `useFieldContext<T>()`; form components (`Form`, `SubmitButton`) read the form with
+    `useFormContext()`. A new kind of input becomes a field component registered in
+    `components/shared/form/index.ts`, never markup copied into a form.
+  - `form.Form` is the `<form>` element: it submits through the form, with the browser's own
+    validation off, and moves focus to the first field in error when a submission is refused.
+  - A large form is split into parts with `withForm`, sharing its options through
+    `formOptions` (see the connector node's sections).
+  - `@tanstack/react-form` is pinned to an exact version: its types can change in a patch
+    release, so it is upgraded on purpose, with the checks.
 - The Zod schema is the single source of the form's rules; the server validates again.
 - Errors next to the field, in plain language, once the person has left it or submitted; a
   corrected value clears its error at once. Forms validate on `onChange` and `onSubmit` (an

@@ -1,6 +1,5 @@
 'use client';
 
-import type { AnyFieldApi } from '@tanstack/react-form';
 import { useTranslations } from 'next-intl';
 import { useId, type ComponentProps } from 'react';
 
@@ -8,8 +7,9 @@ import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 
+import { useFieldContext } from './context';
+
 interface TextFieldProps extends Omit<ComponentProps<typeof Input>, 'name' | 'value' | 'onChange' | 'onBlur'> {
-  field: AnyFieldApi;
   label: string;
   hint?: string;
   /** Values for placeholders in validation messages, e.g. `{ min: 12 }`. */
@@ -32,26 +32,21 @@ export function firstMessage(errors: unknown[]): string | undefined {
   return undefined;
 }
 
+/** The message key shown under a field: only once the person has left it or submitted the form. */
+export function shownError(meta: { isBlurred: boolean; errors: unknown[] }, submissionAttempts: number) {
+  return meta.isBlurred || submissionAttempts > 0 ? firstMessage(meta.errors) : undefined;
+}
+
 /**
- * A text input bound to a TanStack Form field, laid out with shadcn `Field`.
+ * A text input bound to the surrounding `form.AppField`, laid out with shadcn `Field`.
  * Errors appear after the person leaves the field or submits, never while they
  * are still typing.
  */
-export function TextField({
-  field,
-  label,
-  hint,
-  messageValues,
-  serverError,
-  multiline,
-  rows,
-  ...inputProps
-}: TextFieldProps) {
+export function TextField({ label, hint, messageValues, serverError, multiline, rows, ...inputProps }: TextFieldProps) {
+  const field = useFieldContext<string>();
   const t = useTranslations('validation');
   const id = useId();
-  const meta = field.state.meta;
-  const shown = meta.isBlurred || field.form.state.submissionAttempts > 0;
-  const key = shown ? firstMessage(meta.errors) : undefined;
+  const key = shownError(field.state.meta, field.form.state.submissionAttempts);
   const error = key ? t(key, messageValues) : serverError;
   const describedBy = [hint ? `${id}-hint` : null, `${id}-error`].filter(Boolean).join(' ');
   const control = {
