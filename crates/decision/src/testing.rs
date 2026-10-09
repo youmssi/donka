@@ -169,17 +169,7 @@ impl Decisions {
             return Ok(TestSummary::default());
         }
 
-        let siblings: Vec<(String, Value)> = sqlx::query_as(
-            "SELECT d.key, v.content FROM decisions d JOIN LATERAL (\
-             SELECT content FROM decision_versions WHERE decision_id = d.id \
-             ORDER BY number DESC LIMIT 1) v ON true \
-             WHERE d.project_id = $1 AND d.deleted_at IS NULL AND d.id <> $2",
-        )
-        .bind(access.project_id())
-        .bind(decision.id)
-        .fetch_all(&mut **tx)
-        .await?;
-        let mut contents: BTreeMap<String, Value> = siblings.into_iter().collect();
+        let mut contents = latest_siblings(tx, access, decision.id).await?;
         contents.insert(decision.key.clone(), content.clone());
         // Every version was a valid draft, so this only fails if the engine changed its mind.
         let bundle = Bundle::from_json(contents).map_err(|err| err.to_string());
@@ -294,4 +284,24 @@ async fn record(
     .execute(&mut **tx)
     .await?;
     Ok(())
+}
+
+/// The latest version of every other decision of the project, by key: what a new version of
+/// decision `id` runs with.
+pub(crate) async fn latest_siblings(
+    tx: &mut Tx<'_>,
+    access: &Access,
+    id: Uuid,
+) -> Result<BTreeMap<String, Value>, DecisionError> {
+    let siblings: Vec<(String, Value)> = sqlx::query_as(
+        "SELECT d.key, v.content FROM decisions d JOIN LATERAL (\
+         SELECT content FROM decision_versions WHERE decision_id = d.id \
+         ORDER BY number DESC LIMIT 1) v ON true \
+         WHERE d.project_id = $1 AND d.deleted_at IS NULL AND d.id <> $2",
+    )
+    .bind(access.project_id())
+    .bind(id)
+    .fetch_all(&mut **tx)
+    .await?;
+    Ok(siblings.into_iter().collect())
 }

@@ -286,6 +286,7 @@ function Changes({ project, review }: { project: Project; review: ApprovalReview
                     </span>
                     {change.tests ? <TestBadge summary={change.tests} /> : null}
                   </ItemDescription>
+                  {change.contract.length > 0 ? <ContractChanges changes={change.contract} /> : null}
                 </ItemContent>
                 {change.change !== 'unchanged' ? (
                   <ItemActions>
@@ -316,6 +317,37 @@ function Changes({ project, review }: { project: Project; review: ApprovalReview
         />
       ) : null}
     </Card>
+  );
+}
+
+/** How the decision's input fields change: what callers send, breaking changes first (DNK-37). */
+function ContractChanges({ changes }: { changes: DecisionChange['contract'] }) {
+  const t = useTranslations('approvals');
+  const breaking = changes.filter((change) => change.breaking).length;
+  return (
+    <div className="mt-2 grid gap-1 text-sm">
+      <p className="font-medium">
+        {breaking > 0 ? t('contractBreaking', { count: breaking }) : t('contractCompatible')}
+      </p>
+      <ul className="grid gap-1">
+        {changes.map((change) => (
+          <li key={`${change.path}-${change.kind}`} className="flex flex-wrap items-center gap-2">
+            <Badge
+              variant="outline"
+              className={
+                change.breaking
+                  ? 'border-red-600/40 text-red-700 dark:text-red-400'
+                  : 'border-green-600/40 text-green-700 dark:text-green-400'
+              }
+            >
+              {change.breaking ? t('breaking') : t('compatible')}
+            </Badge>
+            <span className="font-mono text-xs">{change.path}</span>
+            <span className="text-muted-foreground">{t(`contractKinds.${change.kind}`)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

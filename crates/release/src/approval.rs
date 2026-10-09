@@ -15,6 +15,7 @@ use crate::{
 use chrono::{DateTime, Utc};
 use donka_audit::{Action, Event};
 use donka_decision::TestSummary;
+use donka_engine::contract;
 use donka_mail::{Email, Mailer};
 use donka_project::{authorize_change, Access, Role};
 use donka_shared::page::{Page, PageRequest};
@@ -111,6 +112,8 @@ pub struct DecisionChange {
     pub to_version: Option<i32>,
     /// The scenarios' results on the version the release brings.
     pub tests: Option<TestSummary>,
+    /// How the decision's input contract changes, breaking changes first (DNK-37).
+    pub contract: Vec<contract::Change>,
 }
 
 /// What an approver looks at: the request, what production runs now and
@@ -198,6 +201,15 @@ struct FrozenRow {
     version_number: i32,
     #[sqlx(flatten)]
     tests: TestSummary,
+    content: serde_json::Value,
+}
+
+impl FrozenRow {
+    /// The version's input contract. One saved before contracts were checked may be unusable;
+    /// it then counts as none, as the engine treats it.
+    fn schema(&self) -> Option<serde_json::Value> {
+        contract::input_schema(&self.content).ok().flatten()
+    }
 }
 
 #[derive(sqlx::FromRow)]
@@ -745,7 +757,7 @@ async fn frozen(
 ) -> Result<Vec<FrozenRow>, ReleaseError> {
     Ok(sqlx::query_as(
         "SELECT decision_id, key, version_number, tests_passed AS passed, tests_failed AS failed, \
-         tests_errors AS errors FROM release_decisions WHERE release_id = $1 ORDER BY key",
+         tests_errors AS errors, content FROM release_decisions WHERE release_id = $1 ORDER BY key",
     )
     .bind(release_id)
     .fetch_all(conn)
@@ -758,6 +770,7 @@ fn compare(from: &[FrozenRow], to: &[FrozenRow]) -> Vec<DecisionChange> {
         .iter()
         .map(|new| {
             let old = from.iter().find(|old| old.decision_id == new.decision_id);
+            let before = old.and_then(FrozenRow::schema);
             DecisionChange {
                 key: new.key.clone(),
                 decision_id: new.decision_id,
@@ -769,6 +782,7 @@ fn compare(from: &[FrozenRow], to: &[FrozenRow]) -> Vec<DecisionChange> {
                 from_version: old.map(|old| old.version_number),
                 to_version: Some(new.version_number),
                 tests: Some(new.tests),
+                contract: breaking_first(contract::diff(before.as_ref(), new.schema().as_ref())),
             }
         })
         .collect();
@@ -782,6 +796,7 @@ fn compare(from: &[FrozenRow], to: &[FrozenRow]) -> Vec<DecisionChange> {
                 from_version: Some(old.version_number),
                 to_version: None,
                 tests: None,
+                contract: breaking_first(contract::diff(old.schema().as_ref(), None)),
             }),
     );
     let rank = |change: Change| match change {
@@ -791,6 +806,11 @@ fn compare(from: &[FrozenRow], to: &[FrozenRow]) -> Vec<DecisionChange> {
         Change::Unchanged => 3,
     };
     changes.sort_by(|a, b| rank(a.change).cmp(&rank(b.change)).then(a.key.cmp(&b.key)));
+    changes
+}
+
+fn breaking_first(mut changes: Vec<contract::Change>) -> Vec<contract::Change> {
+    changes.sort_by_key(|change| !change.breaking);
     changes
 }
 
@@ -804,7 +824,49 @@ mod tests {
             key: key.into(),
             version_number: version,
             tests: TestSummary::default(),
+            content: serde_json::json!({ "nodes": [], "edges": [] }),
         }
+    }
+
+    fn with_contract(mut row: FrozenRow, schema: serde_json::Value) -> FrozenRow {
+        row.content = serde_json::json!({ "nodes": [
+            { "id": "in", "type": "inputNode", "content": { "schema": schema.to_string() } }
+        ]});
+        row
+    }
+
+    #[test]
+    fn contract_changes_come_with_each_decision_breaking_first() {
+        let age = |minimum: i64| {
+            serde_json::json!({ "type": "object", "required": ["age"], "properties": {
+                "age": { "type": "integer", "minimum": minimum },
+                "city": { "type": "string" }
+            }})
+        };
+        let mut new = age(21);
+        new["properties"]["region"] = serde_json::json!({ "type": "string" });
+        let changes = compare(
+            &[with_contract(row("score", 1, 1), age(18))],
+            &[with_contract(row("score", 1, 2), new)],
+        );
+        let contract: Vec<(&str, contract::ChangeKind, bool)> = changes[0]
+            .contract
+            .iter()
+            .map(|c| (c.path.as_str(), c.kind, c.breaking))
+            .collect();
+        assert_eq!(
+            contract,
+            [
+                ("age", contract::ChangeKind::Narrowed, true),
+                ("region", contract::ChangeKind::Added, false),
+            ]
+        );
+        // The same version on both sides: nothing to report.
+        let same = compare(
+            &[with_contract(row("score", 1, 1), age(18))],
+            &[with_contract(row("score", 1, 1), age(18))],
+        );
+        assert!(same[0].contract.is_empty());
     }
 
     #[test]

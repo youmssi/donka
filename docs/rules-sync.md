@@ -78,6 +78,9 @@ Authorization: Bearer dnk_ci_…
 `200` with the zip (`application/zip`), or `404 RELEASE_NOT_FOUND` for another project's
 artifact or one never published. Artifacts are rebuilt from Studio's database and are
 byte-for-byte reproducible, so the download matches the `sha256` given when resolving.
+The zip carries each decision's input contract at `.config/contracts/<key>/input.schema.json`
+([artifact format](artifact-format.md#input-contracts)), so a pipeline can check a form against
+the release it deploys (DNK-38).
 
 - An **environment** artifact is what that environment's Runtime reads
   ([`artifact-format.md`](artifact-format.md)), with the hashes of its Runtime tokens.

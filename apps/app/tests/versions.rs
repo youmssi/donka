@@ -441,3 +441,97 @@ async fn a_deleted_decision_keeps_its_history_and_frees_its_key(db: PgPool) {
     .await;
     assert_eq!(list.body["items"].as_array().unwrap().len(), 1);
 }
+
+// --- input contract (DNK-37) ---------------------------------------------------
+
+/// The `table` fixture (it reads `input`) with `schema` on its input node, as the editor stores it.
+fn table_with_contract(schema: &str) -> Value {
+    let mut content = fixture("table");
+    for node in content["nodes"].as_array_mut().unwrap() {
+        if node["type"] == "inputNode" {
+            node["content"] = json!({ "schema": schema });
+        }
+    }
+    content
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn saving_a_version_reports_fields_the_contract_and_the_rules_disagree_on(db: PgPool) {
+    let app = with_database(db);
+    let admin = signed_in_admin(&app).await;
+    let (p, id) = setup(&app, &admin).await;
+    let base = format!("/projects/{p}/decisions/{id}");
+    // The rules read `input`; the contract declares only `region`, and requires it.
+    let schema = json!({
+        "type": "object",
+        "required": ["region"],
+        "properties": { "region": { "type": "string" } }
+    });
+    save_draft(
+        &app,
+        &admin,
+        &base,
+        table_with_contract(&schema.to_string()),
+        1,
+    )
+    .await;
+    let saved = save_version(&app, &admin, &base, 2, "With a contract").await;
+    assert_eq!(saved.status, StatusCode::CREATED, "{}", saved.body);
+    assert_eq!(saved.body["number"], 1);
+    assert_eq!(
+        saved.body["warnings"],
+        json!([
+            { "kind": "undeclared", "path": "input" },
+            { "kind": "unread", "path": "region" }
+        ])
+    );
+
+    // Declared and read: nothing to say.
+    let schema = json!({
+        "type": "object",
+        "required": ["input"],
+        "properties": { "input": { "type": "number" } }
+    });
+    save_draft(
+        &app,
+        &admin,
+        &base,
+        table_with_contract(&schema.to_string()),
+        2,
+    )
+    .await;
+    let saved = save_version(&app, &admin, &base, 3, "Contract fixed").await;
+    assert_eq!(saved.status, StatusCode::CREATED, "{}", saved.body);
+    assert_eq!(saved.body["warnings"], json!([]));
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn a_version_with_a_broken_contract_is_refused(db: PgPool) {
+    let app = with_database(db);
+    let admin = signed_in_admin(&app).await;
+    let (p, id) = setup(&app, &admin).await;
+    let base = format!("/projects/{p}/decisions/{id}");
+    for (revision, schema) in [
+        (1, "{ not json".to_owned()),
+        (
+            2,
+            json!({ "type": "object", "required": "input" }).to_string(),
+        ),
+        (3, json!({ "type": "array" }).to_string()),
+    ] {
+        save_draft(&app, &admin, &base, table_with_contract(&schema), revision).await;
+        let refused = save_version(&app, &admin, &base, revision + 1, "Broken").await;
+        assert_error(
+            &refused,
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "INVALID_CONTRACT",
+        );
+        assert!(
+            refused.body["details"]["reason"].is_string(),
+            "{}",
+            refused.body
+        );
+    }
+    let history = call(&app, "GET", &format!("{base}/versions"), None, &admin).await;
+    assert_eq!(history.body["total"], 0);
+}

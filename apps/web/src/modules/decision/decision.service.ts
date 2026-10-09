@@ -6,11 +6,11 @@ import type {
   DecisionSummary,
   MatchMode,
   Restored,
+  SavedVersion,
   Scenario,
   ScenarioList,
   SimulationResult,
   TestResultList,
-  Version,
   VersionDetail,
   VersionList,
 } from './schema';
@@ -96,10 +96,10 @@ export function saveVersion(
   id: string,
   message: string,
   revision: number,
-): Promise<ActionResult<Version>> {
+): Promise<ActionResult<SavedVersion>> {
   return attempt(async () => {
     const response = await http.post(`${one(projectId, id)}/versions`, { json: { message, revision } });
-    return response.ok ? success(await response.json<Version>()) : failure(response);
+    return response.ok ? success(await response.json<SavedVersion>()) : failure(response);
   });
 }
 

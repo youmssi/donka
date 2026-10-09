@@ -90,9 +90,11 @@ it('shows where the draft stands in the history', () => {
 
 it('saves a version of what is on screen, with a required message', async () => {
   const user = userEvent.setup();
-  saveMock.mockResolvedValue({ ok: true, data: { ...v2, number: 3, message: 'Add bureau score' } });
+  const warnings = [{ kind: 'unread' as const, path: 'applicant.city' }];
+  saveMock.mockResolvedValue({ ok: true, data: { ...v2, number: 3, message: 'Add bureau score', warnings } });
   const draft = fakeDraft();
-  renderWithProviders(<SaveVersionDialog projectId="p-1" decision={decision} draft={draft} />);
+  const onWarnings = vi.fn();
+  renderWithProviders(<SaveVersionDialog projectId="p-1" decision={decision} draft={draft} onWarnings={onWarnings} />);
   await user.click(screen.getByRole('button', { name: 'Save version' }));
   const dialog = await screen.findByRole('dialog', { name: 'Save version 3' });
 
@@ -105,12 +107,19 @@ it('saves a version of what is on screen, with a required message', async () => 
   await waitFor(() => expect(saveMock).toHaveBeenCalledWith('p-1', 'd-1', 'Add bureau score', 4));
   expect(draft.settle).toHaveBeenCalled();
   expect(draft.versionSaved).toHaveBeenCalledWith(3);
+  // The editor shows what the version's input fields and its rules disagree on.
+  expect(onWarnings).toHaveBeenCalledWith(3, warnings);
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
 });
 
 it('does not offer to save a version when nothing changed', () => {
   renderWithProviders(
-    <SaveVersionDialog projectId="p-1" decision={decision} draft={fakeDraft({ latest: 2, changed: false })} />,
+    <SaveVersionDialog
+      projectId="p-1"
+      decision={decision}
+      draft={fakeDraft({ latest: 2, changed: false })}
+      onWarnings={vi.fn()}
+    />,
   );
   expect(screen.getByRole('button', { name: 'Save version' })).toBeDisabled();
 });

@@ -38,9 +38,12 @@ produit à partir du même pack, importez-le de nouveau sous une autre clé :
 | `loan.amount` | nombre (XAF) | Montant demandé |
 | `loan.termMonths` | nombre | Durée en mois |
 | `bureau.checked` | booléen | Un bureau de crédit a été consulté pour cette demande |
-| `bureau.paymentIncidents` | nombre | Incidents de paiement signalés (24 mois) |
 | `bureau.activeLoans` | nombre | Crédits en cours ailleurs |
 | `bureau.worstDaysPastDue` | nombre | Pire retard signalé, en jours (24 mois) |
+
+Ces champs forment le contrat d'entrée de la grille (**Champs d'entrée** dans l'éditeur) : le Runtime
+refuse une requête qui en omet un ou dépasse ses limites avec `400`, en nommant le champ, et les
+formulaires peuvent être construits à partir de la même définition.
 
 Les champs `bureau` sont remplis par votre système à partir de la source consultée (un bureau de
 crédit privé ou la centrale des risques de la banque centrale). Si vous préférez interroger le

@@ -49,7 +49,14 @@ import { Spinner } from '@/components/ui/spinner';
 
 import type { DecisionNodeLabels } from './decision-node';
 import { restoreVersion, saveVersion } from './decision.service';
-import { MESSAGE_MAX, saveVersionSchema, type Decision, type SaveVersionValues, type Version } from './schema';
+import {
+  MESSAGE_MAX,
+  saveVersionSchema,
+  type ContractWarning,
+  type Decision,
+  type SaveVersionValues,
+  type Version,
+} from './schema';
 import { TestBadge, TestResultsDialog, useAnnounceVersion } from './test-results';
 import { useVersion, useVersions, useVersionsChanged } from './useDecisions';
 import type { useDraft } from './useDraft';
@@ -87,7 +94,11 @@ export function SaveVersionDialog({
   projectId,
   decision,
   draft,
-}: Omit<VersionsProps, 'editable' | 'callable' | 'decisionNodeLabels'>) {
+  onWarnings,
+}: Omit<VersionsProps, 'editable' | 'callable' | 'decisionNodeLabels'> & {
+  /** What the saved version's input contract and its rules disagree on (DNK-37). */
+  onWarnings: (number: number, warnings: ContractWarning[]) => void;
+}) {
   const t = useTranslations('versions');
   const common = useTranslations('common');
   const changedVersions = useVersionsChanged(projectId, decision.id);
@@ -113,6 +124,7 @@ export function SaveVersionDialog({
         draft.versionSaved(result.data.number);
         changedVersions();
         announce(t('saved', { number: result.data.number }), result.data.tests);
+        onWarnings(result.data.number, result.data.warnings);
         onOpenChange(false);
       } else {
         setError(result.error);

@@ -7,6 +7,7 @@
 //! The zip is deterministic: the same input gives the same bytes, so a
 //! checksum promised before a download matches the download.
 
+use donka_engine::contract;
 use serde_json::{json, Value};
 use std::io::{Cursor, Write};
 use zip::write::SimpleFileOptions;
@@ -91,8 +92,20 @@ pub fn build(input: &ArtifactInput<'_>) -> Result<Vec<u8>, String> {
     for (key, content) in &input.decisions {
         add(key, content)?;
     }
+    // The input contract of each decision that has one (DNK-37), where Runtimes that do not
+    // know it never look: everything under `.config/` is skipped when loading decisions.
+    for (key, content) in &input.decisions {
+        if let Ok(Some(schema)) = contract::input_schema(content) {
+            add(&contract_path(key), &schema)?;
+        }
+    }
     let cursor = zip.finish().map_err(|err| err.to_string())?;
     Ok(cursor.into_inner())
+}
+
+/// Where a decision's input contract sits in the artifact.
+pub fn contract_path(key: &str) -> String {
+    format!(".config/contracts/{key}/input.schema.json")
 }
 
 fn environment_name(environment: &str) -> &'static str {
@@ -164,6 +177,34 @@ mod tests {
             "plain tokens are never written"
         );
         assert_eq!(object_key("staging", "credit-pme"), "staging/credit-pme");
+    }
+
+    #[test]
+    fn a_decision_with_an_input_contract_carries_it_under_config() {
+        let schema = json!({ "type": "object", "properties": { "age": { "type": "integer" } } });
+        let graph = json!({ "nodes": [
+            { "id": "in", "type": "inputNode", "content": { "schema": schema.to_string() } }
+        ], "edges": [] });
+        let mut with_contract = input();
+        with_contract.decisions[1].1 = graph;
+        let bytes = build(&with_contract).unwrap();
+        let mut zip = ZipArchive::new(Cursor::new(bytes)).unwrap();
+        let names: Vec<String> = zip.file_names().map(str::to_owned).collect();
+        assert_eq!(
+            names,
+            [
+                ".config/project.json",
+                "bureau/normalize",
+                "person-score",
+                ".config/contracts/person-score/input.schema.json"
+            ]
+        );
+        let mut text = String::new();
+        zip.by_name(&contract_path("person-score"))
+            .unwrap()
+            .read_to_string(&mut text)
+            .unwrap();
+        assert_eq!(serde_json::from_str::<Value>(&text).unwrap(), schema);
     }
 
     #[test]

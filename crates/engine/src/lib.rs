@@ -12,6 +12,8 @@
 //! answered at the time: no call to an outside service ever leaves Studio.
 //! The Runtime runs the same handler for real.
 
+pub mod contract;
+
 use async_trait::async_trait;
 use donka_connectors::{recorded_outputs, ConnectorAdapter};
 use serde::Serialize;

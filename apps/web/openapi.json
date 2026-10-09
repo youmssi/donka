@@ -423,6 +423,64 @@
         ],
         "type": "object"
       },
+      "ContractChangeKind": {
+        "enum": [
+          "added",
+          "removed",
+          "nowRequired",
+          "nowOptional",
+          "typeChanged",
+          "narrowed",
+          "widened",
+          "presentation"
+        ],
+        "type": "string"
+      },
+      "ContractChangeResponse": {
+        "description": "One change to a decision's input contract.",
+        "properties": {
+          "breaking": {
+            "description": "Callers that worked with the old contract may be refused by the new one.",
+            "type": "boolean"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ContractChangeKind"
+          },
+          "path": {
+            "description": "The field, as a dotted path (`applicant.age`).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "kind",
+          "breaking"
+        ],
+        "type": "object"
+      },
+      "ContractWarningKind": {
+        "enum": [
+          "undeclared",
+          "unread"
+        ],
+        "type": "string"
+      },
+      "ContractWarningResponse": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/ContractWarningKind"
+          },
+          "path": {
+            "description": "The field, as a dotted path (`applicant.age`).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "path"
+        ],
+        "type": "object"
+      },
       "CreateDecisionRequest": {
         "properties": {
           "content": {
@@ -527,6 +585,13 @@
           "change": {
             "$ref": "#/components/schemas/ChangeResponse"
           },
+          "contract": {
+            "description": "How the decision's input contract changes, breaking changes first.",
+            "items": {
+              "$ref": "#/components/schemas/ContractChangeResponse"
+            },
+            "type": "array"
+          },
           "decisionId": {
             "format": "uuid",
             "type": "string"
@@ -565,7 +630,8 @@
         "required": [
           "key",
           "decisionId",
-          "change"
+          "change",
+          "contract"
         ],
         "type": "object"
       },
@@ -1949,6 +2015,29 @@
           "revision"
         ],
         "type": "object"
+      },
+      "SavedVersionResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/DecisionVersionResponse"
+          },
+          {
+            "properties": {
+              "warnings": {
+                "description": "Fields rules read but the input contract does not declare (`undeclared`), and required\nfields no rule reads (`unread`). Empty when the decision has no contract.",
+                "items": {
+                  "$ref": "#/components/schemas/ContractWarningResponse"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "warnings"
+            ],
+            "type": "object"
+          }
+        ],
+        "description": "A version just saved, with what its author should know about the input contract."
       },
       "ScenarioListResponse": {
         "properties": {
@@ -5200,7 +5289,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DecisionVersionResponse"
+                  "$ref": "#/components/schemas/SavedVersionResponse"
                 }
               }
             },
@@ -5254,7 +5343,7 @@
                 }
               }
             },
-            "description": "Nothing changed since the latest version (VERSION_UNCHANGED, details: version)"
+            "description": "Nothing changed since the latest version (VERSION_UNCHANGED, details: version), or the input schema is not a usable JSON Schema object (INVALID_CONTRACT)"
           }
         },
         "summary": "Saves the draft as the next version (editors and owners).",

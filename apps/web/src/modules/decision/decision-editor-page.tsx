@@ -18,6 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
@@ -28,7 +29,8 @@ import { projectHome, ProjectFrame, type Project } from '@/modules/project';
 
 import { canEditDecisions } from './decisions-page';
 import { simulateDecision } from './decision.service';
-import { splitKey, type Decision } from './schema';
+import { InputFieldsSheet } from './input-fields';
+import { splitKey, type ContractWarning, type Decision } from './schema';
 import { useDecision, useDecisionList, useDecisionSaved } from './useDecisions';
 import { useDraft, type DraftStatus } from './useDraft';
 import type { SimulatorRun } from './jdm-graph';
@@ -122,6 +124,10 @@ function Editor({ project, decision, others }: { project: Project; decision: Dec
     [editable, scenarios],
   );
 
+  // The input fields panel, and what the last saved version's contract and rules disagree on.
+  const [fieldsOpen, setFieldsOpen] = useState(false);
+  const [warnings, setWarnings] = useState<{ number: number; items: ContractWarning[] } | null>(null);
+
   const simulate = useCallback(
     (graph: unknown, context: unknown) => simulateDecision(project.id, decision.id, graph, context),
     [project.id, decision.id],
@@ -136,7 +142,14 @@ function Editor({ project, decision, others }: { project: Project; decision: Dec
         </h1>
         <VersionChip {...draft.version} />
         <SaveStatus status={draft.status} onRetry={draft.retry} />
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <InputFieldsSheet
+            graph={draft.graph}
+            onChange={draft.change}
+            editable={editable}
+            open={fieldsOpen}
+            onOpenChange={setFieldsOpen}
+          />
           <HistorySheet
             projectId={project.id}
             decision={decision}
@@ -145,9 +158,24 @@ function Editor({ project, decision, others }: { project: Project; decision: Dec
             callable={others}
             decisionNodeLabels={decisionNodeLabels}
           />
-          {editable ? <SaveVersionDialog projectId={project.id} decision={decision} draft={draft} /> : null}
+          {editable ? (
+            <SaveVersionDialog
+              projectId={project.id}
+              decision={decision}
+              draft={draft}
+              onWarnings={(number, items) => setWarnings(items.length > 0 ? { number, items } : null)}
+            />
+          ) : null}
         </div>
       </div>
+      {warnings ? (
+        <ContractWarnings
+          number={warnings.number}
+          warnings={warnings.items}
+          onReview={() => setFieldsOpen(true)}
+          onDismiss={() => setWarnings(null)}
+        />
+      ) : null}
       <div className={`${EDITOR_HEIGHT} min-h-96 overflow-hidden rounded-lg border`}>
         <JdmGraph
           value={draft.graph}
@@ -179,6 +207,42 @@ function Editor({ project, decision, others }: { project: Project; decision: Dec
       ) : null}
       <ConflictDialog status={draft.status} onKeepMine={draft.keepMine} onLoadTheirs={draft.loadTheirs} />
     </div>
+  );
+}
+
+/** What saving a version found about its input fields: rules and contract that disagree. */
+function ContractWarnings({
+  number,
+  warnings,
+  onReview,
+  onDismiss,
+}: {
+  number: number;
+  warnings: ContractWarning[];
+  onReview: () => void;
+  onDismiss: () => void;
+}) {
+  const t = useTranslations('inputFields');
+  return (
+    <Alert role="status">
+      <CircleAlert aria-hidden />
+      <AlertTitle>{t('warningsTitle', { number })}</AlertTitle>
+      <AlertDescription>
+        <ul className="list-disc ps-4">
+          {warnings.map((warning) => (
+            <li key={`${warning.kind}-${warning.path}`}>{t(warning.kind, { path: warning.path })}</li>
+          ))}
+        </ul>
+        <div className="mt-2 flex gap-2">
+          <Button size="sm" variant="outline" onClick={onReview}>
+            {t('review')}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={onDismiss}>
+            {t('dismiss')}
+          </Button>
+        </div>
+      </AlertDescription>
+    </Alert>
   );
 }
 

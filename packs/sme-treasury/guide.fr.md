@@ -42,6 +42,9 @@ scénarios de test, tous réussis. Importez-le de nouveau sous une autre clé
 | `bureau.paymentIncidents` | nombre | Incidents de paiement (par exemple chèques impayés), 12 mois |
 | `bureau.worstDaysPastDue` | nombre | Pire retard signalé, en jours |
 
+Ces champs forment le contrat d'entrée de l'évaluation (**Champs d'entrée** dans l'éditeur) : le
+Runtime refuse une requête qui en omet un ou dépasse ses limites avec `400`, en nommant le champ.
+
 ## Ce qu'elle répond
 
 ```json

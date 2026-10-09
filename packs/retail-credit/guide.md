@@ -36,9 +36,12 @@ same pack, import it again under another key:
 | `loan.amount` | number (XAF) | Amount asked for |
 | `loan.termMonths` | number | Duration in months |
 | `bureau.checked` | boolean | A credit bureau was consulted for this application |
-| `bureau.paymentIncidents` | number | Payment incidents reported (24 months) |
 | `bureau.activeLoans` | number | Loans currently running elsewhere |
 | `bureau.worstDaysPastDue` | number | Worst arrears reported, in days (24 months) |
+
+These fields are the scorecard's input contract (**Input fields** in the editor): the Runtime refuses a
+request that lacks one or breaks its limits with `400`, naming the field, and forms can be built
+from the same definition.
 
 The `bureau` fields are filled by your system from the source you consult (a private credit
 bureau or the central bank's risk register). If you call the bureau from the Runtime instead,

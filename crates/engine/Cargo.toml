@@ -14,6 +14,11 @@ thiserror = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
 zen-engine = { workspace = true }
+# The engine's own expression parser and schema validator (same versions as zen-engine 2.0.1
+# uses): the input contract is read the way the engine reads it.
+zen-expression = "=2.0.1"
+jsonschema = "0.49"
+bumpalo = "3"
 donka-connectors = { workspace = true }
 
 [dev-dependencies]

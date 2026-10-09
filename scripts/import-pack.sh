@@ -69,6 +69,7 @@ for decision in $(jq -r '.decisions[]' "$manifest"); do
     "$(jq -n --arg m "Imported from the $(jq -r .key "$manifest") pack" --argjson r "${revisions[$decision]}" '{message: $m, revision: $r}')")
   tests=$(jq -c .tests <<<"$version")
   echo "  $decision: version $(jq -r .number <<<"$version")"
+  jq -r '.warnings[] | "    input field \(.path): \(.kind)"' <<<"$version"
 done
 echo "  tests: $tests"
 [ "$(jq '.failed + .errors' <<<"$tests")" = 0 ] || fail "some test scenarios do not pass; see the decision's history in Studio"
