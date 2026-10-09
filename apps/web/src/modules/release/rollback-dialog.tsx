@@ -61,8 +61,9 @@ function RollbackDialog({
   const changed = useReleasesChanged(project.id);
   const [error, setError] = useState<ActionError | null>(null);
 
+  const defaultValues: RollbackValues = { releaseId: targets[0]?.id ?? '', reason: '' };
   const form = useAppForm({
-    defaultValues: { releaseId: targets[0]?.id ?? '', reason: '' } as RollbackValues,
+    defaultValues,
     validators: { onChange: rollbackSchema, onSubmit: rollbackSchema },
     onSubmit: async ({ value }) => {
       setError(null);

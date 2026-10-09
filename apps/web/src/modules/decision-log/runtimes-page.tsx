@@ -195,8 +195,9 @@ function IssueDialog({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState<ActionError | null>(null);
   const [issued, setIssued] = useState<IssuedLogToken | null>(null);
 
+  const defaultValues: TokenValues = { environment: 'production', name: '' };
   const form = useAppForm({
-    defaultValues: { environment: 'production', name: '' } as TokenValues,
+    defaultValues,
     validators: { onChange: tokenSchema, onSubmit: tokenSchema },
     onSubmit: async ({ value }) => {
       setError(null);

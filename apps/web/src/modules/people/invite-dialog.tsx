@@ -34,8 +34,9 @@ export function InviteDialog() {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<ActionError | null>(null);
 
+  const defaultValues: InviteValues = { email: '', locale, isAdmin: false };
   const form = useAppForm({
-    defaultValues: { email: '', locale, isAdmin: false } as InviteValues,
+    defaultValues,
     validators: { onChange: inviteSchema, onSubmit: inviteSchema },
     onSubmit: async ({ value }) => {
       setError(null);
