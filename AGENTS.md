@@ -141,7 +141,7 @@ crates/engine/       DecisionRuntime trait + ZenRuntime (the only zen_engine use
 crates/audit/        append-only audit log: `record` in the change's transaction; list, export
 crates/decision/     decisions of a project (JDM graphs), drafts with conflict detection, versions, test scenarios, simulate bundle
 crates/db/           PostgreSQL pool, migrations, readiness (shared by every module)
-crates/identity/     users, sign-in with lockout, sessions, invitations, password reset
+crates/identity/     users, sign-in with lockout, sessions, invitations, password reset, guided tours seen
 crates/mail/         Mailer trait + SMTP implementation (shared by modules that send email)
 crates/project/      projects, members and roles; `Access` proves membership (DNK-7)
 crates/shared/       cross-cutting code only: clock, pagination, issued tokens (random, hashed)
