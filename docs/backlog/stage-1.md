@@ -811,11 +811,11 @@ the rules it feeds.
 | `donka form check --contract input.schema.json --form <form definition>` | Fails (exit `1`) when a field is missing, renamed, of another type, or required on one side only; lists every difference |
 
 #### Acceptance criteria
-- [ ] `donka form pull` resolves every rules-sync target and verifies the checksum
-- [ ] `donka form check` reports each difference with its field path; exit codes follow the CLI's
+- [x] `donka form pull` resolves every rules-sync target and verifies the checksum
+- [x] `donka form check` reports each difference with its field path; exit codes follow the CLI's
       contract
-- [ ] The GitHub, GitLab and Azure templates gain a contract check step, tested like the pull
-- [ ] A form definition can be generated from the contract as a starting point
+- [x] The GitHub, GitLab and Azure templates gain a contract check step, tested like the pull
+- [x] A form definition can be generated from the contract as a starting point
 
 #### Out of scope
 - Fieldkit's own renderer (Stage 2); the check reads a plain JSON Schema-based form definition
