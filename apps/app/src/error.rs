@@ -13,6 +13,7 @@ use donka_decision_log::DecisionLogError;
 use donka_engine::RuntimeError;
 use donka_explain::ExplainError;
 use donka_identity::IdentityError;
+use donka_pack::PackError;
 use donka_project::ProjectError;
 use donka_release::{ReleaseError, MAX_NOTES_CHARS, MAX_TOKEN_NAME_CHARS};
 use serde::Serialize;
@@ -151,6 +152,13 @@ pub enum ApiError {
     /// The input contract is not a usable JSON Schema; why, in words.
     #[error("invalid input contract: {0}")]
     InvalidContract(String),
+    /// The pack cannot be used; why, in words.
+    #[error("invalid pack: {0}")]
+    InvalidPack(String),
+    #[error("pack file too large")]
+    PackTooLarge,
+    #[error("pack not found")]
+    PackNotFound,
     /// Too many requests from one client address; retry after the duration.
     #[error("rate limited")]
     RateLimited(std::time::Duration),
@@ -331,6 +339,22 @@ impl From<ProjectError> for ApiError {
             ProjectError::MemberNotFound => Self::MemberNotFound,
             ProjectError::LastOwner => Self::LastOwner,
             ProjectError::Database(err) => Self::Internal(err.to_string()),
+        }
+    }
+}
+
+impl From<PackError> for ApiError {
+    fn from(err: PackError) -> Self {
+        match err {
+            PackError::Invalid(reason) => Self::InvalidPack(reason),
+            PackError::TooLarge => Self::PackTooLarge,
+            PackError::NotFound => Self::PackNotFound,
+            PackError::NotAdministrator => Self::Forbidden,
+            PackError::Project(err) => err.into(),
+            PackError::Decision(err) => err.into(),
+            PackError::DecisionLog(err) => err.into(),
+            PackError::Release(err) => err.into(),
+            PackError::Database(err) => Self::Internal(err.to_string()),
         }
     }
 }
@@ -727,6 +751,30 @@ impl IntoResponse for ApiError {
                 format!("The input fields cannot be used: {reason}."),
                 None,
                 Some(serde_json::json!({ "reason": reason })),
+            ),
+            Self::InvalidPack(reason) => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "INVALID_PACK",
+                format!("This pack cannot be used: {reason}."),
+                None,
+                Some(serde_json::json!({ "reason": reason })),
+            ),
+            Self::PackTooLarge => (
+                StatusCode::PAYLOAD_TOO_LARGE,
+                "PACK_TOO_LARGE",
+                format!(
+                    "A pack file is at most {} MB.",
+                    donka_pack::MAX_FILE_BYTES / 1024 / 1024
+                ),
+                None,
+                None,
+            ),
+            Self::PackNotFound => (
+                StatusCode::NOT_FOUND,
+                "PACK_NOT_FOUND",
+                "This installation offers no pack with this key.".to_owned(),
+                None,
+                None,
             ),
             Self::RateLimited(wait) => {
                 let seconds = retry_after_seconds(wait);

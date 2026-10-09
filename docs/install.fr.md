@@ -64,6 +64,10 @@ Derrière un proxy inverse, définissez aussi `DONKA_TRUSTED_PROXIES` avec son a
 réseau Docker, par exemple `172.16.0.0/12`) : la connexion et la réinitialisation du mot de passe
 sont limitées par adresse cliente, et sans ce paramètre tous les clients partagent celle du proxy.
 
+Les administrateurs démarrent des projets à partir des packs de [packs/](../packs/README.md), que
+l'image fournit dans `/srv/packs`. Pour proposer les vôtres, montez un dossier de packs et
+indiquez-le dans `DONKA_PACKS_DIR` ; Studio ne démarre pas si l'un d'eux est invalide, et le nomme.
+
 Définissez-les avant le premier démarrage : PostgreSQL et MinIO prennent leur mot de passe à la
 création de leurs données (la section 5 explique comment les changer ensuite). Tous les autres
 paramètres de Studio, listés dans [.env.example](../.env.example), peuvent aller dans le même
@@ -244,4 +248,5 @@ page de connexion.
 | `/api/v1/ready` répond 503 | PostgreSQL : `docker compose ps postgres`, puis `docker compose logs postgres` |
 | Un déploiement reste *en attente* | `docker compose logs app` : le publicateur réessaie jusqu'à ce que le bucket réponde |
 | Le Runtime répond 404 pour un projet | Il sert un seul environnement (`PROVIDER__PREFIX`) ; vérifiez que la version y est en ligne |
+| Studio s'arrête sur `DONKA_PACKS_DIR` | Un pack de ce dossier est invalide : le message nomme le pack et la raison |
 | Aucun e-mail | Mailpit (http://localhost:8025) tant que `DONKA_SMTP_URL` ne pointe pas vers votre serveur |

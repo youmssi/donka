@@ -11,7 +11,7 @@ use donka_db::PgPool;
 use donka_shared::clock::Clock;
 use donka_shared::page::{Page, PageRequest};
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{json, Value};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -159,6 +159,20 @@ impl Projects {
         name: &str,
         description: &str,
     ) -> Result<Project, ProjectError> {
+        self.create_from(creator, key, name, description, None)
+            .await
+    }
+
+    /// Creates a project like [`Projects::create`]; `origin` says what it was copied from (a
+    /// pack or another project, DNK-43) and opens its audit log.
+    pub async fn create_from(
+        &self,
+        creator: Uuid,
+        key: &str,
+        name: &str,
+        description: &str,
+        origin: Option<Value>,
+    ) -> Result<Project, ProjectError> {
         let key = check_key(key)?;
         let name = check_name(name)?;
         let description = check_description(description)?;
@@ -194,7 +208,10 @@ impl Projects {
             &mut tx,
             Event::new(now, Some(creator), Action::ProjectCreated)
                 .in_project(project.id)
-                .with_details(json!({ "key": project.key, "name": project.name })),
+                .with_details(match origin {
+                    Some(from) => json!({ "key": project.key, "name": project.name, "from": from }),
+                    None => json!({ "key": project.key, "name": project.name }),
+                }),
         )
         .await?;
         tx.commit().await?;
@@ -587,6 +604,14 @@ async fn ensure_another_owner(tx: &mut Tx<'_>, project_id: Uuid) -> Result<(), P
 
 /// Keys are stored as given; they are part of URLs and storage paths, so they are
 /// checked rather than silently rewritten.
+/// Checks a new project's key, name and description, as [`Projects::create`] will.
+pub fn check_new(key: &str, name: &str, description: &str) -> Result<(), ProjectError> {
+    check_key(key)?;
+    check_name(name)?;
+    check_description(description)?;
+    Ok(())
+}
+
 fn check_key(key: &str) -> Result<String, ProjectError> {
     let well_formed = (MIN_KEY_CHARS..=MAX_KEY_CHARS).contains(&key.len())
         && key.starts_with(|c: char| c.is_ascii_lowercase())

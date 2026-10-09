@@ -38,8 +38,10 @@ RUN cargo build --release --locked --package donka-app
 FROM gcr.io/distroless/cc-debian13:nonroot
 COPY --from=builder /src/target/release/donka-app /usr/local/bin/donka-app
 COPY --from=web /src/apps/web/out /srv/web
+COPY packs /srv/packs
 USER nonroot:nonroot
 EXPOSE 8080
 ENV DONKA_LISTEN=0.0.0.0:8080
 ENV DONKA_WEB_DIR=/srv/web
+ENV DONKA_PACKS_DIR=/srv/packs
 CMD ["donka-app"]

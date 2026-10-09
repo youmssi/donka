@@ -980,6 +980,7 @@ dependencies = [
  "donka-explain",
  "donka-identity",
  "donka-mail",
+ "donka-pack",
  "donka-project",
  "donka-release",
  "donka-shared",
@@ -1144,6 +1145,27 @@ dependencies = [
  "lettre",
  "thiserror 2.0.21",
  "tokio",
+]
+
+[[package]]
+name = "donka-pack"
+version = "0.1.0"
+dependencies = [
+ "donka-audit",
+ "donka-db",
+ "donka-decision",
+ "donka-decision-log",
+ "donka-engine",
+ "donka-identity",
+ "donka-project",
+ "donka-release",
+ "donka-shared",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 2.0.21",
+ "uuid",
+ "zip",
 ]
 
 [[package]]

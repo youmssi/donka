@@ -4,6 +4,7 @@ pub mod auth;
 pub mod decision_log;
 pub mod decisions;
 pub mod health;
+pub mod packs;
 pub mod people;
 pub mod projects;
 pub mod releases;

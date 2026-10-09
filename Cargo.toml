@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/shared", "crates/engine", "crates/db", "crates/audit", "crates/identity", "crates/mail", "crates/project", "crates/decision", "crates/storage", "crates/release", "crates/decision-log", "crates/explain", "apps/app"]
+members = ["crates/shared", "crates/engine", "crates/db", "crates/audit", "crates/identity", "crates/mail", "crates/project", "crates/decision", "crates/storage", "crates/release", "crates/decision-log", "crates/explain", "crates/pack", "apps/app"]
 
 [workspace.package]
 version = "0.1.0"
@@ -58,6 +58,7 @@ donka-storage = { path = "crates/storage" }
 donka-release = { path = "crates/release" }
 donka-decision-log = { path = "crates/decision-log" }
 donka-explain = { path = "crates/explain" }
+donka-pack = { path = "crates/pack" }
 
 # Adopted from gorules/zen: no unsafe code, no unwrap() outside tests (clippy.toml allows it there).
 [workspace.lints.rust]

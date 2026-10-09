@@ -13,15 +13,13 @@ codes in English and French. Amounts are in FCFA (XAF), without decimals.
 
 ## Import it
 
-```bash
-STUDIO_URL=https://donka.bank.example DONKA_EMAIL=you@bank.example DONKA_PASSWORD='...' \
-scripts/import-pack.sh packs/retail-credit
-```
-
-This creates the project `retail-credit` with two decisions, a first version of each and 8 test
+In Studio, **Projects → From a pack → Retail credit**, then choose the project's name
+and key. This creates a project with two decisions, a first version of each and 8 test
 scenarios, all passing. It is your project: change anything. To start another product from the
-same pack, import it again under another key:
-`PROJECT_KEY=salary-advance PROJECT_NAME="Salary advance" scripts/import-pack.sh packs/retail-credit`.
+same pack, import it again under another key, e.g. `salary-advance`.
+
+From a script, `scripts/import-pack.sh packs/retail-credit` does the same (see the
+[packs README](../README.md)).
 
 ## What it reads
 

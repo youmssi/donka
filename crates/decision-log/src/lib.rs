@@ -464,6 +464,7 @@ impl DecisionLog {
         access: &Access,
         change: SettingsChange,
     ) -> Result<Settings, DecisionLogError> {
+        check_settings(&change)?;
         let outcome_field = change
             .outcome_field
             .map(|field| field.map(|f| f.trim().to_owned()).filter(|f| !f.is_empty()));
@@ -871,6 +872,20 @@ impl DecisionLog {
         tx.commit().await?;
         Ok(resealed)
     }
+}
+
+/// Checks a settings change as [`DecisionLog::update_settings`] will.
+pub fn check_settings(change: &SettingsChange) -> Result<(), DecisionLogError> {
+    if let Some(Some(field)) = &change.outcome_field {
+        let field = field.trim();
+        if !field.is_empty() && !valid_field_path(field) {
+            return Err(DecisionLogError::InvalidOutcomeField);
+        }
+    }
+    if let Some(fields) = &change.redacted_fields {
+        normalize_fields(fields.clone())?;
+    }
+    Ok(())
 }
 
 /// ` <project id> AND …` for each filter that is set.

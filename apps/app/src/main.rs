@@ -8,6 +8,7 @@ use donka_decision_log::{Cipher, DecisionLog};
 use donka_engine::{DecisionRuntime, ZenRuntime};
 use donka_identity::{Identity, Policy};
 use donka_mail::SmtpMailer;
+use donka_pack::{Catalogue, Packs};
 use donka_project::Projects;
 use donka_release::{ReleaseSettings, Releases};
 use donka_shared::clock::SystemClock;
@@ -95,7 +96,7 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|err| exit_with(&format!("DONKA_DECISION_LOG_PREVIOUS_KEYS {err}")));
     let decision_log = DecisionLog::new(
         db.clone(),
-        clock,
+        clock.clone(),
         Arc::new(cipher),
         releases.clone(),
         runtime.clone(),
@@ -147,6 +148,21 @@ async fn main() -> anyhow::Result<()> {
     if let Some(dir) = &config.web_dir {
         donka_app::web::check_export(dir).unwrap_or_else(|err| exit_with(&err));
     }
+    let catalogue = match &config.packs_dir {
+        Some(dir) => {
+            Catalogue::load(dir).unwrap_or_else(|err| exit_with(&format!("DONKA_PACKS_DIR {err}")))
+        }
+        None => Catalogue::default(),
+    };
+    tracing::info!(packs = catalogue.packs().len(), "pack catalogue loaded");
+    let packs = Packs::new(
+        db.clone(),
+        clock.clone(),
+        projects.clone(),
+        decisions.clone(),
+        decision_log.clone(),
+        releases.clone(),
+    );
     let app = router(
         AppState {
             runtime,
@@ -158,6 +174,8 @@ async fn main() -> anyhow::Result<()> {
             decision_log,
             explainer,
             audit,
+            packs,
+            catalogue: Arc::new(catalogue),
             cookies,
             auth_limits: donka_app::rate_limit::AuthLimits::new(
                 config.sign_in_rate_limit,

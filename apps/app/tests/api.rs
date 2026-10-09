@@ -361,6 +361,12 @@ async fn openapi_document_describes_the_endpoints() {
         ),
         ("/projects/{project_id}/audit", "get"),
         ("/projects/{project_id}/audit/export", "get"),
+        ("/packs", "get"),
+        ("/packs/inspect", "post"),
+        ("/packs/import", "post"),
+        ("/packs/{key}/import", "post"),
+        ("/projects/{project_id}/duplicate", "post"),
+        ("/projects/{project_id}/export", "get"),
     ] {
         assert!(
             reply.body["paths"][path][method].is_object(),

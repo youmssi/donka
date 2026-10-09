@@ -55,6 +55,14 @@ pub enum Action {
     #[serde(rename = "project.restored")]
     #[sqlx(rename = "project.restored")]
     ProjectRestored,
+    /// The project was downloaded as a pack file (DNK-43).
+    #[serde(rename = "project.exported")]
+    #[sqlx(rename = "project.exported")]
+    ProjectExported,
+    /// A new project was made from this one (DNK-43); the copy's own log says where it came from.
+    #[serde(rename = "project.duplicated")]
+    #[sqlx(rename = "project.duplicated")]
+    ProjectDuplicated,
     #[serde(rename = "member.added")]
     #[sqlx(rename = "member.added")]
     MemberAdded,
@@ -164,6 +172,8 @@ impl Action {
             Self::ProjectUpdated => "project.updated",
             Self::ProjectArchived => "project.archived",
             Self::ProjectRestored => "project.restored",
+            Self::ProjectExported => "project.exported",
+            Self::ProjectDuplicated => "project.duplicated",
             Self::MemberAdded => "member.added",
             Self::MemberRoleChanged => "member.role_changed",
             Self::MemberRemoved => "member.removed",
@@ -357,6 +367,8 @@ mod tests {
             Action::ProjectUpdated,
             Action::ProjectArchived,
             Action::ProjectRestored,
+            Action::ProjectExported,
+            Action::ProjectDuplicated,
             Action::MemberAdded,
             Action::MemberRoleChanged,
             Action::MemberRemoved,
@@ -377,6 +389,8 @@ mod tests {
             Action::ApprovalRejected,
             Action::ApprovalWithdrawn,
             Action::DecisionRecordExplained,
+            Action::DecisionLogPurged,
+            Action::DecisionLogResealed,
             Action::CiTokenIssued,
             Action::CiTokenRevoked,
         ] {

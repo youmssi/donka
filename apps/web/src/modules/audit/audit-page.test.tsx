@@ -112,6 +112,41 @@ it('says what Studio did on its own, such as re-sealing records after a key rota
   expect(screen.getByRole('cell', { name: 'Studio' })).toBeInTheDocument();
 });
 
+it('says where a project came from, and when it was copied or exported', async () => {
+  const event = (id: number, action: AuditEvent['action'], details: unknown): AuditEvent => ({
+    id,
+    occurredAt: '2026-10-09T08:00:00Z',
+    actor: ada,
+    action,
+    details,
+  });
+  listAuditMock.mockResolvedValue({
+    ok: true,
+    data: {
+      items: [
+        event(4, 'project.duplicated', { toKey: 'salary-advance', toName: 'Salary advance', release: '1.1.0' }),
+        event(3, 'project.exported', { release: null, decisions: 2, scenarios: 9 }),
+        event(2, 'project.created', {
+          key: 'retail',
+          name: 'Retail',
+          from: { kind: 'project', key: 'credit', name: 'Credit', release: '1.1.0' },
+        }),
+        event(1, 'project.created', {
+          key: 'retail',
+          name: 'Retail',
+          from: { kind: 'pack', key: 'retail-credit', name: 'Retail credit', version: '1.2' },
+        }),
+      ],
+      total: 4,
+    },
+  });
+  renderWithProviders(<ProjectAuditPage />);
+  expect(await screen.findByText('Copied release 1.1.0 to the new project salary-advance')).toBeInTheDocument();
+  expect(screen.getByText('Exported the drafts as a pack file')).toBeInTheDocument();
+  expect(screen.getByText('Created the project “Retail” as a copy of credit, release 1.1.0')).toBeInTheDocument();
+  expect(screen.getByText('Created the project “Retail” from the pack Retail credit 1.2')).toBeInTheDocument();
+});
+
 it('filters from the address and exports the same events', async () => {
   search.params = new URLSearchParams({ p: 'retail', actor: 'u-2', action: 'member.added', from: '2026-09-01' });
   renderWithProviders(<ProjectAuditPage />);

@@ -3,6 +3,7 @@
 import { Archive, FolderOpen } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import type { ReactNode } from 'react';
 
 import { DataTable, type DataTableColumn } from '@/components/shared/data-table';
 import { ErrorAlert } from '@/components/shared/error-alert';
@@ -30,8 +31,11 @@ const viewHref = (view: View, offset = 0) => {
   return query ? `/?${query}` : '/';
 };
 
-/** The projects the signed-in user belongs to (`?view=archived` for archived ones). */
-export function ProjectListPage() {
+/**
+ * The projects the signed-in user belongs to (`?view=archived` for archived ones). `importAction`
+ * is another way administrators make a project (from a pack), shown next to New project.
+ */
+export function ProjectListPage({ importAction }: { importAction?: ReactNode }) {
   const t = useTranslations('projects');
   const common = useTranslations('common');
   const user = useCurrentUser();
@@ -84,7 +88,17 @@ export function ProjectListPage() {
 
   return (
     <div className="grid gap-4">
-      <PageHeader title={t('title')} actions={user.isAdmin ? <CreateProjectDialog /> : null} />
+      <PageHeader
+        title={t('title')}
+        actions={
+          user.isAdmin ? (
+            <>
+              {importAction}
+              <CreateProjectDialog />
+            </>
+          ) : null
+        }
+      />
       <Tabs value={view} onValueChange={(next) => router.replace(viewHref(next as View))}>
         <TabsList>
           <TabsTrigger value="active">{t('active')}</TabsTrigger>
@@ -122,8 +136,9 @@ export function ProjectListPage() {
                     </EmptyDescription>
                   </EmptyHeader>
                   {view === 'active' && user.isAdmin ? (
-                    <EmptyContent>
+                    <EmptyContent className="flex-row flex-wrap justify-center">
                       <CreateProjectDialog />
+                      {importAction}
                     </EmptyContent>
                   ) : null}
                 </Empty>

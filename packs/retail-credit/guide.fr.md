@@ -15,15 +15,14 @@ sont en FCFA (XAF), sans décimales.
 
 ## L'importer
 
-```bash
-STUDIO_URL=https://donka.banque.example DONKA_EMAIL=vous@banque.example DONKA_PASSWORD='...' \
-scripts/import-pack.sh packs/retail-credit
-```
+Dans Studio, **Projets → Depuis un pack → Crédit aux particuliers**, puis choisissez le
+nom et la clé du projet. Cela crée un projet avec deux décisions, une première version de chacune
+et 8 scénarios de test, tous réussis. C'est votre projet : modifiez tout. Pour démarrer un autre
+produit à partir du même pack, importez-le de nouveau sous une autre clé, p. ex.
+`avance-salaire`.
 
-Cela crée le projet `retail-credit` avec deux décisions, une première version de chacune et 8
-scénarios de test, tous réussis. C'est votre projet : modifiez tout. Pour démarrer un autre
-produit à partir du même pack, importez-le de nouveau sous une autre clé :
-`PROJECT_KEY=avance-salaire PROJECT_NAME="Avance sur salaire" scripts/import-pack.sh packs/retail-credit`.
+Depuis un script, `scripts/import-pack.sh packs/retail-credit` fait de même (voir le
+[README des packs](../README.md)).
 
 ## Ce qu'elle lit
 

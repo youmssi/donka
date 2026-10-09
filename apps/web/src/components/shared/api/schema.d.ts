@@ -164,6 +164,80 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/packs': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The packs this installation offers (`DONKA_PACKS_DIR`), by key. */
+    get: operations['list'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/packs/import': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * A new project from a pack file (administrators), e.g. one exported by another
+     *     installation. The key and name of the new project are in the query string.
+     */
+    post: operations['import_file'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/packs/inspect': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Reads a pack file and says what it holds, without importing it. */
+    post: operations['inspect'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/packs/{key}/import': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * A new project from a pack of the catalogue (administrators). The importer becomes its
+     *     only owner; the decisions get a first version, which runs the pack's scenarios.
+     */
+    post: operations['import'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/projects': {
     parameters: {
       query?: never;
@@ -643,6 +717,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/projects/{project_id}/duplicate': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * A new project with this project's decisions, scenarios and decision-log settings
+     *     (administrators who are members). Releases, tokens, records and members stay behind.
+     */
+    post: operations['duplicate'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/projects/{project_id}/environments': {
     parameters: {
       query?: never;
@@ -733,6 +827,23 @@ export interface paths {
     post?: never;
     /** Revokes a Runtime token (owners); the environment's release is published again without it. */
     delete: operations['revoke_token'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/export': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The project as a pack file another team or installation imports (owners). */
+    get: operations['export'];
+    put?: never;
+    post?: never;
+    delete?: never;
     options?: never;
     head?: never;
     patch?: never;
@@ -1100,6 +1211,8 @@ export interface components {
       | 'project.updated'
       | 'project.archived'
       | 'project.restored'
+      | 'project.exported'
+      | 'project.duplicated'
       | 'member.added'
       | 'member.role_changed'
       | 'member.removed'
@@ -1432,6 +1545,15 @@ export interface components {
     };
     /** @enum {string} */
     DeploymentStatusResponse: 'pending' | 'retrying' | 'failed' | 'published' | 'superseded';
+    DuplicateProjectRequest: {
+      key: string;
+      name: string;
+      /**
+       * Format: uuid
+       * @description Copy the versions this release froze; each decision's current draft when absent.
+       */
+      releaseId?: string | null;
+    };
     EnvironmentListResponse: {
       items: components['schemas']['EnvironmentResponse'][];
     };
@@ -1494,6 +1616,11 @@ export interface components {
       /** Format: uuid */
       id: string;
     };
+    ImportedResponse: {
+      project: components['schemas']['ProjectResponse'];
+      /** @description How the scenarios went on the new project's first versions. */
+      tests: components['schemas']['TestSummaryResponse'];
+    };
     InvitationRequest: {
       email: string;
       isAdmin?: boolean;
@@ -1529,6 +1656,10 @@ export interface components {
      * @enum {string}
      */
     Locale: 'en' | 'fr';
+    LocalizedText: {
+      en: string;
+      fr: string;
+    };
     LogTokenListResponse: {
       items: components['schemas']['LogTokenResponse'][];
     };
@@ -1572,11 +1703,36 @@ export interface components {
       expected?: unknown;
       path: string;
     };
+    /** @description The key and name of the new project. */
+    NewProjectFields: {
+      key: string;
+      name: string;
+    };
     /** @description The version each bump would give the next release. */
     NextVersionsResponse: {
       major: string;
       minor: string;
       patch: string;
+    };
+    PackListResponse: {
+      items: components['schemas']['PackResponse'][];
+    };
+    PackResponse: {
+      /** @description ISO currency code of the amounts, e.g. `XAF`. */
+      currency?: string | null;
+      /** @description Decision keys, a decision another one calls before it. */
+      decisions: string[];
+      description: components['schemas']['LocalizedText'];
+      /** @description The decision a caller asks for. */
+      entry?: string | null;
+      key: string;
+      /** @description ISO country codes of the market the policy was written for, e.g. `CM`. */
+      market?: string | null;
+      name: components['schemas']['LocalizedText'];
+      /** @description Test scenarios the pack carries. */
+      scenarios: number;
+      /** @description The pack's own version, e.g. `1.2`. */
+      version?: string | null;
     };
     PasswordResetRequest: {
       email: string;
@@ -2386,6 +2542,211 @@ export interface operations {
         content: {
           /** @example ok */
           'text/plain': string;
+        };
+      };
+    };
+  };
+  list: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PackListResponse'];
+        };
+      };
+      /** @description Not signed in (UNAUTHENTICATED) */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  import_file: {
+    parameters: {
+      query: {
+        /** @description Lowercase letters, digits and single hyphens, starting with a letter. Cannot change later. */
+        key: string;
+        name: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description A pack file (zip, at most 5 MB) */
+    requestBody?: {
+      content: {
+        'application/zip': unknown;
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ImportedResponse'];
+        };
+      };
+      /** @description Invalid key or name (INVALID_REQUEST) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Not an administrator (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Key already used (PROJECT_KEY_TAKEN) */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Larger than 5 MB (PACK_TOO_LARGE) */
+      413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Not a usable pack; why in details.reason (INVALID_PACK) */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  inspect: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description A pack file (zip, at most 5 MB) */
+    requestBody?: {
+      content: {
+        'application/zip': unknown;
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PackResponse'];
+        };
+      };
+      /** @description Larger than 5 MB (PACK_TOO_LARGE) */
+      413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Not a usable pack; why in details.reason (INVALID_PACK) */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  import: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description The pack's key, e.g. `retail-credit`. */
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['NewProjectFields'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ImportedResponse'];
+        };
+      };
+      /** @description Invalid key or name (INVALID_REQUEST) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Not an administrator (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description No pack with this key (PACK_NOT_FOUND) */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Key already used (PROJECT_KEY_TAKEN) */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
         };
       };
     };
@@ -3953,6 +4314,76 @@ export interface operations {
       };
     };
   };
+  duplicate: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['DuplicateProjectRequest'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ImportedResponse'];
+        };
+      };
+      /** @description Invalid key or name (INVALID_REQUEST) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Not an administrator (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or RELEASE_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Key already used (PROJECT_KEY_TAKEN) */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Nothing to copy (INVALID_PACK) */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
   environments: {
     parameters: {
       query?: never;
@@ -4265,6 +4696,58 @@ export interface operations {
       };
       /** @description PROJECT_ARCHIVED */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  export: {
+    parameters: {
+      query?: {
+        /** @description Export the versions this release froze; each decision's current draft when absent. */
+        releaseId?: string;
+      };
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The pack file, `<key>.donka-pack.zip` */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/zip': unknown;
+        };
+      };
+      /** @description Not an owner (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or RELEASE_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Nothing to export (INVALID_PACK) */
+      422: {
         headers: {
           [name: string]: unknown;
         };

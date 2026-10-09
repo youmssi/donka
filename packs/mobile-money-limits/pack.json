@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "key": "mobile-money-limits",
+  "name": {
+    "en": "Mobile money tiered limits",
+    "fr": "Plafonds mobile money par niveau"
+  },
+  "description": {
+    "en": "Allows or declines a mobile money transaction against the wallet's KYC tier, for the CEMAC, amounts in XAF: balance, per-transaction, daily and monthly limits, cross-border transfers, fees, and the tier that would allow it.",
+    "fr": "Autorise ou refuse une opération mobile money selon le niveau KYC du portefeuille, pour la CEMAC, montants en XAF : plafonds de solde, par opération, journalier et mensuel, transferts transfrontaliers, frais, et le niveau qui l'autoriserait."
+  },
+  "version": "1.0",
+  "market": "CM",
+  "currency": "XAF",
+  "entry": "transaction-limits",
+  "decisions": [
+    "transaction-limits"
+  ],
+  "decisionLog": {
+    "outcomeField": "decision",
+    "redactedFields": []
+  }
+}
