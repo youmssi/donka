@@ -12,6 +12,7 @@ pub mod publish_worker;
 pub mod purge_worker;
 pub mod rate_limit;
 pub mod request_id;
+pub mod reseal;
 pub mod routes;
 pub mod telemetry;
 pub mod web;

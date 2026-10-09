@@ -99,6 +99,37 @@ fn assemble(
     explainer: Option<donka_explain::Explainer>,
     auth_limits: AuthLimits,
 ) -> TestApp {
+    let cipher = Cipher::from_base64(DECISION_LOG_KEY).unwrap();
+    assemble_with_cipher(db, runtime, base, web_dir, explainer, auth_limits, cipher)
+}
+
+/// An app whose decision log seals with `current` and also opens records sealed
+/// with `previous` (a key rotation, DNK-40).
+pub fn with_decision_log_keys(db: PgPool, current: &str, previous: &[&str]) -> TestApp {
+    let cipher = Cipher::from_base64(current)
+        .unwrap()
+        .with_previous(previous.iter().copied())
+        .unwrap();
+    assemble_with_cipher(
+        db,
+        Arc::new(ZenRuntime::new(1)),
+        BASE,
+        None,
+        None,
+        generous_limits(),
+        cipher,
+    )
+}
+
+fn assemble_with_cipher(
+    db: PgPool,
+    runtime: Arc<dyn DecisionRuntime>,
+    base: &str,
+    web_dir: Option<&std::path::Path>,
+    explainer: Option<donka_explain::Explainer>,
+    auth_limits: AuthLimits,
+    cipher: Cipher,
+) -> TestApp {
     let clock = Arc::new(ManualClock::new(
         Utc.with_ymd_and_hms(2026, 9, 28, 9, 0, 0).unwrap(),
     ));
@@ -122,7 +153,7 @@ fn assemble(
     let decision_log = DecisionLog::new(
         db.clone(),
         clock.clone(),
-        Arc::new(Cipher::from_base64(DECISION_LOG_KEY).unwrap()),
+        Arc::new(cipher),
         releases.clone(),
         runtime.clone(),
         chrono::Duration::days(RETENTION_DAYS),

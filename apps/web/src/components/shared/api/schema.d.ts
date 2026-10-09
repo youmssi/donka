@@ -1122,6 +1122,7 @@ export interface components {
       | 'decision_record.viewed'
       | 'decision_record.replayed'
       | 'decision_log.purged'
+      | 'decision_log.resealed'
       | 'decision_log.settings_updated'
       | 'decision_log_token.issued'
       | 'decision_log_token.revoked'

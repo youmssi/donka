@@ -2,16 +2,19 @@
 //!
 //! AES-256-GCM with a fresh random nonce per record, and the record id as
 //! associated data: a payload copied onto another record does not decrypt.
-//! The key comes from `DONKA_DECISION_LOG_KEY`; each record names the key it
-//! was sealed with (`key_id`, the start of the key's SHA-256), so a later key
-//! rotation can tell old records from new ones. Losing the key makes the
-//! records unreadable: it belongs in the installation's secret store.
+//! New records are sealed with `DONKA_DECISION_LOG_KEY`. Each record names the
+//! key it was sealed with (`key_id`, the start of the key's SHA-256), so after a
+//! rotation (DNK-40) the keys listed in `DONKA_DECISION_LOG_PREVIOUS_KEYS` still
+//! open the records sealed before, until they are re-sealed. Losing a key still
+//! in use makes its records unreadable: keys belong in the installation's
+//! secret store.
 
 use aes_gcm::aead::{Aead, KeyInit, Payload};
 use aes_gcm::{Aes256Gcm, Key, Nonce};
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use sha2::{Digest, Sha256};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 const KEY_BYTES: usize = 32;
@@ -37,37 +40,73 @@ pub struct Sealed {
     pub ciphertext: Vec<u8>,
 }
 
+/// The current key, which seals, and the previous ones, which only open.
 pub struct Cipher {
-    aead: Aes256Gcm,
     key_id: String,
+    keys: HashMap<String, Aes256Gcm>,
 }
 
-// Neither the key nor anything derived from it beyond its public id is shown.
+// Neither a key nor anything derived from it beyond its public id is shown.
 impl std::fmt::Debug for Cipher {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut previous: Vec<&String> =
+            self.keys.keys().filter(|id| **id != self.key_id).collect();
+        previous.sort();
         f.debug_struct("Cipher")
             .field("key_id", &self.key_id)
+            .field("previous", &previous)
             .finish()
     }
+}
+
+/// A key's public id and its cipher, from 32 random bytes in base64.
+fn decode(key: &str) -> Result<(String, Aes256Gcm), CipherError> {
+    let bytes = STANDARD
+        .decode(key.trim())
+        .map_err(|_| CipherError::InvalidKey)?;
+    if bytes.len() != KEY_BYTES {
+        return Err(CipherError::InvalidKey);
+    }
+    let key_id = Sha256::digest(&bytes)[..8]
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    Ok((key_id, Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&bytes))))
 }
 
 impl Cipher {
     /// From the base64 value of `DONKA_DECISION_LOG_KEY`.
     pub fn from_base64(key: &str) -> Result<Self, CipherError> {
-        let bytes = STANDARD
-            .decode(key.trim())
-            .map_err(|_| CipherError::InvalidKey)?;
-        if bytes.len() != KEY_BYTES {
-            return Err(CipherError::InvalidKey);
-        }
-        let key_id = Sha256::digest(&bytes)[..8]
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect();
+        let (key_id, aead) = decode(key)?;
         Ok(Self {
-            aead: Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&bytes)),
+            keys: HashMap::from([(key_id.clone(), aead)]),
             key_id,
         })
+    }
+
+    /// Adds the keys of `DONKA_DECISION_LOG_PREVIOUS_KEYS`: they open the records
+    /// sealed with them, and never seal.
+    pub fn with_previous<'a>(
+        mut self,
+        keys: impl IntoIterator<Item = &'a str>,
+    ) -> Result<Self, CipherError> {
+        for key in keys {
+            let (key_id, aead) = decode(key)?;
+            self.keys.entry(key_id).or_insert(aead);
+        }
+        Ok(self)
+    }
+
+    /// The ids of the previous keys, sorted.
+    pub fn previous_key_ids(&self) -> Vec<String> {
+        let mut ids: Vec<String> = self
+            .keys
+            .keys()
+            .filter(|id| **id != self.key_id)
+            .cloned()
+            .collect();
+        ids.sort();
+        ids
     }
 
     pub fn key_id(&self) -> &str {
@@ -77,8 +116,7 @@ impl Cipher {
     pub fn seal(&self, record: Uuid, plaintext: &[u8]) -> Result<Sealed, CipherError> {
         let mut nonce = [0u8; NONCE_BYTES];
         getrandom::fill(&mut nonce).map_err(|_| CipherError::Random)?;
-        let ciphertext = self
-            .aead
+        let ciphertext = self.keys[&self.key_id]
             .encrypt(
                 Nonce::from_slice(&nonce),
                 Payload {
@@ -95,21 +133,21 @@ impl Cipher {
     }
 
     pub fn open(&self, record: Uuid, sealed: &Sealed) -> Result<Vec<u8>, CipherError> {
-        if sealed.key_id != self.key_id {
-            return Err(CipherError::UnknownKey(sealed.key_id.clone()));
-        }
+        let aead = self
+            .keys
+            .get(&sealed.key_id)
+            .ok_or_else(|| CipherError::UnknownKey(sealed.key_id.clone()))?;
         if sealed.nonce.len() != NONCE_BYTES {
             return Err(CipherError::Corrupt);
         }
-        self.aead
-            .decrypt(
-                Nonce::from_slice(&sealed.nonce),
-                Payload {
-                    msg: &sealed.ciphertext,
-                    aad: record.as_bytes(),
-                },
-            )
-            .map_err(|_| CipherError::Corrupt)
+        aead.decrypt(
+            Nonce::from_slice(&sealed.nonce),
+            Payload {
+                msg: &sealed.ciphertext,
+                aad: record.as_bytes(),
+            },
+        )
+        .map_err(|_| CipherError::Corrupt)
     }
 }
 
@@ -139,6 +177,43 @@ mod tests {
             other.open(record, &sealed),
             Err(CipherError::UnknownKey(_))
         ));
+    }
+
+    #[test]
+    fn previous_keys_open_their_records_and_never_seal() {
+        let old = Cipher::from_base64(KEY).unwrap();
+        let record = Uuid::new_v4();
+        let sealed = old.seal(record, b"before the rotation").unwrap();
+
+        let new_key = STANDARD.encode([9u8; 32]);
+        let rotated = Cipher::from_base64(&new_key)
+            .unwrap()
+            .with_previous([KEY, KEY, new_key.as_str()])
+            .unwrap();
+        assert_eq!(rotated.previous_key_ids(), vec![old.key_id().to_owned()]);
+        assert_eq!(
+            rotated.open(record, &sealed).unwrap(),
+            b"before the rotation"
+        );
+
+        let resealed = rotated.seal(record, b"after").unwrap();
+        assert_eq!(resealed.key_id, rotated.key_id());
+        assert_ne!(resealed.key_id, old.key_id());
+        assert!(matches!(
+            old.open(record, &resealed),
+            Err(CipherError::UnknownKey(_))
+        ));
+
+        assert_eq!(
+            Cipher::from_base64(&new_key)
+                .unwrap()
+                .with_previous(["not a key"])
+                .unwrap_err(),
+            CipherError::InvalidKey
+        );
+        let shown = format!("{rotated:?}");
+        assert!(!shown.contains(KEY) && !shown.contains(&new_key));
+        assert!(shown.contains(old.key_id()));
     }
 
     #[test]

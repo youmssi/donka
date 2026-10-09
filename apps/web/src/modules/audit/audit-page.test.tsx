@@ -98,6 +98,20 @@ it('tells an owner what changed, who did it and when', async () => {
   expect(document.querySelector('time')).toHaveAttribute('dateTime', '2026-09-29T11:00:00Z');
 });
 
+it('says what Studio did on its own, such as re-sealing records after a key rotation', async () => {
+  const resealed: AuditEvent = {
+    id: 6,
+    occurredAt: '2026-10-09T08:00:00Z',
+    actor: null,
+    action: 'decision_log.resealed',
+    details: { records: 500, fromKeys: ['a1b2c3d4e5f60718'], toKey: '0f1e2d3c4b5a6978' },
+  };
+  listAuditMock.mockResolvedValue({ ok: true, data: { items: [resealed], total: 1 } });
+  renderWithProviders(<ProjectAuditPage />);
+  expect(await screen.findByText('Re-sealed 500 decision records with the current key')).toBeInTheDocument();
+  expect(screen.getByRole('cell', { name: 'Studio' })).toBeInTheDocument();
+});
+
 it('filters from the address and exports the same events', async () => {
   search.params = new URLSearchParams({ p: 'retail', actor: 'u-2', action: 'member.added', from: '2026-09-01' });
   renderWithProviders(<ProjectAuditPage />);

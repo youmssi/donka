@@ -55,6 +55,10 @@ pub struct Config {
     /// Base64 of the 32-byte key decision records are encrypted with. A secret:
     /// never log it, and keep it safe (records cannot be read without it).
     pub decision_log_key: String,
+    /// Keys records were sealed with before a rotation (DNK-40): they open those
+    /// records until `donka-app decision-log reseal` re-seals them, and never
+    /// seal. Secrets, like the current key.
+    pub decision_log_previous_keys: Vec<String>,
     /// Decision records older than this are purged.
     pub decision_log_retention_days: u32,
     /// The customer's LLM endpoint that explains logged decisions; `None`
@@ -163,6 +167,17 @@ impl Config {
         )?;
         donka_decision_log::Cipher::from_base64(&decision_log_key)
             .map_err(|err| invalid("DONKA_DECISION_LOG_KEY", &err.to_string()))?;
+        // Separated by commas, spaces or new lines.
+        let decision_log_previous_keys: Vec<String> = get("DONKA_DECISION_LOG_PREVIOUS_KEYS")
+            .unwrap_or_default()
+            .split(|c: char| c == ',' || c.is_whitespace())
+            .filter(|key| !key.is_empty())
+            .map(str::to_owned)
+            .collect();
+        for key in &decision_log_previous_keys {
+            donka_decision_log::Cipher::from_base64(key)
+                .map_err(|err| invalid("DONKA_DECISION_LOG_PREVIOUS_KEYS", &err.to_string()))?;
+        }
 
         let explain = explain_settings(&get)?;
 
@@ -197,6 +212,7 @@ impl Config {
             storage_options,
             publish_max_attempts: positive(&get, "DONKA_PUBLISH_MAX_ATTEMPTS")?.unwrap_or(10),
             decision_log_key,
+            decision_log_previous_keys,
             // Five years, a common minimum for credit files.
             decision_log_retention_days: positive(&get, "DONKA_DECISION_LOG_RETENTION_DAYS")?
                 .unwrap_or(1825),
@@ -415,6 +431,24 @@ mod tests {
         );
         let config = load(&[("DONKA_DECISION_LOG_RETENTION_DAYS", "365")]).unwrap();
         assert_eq!(config.decision_log_retention_days, 365);
+    }
+
+    #[test]
+    fn previous_decision_log_keys_are_optional_and_checked() {
+        assert!(load(&[]).unwrap().decision_log_previous_keys.is_empty());
+        let (a, b) = (
+            "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=",
+            "AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=",
+        );
+        let config =
+            load(&[("DONKA_DECISION_LOG_PREVIOUS_KEYS", &format!(" {a},\n{b} "))]).unwrap();
+        assert_eq!(config.decision_log_previous_keys, vec![a, b]);
+        assert_eq!(
+            load(&[("DONKA_DECISION_LOG_PREVIOUS_KEYS", &format!("{a},nope"))])
+                .unwrap_err()
+                .var,
+            "DONKA_DECISION_LOG_PREVIOUS_KEYS"
+        );
     }
 
     #[test]

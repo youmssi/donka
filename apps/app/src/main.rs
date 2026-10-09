@@ -16,6 +16,18 @@ use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // No argument runs Studio; `decision-log reseal` re-seals the decision log
+    // after a key rotation and exits.
+    let command: Vec<String> = std::env::args().skip(1).collect();
+    let reseal = match command.as_slice() {
+        [] => false,
+        [group, action] if group == "decision-log" && action == "reseal" => true,
+        _ => exit_with(&format!(
+            "unknown command `{}`. Commands: decision-log reseal (re-seal decision records \
+             with the current key after a rotation); none to run Studio.",
+            command.join(" ")
+        )),
+    };
     // One clear line for operators; a bad setting is not a crash worth a backtrace.
     let config = match Config::from_env() {
         Ok(config) => config,
@@ -78,7 +90,9 @@ async fn main() -> anyhow::Result<()> {
     );
     let audit = AuditLog::new(db.clone());
     let cipher = Cipher::from_base64(&config.decision_log_key)
-        .unwrap_or_else(|err| exit_with(&format!("DONKA_DECISION_LOG_KEY {err}")));
+        .unwrap_or_else(|err| exit_with(&format!("DONKA_DECISION_LOG_KEY {err}")))
+        .with_previous(config.decision_log_previous_keys.iter().map(String::as_str))
+        .unwrap_or_else(|err| exit_with(&format!("DONKA_DECISION_LOG_PREVIOUS_KEYS {err}")));
     let decision_log = DecisionLog::new(
         db.clone(),
         clock,
@@ -87,6 +101,14 @@ async fn main() -> anyhow::Result<()> {
         runtime.clone(),
         Duration::days(config.decision_log_retention_days.into()),
     );
+
+    if reseal {
+        match donka_app::reseal::run(&decision_log, &mut std::io::stderr()).await {
+            Ok(_) => return Ok(()),
+            Err(err) => exit_with(&err),
+        }
+    }
+    warn_about_previous_keys(&decision_log).await;
 
     if let Some(email) = &config.bootstrap_admin_email {
         match identity.bootstrap_admin(email, config.default_locale).await {
@@ -191,4 +213,35 @@ async fn shutdown_signal() {
 fn exit_with(message: &str) -> ! {
     eprintln!("{message}");
     std::process::exit(2);
+}
+
+/// After a rotation: a record sealed with a key Studio no longer holds cannot be
+/// read, and a previous key no record uses any more can go.
+async fn warn_about_previous_keys(decision_log: &DecisionLog) {
+    let usage = match decision_log.previous_key_usage().await {
+        Ok(usage) => usage,
+        Err(err) => return tracing::warn!(%err, "cannot check which keys seal decision records"),
+    };
+    for key in usage.iter().filter(|key| !key.configured) {
+        tracing::warn!(
+            key_id = %key.key_id,
+            records = key.records,
+            "decision records are sealed with a key that is not configured: they cannot be read \
+             until it is in DONKA_DECISION_LOG_PREVIOUS_KEYS"
+        );
+    }
+    for key in usage.iter().filter(|key| key.configured) {
+        if key.records > 0 {
+            tracing::info!(
+                key_id = %key.key_id,
+                records = key.records,
+                "decision records are sealed with a previous key: run `donka-app decision-log reseal`"
+            );
+        } else {
+            tracing::info!(
+                key_id = %key.key_id,
+                "no decision record uses this previous key: remove it from DONKA_DECISION_LOG_PREVIOUS_KEYS"
+            );
+        }
+    }
 }
