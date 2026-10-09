@@ -997,5 +997,110 @@
     "export": "Export pack file",
     "exporting": "Exporting…",
     "exported": "{file} downloaded."
+  },
+  "tour": {
+    "next": "Next",
+    "previous": "Back",
+    "done": "Done",
+    "skip": "Skip the tour",
+    "progress": "{current} of {total}"
+  },
+  "help": {
+    "label": "Help",
+    "tour": "Show the tour of this page",
+    "noTour": "No tour on this page",
+    "getStarted": "Get started checklist"
+  },
+  "onboarding": {
+    "title": "Get started",
+    "description": "From an empty Studio to a decision your systems call, in five steps.",
+    "progress": "{done} of {total} done.",
+    "done": "(done)",
+    "toDo": "(to do)",
+    "project": {
+      "title": "Start a project from a starter pack",
+      "description": "A pack brings decisions, test scenarios and a guide you adapt to your policy.",
+      "askAdmin": "Ask an administrator to start a project from a pack and add you to it."
+    },
+    "simulation": {
+      "title": "Run a simulation",
+      "description": "Open a decision, open the Simulator panel and run it with an input.",
+      "action": "Open the decisions of {project}"
+    },
+    "version": {
+      "title": "Save a version",
+      "description": "A version freezes the decision and runs its test scenarios.",
+      "action": "Open the decisions of {project}"
+    },
+    "staging": {
+      "title": "Release it to staging",
+      "description": "Create a release, then deploy it to staging from Environments.",
+      "action": "Open the releases of {project}"
+    },
+    "token": {
+      "title": "Create a Runtime token",
+      "description": "Your systems call the Runtime with it to get decisions from staging.",
+      "action": "Open the environments of {project}"
+    }
+  },
+  "tours": {
+    "editor": {
+      "graph": {
+        "title": "Your decision, as a graph",
+        "body": "Data flows from the Request on the left through tables and expressions to the Response. Open the Simulator panel on the right to run it with an input."
+      },
+      "status": {
+        "title": "Saved as you go",
+        "body": "Every change is kept as a draft. The chip shows the version the draft started from."
+      },
+      "fields": {
+        "title": "Input fields",
+        "body": "What callers must send: names, types, labels. The Runtime refuses a request that breaks them."
+      },
+      "history": {
+        "title": "History",
+        "body": "Every saved version, its test results, and a way to compare or restore one."
+      },
+      "save": {
+        "title": "Save a version",
+        "body": "A version freezes the decision and runs its test scenarios. Releases are made of versions."
+      }
+    },
+    "releases": {
+      "new": {
+        "title": "New release",
+        "body": "A release freezes the latest version of every decision of the project, under a semantic version."
+      },
+      "list": {
+        "title": "Releases never change",
+        "body": "Each one shows what it froze and where it is live. Open one to see its decisions and tests."
+      },
+      "deploy": {
+        "title": "Deploy from Environments",
+        "body": "Staging gets a release in one click; the Runtime picks it up within seconds."
+      },
+      "approval": {
+        "title": "Production needs a second person",
+        "body": "Ask for production from Environments: another owner reviews what changes and approves it."
+      }
+    },
+    "environments": {
+      "staging": {
+        "title": "Staging",
+        "body": "What your test systems call. It shows the release live now and any deployment on its way."
+      },
+      "deploy": {
+        "title": "Deploy a release",
+        "body": "Choose a release and deploy it to staging."
+      },
+      "tokens": {
+        "title": "Runtime tokens",
+        "body": "Your systems call the Runtime with a token for one environment. It is shown once: keep it in your secret store."
+      },
+      "production": {
+        "title": "Production",
+        "body": "Only the release live on staging can go to production, once another owner approves it."
+      }
+    }
   }
 }

@@ -33,9 +33,10 @@ const viewHref = (view: View, offset = 0) => {
 
 /**
  * The projects the signed-in user belongs to (`?view=archived` for archived ones). `importAction`
- * is another way administrators make a project (from a pack), shown next to New project.
+ * is another way administrators make a project (from a pack), shown next to New project; `intro`
+ * comes above the list (the Get started checklist).
  */
-export function ProjectListPage({ importAction }: { importAction?: ReactNode }) {
+export function ProjectListPage({ importAction, intro }: { importAction?: ReactNode; intro?: ReactNode }) {
   const t = useTranslations('projects');
   const common = useTranslations('common');
   const user = useCurrentUser();
@@ -99,6 +100,7 @@ export function ProjectListPage({ importAction }: { importAction?: ReactNode }) 
           ) : null
         }
       />
+      {intro}
       <Tabs value={view} onValueChange={(next) => router.replace(viewHref(next as View))}>
         <TabsList>
           <TabsTrigger value="active">{t('active')}</TabsTrigger>
