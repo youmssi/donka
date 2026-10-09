@@ -20,6 +20,14 @@ function retryAfterSeconds(details: unknown): number {
   return 60;
 }
 
+/** Why a pack was refused, as the server words it (the pack's own file and field names). */
+function reason(details: unknown): string | undefined {
+  if (details && typeof details === 'object' && 'reason' in details && typeof details.reason === 'string') {
+    return details.reason;
+  }
+  return undefined;
+}
+
 /** A failed action, in the reader's language, with the reference to quote if they report it. */
 export function ErrorAlert({ error, title, action }: { error: ActionError; title?: string; action?: ReactNode }) {
   const t = useTranslations('errors');
@@ -31,6 +39,9 @@ export function ErrorAlert({ error, title, action }: { error: ActionError; title
       {title ? <AlertTitle>{title}</AlertTitle> : null}
       <AlertDescription>
         <p>{message}</p>
+        {error.code === 'INVALID_PACK' && reason(error.details) ? (
+          <p className="font-mono text-xs break-words">{reason(error.details)}</p>
+        ) : null}
         {error.requestId && REPORTABLE.has(error.code) ? (
           <p className="font-mono text-xs">{t('withRequestId', { requestId: error.requestId })}</p>
         ) : null}

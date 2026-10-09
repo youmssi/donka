@@ -9,13 +9,14 @@ import { useFormContext } from './context';
 export function SubmitButton({
   pendingLabel,
   children,
+  disabled,
   ...props
 }: ComponentProps<typeof Button> & { pendingLabel: string }) {
   const form = useFormContext();
   return (
     <form.Subscribe selector={(state) => state.isSubmitting}>
       {(pending) => (
-        <Button type="submit" disabled={pending} {...props}>
+        <Button type="submit" disabled={pending || disabled} {...props}>
           {pending ? <Spinner /> : null}
           {pending ? pendingLabel : children}
         </Button>

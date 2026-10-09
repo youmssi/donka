@@ -78,7 +78,10 @@
     "EXPLAIN_DECLINED": "Le service d'explication a refusé d'expliquer cette décision.",
     "EXPLAIN_UNAVAILABLE": "Le service d'explication n'a pas répondu. Réessayez dans un instant.",
     "RATE_LIMITED": "Trop de tentatives depuis votre réseau. Réessayez dans {seconds, plural, one {# seconde} other {# secondes}}.",
-    "INVALID_CONTRACT": "Les champs d'entrée ne sont pas utilisables en l'état. Corrigez-les dans Champs d'entrée, puis enregistrez de nouveau la version."
+    "INVALID_CONTRACT": "Les champs d'entrée ne sont pas utilisables en l'état. Corrigez-les dans Champs d'entrée, puis enregistrez de nouveau la version.",
+    "INVALID_PACK": "Ce pack n'est pas utilisable.",
+    "PACK_TOO_LARGE": "Un fichier pack fait 5 Mo au plus.",
+    "PACK_NOT_FOUND": "Cette installation ne propose plus ce pack."
   },
   "validation": {
     "email": "Saisissez une adresse e-mail valide.",
@@ -318,7 +321,9 @@
       "created": "Projet créé",
       "updated": "Détails du projet modifiés",
       "archived": "Projet archivé",
-      "restored": "Projet restauré"
+      "restored": "Projet restauré",
+      "exported": "Projet exporté",
+      "duplicated": "Projet dupliqué"
     },
     "member": {
       "added": "Membre ajouté",
@@ -403,7 +408,15 @@
     "decisionLogSettingsCleared": "A retiré le champ de résultat du journal",
     "decisionRecordExplained": "A demandé l'explication de la décision {key} {reference}",
     "ciTokenIssued": "A créé le jeton CI « {name} »",
-    "ciTokenRevoked": "A révoqué le jeton CI « {name} »"
+    "ciTokenRevoked": "A révoqué le jeton CI « {name} »",
+    "projectCreatedFromPack": "A créé le projet « {name} » depuis le pack {pack}",
+    "projectCreatedFromPackVersion": "A créé le projet « {name} » depuis le pack {pack} {version}",
+    "projectCreatedFromProject": "A créé le projet « {name} » en copiant les brouillons de {key}",
+    "projectCreatedFromRelease": "A créé le projet « {name} » en copiant {key}, version publiée {release}",
+    "projectExported": "A exporté les brouillons dans un fichier pack",
+    "projectExportedRelease": "A exporté la version publiée {release} dans un fichier pack",
+    "projectDuplicated": "A copié les brouillons dans le nouveau projet {key}",
+    "projectDuplicatedRelease": "A copié la version publiée {release} dans le nouveau projet {key}"
   },
   "ui": {
     "close": "Fermer",
@@ -952,5 +965,37 @@
     "unread": "{path} est obligatoire mais aucune règle ne le lit : les appelants l'envoient pour rien.",
     "review": "Revoir les champs d'entrée",
     "dismiss": "Fermer"
+  },
+  "packs": {
+    "fromPack": "Depuis un pack",
+    "importTitle": "Nouveau projet depuis un pack",
+    "importDescription": "Partez d'une politique qui fonctionne déjà : ses décisions, ses scénarios de test et les réglages du journal des décisions. Le projet vous appartient ; une nouvelle version du pack ne l'écrase jamais.",
+    "catalogue": "Catalogue",
+    "file": "Fichier pack",
+    "emptyTitle": "Aucun pack dans cette installation",
+    "empty": "Votre administrateur n'a pas configuré de catalogue. Importez plutôt un fichier pack.",
+    "fileLabel": "Fichier pack",
+    "fileHint": "Un .zip exporté d'un projet Donka ou d'une autre installation, 5 Mo au plus.",
+    "version": "Version {version}",
+    "decisionCount": "{count, plural, one {# décision} other {# décisions}}",
+    "scenarioCount": "{count, plural, one {# scénario} other {# scénarios}}",
+    "import": "Créer le projet",
+    "importing": "Création…",
+    "imported": "{name} a été créé. {passed, plural, one {# scénario de test réussit} other {# scénarios de test réussissent}}.",
+    "importedFailing": "{name} a été créé, mais {failing, plural, one {# scénario de test échoue} other {# scénarios de test échouent}}. Consultez l'historique des décisions.",
+    "copyTitle": "Copier ou exporter",
+    "copyDescription": "Lancez un autre produit à partir de ce projet, ou confiez-le à une autre équipe ou installation sous forme de fichier pack. Les versions publiées, jetons, décisions enregistrées et membres ne sont jamais copiés.",
+    "source": "Copier depuis",
+    "drafts": "Brouillons actuels",
+    "release": "Version publiée {version}",
+    "sourceHint": "Les brouillons tels qu'ils sont, ou les versions figées par une publication.",
+    "duplicate": "Dupliquer",
+    "duplicating": "Duplication…",
+    "duplicateTitle": "Dupliquer {name}",
+    "duplicateDescription": "Un nouveau projet avec les mêmes décisions, scénarios de test et réglages du journal des décisions. Vous en êtes le seul propriétaire.",
+    "duplicated": "{name} a été créé. {passed, plural, one {# scénario de test réussit} other {# scénarios de test réussissent}}.",
+    "export": "Exporter le fichier pack",
+    "exporting": "Export…",
+    "exported": "{file} téléchargé."
   }
 }

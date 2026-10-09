@@ -74,6 +74,12 @@ function useProjectChanged(id: string) {
   };
 }
 
+/** Refreshes every project list, after a project is made elsewhere (from a pack, a copy). */
+export function useRefreshProjects() {
+  const queryClient = useQueryClient();
+  return () => void queryClient.invalidateQueries({ queryKey: keys.lists });
+}
+
 export function useCreateProject() {
   const queryClient = useQueryClient();
   return useMutation({

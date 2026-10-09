@@ -3,5 +3,14 @@ export { ProjectFrame } from './project-frame';
 export { ProjectListPage } from './project-list';
 export { ProjectMembersPage } from './project-members';
 export { ProjectSettingsPage } from './project-settings';
-export type { Project, ProjectSummary, Role } from './schema';
-export { useMembers, useOpenProject, useProjectList } from './useProjects';
+export {
+  KEY_RULES,
+  keyFromName,
+  NAME_MAX,
+  newProjectSchema,
+  type NewProjectValues,
+  type Project,
+  type ProjectSummary,
+  type Role,
+} from './schema';
+export { useMembers, useOpenProject, useProjectList, useRefreshProjects } from './useProjects';

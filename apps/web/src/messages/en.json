@@ -78,7 +78,10 @@
     "EXPLAIN_DECLINED": "The explanation service declined to explain this decision.",
     "EXPLAIN_UNAVAILABLE": "The explanation service did not answer. Try again in a moment.",
     "RATE_LIMITED": "Too many attempts from your network. Try again in {seconds, plural, one {# second} other {# seconds}}.",
-    "INVALID_CONTRACT": "The input fields cannot be used as they are. Fix them in Input fields, then save the version again."
+    "INVALID_CONTRACT": "The input fields cannot be used as they are. Fix them in Input fields, then save the version again.",
+    "INVALID_PACK": "This pack cannot be used.",
+    "PACK_TOO_LARGE": "A pack file is at most 5 MB.",
+    "PACK_NOT_FOUND": "This installation no longer offers this pack."
   },
   "validation": {
     "email": "Enter a valid email address.",
@@ -318,7 +321,9 @@
       "created": "Project created",
       "updated": "Project details changed",
       "archived": "Project archived",
-      "restored": "Project restored"
+      "restored": "Project restored",
+      "exported": "Project exported",
+      "duplicated": "Project duplicated"
     },
     "member": {
       "added": "Member added",
@@ -403,7 +408,15 @@
     "decisionLogSettingsCleared": "Removed the decision log's outcome field",
     "decisionRecordExplained": "Asked for an explanation of the {key} decision {reference}",
     "ciTokenIssued": "Created the CI token “{name}”",
-    "ciTokenRevoked": "Revoked the CI token “{name}”"
+    "ciTokenRevoked": "Revoked the CI token “{name}”",
+    "projectCreatedFromPack": "Created the project “{name}” from the pack {pack}",
+    "projectCreatedFromPackVersion": "Created the project “{name}” from the pack {pack} {version}",
+    "projectCreatedFromProject": "Created the project “{name}” as a copy of {key}’s drafts",
+    "projectCreatedFromRelease": "Created the project “{name}” as a copy of {key}, release {release}",
+    "projectExported": "Exported the drafts as a pack file",
+    "projectExportedRelease": "Exported release {release} as a pack file",
+    "projectDuplicated": "Copied the drafts to the new project {key}",
+    "projectDuplicatedRelease": "Copied release {release} to the new project {key}"
   },
   "ui": {
     "close": "Close",
@@ -952,5 +965,37 @@
     "unread": "{path} is required but no rule reads it: callers send it for nothing.",
     "review": "Review input fields",
     "dismiss": "Dismiss"
+  },
+  "packs": {
+    "fromPack": "From a pack",
+    "importTitle": "New project from a pack",
+    "importDescription": "Start from a policy that already works: its decisions, test scenarios and decision-log settings. The project is yours to change; a newer pack never overwrites it.",
+    "catalogue": "Catalogue",
+    "file": "Pack file",
+    "emptyTitle": "No packs in this installation",
+    "empty": "Your administrator has not set up a catalogue. Import a pack file instead.",
+    "fileLabel": "Pack file",
+    "fileHint": "A .zip exported from a Donka project or another installation, at most 5 MB.",
+    "version": "Version {version}",
+    "decisionCount": "{count, plural, one {# decision} other {# decisions}}",
+    "scenarioCount": "{count, plural, one {# scenario} other {# scenarios}}",
+    "import": "Create the project",
+    "importing": "Creating…",
+    "imported": "{name} was created. {passed, plural, one {# test scenario passes} other {# test scenarios pass}}.",
+    "importedFailing": "{name} was created, but {failing, plural, one {# test scenario does not pass} other {# test scenarios do not pass}}. Check the decisions' history.",
+    "copyTitle": "Copy or export",
+    "copyDescription": "Start another product from this project, or hand it to another team or installation as a pack file. Releases, tokens, decision records and members are never copied.",
+    "source": "Copy from",
+    "drafts": "Current drafts",
+    "release": "Release {version}",
+    "sourceHint": "The drafts as they are now, or the versions a release froze.",
+    "duplicate": "Duplicate",
+    "duplicating": "Duplicating…",
+    "duplicateTitle": "Duplicate {name}",
+    "duplicateDescription": "A new project with the same decisions, test scenarios and decision-log settings. You become its only owner.",
+    "duplicated": "{name} was created. {passed, plural, one {# test scenario passes} other {# test scenarios pass}}.",
+    "export": "Export pack file",
+    "exporting": "Exporting…",
+    "exported": "{file} downloaded."
   }
 }

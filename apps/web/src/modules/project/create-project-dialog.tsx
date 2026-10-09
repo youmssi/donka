@@ -88,7 +88,7 @@ export function CreateProjectDialog() {
                 name="name"
                 listeners={{
                   onChange: ({ value }) => {
-                    if (!keyEdited) form.setFieldValue('key', keyFromName(value));
+                    if (!keyEdited) form.setFieldValue('key', keyFromName(value), { dontRunListeners: true });
                   },
                 }}
               >

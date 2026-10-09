@@ -40,6 +40,10 @@ export const createProjectSchema = projectDetailsSchema.extend({
 });
 export type CreateProjectValues = z.infer<typeof createProjectSchema>;
 
+/** A project made from a pack or a copy: its description comes with what it is made from. */
+export const newProjectSchema = createProjectSchema.pick({ name: true, key: true });
+export type NewProjectValues = z.infer<typeof newProjectSchema>;
+
 export const addMemberSchema = z.object({
   email: z.string().trim().min(1, 'required').email('email'),
   role: z.enum(['owner', 'editor', 'viewer'] satisfies Role[]),

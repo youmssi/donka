@@ -298,7 +298,16 @@ function useSentence(event: AuditEvent): string {
   const role = (value: string) => (value ? roles(value as Role) : value);
   switch (event.action) {
     case 'project.created':
-      return t('projectCreated', { name: detail(event, 'name') });
+      return createdSentence(t, event);
+    case 'project.exported': {
+      const release = detail(event, 'release');
+      return release ? t('projectExportedRelease', { release }) : t('projectExported');
+    }
+    case 'project.duplicated': {
+      const release = detail(event, 'release');
+      const key = detail(event, 'toKey');
+      return release ? t('projectDuplicatedRelease', { release, key }) : t('projectDuplicated', { key });
+    }
     case 'project.archived':
       return t('projectArchived');
     case 'project.restored':
@@ -391,6 +400,29 @@ function useSentence(event: AuditEvent): string {
     }
     default:
       return actions(event.action);
+  }
+}
+
+/** A project's first event: made from scratch, from a pack, or as a copy of another project. */
+function createdSentence(t: ReturnType<typeof useTranslations<'auditSentences'>>, event: AuditEvent): string {
+  const name = detail(event, 'name');
+  const release = detail(event, 'from', 'release');
+  const version = detail(event, 'from', 'version');
+  switch (detail(event, 'from', 'kind')) {
+    case 'pack': {
+      const pack = detail(event, 'from', 'name');
+      return version
+        ? t('projectCreatedFromPackVersion', { name, pack, version })
+        : t('projectCreatedFromPack', { name, pack });
+    }
+    case 'project': {
+      const key = detail(event, 'from', 'key');
+      return release
+        ? t('projectCreatedFromRelease', { name, key, release })
+        : t('projectCreatedFromProject', { name, key });
+    }
+    default:
+      return t('projectCreated', { name });
   }
 }
 
