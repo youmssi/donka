@@ -82,6 +82,8 @@ function useRunTour() {
         onPopoverRender: (popover) => {
           popover.closeButton.setAttribute('aria-label', t('skip'));
           popover.closeButton.setAttribute('title', t('skip'));
+          // Last in reading order (it stays in its corner), so focus lands on Next, not on Skip.
+          popover.wrapper.appendChild(popover.closeButton);
         },
         // Every way out (Done, the close button, Esc, a click outside) counts as seen, even mid-animation.
         onDestroyStarted: (_element, _step, { driver: running }) => {

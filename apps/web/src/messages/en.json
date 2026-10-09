@@ -1024,7 +1024,7 @@
     },
     "simulation": {
       "title": "Run a simulation",
-      "description": "Open a decision, open the Simulator panel and run it with an input.",
+      "description": "Open a decision, then the Simulator (the play button on the left of the graph), and run it with an input.",
       "action": "Open the decisions of {project}"
     },
     "version": {
@@ -1047,7 +1047,7 @@
     "editor": {
       "graph": {
         "title": "Your decision, as a graph",
-        "body": "Data flows from the Request on the left through tables and expressions to the Response. Open the Simulator panel on the right to run it with an input."
+        "body": "Data flows from the Request through tables and expressions to the Response. The play button in the bar on the left of the graph opens the Simulator, to run it with an input."
       },
       "status": {
         "title": "Saved as you go",

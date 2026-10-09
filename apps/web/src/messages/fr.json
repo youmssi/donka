@@ -1009,7 +1009,7 @@
     "label": "Aide",
     "tour": "Revoir la visite de cette page",
     "noTour": "Pas de visite sur cette page",
-    "getStarted": "Liste Pour commencer"
+    "getStarted": "Liste « Pour commencer »"
   },
   "onboarding": {
     "title": "Pour commencer",
@@ -1024,7 +1024,7 @@
     },
     "simulation": {
       "title": "Lancer une simulation",
-      "description": "Ouvrez une décision, ouvrez le panneau Simulateur et lancez-la avec une entrée.",
+      "description": "Ouvrez une décision, puis le Simulateur (le bouton lecture à gauche du graphe), et lancez-la avec une entrée.",
       "action": "Ouvrir les décisions de {project}"
     },
     "version": {
@@ -1047,7 +1047,7 @@
     "editor": {
       "graph": {
         "title": "Votre décision, sous forme de graphe",
-        "body": "Les données vont de la Requête à gauche, à travers tables et expressions, jusqu'à la Réponse. Ouvrez le panneau Simulateur à droite pour la lancer avec une entrée."
+        "body": "Les données vont de la Requête, à travers tables et expressions, jusqu'à la Réponse. Le bouton lecture dans la barre à gauche du graphe ouvre le Simulateur, pour la lancer avec une entrée."
       },
       "status": {
         "title": "Enregistré au fil de l'eau",
