@@ -253,6 +253,7 @@ pub async fn simulate(
             },
         )
         .await?;
+    state.decisions.record_simulation(&access).await?;
     Ok(Json(SimulateResponse {
         result: evaluation.result,
         trace: evaluation.trace.unwrap_or(Value::Null),

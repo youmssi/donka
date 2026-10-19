@@ -35,6 +35,7 @@ import { useDecision, useDecisionList, useDecisionSaved } from './useDecisions';
 import { useDraft, type DraftStatus } from './useDraft';
 import type { SimulatorRun } from './jdm-graph';
 import { jsonText, ScenarioDialog } from './scenario-dialog';
+import { useEditorTour } from './editor-tour';
 import { HistorySheet, SaveVersionDialog, VersionChip } from './versions';
 
 // antd and the engine's WASM load only here, and only in the browser (ADR-004).
@@ -128,6 +129,8 @@ function Editor({ project, decision, others }: { project: Project; decision: Dec
   const [fieldsOpen, setFieldsOpen] = useState(false);
   const [warnings, setWarnings] = useState<{ number: number; items: ContractWarning[] } | null>(null);
 
+  useEditorTour();
+
   const simulate = useCallback(
     (graph: unknown, context: unknown) => simulateDecision(project.id, decision.id, graph, context),
     [project.id, decision.id],
@@ -140,31 +143,39 @@ function Editor({ project, decision, others }: { project: Project; decision: Dec
           <span className="text-muted-foreground">{folder}</span>
           <span className="font-semibold">{name}</span>
         </h1>
-        <VersionChip {...draft.version} />
-        <SaveStatus status={draft.status} onRetry={draft.retry} />
+        <span data-tour="editor-status" className="flex items-center gap-3">
+          <VersionChip {...draft.version} />
+          <SaveStatus status={draft.status} onRetry={draft.retry} />
+        </span>
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <InputFieldsSheet
-            graph={draft.graph}
-            onChange={draft.change}
-            editable={editable}
-            open={fieldsOpen}
-            onOpenChange={setFieldsOpen}
-          />
-          <HistorySheet
-            projectId={project.id}
-            decision={decision}
-            draft={draft}
-            editable={editable}
-            callable={others}
-            decisionNodeLabels={decisionNodeLabels}
-          />
-          {editable ? (
-            <SaveVersionDialog
+          <span data-tour="editor-fields" className="inline-flex">
+            <InputFieldsSheet
+              graph={draft.graph}
+              onChange={draft.change}
+              editable={editable}
+              open={fieldsOpen}
+              onOpenChange={setFieldsOpen}
+            />
+          </span>
+          <span data-tour="editor-history" className="inline-flex">
+            <HistorySheet
               projectId={project.id}
               decision={decision}
               draft={draft}
-              onWarnings={(number, items) => setWarnings(items.length > 0 ? { number, items } : null)}
+              editable={editable}
+              callable={others}
+              decisionNodeLabels={decisionNodeLabels}
             />
+          </span>
+          {editable ? (
+            <span data-tour="editor-save" className="inline-flex">
+              <SaveVersionDialog
+                projectId={project.id}
+                decision={decision}
+                draft={draft}
+                onWarnings={(number, items) => setWarnings(items.length > 0 ? { number, items } : null)}
+              />
+            </span>
           ) : null}
         </div>
       </div>
@@ -176,7 +187,7 @@ function Editor({ project, decision, others }: { project: Project; decision: Dec
           onDismiss={() => setWarnings(null)}
         />
       ) : null}
-      <div className={`${EDITOR_HEIGHT} min-h-96 overflow-hidden rounded-lg border`}>
+      <div data-tour="editor-graph" className={`${EDITOR_HEIGHT} min-h-96 overflow-hidden rounded-lg border`}>
         <JdmGraph
           value={draft.graph}
           onChange={draft.change}

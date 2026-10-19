@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 
+import { GetStarted } from '@/modules/onboarding';
 import { ImportPackDialog } from '@/modules/pack';
 import { ProjectListPage } from '@/modules/project';
 
@@ -13,5 +14,5 @@ export async function generateMetadata({ params }: PageProps<'/[locale]'>): Prom
 export default async function Page({ params }: PageProps<'/[locale]'>) {
   const { locale } = await params;
   setRequestLocale(locale);
-  return <ProjectListPage importAction={<ImportPackDialog />} />;
+  return <ProjectListPage importAction={<ImportPackDialog />} intro={<GetStarted />} />;
 }

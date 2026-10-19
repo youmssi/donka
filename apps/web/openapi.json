@@ -357,6 +357,21 @@
         ],
         "type": "object"
       },
+      "ChecklistProject": {
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name"
+        ],
+        "type": "object"
+      },
       "CiTokenListResponse": {
         "properties": {
           "items": {
@@ -1522,6 +1537,37 @@
         ],
         "type": "object"
       },
+      "OnboardingResponse": {
+        "properties": {
+          "complete": {
+            "description": "Every step is done: the checklist is not shown again.",
+            "type": "boolean"
+          },
+          "project": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ChecklistProject",
+                "description": "The project the steps lead to: the one furthest along; none without a project."
+              }
+            ]
+          },
+          "steps": {
+            "description": "Every step, in order.",
+            "items": {
+              "$ref": "#/components/schemas/StepResponse"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "steps",
+          "complete"
+        ],
+        "type": "object"
+      },
       "PackListResponse": {
         "properties": {
           "items": {
@@ -2348,6 +2394,32 @@
         ],
         "type": "object"
       },
+      "Step": {
+        "description": "A step from an empty Studio to a decision a Runtime answers, in order.",
+        "enum": [
+          "project",
+          "simulation",
+          "version",
+          "staging",
+          "token"
+        ],
+        "type": "string"
+      },
+      "StepResponse": {
+        "properties": {
+          "done": {
+            "type": "boolean"
+          },
+          "step": {
+            "$ref": "#/components/schemas/Step"
+          }
+        },
+        "required": [
+          "step",
+          "done"
+        ],
+        "type": "object"
+      },
       "SyncAction": {
         "description": "What became of one deployment.",
         "enum": [
@@ -2806,6 +2878,30 @@
           "hint",
           "createdAt",
           "createdBy"
+        ],
+        "type": "object"
+      },
+      "Tour": {
+        "description": "A guided tour of a Studio screen (DNK-41). Seen once per user, on any device.",
+        "enum": [
+          "editor",
+          "releases",
+          "environments"
+        ],
+        "type": "string"
+      },
+      "ToursResponse": {
+        "properties": {
+          "seen": {
+            "description": "Tours the user saw or skipped, which do not start on their own again.",
+            "items": {
+              "$ref": "#/components/schemas/Tour"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "seen"
         ],
         "type": "object"
       },
@@ -3295,6 +3391,112 @@
         "summary": "Liveness: answers as long as the process serves requests. Does not touch the database.",
         "tags": [
           "operations"
+        ]
+      }
+    },
+    "/me/tours": {
+      "get": {
+        "operationId": "tours",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToursResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not signed in (UNAUTHENTICATED)"
+          }
+        },
+        "summary": "The guided tours the signed-in user has seen.",
+        "tags": [
+          "onboarding"
+        ]
+      }
+    },
+    "/me/tours/{tour}": {
+      "put": {
+        "operationId": "tour_seen",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tour",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Tour"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Noted"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not a tour (INVALID_REQUEST)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not signed in (UNAUTHENTICATED)"
+          }
+        },
+        "summary": "Notes that the signed-in user finished or skipped a tour, so it does not start again.",
+        "tags": [
+          "onboarding"
+        ]
+      }
+    },
+    "/onboarding": {
+      "get": {
+        "operationId": "checklist",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not signed in (UNAUTHENTICATED)"
+          }
+        },
+        "summary": "How far the signed-in user got, over their active projects.",
+        "tags": [
+          "onboarding"
         ]
       }
     },

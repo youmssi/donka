@@ -64,6 +64,7 @@ import {
   type RuntimeToken,
   type TokenValues,
 } from './schema';
+import { useEnvironmentsTour } from './tours';
 import { useApprovals, useEnvironments, useReleaseList, useReleasesChanged, useTokens } from './useReleases';
 
 /** Owners manage the tokens that open an environment. */
@@ -80,6 +81,7 @@ function Environments({ project }: { project: Project }) {
   const common = useTranslations('common');
   const query = useEnvironments(project.id);
   const result = query.data;
+  useEnvironmentsTour(Boolean(result?.ok));
 
   if (result && !result.ok) {
     return (
@@ -125,7 +127,7 @@ function EnvironmentCard({
   const pending = state.latest && state.latest.id !== state.live?.id ? state.latest : null;
 
   return (
-    <Card role="region" aria-labelledby={`env-${env}`}>
+    <Card role="region" aria-labelledby={`env-${env}`} data-tour={`env-${env}`}>
       <CardHeader>
         <CardTitle id={`env-${env}`}>{t(env)}</CardTitle>
         <CardDescription>{t(`${env}Description`)}</CardDescription>
@@ -157,7 +159,9 @@ function EnvironmentCard({
         {pending ? <PendingDeployment project={project} deployment={pending} /> : null}
         {env === 'staging' ? (
           canRelease(project) ? (
-            <DeployControl project={project} live={state.live?.releaseId ?? null} />
+            <div data-tour="env-deploy">
+              <DeployControl project={project} live={state.live?.releaseId ?? null} />
+            </div>
           ) : null
         ) : (
           <ProductionRequest
@@ -168,7 +172,9 @@ function EnvironmentCard({
           />
         )}
         <Separator />
-        <Tokens project={project} environment={env} />
+        <div data-tour={env === 'staging' ? 'env-tokens' : undefined}>
+          <Tokens project={project} environment={env} />
+        </div>
       </CardContent>
     </Card>
   );

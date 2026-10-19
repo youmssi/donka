@@ -165,6 +165,7 @@ Studio is a desktop-first work tool (analysts at a desk), but every screen must 
   | Form label outside a TanStack form | `Field` + `FieldLabel` |
   | Value to copy | `InputGroup` with an `InputGroupButton` |
   | Previous / next pages | `Pagination` (`components/shared/pager`) |
+  | Show a newcomer around a screen | guided tour (`components/shared/tour`, driver.js) |
 
 - **Dates and times** go through `components/shared/format` only: "13 Nov" in the current year,
   "13 Nov 2025" otherwise, times "14:05" in the viewer's locale and time zone, the full date and
@@ -173,6 +174,11 @@ Studio is a desktop-first work tool (analysts at a desk), but every screen must 
   an id in what a person sees or shares.
 - **Use the width.** Pages fill the space next to the sidebar; tables are compact; no decorative
   description where the title says it.
+- **Guided tours** (DNK-41): a screen that needs one defines it in its own module (4 to 6 steps,
+  text in the `tours` catalog namespace) and calls `usePageTour(tour, ready)`, which starts it
+  once per person, after `ready` (its data is loaded), and lets the Help menu replay it. Steps point
+  at `data-tour="…"` attributes, never at class names; a step whose element is missing (a button
+  the reader's role hides) is skipped. Every way out of a tour counts as seen, on the server.
 - **Verify visually** before a UI PR is ready: desktop and 390 px, English and French, light and
   dark; attach screenshots.
 
@@ -244,3 +250,5 @@ E2E tests wait for real conditions, never fixed sleeps, and create their own dat
 - [ ] All strings in English and French; dates and numbers via `Intl`
 - [ ] Keyboard, labels, alt text, contrast checked
 - [ ] Checked at 390 px and desktop, both languages, light and dark; screenshots in the PR
+- [ ] If the screen has a guided tour, its anchors (`data-tour`) still exist and its steps still say
+      what the screen does

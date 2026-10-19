@@ -36,6 +36,7 @@ import { projectHref, ProjectFrame, type Project } from '@/modules/project';
 
 import { FrozenDecisions } from './frozen-decisions';
 import { NewRelease } from './release-dialog';
+import { useReleasesTour } from './tours';
 import { deployRelease, RELEASES_PAGE_SIZE } from './release.service';
 import type { EnvironmentName, ReleaseSummary } from './schema';
 import { useRelease, useReleaseList, useReleasesChanged } from './useReleases';
@@ -49,7 +50,13 @@ export function ReleasesPage() {
   return (
     <ProjectFrame
       section="releases"
-      actions={(project) => (canRelease(project) ? <NewRelease project={project} /> : null)}
+      actions={(project) =>
+        canRelease(project) ? (
+          <span data-tour="releases-new" className="inline-flex">
+            <NewRelease project={project} />
+          </span>
+        ) : null
+      }
     >
       {(project) => <Releases project={project} />}
     </ProjectFrame>
@@ -78,6 +85,7 @@ function Releases({ project }: { project: Project }) {
   const result = query.data;
   const editable = canRelease(project);
   const [viewing, setViewing] = useState<string | null>(null);
+  useReleasesTour(Boolean(result?.ok));
 
   if (result && !result.ok) {
     return (
@@ -152,7 +160,7 @@ function Releases({ project }: { project: Project }) {
   ];
 
   return (
-    <>
+    <div data-tour="releases-list">
       <DataTable
         label={t('title')}
         columns={columns}
@@ -186,7 +194,7 @@ function Releases({ project }: { project: Project }) {
         }
       />
       <ReleaseSheet project={project} id={viewing} onClose={() => setViewing(null)} />
-    </>
+    </div>
   );
 }
 

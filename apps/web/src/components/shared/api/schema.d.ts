@@ -164,6 +164,57 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/me/tours': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The guided tours the signed-in user has seen. */
+    get: operations['tours'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/me/tours/{tour}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Notes that the signed-in user finished or skipped a tour, so it does not start again. */
+    put: operations['tour_seen'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/onboarding': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** How far the signed-in user got, over their active projects. */
+    get: operations['checklist'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/packs': {
     parameters: {
       query?: never;
@@ -1318,6 +1369,10 @@ export interface components {
     ChangeRoleRequest: {
       role: components['schemas']['Role'];
     };
+    ChecklistProject: {
+      key: string;
+      name: string;
+    };
     CiTokenListResponse: {
       items: components['schemas']['CiTokenResponse'][];
     };
@@ -1714,6 +1769,13 @@ export interface components {
       minor: string;
       patch: string;
     };
+    OnboardingResponse: {
+      /** @description Every step is done: the checklist is not shown again. */
+      complete: boolean;
+      project?: null | components['schemas']['ChecklistProject'];
+      /** @description Every step, in order. */
+      steps: components['schemas']['StepResponse'][];
+    };
     PackListResponse: {
       items: components['schemas']['PackResponse'][];
     };
@@ -2023,6 +2085,15 @@ export interface components {
       trace: Record<string, never>;
     };
     /**
+     * @description A step from an empty Studio to a decision a Runtime answers, in order.
+     * @enum {string}
+     */
+    Step: 'project' | 'simulation' | 'version' | 'staging' | 'token';
+    StepResponse: {
+      done: boolean;
+      step: components['schemas']['Step'];
+    };
+    /**
      * @description What became of one deployment.
      * @enum {string}
      */
@@ -2159,6 +2230,15 @@ export interface components {
       /** Format: date-time */
       revokedAt?: string | null;
       revokedBy?: null | components['schemas']['PersonRef'];
+    };
+    /**
+     * @description A guided tour of a Studio screen (DNK-41). Seen once per user, on any device.
+     * @enum {string}
+     */
+    Tour: 'editor' | 'releases' | 'environments';
+    ToursResponse: {
+      /** @description Tours the user saw or skipped, which do not start on their own again. */
+      seen: components['schemas']['Tour'][];
     };
     UpdateProjectRequest: {
       description?: string;
@@ -2542,6 +2622,100 @@ export interface operations {
         content: {
           /** @example ok */
           'text/plain': string;
+        };
+      };
+    };
+  };
+  tours: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ToursResponse'];
+        };
+      };
+      /** @description Not signed in (UNAUTHENTICATED) */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  tour_seen: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        tour: components['schemas']['Tour'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Noted */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Not a tour (INVALID_REQUEST) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Not signed in (UNAUTHENTICATED) */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  checklist: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['OnboardingResponse'];
+        };
+      };
+      /** @description Not signed in (UNAUTHENTICATED) */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
         };
       };
     };
