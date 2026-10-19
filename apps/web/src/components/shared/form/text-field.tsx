@@ -1,11 +1,14 @@
 'use client';
 
+import { Eye, EyeOff } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useId, type ComponentProps } from 'react';
+import { useId, useState, type ComponentProps } from 'react';
 
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group';
 import { Textarea } from '@/components/ui/textarea';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 import { useFieldContext } from './context';
 
@@ -45,6 +48,9 @@ export function shownError(meta: { isBlurred: boolean; errors: unknown[] }, subm
 export function TextField({ label, hint, messageValues, serverError, multiline, rows, ...inputProps }: TextFieldProps) {
   const field = useFieldContext<string>();
   const t = useTranslations('validation');
+  const common = useTranslations('common');
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const toggleLabel = common(passwordVisible ? 'hidePassword' : 'showPassword');
   const id = useId();
   const key = shownError(field.state.meta, field.form.state.submissionAttempts);
   const error = key ? t(key, messageValues) : serverError;
@@ -72,6 +78,33 @@ export function TextField({ label, hint, messageValues, serverError, multiline, 
           placeholder={inputProps.placeholder}
           rows={rows}
         />
+      ) : inputProps.type === 'password' ? (
+        <InputGroup data-disabled={inputProps.disabled || undefined}>
+          <InputGroupInput
+            {...inputProps}
+            {...control}
+            type={passwordVisible ? 'text' : 'password'}
+            onChange={(event) => field.handleChange(event.target.value)}
+          />
+          <InputGroupAddon align="inline-end">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <InputGroupButton
+                  type="button"
+                  size="icon-sm"
+                  aria-label={`${toggleLabel}: ${label}`}
+                  aria-controls={id}
+                  disabled={inputProps.disabled}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => setPasswordVisible((visible) => !visible)}
+                >
+                  {passwordVisible ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
+                </InputGroupButton>
+              </TooltipTrigger>
+              <TooltipContent>{toggleLabel}</TooltipContent>
+            </Tooltip>
+          </InputGroupAddon>
+        </InputGroup>
       ) : (
         <Input {...inputProps} {...control} onChange={(event) => field.handleChange(event.target.value)} />
       )}

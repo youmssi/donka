@@ -25,6 +25,8 @@
     "pageOf": "{from}–{to} of {total}",
     "actions": "Actions",
     "admin": "Administrator",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
     "copyToken": "Copy the token",
     "tokenCopied": "Token copied.",
     "tokenCopyFailed": "Copy failed. Select the token and copy it."

@@ -47,6 +47,7 @@ docker-compose for PostgreSQL, MinIO and Mailpit.
 | 28 | DNK-43 Packs: import, duplicate, export | S |
 | 29 | DNK-41 First-run onboarding | S |
 | 30 | DNK-42 Wording that fits any industry | S |
+| 31 | DNK-45 Show and hide passwords | S |
 
 Practices from the upstream codebases, scheduled next to the stories that need them:
 DNK-26 `/version` (after DNK-4), DNK-28 container builds (before DNK-23), DNK-29 Storybook
