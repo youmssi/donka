@@ -118,6 +118,9 @@ Dependencies go **one way only**: `app/ → Component → Cache hook → Service
     TanStack Form infers the form's types from them, and `as` would hide a missing or mistyped field.
   - `@tanstack/react-form` is pinned to an exact version: its types can change in a patch
     release, so it is upgraded on purpose, with the checks.
+- `TextField type="password"` provides the shared visibility toggle. Passwords start masked; the
+  translated eye button controls only its input and never submits the form. Keep password
+  autocomplete on the field (`current-password` or `new-password`).
 - The Zod schema is the single source of the form's rules; the server validates again.
 - Errors next to the field, in plain language, once the person has left it or submitted; a
   corrected value clears its error at once. Forms validate on `onChange` and `onSubmit` (an

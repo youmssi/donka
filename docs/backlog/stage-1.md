@@ -974,3 +974,22 @@ installation can import.
 - [x] Duplicate a project; export a project as a pack file and import it in another installation
 - [x] Packs "KYC risk rating" and "Mobile money tiered limits" (CEMAC), with scenarios and guides
 - [x] Audited; English and French
+
+---
+
+### DNK-45 — Show and hide passwords
+
+**Type:** fix · **Repos:** S · **Dependencies:** DNK-44 · **Size:** S
+
+#### Why
+People cannot check a password they typed because sign-in and password setup have no visibility
+control. The shared form field should provide this consistently, including confirmation.
+
+#### Acceptance criteria
+- [x] Passwords start masked; an eye button shows or hides only its associated field
+- [x] Toggling preserves the value, validation and autocomplete and never submits the form
+- [x] Named keyboard-accessible controls and tooltips in English and French; disabled fields stay disabled
+- [x] Sign-in and both setup fields work live at desktop and 390 px, light and dark
+
+#### Out of scope
+Authentication policy, password storage and API changes.
