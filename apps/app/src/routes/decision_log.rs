@@ -231,7 +231,7 @@ pub struct DecisionLogSettingsResponse {
     /// (`decision`, `result.band`); `null` for none. Read when a record arrives.
     pub outcome_field: Option<String>,
     /// Fields removed from a record before it is sent to be explained, as
-    /// dotted paths (`applicant.nationalId`).
+    /// dotted paths (`customer.id`).
     pub redacted_fields: Vec<String>,
     /// Whether this installation explains decisions (`DONKA_EXPLAIN_URL`).
     pub explain_enabled: bool,
@@ -467,7 +467,7 @@ pub async fn search(
 }
 
 /// Opens a decision record (any member). Each opening is audited
-/// (`decision_record.viewed`): records hold applicants' personal data.
+/// (`decision_record.viewed`): records may contain personal data.
 #[utoipa::path(
     get,
     path = "/projects/{project_id}/decision-log/{record_id}",

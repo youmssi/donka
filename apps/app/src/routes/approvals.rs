@@ -114,7 +114,7 @@ pub struct DecisionChangeResponse {
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ContractChangeResponse {
-    /// The field, as a dotted path (`applicant.age`).
+    /// The field, as a dotted path (`customer.age`).
     pub path: String,
     pub kind: ContractChangeKind,
     /// Callers that worked with the old contract may be refused by the new one.

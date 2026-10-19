@@ -939,10 +939,16 @@ e-commerce, public sector. A few texts assume a bank and a loan applicant, which
 non-bank prospect the product is not for them.
 
 #### Acceptance criteria
-- [ ] The explanation prompt speaks of "the organisation's business rules" and "the person or case
+- [x] The explanation prompt speaks of "the organisation's business rules" and "the person or case
       decided", not of a bank and an applicant
-- [ ] Hints and placeholders use neutral examples (`customer.id`, "Order discounts")
-- [ ] English and French; product docs keep credit as the first example, not the only one
+- [x] Hints and placeholders use neutral examples (`customer.id`, "Order discounts")
+- [x] English and French; product docs keep credit as the first example, not the only one
+
+#### Verification
+The provider protocol test sends an order-discount record and checks the neutral prompt while
+retaining the instruction guard. A live production-export walkthrough covers EN/FR, desktop
+and 390 px, light/dark, including field validation, simulation and staging publication. The
+multiline field now forwards its placeholder; the settings test guards that regression.
 
 ---
 

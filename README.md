@@ -3,7 +3,7 @@
 <h1 align="center">Donka Studio</h1>
 
 <p align="center">
-    Build, test, approve and release credit decisions, then explain every one of them
+    Build, test, approve and release decisions, then explain every one of them
 </p>
 
 <p align="center">
@@ -26,10 +26,14 @@
 
 ## Introduction
 
-Donka is a decision management platform for credit and risk teams at banks and microfinance
-lenders. Analysts build scoring rules visually, test them, get them approved by a second person
-and release them to a Runtime that customer systems call. Every production decision can be
-found, explained in plain language and replayed.
+Donka is a decision management platform for teams that manage business rules. They build rules
+visually, test them, get them approved by a second person and release them to a Runtime that
+customer systems call. Every production decision can be found, explained in plain language and
+replayed.
+
+Credit scoring and risk at banks and microfinance lenders are the first use cases. The same
+workflow also supports insurance eligibility, mobile-money limits, order discounts and public
+services: JSON goes in, rules decide, and JSON comes out.
 
 Donka Studio is the control plane: the web app where that work happens and the service behind
 it. It is self-hosted, one installation per customer, and built on the open-source
@@ -47,7 +51,7 @@ it. It is self-hosted, one installation per customer, and built on the open-sour
 - **Four-eyes approvals**: production needs a second person, who reviews the diff and the test
   results; nobody approves their own release
 - **Rollback**: put a previous release back live in one step, audited
-- **Connectors**: call a credit bureau, KYC or AML provider from a decision, with mocks in Studio
+- **Connectors**: call an external API, such as a credit bureau, KYC or AML provider, with mocks in Studio
   and secrets kept on the Runtime
 - **Decision log and replay**: every production decision, encrypted at rest, searchable by
   reference, outcome or date, and replayable against its release
@@ -60,7 +64,7 @@ it. It is self-hosted, one installation per customer, and built on the open-sour
 ## How the pieces fit
 
 ```
-Applicant ─▶ Fieldkit form ─▶ Customer backend ──evaluate──▶ Donka Runtime ──▶ bureau / KYC APIs
+Request ───▶ Fieldkit form ─▶ Customer backend ──evaluate──▶ Donka Runtime ──▶ external APIs
                                                                  ▲    │
                                              poll + hot reload   │    │ decision log (async)
                                                                  │    ▼

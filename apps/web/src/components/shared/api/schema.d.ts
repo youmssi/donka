@@ -577,7 +577,7 @@ export interface paths {
     };
     /**
      * Opens a decision record (any member). Each opening is audited
-     *     (`decision_record.viewed`): records hold applicants' personal data.
+     *     (`decision_record.viewed`): records may contain personal data.
      */
     get: operations['get'];
     put?: never;
@@ -1402,14 +1402,14 @@ export interface components {
       /** @description Callers that worked with the old contract may be refused by the new one. */
       breaking: boolean;
       kind: components['schemas']['ContractChangeKind'];
-      /** @description The field, as a dotted path (`applicant.age`). */
+      /** @description The field, as a dotted path (`customer.age`). */
       path: string;
     };
     /** @enum {string} */
     ContractWarningKind: 'undeclared' | 'unread';
     ContractWarningResponse: {
       kind: components['schemas']['ContractWarningKind'];
-      /** @description The field, as a dotted path (`applicant.age`). */
+      /** @description The field, as a dotted path (`customer.age`). */
       path: string;
     };
     CreateDecisionRequest: {
@@ -1492,7 +1492,7 @@ export interface components {
       outcomeField?: string | null;
       /**
        * @description Fields removed from a record before it is sent to be explained, as
-       *     dotted paths (`applicant.nationalId`).
+       *     dotted paths (`customer.id`).
        */
       redactedFields: string[];
     };
@@ -1682,7 +1682,7 @@ export interface components {
       locale?: null | components['schemas']['Locale'];
     };
     IssueCiTokenRequest: {
-      /** @description Who uses the token, e.g. the loan origination system or a CI pipeline. */
+      /** @description Who uses the token, e.g. an order service or a CI pipeline. */
       name: string;
     };
     IssueLogTokenRequest: {
@@ -1691,7 +1691,7 @@ export interface components {
       name: string;
     };
     IssueTokenRequest: {
-      /** @description Who uses the token, e.g. the loan origination system or a CI pipeline. */
+      /** @description Who uses the token, e.g. an order service or a CI pipeline. */
       name: string;
     };
     IssuedCiTokenResponse: components['schemas']['CiTokenResponse'] & {

@@ -1,6 +1,6 @@
 /**
  * The input contract of a decision (DNK-37): the JSON Schema on its input node, as the engine
- * reads it (draft-07, stored as a JSON string). The table edits flat fields (`applicant.age`);
+ * reads it (draft-07, stored as a JSON string). The table edits flat fields (`customer.age`);
  * these functions turn one into the other. Presentation hints live under `x-donka`.
  */
 
@@ -17,7 +17,7 @@ export interface Texts {
 
 /** One request field as the table shows it. */
 export interface InputField {
-  /** Dotted path from the request's root (`applicant.age`). */
+  /** Dotted path from the request's root (`customer.age`). */
   path: string;
   type: FieldType;
   required: boolean;

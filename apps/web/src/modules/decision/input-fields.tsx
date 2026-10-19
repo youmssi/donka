@@ -445,7 +445,7 @@ function FieldDialog({
                     <field.TextField
                       label={t('field')}
                       hint={t('pathHint')}
-                      placeholder="applicant.age"
+                      placeholder="customer.age"
                       className="font-mono"
                       autoFocus
                       required
