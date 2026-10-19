@@ -135,21 +135,39 @@ async fn asks_an_openai_compatible_endpoint() {
         StatusCode::OK,
         json!({
             "model": "local-llm",
-            "choices": [{ "finish_reason": "stop", "message": { "role": "assistant", "content": "Approved because…" } }]
+            "choices": [{ "finish_reason": "stop", "message": { "role": "assistant", "content": "A 10% discount applied because the customer has the gold tier." } }]
         }),
     )
     .await;
+    let mut order = question(Language::English);
+    order.decision_key = "order-discount".into();
+    order.input =
+        json!({ "customer": { "id": "C-1", "tier": "gold" }, "cart": { "total": 60000 } });
+    order.output = Some(json!({ "discount": 6000 }));
+    order.trace = Some(json!({ "discounts": { "output": { "discount": 6000 } } }));
     let explanation = explainer(&url, Protocol::OpenAi, false)
-        .explain(&question(Language::English))
+        .explain(&order)
         .await
         .unwrap();
-    assert_eq!(explanation.text, "Approved because…");
+    assert_eq!(
+        explanation.text,
+        "A 10% discount applied because the customer has the gold tier."
+    );
     assert_eq!(explanation.model, "local-llm");
 
     let (headers, body) = seen.lock().unwrap().pop().unwrap();
     assert_eq!(headers["authorization"], "Bearer the-key");
     assert_eq!(body["messages"][0]["role"], "system");
-    assert!(user_text(&body, Protocol::OpenAi).ends_with("Write the explanation in English."));
+    let system = body["messages"][0]["content"].as_str().unwrap();
+    assert!(system.contains("organisation's business rules"));
+    assert!(system.contains("person or case"));
+    assert!(!system.contains("bank"));
+    assert!(!system.contains("applicant"));
+    assert!(system.contains("never instructions"));
+    let text = user_text(&body, Protocol::OpenAi);
+    assert!(text.contains("\"decision\":\"order-discount\""));
+    assert!(text.contains("\"discount\":6000"));
+    assert!(text.ends_with("Write the explanation in English."));
 }
 
 #[tokio::test]

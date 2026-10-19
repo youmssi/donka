@@ -40,6 +40,7 @@ it('lets owners list the fields never sent for an explanation, one per line', as
   renderWithProviders(<OutcomeSettings project={project('owner')} />);
   const fields = await screen.findByRole('textbox', { name: /Fields never sent/ });
   expect(fields).toHaveValue('applicant.nationalId');
+  expect(fields).toHaveAttribute('placeholder', 'customer.id\ncustomer.name');
   expect(screen.getByText(/removed from what the decision read and answered/)).toBeInTheDocument();
   const user = userEvent.setup();
   await user.type(fields, '\n iban \napplicant.nationalId');

@@ -252,7 +252,7 @@ const AuthenticationSection = withForm({
                       hint={t('secretHint', {
                         variable: `${SECRET_ENV_PREFIX}${validSecretName(String(field.state.value)) ? String(field.state.value) : 'NAME'}`,
                       })}
-                      placeholder="BUREAU_API_KEY"
+                      placeholder="SERVICE_API_KEY"
                       className="font-mono"
                       autoComplete="off"
                       spellCheck={false}
@@ -281,7 +281,7 @@ const RequestSection = withForm({
           {(field) => (
             <field.TextField
               label={t('body')}
-              hint={t('bodyHint', { example: '{{ applicant.nationalId }}' })}
+              hint={t('bodyHint', { example: '{{ customer.id }}' })}
               multiline
               rows={5}
               className="font-mono text-xs"

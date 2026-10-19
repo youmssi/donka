@@ -465,7 +465,7 @@
             "$ref": "#/components/schemas/ContractChangeKind"
           },
           "path": {
-            "description": "The field, as a dotted path (`applicant.age`).",
+            "description": "The field, as a dotted path (`customer.age`).",
             "type": "string"
           }
         },
@@ -489,7 +489,7 @@
             "$ref": "#/components/schemas/ContractWarningKind"
           },
           "path": {
-            "description": "The field, as a dotted path (`applicant.age`).",
+            "description": "The field, as a dotted path (`customer.age`).",
             "type": "string"
           }
         },
@@ -705,7 +705,7 @@
             ]
           },
           "redactedFields": {
-            "description": "Fields removed from a record before it is sent to be explained, as\ndotted paths (`applicant.nationalId`).",
+            "description": "Fields removed from a record before it is sent to be explained, as\ndotted paths (`customer.id`).",
             "items": {
               "type": "string"
             },
@@ -1247,7 +1247,7 @@
       "IssueCiTokenRequest": {
         "properties": {
           "name": {
-            "description": "Who uses the token, e.g. the loan origination system or a CI pipeline.",
+            "description": "Who uses the token, e.g. an order service or a CI pipeline.",
             "maxLength": 100,
             "minLength": 1,
             "type": "string"
@@ -1278,7 +1278,7 @@
       "IssueTokenRequest": {
         "properties": {
           "name": {
-            "description": "Who uses the token, e.g. the loan origination system or a CI pipeline.",
+            "description": "Who uses the token, e.g. an order service or a CI pipeline.",
             "maxLength": 100,
             "minLength": 1,
             "type": "string"
@@ -5254,7 +5254,7 @@
             "description": "PROJECT_NOT_FOUND or RECORD_NOT_FOUND"
           }
         },
-        "summary": "Opens a decision record (any member). Each opening is audited\n(`decision_record.viewed`): records hold applicants' personal data.",
+        "summary": "Opens a decision record (any member). Each opening is audited\n(`decision_record.viewed`): records may contain personal data.",
         "tags": [
           "decision-log"
         ]

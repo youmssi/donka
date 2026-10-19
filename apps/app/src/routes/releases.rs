@@ -245,7 +245,7 @@ pub(crate) fn token_name_schema() -> impl Into<RefOr<Schema>> {
         .min_length(Some(1))
         .max_length(Some(MAX_TOKEN_NAME_CHARS))
         .description(Some(
-            "Who uses the token, e.g. the loan origination system or a CI pipeline.",
+            "Who uses the token, e.g. an order service or a CI pipeline.",
         ))
 }
 

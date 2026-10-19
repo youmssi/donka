@@ -69,6 +69,7 @@ export function TextField({ label, hint, messageValues, serverError, multiline, 
           required={inputProps.required}
           className={inputProps.className}
           spellCheck={inputProps.spellCheck}
+          placeholder={inputProps.placeholder}
           rows={rows}
         />
       ) : (

@@ -88,7 +88,7 @@ function OutcomeForm({ project, settings }: { project: Project; settings: LogSet
                 hint={t(settings.explainEnabled ? 'redactedFieldsHint' : 'redactedFieldsHintOff', {
                   max: REDACTED_FIELDS_MAX,
                 })}
-                placeholder={'applicant.nationalId\napplicant.name'}
+                placeholder={'customer.id\ncustomer.name'}
                 multiline
                 disabled={!editable}
                 messageValues={{ max: REDACTED_FIELDS_MAX }}

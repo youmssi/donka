@@ -25,10 +25,10 @@ file and add what is specific to that tool.
 
 ## 2. Project overview
 
-- **Product:** Donka is a decision management platform for credit and risk teams at banks and
-  microfinance lenders. Analysts build scoring rules visually, test them, get them approved by a
-  second person and release them; customer systems call the Runtime for decisions. Every
-  production decision can be explained and replayed.
+- **Product:** Donka is an industry-neutral decision management platform. Teams build business
+  rules visually, test them, get them approved by a second person and release them; customer
+  systems call the Runtime for decisions. Every production decision can be explained and
+  replayed. The first pilot serves credit and risk teams at a bank or microfinance lender.
 - **This repository:** Donka Studio (control plane): `apps/app` is the backend service, `apps/web`
   the web app, `crates/engine` the only code that calls the decision engine. Studio publishes
   release artifacts to object storage; **Donka Runtime** (`youmssi/donka-runtime`) serves them;

@@ -53,7 +53,7 @@ pub enum ContractWarningKind {
 #[derive(Serialize, ToSchema)]
 pub struct ContractWarningResponse {
     pub kind: ContractWarningKind,
-    /// The field, as a dotted path (`applicant.age`).
+    /// The field, as a dotted path (`customer.age`).
     pub path: String,
 }
 

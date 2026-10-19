@@ -78,7 +78,7 @@ export function CreateDecisionDialog({ project }: { project: Project }) {
                   <field.TextField
                     label={t('key')}
                     hint={t('keyHint')}
-                    placeholder="bureau/normalize"
+                    placeholder="orders/discount"
                     required
                     autoFocus
                     spellCheck={false}

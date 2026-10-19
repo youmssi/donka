@@ -7,7 +7,7 @@ It stores everything in Postgres and publishes immutable release artifacts.
 
 **Data plane: Donka Runtime** (`youmssi/donka-runtime`). Customer systems call it. It reads
 release artifacts from storage, hot-reloads them, and evaluates. If Studio is down, decisions
-keep flowing. A bank can run the Runtime inside its own network zone.
+keep flowing. An organisation can run the Runtime inside its own network zone.
 
 The only coupling between the planes is the **release artifact** and the **decision log feed**.
 

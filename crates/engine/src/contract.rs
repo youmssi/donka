@@ -63,7 +63,7 @@ fn input_node(content: &Value) -> Option<&Value> {
         .find(|node| node.get("type").and_then(Value::as_str) == Some("inputNode"))
 }
 
-/// One field a contract declares, as a dotted path (`applicant.age`).
+/// One field a contract declares, as a dotted path (`customer.age`).
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Field {
@@ -400,7 +400,7 @@ fn collect_paths(node: &Node, reads: &mut BTreeSet<String>) {
     }
 }
 
-/// One path is the other, or contains it (`applicant` and `applicant.age`).
+/// One path is the other, or contains it (`customer` and `customer.age`).
 fn related(a: &str, b: &str) -> bool {
     a == b || b.starts_with(&format!("{a}.")) || a.starts_with(&format!("{b}."))
 }
