@@ -993,3 +993,21 @@ control. The shared form field should provide this consistently, including confi
 
 #### Out of scope
 Authentication policy, password storage and API changes.
+
+---
+
+### DNK-46 — Environment cards fit phones
+
+**Type:** fix · **Repos:** S · **Dependencies:** DNK-14 · **Size:** S
+
+#### Why
+Long project keys make the environment path badge force its card wider than a phone viewport.
+The full path should remain readable without moving the page sideways.
+
+#### Acceptance criteria
+- [x] Staging and production cards fit a 390 px viewport with long valid project keys
+- [x] Environment paths wrap in full; desktop headers keep their action on the right
+- [x] English and French, light and dark; shared registry components remain unchanged
+
+#### Out of scope
+Environment behavior, deployment policy and token contracts.

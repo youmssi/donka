@@ -128,11 +128,14 @@ function EnvironmentCard({
 
   return (
     <Card role="region" aria-labelledby={`env-${env}`} data-tour={`env-${env}`}>
-      <CardHeader>
+      <CardHeader className="has-data-[slot=card-action]:grid-cols-[minmax(0,1fr)] sm:has-data-[slot=card-action]:grid-cols-[minmax(0,1fr)_fit-content(50%)]">
         <CardTitle id={`env-${env}`}>{t(env)}</CardTitle>
         <CardDescription>{t(`${env}Description`)}</CardDescription>
-        <CardAction>
-          <Badge variant={env === 'production' ? 'default' : 'secondary'}>{`${env}/${project.key}`}</Badge>
+        <CardAction className="col-start-1 row-span-1 row-start-3 max-w-full min-w-0 justify-self-start sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:justify-self-end">
+          <Badge
+            className="max-w-full text-left break-all whitespace-normal"
+            variant={env === 'production' ? 'default' : 'secondary'}
+          >{`${env}/${project.key}`}</Badge>
         </CardAction>
       </CardHeader>
       <CardContent className="grid gap-4">
