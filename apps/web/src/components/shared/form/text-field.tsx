@@ -4,6 +4,7 @@ import { Eye, EyeOff } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useId, useState, type ComponentProps } from 'react';
 
+import { cn } from '@/components/shared/utils';
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group';
@@ -80,9 +81,11 @@ export function TextField({ label, hint, messageValues, serverError, multiline, 
         />
       ) : inputProps.type === 'password' ? (
         <InputGroup data-disabled={inputProps.disabled || undefined}>
+          {/* Edge's native reveal button would duplicate the shared control. */}
           <InputGroupInput
             {...inputProps}
             {...control}
+            className={cn(inputProps.className, '[&::-ms-reveal]:hidden')}
             type={passwordVisible ? 'text' : 'password'}
             onChange={(event) => field.handleChange(event.target.value)}
           />
