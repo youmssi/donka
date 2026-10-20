@@ -21,13 +21,15 @@ Three repos, one team: without shared rules each repo drifts in branching, commi
 | Studio | Engineering guides adapted to Rust + static Next.js, ADR-001…006, this backlog |
 
 #### Acceptance criteria
-- [ ] Each repo has the playbook files with no placeholder left
-- [ ] Studio guides state every deviation from the generic playbook and link the ADR behind it
-- [ ] The forks state how they follow the playbook without restructuring upstream code (ADR-006)
-- [ ] Repository settings to apply by hand are listed in `CONTRIBUTING.md`
+- [x] Each repo has the playbook files with no placeholder left
+- [x] Studio guides state every deviation from the generic playbook and link the ADR behind it
+- [x] The forks state how they follow the playbook without restructuring upstream code (ADR-006)
+- [x] Repository settings to apply by hand are listed in `CONTRIBUTING.md`
 
 #### Out of scope
 Code changes (DNK-2 onward).
+
+Acceptance evidence: [2026-10-20 foundation audit](../engineering/foundation-evidence.md).
 
 ---
 
@@ -48,14 +50,16 @@ before there are thirty endpoints.
 | Contract | — | `GET /api/v1/openapi.json` generated with `utoipa` |
 
 #### Acceptance criteria
-- [ ] Changing `DONKA_API_BASE_PATH` moves every route; no handler contains the version
-- [ ] Simulate errors keep their meaning with the new shape: unknown decision `404 DECISION_NOT_FOUND`, invalid model `422 INVALID_DECISION`, engine rejection `422 EVALUATION_FAILED`
-- [ ] An unexpected failure returns `500 INTERNAL_ERROR` with a request id and no internal detail; the log line carries the same id
-- [ ] `GET /health` (liveness) answers without the database
-- [ ] Invalid configuration stops startup with a message naming the variable
+- [x] Changing `DONKA_API_BASE_PATH` moves every route; no handler contains the version
+- [x] Simulate errors keep their meaning with the new shape: unknown decision `404 DECISION_NOT_FOUND`, invalid model `422 INVALID_DECISION`, engine rejection `422 EVALUATION_FAILED`
+- [x] An unexpected failure returns `500 INTERNAL_ERROR` with a request id and no internal detail; the log line carries the same id
+- [x] `GET /health` (liveness) answers without the database
+- [x] Invalid configuration stops startup with a message naming the variable
 
 #### Out of scope
 Database readiness (DNK-3), authentication (DNK-4).
+
+Acceptance evidence: [2026-10-20 foundation audit](../engineering/foundation-evidence.md).
 
 ---
 
@@ -68,14 +72,16 @@ Nothing is stored today. Every following feature needs PostgreSQL, migrations an
 run them in CI.
 
 #### Acceptance criteria
-- [ ] `DATABASE_URL` required; Studio applies pending migrations at startup (can be disabled with `DONKA_DB_MIGRATE=false`)
-- [ ] `GET /ready` returns `503` when the database is unreachable, `200` otherwise
-- [ ] CI runs integration tests against PostgreSQL 16
-- [ ] A reusable append-only guard (trigger rejecting `UPDATE`/`DELETE`) exists, with a test that proves it
-- [ ] Shared persistence crate (`crates/db`: pool, migrations, readiness); business-module crates arrive with their first table (`crates/identity` in DNK-4), so no empty crate is created ahead of use
+- [x] `DATABASE_URL` required; Studio applies pending migrations at startup (can be disabled with `DONKA_DB_MIGRATE=false`)
+- [x] `GET /ready` returns `503` when the database is unreachable, `200` otherwise
+- [x] CI runs integration tests against PostgreSQL 16
+- [x] A reusable append-only guard (trigger rejecting `UPDATE`/`DELETE`) exists, with a test that proves it
+- [x] Shared persistence crate (`crates/db`: pool, migrations, readiness); business-module crates arrive with their first table (`crates/identity` in DNK-4), so no empty crate is created ahead of use
 
 #### Out of scope
 Business tables other than what DNK-4 needs.
+
+Acceptance evidence: [2026-10-20 foundation audit](../engineering/foundation-evidence.md).
 
 ---
 
@@ -554,9 +560,11 @@ zen, agent-public and the CLI already solved many problems Donka meets. Copying 
 (and knowing what not to copy) is cheaper than rediscovering it.
 
 #### Acceptance criteria
-- [ ] `docs/engineering/references.md` lists adopted, planned and rejected practices, each with its source file
-- [ ] The engineering guides and `AGENTS.md` point to it
-- [ ] Every planned practice has a story (DNK-26 to DNK-30)
+- [x] `docs/engineering/references.md` lists adopted, planned and rejected practices, each with its source file
+- [x] The engineering guides and `AGENTS.md` point to it
+- [x] Every planned practice has a story (DNK-26 to DNK-30)
+
+Acceptance evidence: [2026-10-20 foundation audit](../engineering/foundation-evidence.md).
 
 ---
 
@@ -664,9 +672,11 @@ already have an account (found in DNK-7).
 engine drift check skipped silently in CI because the runtime was never checked out.
 
 #### Acceptance criteria
-- [ ] Every image in `docker-compose.yml` exists and is pinned to a release (no `latest`)
-- [ ] CI checks out donka-runtime (`develop`) and fails when its zen-engine differs from Studio's
-- [ ] The drift check fails instead of skipping when it cannot find the runtime
+- [x] Every image in `docker-compose.yml` exists and is pinned to a release (no `latest`)
+- [x] CI checks out donka-runtime (`develop`) and fails when its zen-engine differs from Studio's
+- [x] The drift check fails instead of skipping when it cannot find the runtime
+
+Acceptance evidence: [2026-10-20 foundation audit](../engineering/foundation-evidence.md).
 
 ---
 
@@ -1015,3 +1025,80 @@ The full path should remain readable without moving the page sideways.
 
 #### Out of scope
 Environment behavior, deployment policy and token contracts.
+
+---
+
+### DNK-47 — Agreed delivery plan and foundation evidence
+
+**Type:** docs · **Repos:** S · **Dependencies:** DNK-29 (merged) · **Size:** S
+
+#### Why
+The roadmap needs the newly agreed phase boundaries and feature-testing policy. Old foundation
+checklists and planned-practice rows do not reflect the delivered code or its remaining gaps.
+
+#### Decisions
+Confirmed 2026-10-20: Phase 1 is Studio + Runtime + CLI; Phase 2 adds Fieldkit and AI authoring;
+Phase 3 includes SSO. AI proposals show a diff and need owner acceptance before draft changes.
+Agree each phase, then deliver its stories; clarify material decisions interactively before coding.
+
+#### Acceptance criteria
+- [x] The delivery plan records phase scope, proposal acceptance, feature tests and exit gates
+- [x] The 20 legacy foundation criteria have exact source/test evidence; limitations stay explicit
+- [x] Reference rows name source files and distinguish delivered work from planned work
+- [x] Missing live feature coverage, coverage/security CI gates and operational rehearsal remain tracked
+
+#### Out of scope
+Application behavior, new authoring/Fieldkit/SSO code and production deployment.
+
+---
+
+### DNK-48 — Live feature-test foundation
+
+**Type:** test · **Repos:** S, R, C · **Dependencies:** DNK-47 · **Size:** L
+
+#### Why
+Component previews and ad-hoc browser runs do not provide repeatable live regression coverage
+of business workflows. Feature completion needs a test against the running application.
+
+#### Acceptance criteria
+- [ ] A documented, repeatable Playwright Test setup uses isolated synthetic data and real local Studio/Runtime/PostgreSQL/object storage/email services
+- [ ] Initial authentication and core project-to-Runtime journeys run locally and in CI using Chromium
+- [ ] A release command runs Chromium, Firefox and WebKit; UI checks cover EN/FR, light/dark, desktop and 390 px
+- [ ] Tests use real conditions and user-facing locators; failures retain useful protected traces/screenshots
+- [ ] A feature coverage map identifies each existing module's journeys and remaining feature-group stories; API/CLI checks retain their own appropriate tests
+
+#### Out of scope
+Changing product scope, testing customer production systems and silently declaring uncovered
+features verified. Add separate stories for remaining feature groups and defects before phase exit.
+
+---
+
+### DNK-49 — Enforce coverage and dependency-security gates
+
+**Type:** chore · **Repos:** S, R, C · **Dependencies:** DNK-47 · **Size:** M
+
+#### Why
+The engineering guides require a business-logic coverage floor and dependency-security checks;
+the current Studio workflow does not enforce them. Audit the other repos before applying changes.
+
+#### Acceptance criteria
+- [ ] CI measures business-logic coverage and enforces the documented floor with a justified module scope
+- [ ] Dependency checks fail on fixable high/critical vulnerabilities in the affected ecosystems
+- [ ] Findings are fixed at their cause; no skipped tests, arbitrary exclusions or lowered thresholds to obtain green
+- [ ] Local commands and CI behavior are documented; gaps found in Runtime/CLI are tracked and resolved
+
+---
+
+### DNK-50 — Isolated backup, restore and upgrade rehearsal
+
+**Type:** test · **Repos:** S, R, C · **Dependencies:** DNK-48, DNK-49, feature coverage complete · **Size:** M
+
+#### Acceptance criteria
+- [ ] Fresh install and post-deploy smoke checks pass in an isolated environment
+- [ ] Database, release bucket and required secrets restore together; rule versions, approvals and encrypted decision records remain usable
+- [ ] Upgrade and recovery follow the documented order and migrations; the original development stack is preserved
+- [ ] Live browser and Studio-to-Runtime checks prove the restored/upgraded system works
+- [ ] EN/FR operations guides reflect the exercised procedure and any remaining customer decisions
+
+#### Out of scope
+Customer production deployment or declaring customer policy values approved without their owner.

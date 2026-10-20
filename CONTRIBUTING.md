@@ -58,6 +58,11 @@ Every check in `AGENTS.md` §5 passes locally; CI runs the same ones and blocks 
 And:
 
 - Tests cover every acceptance criterion, including the edge cases the story names.
+- Implemented features have live Playwright verification against the running application and
+  relevant services, with a committed regression test. Chromium on feature PRs; Chromium,
+  Firefox and WebKit before release. UI coverage: EN/FR, light/dark, desktop and 390 px.
+  Documentation-only changes use document/link checks and required CI. See
+  [delivery plan](docs/delivery-plan.md) for the agreed phase gates.
 - Every new environment variable is in `.env.example`, with a safe local default where possible.
 - Database migrations are additive; a merged migration is never edited.
 - Every user-facing string exists in English and French.

@@ -3,6 +3,8 @@
 What is specific to the Studio web app. Read `principles.md` first. Stack: Next.js (App Router,
 **static export**), React, TypeScript, Tailwind, shadcn/ui on Radix, TanStack Form + Zod,
 TanStack Query, next-intl, `@gorules/jdm-editor`.
+Practices from upstream are recorded in [references](references.md); the
+[decision index](../adr/README.md#playbook-adaptations) explains adaptations to the playbook.
 
 ---
 
@@ -245,6 +247,13 @@ Build-time `NEXT_PUBLIC_*` values are limited to non-secret flags and are listed
 | End-to-end | Sign in → edit → simulate → release → approve → deploy, desktop and phone | Playwright |
 
 E2E tests wait for real conditions, never fixed sleeps, and create their own data.
+After implementing a feature, run its Playwright journey against the running application and
+relevant services, and commit the regression test. Chromium is the per-PR browser; run the
+release suite in Chromium, Firefox and WebKit. UI changes cover EN/FR, light/dark, desktop and
+390 px. Capture failure traces/screenshots without credentials or personal data. Keep API/CLI
+and operational integration tests for behavior outside the browser.
+The [delivery plan](../delivery-plan.md) distinguishes current preview coverage from the
+application suite being established by DNK-48.
 Shared component stories live in `src/stories`; keep them current when the component changes.
 See [Component previews](storybook.md) for commands, fixture rules and the coverage map.
 

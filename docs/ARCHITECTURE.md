@@ -134,3 +134,10 @@ the query string, headers or bodies. The Runtime has its own switch (`OTEL_ENABL
 - Explanations are off by default; a record leaves Studio only without its project's redacted
   fields, and each time is audited.
 - The browser never holds a Runtime token. Fieldkit calls the Runtime through the customer's backend.
+
+## Planned authoring workflow
+
+Phase 2 adds document-assisted rule drafting, Fieldkit form/connector mappings, a playground
+and chat edits. The owner must accept the proposed diff before it changes an editable draft;
+the existing release/approval path still governs deployment. This scope is approved, while
+its architecture and detailed stories remain for phase entry. See [Delivery plan](delivery-plan.md).
