@@ -240,10 +240,13 @@ Build-time `NEXT_PUBLIC_*` values are limited to non-secret flags and are listed
 |---|---|---|
 | Unit | Helpers, formatters, schema rules, service status mapping | Vitest |
 | Component | Forms and the four data states | Testing Library |
+| Component previews | Shared UI states, locales, themes and browser interactions | Storybook + Playwright |
 | i18n | Catalog parity | `pnpm i18n:check` |
 | End-to-end | Sign in → edit → simulate → release → approve → deploy, desktop and phone | Playwright |
 
 E2E tests wait for real conditions, never fixed sleeps, and create their own data.
+Shared component stories live in `src/stories`; keep them current when the component changes.
+See [Component previews](storybook.md) for commands, fixture rules and the coverage map.
 
 ## 14. Checklist for a new screen
 

@@ -77,6 +77,18 @@ jobs:
       # The typed client must match apps/web/openapi.json (kept in step by the Rust tests).
       - run: pnpm api:generate && git diff --exit-code -- src/components/shared/api/schema.d.ts
       - run: pnpm build
+      - run: pnpm build-storybook
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('apps/web/pnpm-lock.yaml') }}
+      - run: pnpm exec playwright install --with-deps --only-shell chromium
+      - run: pnpm test:storybook
+      - uses: actions/upload-artifact@v4
+        with:
+          name: storybook
+          path: apps/web/storybook-static
+          retention-days: 7
 
   # The Studio image, built as it ships but not pushed: dependencies in their own cached layer,
   # a non-root user, and the version it was built with.

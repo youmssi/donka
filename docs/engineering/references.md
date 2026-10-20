@@ -24,6 +24,7 @@ did not, and why. Update it when a new practice is taken from them.
 | Test and local services pinned to maintained images: `pgsty/minio` replaces `minio/minio` (removed from Docker Hub) | donka-runtime tests (DNK-12) | `docker-compose.yml`, `tests/it/support/minio.rs` |
 | `GET /version` from a `SERVICE_VERSION` build argument, also in the OpenAPI `info.version`. Adapted: compiled in with `option_env!` (the agent reads it at runtime, so the environment could misreport it) and answered as JSON `{ version }` so fields can be added | agent (`routes/infra.rs`, `Dockerfile`) | `apps/app/src/lib.rs` (`VERSION`), `apps/app/Dockerfile` |
 | TypeScript `strict` + `noUncheckedIndexedAccess`; Prettier `printWidth: 120`, `singleQuote` | cli (`tsconfig.json`, `.prettierrc`) | `frontend.md` §10 (applies from DNK-6) |
+| Typed CSF stories for shared UI, previewed in both locales/themes and checked in a browser | jdm-editor (`.storybook`, typed stories) | `apps/web/.storybook`, `src/stories`, [component previews](storybook.md) (DNK-29) |
 
 ## Planned (stories in the backlog)
 
@@ -31,7 +32,6 @@ did not, and why. Update it when a new practice is taken from them.
 |---|---|---|
 | Optional OpenTelemetry traces and metrics, off by default | agent (`telemetry.rs`) | DNK-27 |
 | Docker build with a dependency layer that only manifests invalidate | agent (`Dockerfile`) | DNK-28 |
-| Storybook for UI components, used in design review | jdm-editor | DNK-29 |
 | Changelog and version numbers generated from Conventional Commits (release-please) | zen, cli, agent | DNK-30 |
 
 ## Deliberately not adopted
