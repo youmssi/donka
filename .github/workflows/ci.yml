@@ -195,12 +195,34 @@ jobs:
           DONKA_E2E_MAILPIT_URL: http://localhost:8025
           DONKA_E2E_ADMIN_EMAIL: admin@donka.local
           DONKA_E2E_ADMIN_PASSWORD: smoke test passphrase
+      - name: Restart isolated Studio with small authentication limits
+        run: |
+          printf '%s\n' 'DONKA_SIGN_IN_RATE_LIMIT=2' 'DONKA_PASSWORD_RESET_RATE_LIMIT=1' > .env
+          docker compose --profile full up -d --wait app
+          for _ in $(seq 1 60); do
+            curl -sf localhost:8080/api/v1/ready >/dev/null && exit 0
+            sleep 1
+          done
+          exit 1
+      - name: Live authentication rate limits
+        working-directory: apps/web
+        run: pnpm run ${{ (github.base_ref == 'main' || github.ref == 'refs/heads/main') && 'test:e2e:security:release' || 'test:e2e:security' }}
+        env:
+          DONKA_E2E_BASE_URL: http://localhost:8080
+          DONKA_E2E_RUNTIME_URL: http://localhost:8090
+          DONKA_E2E_MAILPIT_URL: http://localhost:8025
+          DONKA_E2E_ADMIN_EMAIL: admin@donka.local
+          DONKA_E2E_ADMIN_PASSWORD: smoke test passphrase
+          DONKA_E2E_SIGN_IN_RATE_LIMIT: "2"
+          DONKA_E2E_PASSWORD_RESET_RATE_LIMIT: "1"
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-security
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: feature-browser-failures
           path: |
             apps/web/playwright-report
+            apps/web/playwright-report-security
             apps/web/test-results
           retention-days: 3
       - name: Logs
