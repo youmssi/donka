@@ -114,6 +114,9 @@ Dependencies go **one way only**: `app/ → Component → Cache hook → Service
     `components/shared/form/index.ts`, never markup copied into a form.
   - `form.Form` is the `<form>` element: it submits through the form, with the browser's own
     validation off, and moves focus to the first field in error when a submission is refused.
+    Its static controls stay disabled until hydration attaches the event handlers, so early
+    typing cannot be lost. The containing fieldset uses `display: contents` to preserve the
+    caller's grid/flex layout; initial autofocus is restored without taking existing focus.
   - A large form is split into parts with `withForm`, sharing its options through
     `formOptions` (see the connector node's sections).
   - Default values are a typed value (`const defaultValues: InviteValues = { … }`), never a cast:
@@ -253,7 +256,8 @@ release suite in Chromium, Firefox and WebKit. UI changes cover EN/FR, light/dar
 390 px. Capture failure traces/screenshots without credentials or personal data. Keep API/CLI
 and operational integration tests for behavior outside the browser.
 The [delivery plan](../delivery-plan.md) distinguishes current preview coverage from the
-application suite being established by DNK-48.
+application suite established by DNK-48. See [Live feature tests](live-tests.md) for commands,
+fixtures, artifacts and the remaining coverage map.
 Shared component stories live in `src/stories`; keep them current when the component changes.
 See [Component previews](storybook.md) for commands, fixture rules and the coverage map.
 

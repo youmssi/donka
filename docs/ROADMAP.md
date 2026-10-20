@@ -55,6 +55,11 @@ docker-compose for PostgreSQL, MinIO and Mailpit.
 | 33 | DNK-29 Shared component previews and browser checks | S |
 | 34 | DNK-47 Agreed delivery plan and foundation evidence | S |
 | 35 | DNK-48 Live feature-test foundation; extend per feature group | S R C |
+| 35b | DNK-51 Identity, projects and permission browser coverage | S |
+| 35c | DNK-52 Editor, contracts, versions and scenarios | S R |
+| 35d | DNK-53 Approval, rollback, Runtime and connectors | S R |
+| 35e | DNK-54 Decision records, explanations and audit | S R |
+| 35f | DNK-55 Packs, onboarding and CLI integration | S C |
 | 36 | DNK-49 Enforce coverage and dependency-security gates | S R C |
 | 37 | DNK-50 Isolated backup, restore and upgrade rehearsal | S R C |
 

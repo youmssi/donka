@@ -39,6 +39,8 @@ export default defineConfig([
     '.next/**',
     'out/**',
     'storybook-static/**',
+    'playwright-report/**',
+    'test-results/**',
     'next-env.d.ts',
     'src/components/shared/api/schema.d.ts',
   ]),

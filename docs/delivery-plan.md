@@ -14,9 +14,10 @@ Remaining order:
    lists with [exact evidence](engineering/foundation-evidence.md).
 2. **DNK-48:** put live feature tests in the repository with isolated fixtures, a repeatable
    environment and CI. Begin with authentication and the core project-to-Runtime journey.
-   Extend coverage through separate stories per feature group: permissions, editor/contracts,
+   Extend coverage through DNK-51 to DNK-55, separate stories per feature group: permissions, editor/contracts,
    versions/scenarios, approvals/rollback, tokens/connectors, records/explanations/audit,
-   packs/onboarding and CLI sync/contracts. Record any discovered defect in its own story.
+   packs/onboarding and CLI sync/contracts. Fix defects blocking the current journey in its
+   story; record unrelated defects in separate stories.
 3. **DNK-49:** enforce the coverage and dependency-security gates already required by the
    engineering guides. Their current absence is an audit finding, not a passing check.
 4. **DNK-50:** rehearse installation, database/bucket/secret backup and restore, upgrade and

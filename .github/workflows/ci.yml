@@ -139,6 +139,11 @@ jobs:
             app.cache-from=type=gha
             runtime.cache-from=type=gha,scope=runtime
             runtime.cache-to=type=gha,mode=max,scope=runtime
+      # The synthetic browser matrix exercises authentication many times; rate-limit edge
+      # cases keep their own default-limit integration tests.
+      - name: Isolated browser-test configuration
+        run: |
+          printf '%s\n' 'DONKA_SIGN_IN_RATE_LIMIT=100' 'DONKA_PASSWORD_RESET_RATE_LIMIT=100' > .env
       - run: docker compose --profile full up -d
       - name: First administrator
         run: |
@@ -164,6 +169,40 @@ jobs:
           RUNTIME_URL: http://localhost:8090
           DONKA_SMOKE_EMAIL: admin@donka.local
           DONKA_SMOKE_PASSWORD: smoke test passphrase
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: apps/web/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: apps/web
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('apps/web/pnpm-lock.yaml') }}
+      - name: Browser dependencies
+        working-directory: apps/web
+        run: pnpm exec playwright install --with-deps ${{ (github.base_ref == 'main' || github.ref == 'refs/heads/main') && 'chromium firefox webkit' || 'chromium' }}
+      - name: Live feature journeys
+        working-directory: apps/web
+        run: pnpm run ${{ (github.base_ref == 'main' || github.ref == 'refs/heads/main') && 'test:e2e:release' || 'test:e2e' }}
+        env:
+          DONKA_E2E_BASE_URL: http://localhost:8080
+          DONKA_E2E_RUNTIME_URL: http://localhost:8090
+          DONKA_E2E_MAILPIT_URL: http://localhost:8025
+          DONKA_E2E_ADMIN_EMAIL: admin@donka.local
+          DONKA_E2E_ADMIN_PASSWORD: smoke test passphrase
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: feature-browser-failures
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          retention-days: 3
       - name: Logs
         if: failure()
         run: docker compose --profile full logs --tail 100

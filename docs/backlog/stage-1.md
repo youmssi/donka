@@ -1065,6 +1065,7 @@ of business workflows. Feature completion needs a test against the running appli
 - [ ] Initial authentication and core project-to-Runtime journeys run locally and in CI using Chromium
 - [ ] A release command runs Chromium, Firefox and WebKit; UI checks cover EN/FR, light/dark, desktop and 390 px
 - [ ] Tests use real conditions and user-facing locators; failures retain useful protected traces/screenshots
+- [ ] Static form controls reject interaction until hydration; a delayed-script regression proves early input cannot be lost
 - [ ] A feature coverage map identifies each existing module's journeys and remaining feature-group stories; API/CLI checks retain their own appropriate tests
 
 #### Out of scope
@@ -1091,7 +1092,7 @@ the current Studio workflow does not enforce them. Audit the other repos before 
 
 ### DNK-50 — Isolated backup, restore and upgrade rehearsal
 
-**Type:** test · **Repos:** S, R, C · **Dependencies:** DNK-48, DNK-49, feature coverage complete · **Size:** M
+**Type:** test · **Repos:** S, R, C · **Dependencies:** DNK-49, DNK-51, DNK-52, DNK-53, DNK-54, DNK-55 · **Size:** M
 
 #### Acceptance criteria
 - [ ] Fresh install and post-deploy smoke checks pass in an isolated environment
@@ -1102,3 +1103,63 @@ the current Studio workflow does not enforce them. Audit the other repos before 
 
 #### Out of scope
 Customer production deployment or declaring customer policy values approved without their owner.
+
+---
+
+### DNK-51 — Live identity, project and permission boundaries
+
+**Type:** test · **Repos:** S · **Dependencies:** DNK-48 · **Size:** L
+
+#### Acceptance criteria
+- [ ] Invalid/expired links, wrong credentials, account lockout and configured rate limits have live evidence
+- [ ] Account invitations/administration and project membership roles are exercised through the UI
+- [ ] Cross-project access, forbidden actions, project edit/archive and concurrency criteria are covered by the appropriate browser/integration tests
+- [ ] The feature coverage map records exact passing journeys and remaining limits
+
+---
+
+### DNK-52 — Live editor, contracts, versions and scenarios
+
+**Type:** test · **Repos:** S, R · **Dependencies:** DNK-48 · **Size:** L
+
+#### Acceptance criteria
+- [ ] Graph authoring and the simulation panel persist and produce expected results through the UI
+- [ ] Input types/validation, schema editing and compatible/breaking contract changes are exercised
+- [ ] Version diff/restore and scenario creation/execution/failure paths are checked
+- [ ] Runtime input-contract rejection is verified and the coverage map is current
+
+---
+
+### DNK-53 — Live approval, rollback, Runtime and connectors
+
+**Type:** test · **Repos:** S, R · **Dependencies:** DNK-48 · **Size:** L
+
+#### Acceptance criteria
+- [ ] Separate author/approver sessions prove self-approval denial, approval/rejection and approved rollback
+- [ ] Token scope/revocation, Runtime limits and environment boundaries are exercised
+- [ ] Connector mapping, secret references and timeout/failure/fallback behavior have real service evidence
+- [ ] The coverage map distinguishes Studio simulation mocks from Runtime external calls
+
+---
+
+### DNK-54 — Live decision records, explanations and audit
+
+**Type:** test · **Repos:** S, R · **Dependencies:** DNK-48 · **Size:** L
+
+#### Acceptance criteria
+- [ ] Real Runtime records reach Studio and can be searched, opened and replayed through the UI
+- [ ] Explanation disabled/enabled/error states and redaction use a controlled endpoint and verify what is sent
+- [ ] Audit screens reflect relevant actions and access rules; retention and key rotation retain integration/operational evidence
+- [ ] The coverage map identifies what was executed and what remains
+
+---
+
+### DNK-55 — Live packs, onboarding and CLI integration
+
+**Type:** test · **Repos:** S, C · **Dependencies:** DNK-48 · **Size:** L
+
+#### Acceptance criteria
+- [ ] Catalogue/file import, independent duplicate, export/reimport and invalid/conflicting pack paths are exercised
+- [ ] Real-progress checklist and skippable/replayable tours work with persisted per-user state
+- [ ] CLI sync targets, checksums, contract pull/check/init and relevant templates are verified against real Studio as appropriate
+- [ ] The coverage map is current; Phase 1 is not marked complete while a required feature group remains unverified
