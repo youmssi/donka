@@ -1,4 +1,4 @@
-import { test as base, expect, type APIRequestContext } from '@playwright/test';
+import { test as base, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
@@ -57,9 +57,11 @@ export const test = base.extend<Fixtures>({
     { auto: true },
   ],
   pageErrors: [
-    async ({ page }, run) => {
+    async ({ context }, run) => {
       const errors: string[] = [];
-      page.on('pageerror', (error) => errors.push(error.message));
+      const listen = (page: Page) => page.on('pageerror', (error) => errors.push(error.message));
+      context.on('page', listen);
+      context.pages().forEach(listen);
       await run();
       expect(errors, 'No unexpected JavaScript page errors').toEqual([]);
     },

@@ -8,6 +8,13 @@ disabled until hydration, then exercises the real email and password change. Thi
 lost-input race described in [Playwright's hydration guidance](https://playwright.dev/docs/navigations#hydration).
 The [coverage map](#feature-coverage) keeps remaining workflows explicit.
 
+The release journey cold-loads each screen in a fresh tab and reopens the editor to verify
+persisted fields. This avoids [WebKit's document-replacement cancellation bug](https://github.com/microsoft/playwright/issues/43120),
+which can report departing-document requests as access-control page errors. Every tab remains
+under the same page-error assertion; no errors are filtered. Each new tab is brought to the
+foreground before loading, and the previous tab closes; background tabs pause publication
+polling. Feature-group stories below extend client-side navigation coverage.
+
 ## Environment
 
 Use an isolated synthetic-data installation with Studio, PostgreSQL 16, MinIO/S3, Runtime and
@@ -89,7 +96,7 @@ the simulation panel are not claimed by that seeded fixture.
 |---|---|---|
 | Identity | Invitation email, setup/mismatch, independent password reveal, keyboard reveal, required sign-in fields, sign-in/out, delayed-hydration guard, reset email and single-use reset | DNK-51: expired/invalid links, wrong-password/lockout/rate limits, account administration and permission boundaries |
 | Projects | Create through UI, returned project data and independent fixture key | DNK-51: members/roles, cross-project denial, edit/archive/concurrency |
-| Rules and contracts | Known graph fixture; edit a field through UI and verify persistence after reload | DNK-52: graph authoring, simulation panel, all field types/limits, raw schema, breaking contract changes |
+| Rules and contracts | Known graph fixture; edit a field through UI and verify persistence in a fresh page load | DNK-52: graph authoring, simulation panel, all field types/limits, raw schema, breaking contract changes |
 | Versions/scenarios | Save the current draft as a version through UI | DNK-52: diff/restore, scenario edit/run/failure paths |
 | Releases/Runtime | UI release, shown-once token, staging publication, actual Runtime result and unknown-token rejection | DNK-53: second-person approval, rejection, rollback, revocation behavior, scopes/rate limits and connector failures |
 | Records/explanations/audit | Existing Rust and API e2e checks remain separate evidence | DNK-54: record ingestion/search/replay, redaction/explain states, audit UI, retention/key rotation |

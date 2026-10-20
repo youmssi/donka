@@ -1,11 +1,12 @@
 import type { ApiSchemas } from '../src/components/shared/api';
+import type { Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { test, expect, unique } from './fixtures';
 import { settings } from './settings';
 
 test('project, field persistence, version and staging release reach the real Runtime', async ({
-  page,
+  context,
   admin,
   services,
   messages: m,
@@ -16,8 +17,18 @@ test('project, field persistence, version and staging release reach the real Run
   for (const tour of ['editor', 'releases', 'environments']) {
     await expect(await admin.put(`/api/v1/me/tours/${tour}`)).toBeOK();
   }
+  // Cold loads also prove deep links and persistence without replacing a departing document.
+  // WebKit misclassifies cancelled prefetches during replacement: playwright#43120.
+  async function open(url: string, previous?: Page) {
+    const opened = await context.newPage();
+    await opened.bringToFront();
+    await previous?.close();
+    await opened.goto(url);
+    await expect.poll(() => opened.evaluate(() => document.visibilityState)).toBe('visible');
+    return opened;
+  }
   const key = unique('browser-rules');
-  await page.goto(`/${appLocale}/`);
+  let page = await open(`/${appLocale}/`);
   await page.getByRole('button', { name: m.projects.create, exact: true }).first().click();
   let dialog = page.getByRole('dialog');
   await dialog.getByLabel(m.projects.name, { exact: true }).fill('Browser rules');
@@ -30,6 +41,8 @@ test('project, field persistence, version and staging release reach the real Run
   expect(projectResponse.ok()).toBe(true);
   const project: ApiSchemas['ProjectResponse'] = await projectResponse.json();
   const path = `/api/v1/projects/${project.id}`;
+  // Finish the create dialog's redirect before navigating away with the graph fixture.
+  await expect(page.getByText(m.decisions.emptyTitle, { exact: true })).toBeVisible();
   // A known valid graph is test data. Authoring graph nodes is a separate coverage story.
   const graph: unknown = JSON.parse(
     await readFile(resolve(dirname(testInfo.file), '../../../crates/engine/tests/fixtures/table.json'), 'utf8'),
@@ -37,7 +50,7 @@ test('project, field persistence, version and staging release reach the real Run
   const response = await admin.post(`${path}/decisions`, { data: { key: 'table', content: graph } });
   await expect(response).toBeOK();
   const decision: ApiSchemas['DecisionResponse'] = await response.json();
-  await page.goto(`/${appLocale}/projects/decision?p=${key}&d=table`);
+  page = await open(`/${appLocale}/projects/decision?p=${key}&d=table`, page);
   await page.getByRole('button', { name: m.inputFields.open }).click();
   await page.getByRole('button', { name: m.inputFields.add, exact: true }).click();
   await page.getByPlaceholder('customer.age', { exact: true }).fill('customer.id');
@@ -50,7 +63,7 @@ test('project, field persistence, version and staging release reach the real Run
     })
     .toContain('customer');
   await page.keyboard.press('Escape');
-  await page.reload();
+  page = await open(page.url(), page);
   // The button's accessible name also includes the saved-field count badge.
   await page.getByRole('button', { name: m.inputFields.open }).click();
   await expect(page.getByRole('cell', { name: /^customer\.id\b/ })).toBeVisible();
@@ -67,7 +80,7 @@ test('project, field persistence, version and staging release reach the real Run
   const previewResponse = await admin.get(`${path}/releases/preview`);
   await expect(previewResponse).toBeOK();
   const preview: ApiSchemas['ReleasePreviewResponse'] = await previewResponse.json();
-  await page.goto(`/${appLocale}/projects/releases?p=${key}`);
+  page = await open(`/${appLocale}/projects/releases?p=${key}`, page);
   await page.getByRole('button', { name: m.releases.create, exact: true }).first().click();
   dialog = page.getByRole('dialog');
   await dialog.getByLabel(m.releases.notes, { exact: true }).fill('Live browser release');
@@ -80,7 +93,7 @@ test('project, field persistence, version and staging release reach the real Run
   const releaseResponse = await releaseCreated;
   expect(releaseResponse.ok()).toBe(true);
   const release: ApiSchemas['ReleaseResponse'] = await releaseResponse.json();
-  await page.goto(`/${appLocale}/projects/environments?p=${key}`);
+  page = await open(`/${appLocale}/projects/environments?p=${key}`, page);
   const staging = page.getByRole('region', { name: m.environments.staging, exact: true });
   const tokenName = 'Browser runtime';
   await staging.getByRole('button', { name: m.tokens.create, exact: true }).click();

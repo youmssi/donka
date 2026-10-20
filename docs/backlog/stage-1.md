@@ -1061,12 +1061,16 @@ Component previews and ad-hoc browser runs do not provide repeatable live regres
 of business workflows. Feature completion needs a test against the running application.
 
 #### Acceptance criteria
-- [ ] A documented, repeatable Playwright Test setup uses isolated synthetic data and real local Studio/Runtime/PostgreSQL/object storage/email services
-- [ ] Initial authentication and core project-to-Runtime journeys run locally and in CI using Chromium
-- [ ] A release command runs Chromium, Firefox and WebKit; UI checks cover EN/FR, light/dark, desktop and 390 px
-- [ ] Tests use real conditions and user-facing locators; failures retain useful protected traces/screenshots
-- [ ] Static form controls reject interaction until hydration; a delayed-script regression proves early input cannot be lost
-- [ ] A feature coverage map identifies each existing module's journeys and remaining feature-group stories; API/CLI checks retain their own appropriate tests
+- [x] A documented, repeatable Playwright Test setup uses isolated synthetic data and real local Studio/Runtime/PostgreSQL/object storage/email services
+- [x] Initial authentication and core project-to-Runtime journeys run locally and in CI using Chromium
+- [x] A release command runs Chromium, Firefox and WebKit; UI checks cover EN/FR, light/dark, desktop and 390 px
+- [x] Tests use real conditions and user-facing locators; failures retain useful protected traces/screenshots
+- [x] Static form controls reject interaction until hydration; a delayed-script regression proves early input cannot be lost
+- [x] A feature coverage map identifies each existing module's journeys and remaining feature-group stories; API/CLI checks retain their own appropriate tests
+
+Implementation and validation evidence: [PR #50](https://github.com/youmssi/donka/pull/50).
+This checklist does not declare pilot readiness; the remaining feature groups and phase exit
+gates still apply.
 
 #### Out of scope
 Changing product scope, testing customer production systems and silently declaring uncovered
