@@ -597,9 +597,13 @@ zen, agent-public and the CLI already solved many problems Donka meets. Copying 
 **Type:** chore · **Repos:** S · **Dependencies:** DNK-6 · **Size:** S
 
 #### Acceptance criteria
-- [ ] Every shared UI component has a story showing its four states (loading, empty, error, success) where they apply
-- [ ] Stories render in light and dark, English and French
-- [ ] CI builds Storybook so a broken story fails the pull request
+- [x] Every shared UI component has a story showing its four states (loading, empty, error, success) where they apply
+- [x] Stories render in light and dark, English and French
+- [x] CI builds Storybook so a broken story fails the pull request
+
+Verification: 45 stories, all 360 desktop/390 px, EN/FR and light/dark browser combinations;
+real control interactions, render errors and document overflow checked by Playwright.
+See [component previews](../engineering/storybook.md) for the coverage map and CI commands.
 
 ---
 

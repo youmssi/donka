@@ -1,0 +1,22 @@
+/* Vite cannot transform next/font calls inside geist's published node_modules files.
+ * Bundle the same local font assets directly for the preview. */
+@font-face {
+  font-family: 'Geist Preview';
+  src: url('../node_modules/geist/dist/fonts/geist-sans/Geist-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist Mono Preview';
+  src: url('../node_modules/geist/dist/fonts/geist-mono/GeistMono-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --font-geist-sans: 'Geist Preview', sans-serif;
+  --font-geist-mono: 'Geist Mono Preview', monospace;
+}

@@ -35,5 +35,11 @@ export default defineConfig([
     files: ['src/components/ui/**', 'src/components/shared/hooks/use-mobile.ts'],
     rules: { 'react-hooks/purity': 'off', 'react-hooks/set-state-in-effect': 'off' },
   },
-  globalIgnores(['.next/**', 'out/**', 'next-env.d.ts', 'src/components/shared/api/schema.d.ts']),
+  globalIgnores([
+    '.next/**',
+    'out/**',
+    'storybook-static/**',
+    'next-env.d.ts',
+    'src/components/shared/api/schema.d.ts',
+  ]),
 ]);
