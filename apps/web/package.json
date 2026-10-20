@@ -14,7 +14,9 @@
     "api:generate": "openapi-typescript openapi.json -o src/components/shared/api/schema.d.ts && prettier --write src/components/shared/api/schema.d.ts",
     "storybook": "storybook dev --port 6006 --host 127.0.0.1 --no-open",
     "build-storybook": "storybook build",
-    "test:storybook": "node scripts/check-storybook.mjs"
+    "test:storybook": "node scripts/check-storybook.mjs",
+    "test:e2e": "playwright test --project=chromium-*",
+    "test:e2e:release": "playwright test"
   },
   "dependencies": {
     "@ant-design/v5-patch-for-react-19": "1.0.3",

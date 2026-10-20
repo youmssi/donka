@@ -4,3 +4,5 @@ node_modules
 pnpm-lock.yaml
 openapi.json
 storybook-static
+playwright-report/
+test-results/

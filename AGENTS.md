@@ -120,6 +120,7 @@ pnpm --dir apps/web i18n:check
 pnpm --dir apps/web build
 pnpm --dir apps/web build-storybook
 pnpm --dir apps/web test:storybook     # browser setup: docs/engineering/storybook.md
+pnpm --dir apps/web test:e2e           # isolated stack/env: docs/engineering/live-tests.md
 
 # After changing an endpoint: refresh the contract the web client is generated from
 DONKA_UPDATE_OPENAPI=1 cargo test -p donka-app --test api && pnpm --dir apps/web api:generate

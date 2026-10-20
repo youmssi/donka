@@ -143,6 +143,7 @@ curl -s -b jar -X POST localhost:8080/api/v1/simulate -H 'x-donka-csrf: 1' \
 | [Engineering guides](docs/engineering/) | Principles, backend and frontend conventions |
 | [Delivery plan](docs/delivery-plan.md) | Approved phase scope, feature testing and readiness gates |
 | [Foundation evidence](docs/engineering/foundation-evidence.md) | Acceptance audit and remaining readiness gaps |
+| [Live feature tests](docs/engineering/live-tests.md) | Playwright against the running stack and feature coverage |
 | [Component previews](docs/engineering/storybook.md) | Storybook, shared UI states and browser checks |
 | [Decisions (ADRs)](docs/adr/README.md) · [Roadmap](docs/ROADMAP.md) · [Backlog](docs/backlog/stage-1.md) | Why, what next, and the stories |
 

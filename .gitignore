@@ -7,3 +7,5 @@ out/
 .DS_Store
 .tsgo-cache/
 runtime.env
+apps/web/playwright-report/
+apps/web/test-results/
