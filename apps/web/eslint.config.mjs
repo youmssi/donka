@@ -40,6 +40,7 @@ export default defineConfig([
     'out/**',
     'storybook-static/**',
     'playwright-report/**',
+    'playwright-report-security/**',
     'test-results/**',
     'next-env.d.ts',
     'src/components/shared/api/schema.d.ts',

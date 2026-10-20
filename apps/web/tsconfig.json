@@ -26,5 +26,12 @@
     "types": ["vitest/globals", "@testing-library/jest-dom"]
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "**/*.mts", ".next/dev/types/**/*.ts"],
-  "exclude": ["node_modules", "out", "storybook-static", "playwright-report", "test-results"]
+  "exclude": [
+    "node_modules",
+    "out",
+    "storybook-static",
+    "playwright-report",
+    "playwright-report-security",
+    "test-results"
+  ]
 }

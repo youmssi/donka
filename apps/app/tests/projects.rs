@@ -438,6 +438,81 @@ async fn two_owners_demoting_each_other_at_once_leave_one_owner(db: PgPool) {
     assert_eq!(owners, 1);
 }
 
+// --- administrator boundaries and concurrent removal ----------------------------
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn administrators_are_not_implicit_members(db: PgPool) {
+    let app = with_database(db);
+    let owner = signed_in_admin(&app).await;
+    let stranger = signed_in_user(&app, GRACE, true).await;
+    let p = project(&app, &owner, "private-project").await;
+    for method in ["GET", "PATCH"] {
+        let body = (method == "PATCH").then(|| json!({ "name": "Not permitted" }));
+        let reply = call(&app, method, &format!("/projects/{p}"), body, &stranger).await;
+        assert_error(&reply, StatusCode::NOT_FOUND, "PROJECT_NOT_FOUND");
+    }
+    let listed = call(&app, "GET", "/projects", None, &stranger).await;
+    assert_eq!(listed.body["total"], 0);
+    add(&app, &owner, &p, GRACE, "viewer").await;
+    let allowed = call(&app, "GET", &format!("/projects/{p}"), None, &stranger).await;
+    assert_eq!(allowed.status, StatusCode::OK);
+    assert_eq!(allowed.body["role"], "viewer");
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn concurrent_owner_removals_and_demotions_keep_one_owner(db: PgPool) {
+    let app = with_database(db.clone());
+    let admin = signed_in_admin(&app).await;
+    let grace = signed_in_user(&app, GRACE, false).await;
+    let admin_id = user_id(&app, ADMIN_EMAIL).await;
+    let grace_id = user_id(&app, GRACE).await;
+    for (index, second_method) in ["DELETE", "PATCH"].into_iter().enumerate() {
+        let p = project(&app, &admin, &format!("concurrent-{index}")).await;
+        add(&app, &admin, &p, GRACE, "owner").await;
+        let mut attempts = JoinSet::new();
+        for (session, target, method) in [
+            (admin.clone(), grace_id.clone(), "DELETE"),
+            (grace.clone(), admin_id.clone(), second_method),
+        ] {
+            let router = app.router.clone();
+            let path = url(&format!("/projects/{p}/members/{target}"));
+            attempts.spawn(async move {
+                let body = (method == "PATCH").then(|| json!({ "role": "viewer" }));
+                send(
+                    &router,
+                    request(method, &path, body.as_ref(), Some(&session)),
+                )
+                .await
+                .status
+            });
+        }
+        let mut succeeded = 0;
+        while let Some(status) = attempts.join_next().await {
+            let status = status.unwrap();
+            if status.is_success() {
+                succeeded += 1;
+            } else {
+                assert!(
+                    matches!(
+                        status,
+                        StatusCode::FORBIDDEN | StatusCode::NOT_FOUND | StatusCode::CONFLICT
+                    ),
+                    "{status}"
+                );
+            }
+        }
+        assert_eq!(succeeded, 1);
+        let (owners,): (i64,) = sqlx::query_as(
+            "SELECT count(*) FROM project_members WHERE project_id = $1::uuid AND role = 'owner'",
+        )
+        .bind(&p)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+        assert_eq!(owners, 1);
+    }
+}
+
 // --- archive --------------------------------------------------------------------
 
 #[sqlx::test(migrator = "donka_db::MIGRATOR")]

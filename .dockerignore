@@ -6,4 +6,5 @@ apps/web/out
 .git
 .env
 **/playwright-report
+**/playwright-report-security
 **/test-results

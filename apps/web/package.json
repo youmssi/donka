@@ -16,7 +16,9 @@
     "build-storybook": "storybook build",
     "test:storybook": "node scripts/check-storybook.mjs",
     "test:e2e": "playwright test --project=chromium-*",
-    "test:e2e:release": "playwright test"
+    "test:e2e:release": "playwright test",
+    "test:e2e:security": "playwright test --config=playwright.security.config.ts --project=chromium-*",
+    "test:e2e:security:release": "playwright test --config=playwright.security.config.ts"
   },
   "dependencies": {
     "@ant-design/v5-patch-for-react-19": "1.0.3",

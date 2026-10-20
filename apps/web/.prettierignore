@@ -5,4 +5,5 @@ pnpm-lock.yaml
 openapi.json
 storybook-static
 playwright-report/
+playwright-report-security/
 test-results/

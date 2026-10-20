@@ -1115,10 +1115,14 @@ Customer production deployment or declaring customer policy values approved with
 **Type:** test · **Repos:** S · **Dependencies:** DNK-48 · **Size:** L
 
 #### Acceptance criteria
-- [ ] Invalid/expired links, wrong credentials, account lockout and configured rate limits have live evidence
-- [ ] Account invitations/administration and project membership roles are exercised through the UI
-- [ ] Cross-project access, forbidden actions, project edit/archive and concurrency criteria are covered by the appropriate browser/integration tests
-- [ ] The feature coverage map records exact passing journeys and remaining limits
+- [x] Invalid/expired links, wrong credentials, account lockout and configured rate limits have live evidence
+- [x] Account invitations/administration and project membership roles are exercised through the UI
+- [x] Cross-project access, forbidden actions, project edit/archive and concurrency criteria are covered by the appropriate browser/integration tests
+- [x] The feature coverage map records exact passing journeys and remaining limits
+
+Evidence: [live feature coverage and exact integration journeys](../engineering/live-tests.md).
+Chromium covers all eight UI modes; clock-dependent expiry/recovery and simultaneous changes
+use the real PostgreSQL integration suite. Firefox/WebKit remain required before release.
 
 ---
 
