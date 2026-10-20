@@ -30,3 +30,31 @@
 | Releases | release-please on `main` generates versions and changelogs (DNK-30); nothing published to registries under GoRules names |
 | Projects | Administrators create projects and become owner; they are not implicit members of others; keys are immutable (DNK-7) |
 | Repository visibility | `donka` is public until launch (free CI minutes), then made private; `donka-runtime` and `donka-cli` stay public (MIT) |
+
+## Playbook adaptations
+
+| Adaptation | Decision and guide |
+|---|---|
+| Separate authoring/control plane and serving/data plane | ADR-001; backend guide section 1 |
+| Static Next.js export, no deployed Next server or BFF; same-origin httpOnly session | ADR-002 and ADR-007; frontend section 2, backend section 8 |
+| Rust module crates and a single decision-engine boundary | ADR-003; backend section 1 |
+| Registry UI with the upstream decision editor and shared design tokens | ADR-004; frontend sections 2 and 5 |
+| Shared TanStack Form/Zod composition rather than the generic form-library example | ADR-005; frontend section 4 |
+| Upstream fork structure/API paths, retained MIT notices and narrow changes | ADR-006; Runtime/CLI AGENTS and DONKA guides |
+
+## Roadmap decisions confirmed 2026-10-20
+
+- Phase 1 MVP: Studio + Runtime + CLI. Complete acceptance evidence, live feature tests and
+  operational rehearsal before Phase 2.
+- Phase 2: Fieldkit plus document-assisted rule creation, input/form/connector mapping,
+  playground testing and chat edits. The owner sees proposed changes and a diff, then accepts
+  before they are applied to the editable draft. Existing releases and approvals still apply.
+- SSO/OIDC remains Phase 3. The earlier Phase 1 read-only explanation decision remains valid;
+  Phase 2 authoring is a new capability with its architecture to be designed in that phase.
+- Agree each phase and then proceed by story; unclear requirements and material scope changes
+  require interactive alignment before implementation.
+- Live Playwright verification follows every implemented feature. Chromium runs on each
+  feature PR; Chromium, Firefox and WebKit run before release. UI coverage includes EN/FR,
+  light/dark, desktop and 390 px.
+
+See the [delivery plan](../delivery-plan.md) for the complete scope and phase exit gates.

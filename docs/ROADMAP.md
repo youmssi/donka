@@ -4,6 +4,9 @@ Stage 1 is the MVP for one self-hosted pilot (a bank or microfinance lender). St
 acceptance criteria: [`docs/backlog/stage-1.md`](backlog/stage-1.md). One story at a time, each
 merged before the next.
 
+Phase scope, owner decisions and exit gates: [Delivery plan](delivery-plan.md).
+Phase 1 is Studio + Runtime + CLI; Fieldkit and AI authoring are Phase 2; SSO is Phase 3.
+
 Already on `develop` before the playbook was adopted: Cargo workspace, `crates/engine`
 (`DecisionRuntime` + `ZenRuntime` on zen-engine 2.0.1), `apps/app` with health and simulate, CI,
 docker-compose for PostgreSQL, MinIO and Mailpit.
@@ -50,6 +53,10 @@ docker-compose for PostgreSQL, MinIO and Mailpit.
 | 31 | DNK-45 Show and hide passwords | S |
 | 32 | DNK-46 Environment cards fit phones | S |
 | 33 | DNK-29 Shared component previews and browser checks | S |
+| 34 | DNK-47 Agreed delivery plan and foundation evidence | S |
+| 35 | DNK-48 Live feature-test foundation; extend per feature group | S R C |
+| 36 | DNK-49 Enforce coverage and dependency-security gates | S R C |
+| 37 | DNK-50 Isolated backup, restore and upgrade rehearsal | S R C |
 
 Practices from the upstream codebases, scheduled next to the stories that need them:
 DNK-26 `/version` (after DNK-4), DNK-28 container builds (before DNK-23), DNK-27 OpenTelemetry
@@ -57,8 +64,11 @@ DNK-26 `/version` (after DNK-4), DNK-28 container builds (before DNK-23), DNK-27
 on sign-in and password reset (before the pilot).
 
 ## Stage 2: governance depth
-Branches, N-eyes approvals, webhooks, GitSync, more connectors, Fieldkit Stage 1 (rendering
-forms from the DNK-37 input contract).
+Fieldkit Stage 1 (forms from DNK-37), document-assisted AI rule creation and chat editing,
+connector/field mappings and the owner playground. Proposed edits require an owner-reviewed
+diff before application to a draft; normal release approval remains. Branches, N-eyes approvals,
+webhooks, GitSync and more connectors remain in this phase. Define and agree the detailed
+story order at phase entry; see the [approved scope](delivery-plan.md#phase-2--assisted-creation-fieldkit-and-governance).
 
 ## Stage 3: enterprise
 SSO/OIDC, global roles, path coverage, policy-document editor, MCP bridge in Studio, SOC 2

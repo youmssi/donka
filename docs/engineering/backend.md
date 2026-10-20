@@ -1,7 +1,8 @@
 # Backend guide (Rust)
 
 What is specific to `apps/app` and the `crates/`. Read `principles.md` first; this guide does
-not repeat it. Practices taken from the upstream GoRules codebases are listed in `references.md`.
+not repeat it. Practices taken from upstream are listed in [references](references.md).
+The [decision index](../adr/README.md#playbook-adaptations) links adaptations to the playbook.
 
 ---
 
@@ -169,6 +170,9 @@ One shape for the whole API:
 
 In order, each step blocking: format, clippy, build + tests (with PostgreSQL), engine version
 check, coverage gate, `cargo audit`, container image build.
+
+The DNK-47 audit found that coverage and dependency-security gates are not yet enforced by
+the current workflow. DNK-49 must add them; the requirements above remain the quality bar.
 
 ## 12. Checklist for a new endpoint
 

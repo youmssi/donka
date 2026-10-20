@@ -40,7 +40,8 @@ file and add what is specific to that tool.
   mutually compatible versions.
 - **Deployment:** self-hosted, one installation per customer (Docker Compose or Kubernetes).
   No multi-tenancy.
-- **Source of truth for scope:** `docs/backlog/` (stories) and `docs/ROADMAP.md` (order).
+- **Source of truth for scope:** `docs/backlog/` (stories), `docs/ROADMAP.md` (order) and
+  `docs/delivery-plan.md` (approved phase scope and exit gates).
 - **Architecture decisions:** `docs/adr/`. Architecture overview: `docs/ARCHITECTURE.md`.
 
 ## 3. Hard rules (non-negotiable)
@@ -85,6 +86,14 @@ file and add what is specific to that tool.
   screens (desktop and 390 px, English and French, light and dark); attach screenshots to the PR.
 - **Report honestly.** If a check fails, say which and why. If something was not verified, say
   so. Never claim "done" on hope.
+- **Live feature verification.** After implementing a feature, run Playwright against the
+  running app and relevant services; commit the regression test. Chromium on each feature PR;
+  Chromium, Firefox and WebKit before release. UI: EN/FR, light/dark, desktop and 390 px.
+  Storybook is component evidence; full business journeys need their own tests. API/CLI and
+  operational changes retain the appropriate command/integration tests.
+- **Phase alignment.** Agree the phase, then proceed one story at a time. Ask interactive
+  questions with options and a recommendation before implementing unclear requirements or
+  material scope changes. The approved phase boundaries are in `docs/delivery-plan.md`.
 - **Root-cause failures.** "Flaky" is not a cause.
 - **Not overkill.** Build what the story asks, the simplest way that is correct, secure and
   maintainable. Rule of three before extracting a helper.
