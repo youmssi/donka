@@ -1131,10 +1131,10 @@ use the real PostgreSQL integration suite. Firefox/WebKit remain required before
 **Type:** test · **Repos:** S, R · **Dependencies:** DNK-48 · **Size:** L
 
 #### Acceptance criteria
-- [ ] Graph authoring and the simulation panel persist and produce expected results through the UI
-- [ ] Input types/validation, schema editing and compatible/breaking contract changes are exercised
-- [ ] Version diff/restore and scenario creation/execution/failure paths are checked
-- [ ] Runtime input-contract rejection is verified and the coverage map is current
+- [x] Graph authoring and the simulation panel persist and produce expected results through the UI
+- [x] Input types/validation, schema editing and compatible/breaking contract changes are exercised
+- [x] Version diff/restore and scenario creation/execution/failure paths are checked
+- [x] Runtime input-contract rejection is verified and the coverage map is current
 
 ---
 

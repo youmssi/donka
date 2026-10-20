@@ -179,15 +179,18 @@ export function JdmGraph({
                     </Button>
                   </div>
                 ) : null}
-                <div className="min-h-0 flex-1">
-                  <GraphSimulator
-                    loading={running}
-                    onClear={() => {
-                      setSimulation(undefined);
-                      setLastRun(null);
-                    }}
-                    onRun={(p) => void run(p)}
-                  />
+                <div className="min-h-0 flex-1 overflow-x-auto" role="region" aria-label={simulatorTitle} tabIndex={0}>
+                  {/* Keep the request usable beside the upstream output pane's minimum width. */}
+                  <div className="h-full min-w-3xl">
+                    <GraphSimulator
+                      loading={running}
+                      onClear={() => {
+                        setSimulation(undefined);
+                        setLastRun(null);
+                      }}
+                      onRun={(p) => void run(p)}
+                    />
+                  </div>
                 </div>
               </div>
             ),

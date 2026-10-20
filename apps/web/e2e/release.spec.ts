@@ -128,6 +128,16 @@ test('project, field persistence, version and staging release reach the real Run
       });
     await expect.poll(async () => (await evaluate()).status(), { timeout: 60_000 }).toBe(200);
     expect((await (await evaluate()).json()).result).toEqual({ output: 10 });
+    for (const customer of [{}, { id: 42 }]) {
+      const invalid = await services.post(`${settings().runtime}/api/projects/${key}/evaluate/table`, {
+        headers: { 'X-Access-Token': token.token },
+        data: { context: { input: 12, customer } },
+      });
+      expect(invalid.status()).toBe(400);
+      expect(await invalid.json()).toMatchObject({
+        contract: { field: 'customer.id', message: expect.any(String) },
+      });
+    }
     const denied = await services.post(`${settings().runtime}/api/projects/${key}/evaluate/table`, {
       headers: { 'X-Access-Token': 'not-an-issued-token' },
       data: { context: { input: 12 } },

@@ -1,9 +1,10 @@
 # Live feature tests
 
-Playwright Test opens the production Studio UI and checks real service results. The initial
+Playwright Test opens the production Studio UI and checks real service results. The committed
 suite covers authentication, People, project membership/settings, permission boundaries,
-input-field persistence, version/release creation, token issuance, staging publication and a
-real Runtime evaluation. A separate service restart exercises actual authentication throttling.
+graph authoring/simulation, input contracts, versions/scenarios, release creation, token
+issuance, staging publication and real Runtime evaluations. A separate service restart
+exercises actual authentication throttling.
 The reset journey deliberately holds JavaScript requests to prove static form controls stay
 disabled until hydration, then exercises the real email and password change. This guards the
 lost-input race described in [Playwright's hydration guidance](https://playwright.dev/docs/navigations#hydration).
@@ -55,14 +56,14 @@ pnpm --dir apps/web exec playwright install --with-deps chromium
 pnpm --dir apps/web test:e2e
 ```
 
-The default command selects Chromium: eight tests across EN/FR, light/dark and desktop/390 px
-(64 cases). To run one project while investigating a failure:
+The default command selects Chromium: ten tests across EN/FR, light/dark and desktop/390 px
+(80 cases). To run one project while investigating a failure:
 
 ```bash
 pnpm --dir apps/web exec playwright test --project=chromium-en-light-1440
 ```
 
-Before a release, install all engines and run the same suite in all three (192 cases):
+Before a release, install all engines and run the same suite in all three (240 cases):
 
 ```bash
 pnpm --dir apps/web exec playwright install --with-deps chromium firefox webkit
@@ -119,18 +120,23 @@ full tokens and passwords. Persistent admin auth state is never included in thes
 
 A passing initial suite does not certify every feature. UI actions under test use the browser;
 API calls create clearly identified fixtures or independently check persisted/service results.
-The known graph comes from `crates/engine/tests/fixtures/table.json`; graph-node authoring and
-the simulation panel are not claimed by that seeded fixture.
+The release and contract journeys explicitly seed `crates/engine/tests/fixtures/table.json`.
+The editor journey instead creates an empty decision through the UI, drags its three nodes,
+connects them, types its expression and runs the simulator. These are separate evidence.
 
-| Area | Initial evidence | Remaining live browser coverage |
+At narrow widths the simulator keeps usable pane widths inside a labelled horizontal scroll
+area. The editor journey focuses the actual Monaco input, types with the keyboard and scrolls
+the output into view. It does not inject editor state or replace service responses.
+
+| Area | Current evidence | Remaining live browser coverage |
 |---|---|---|
 | Identity | Invitation email, setup/mismatch, independent password reveal, keyboard reveal, required fields, sign-in/out, hydration guard, reset/single use; missing/forged/replaced links; unknown/wrong/locked account generic failure; live configured rate limits and retry guidance | Clock-dependent invitation/reset/session expiry and lockout recovery use PostgreSQL integration tests, not a timed browser wait |
 | People | UI invitation with language/admin flag, pending status, resend replacing the old link, activated status without resend; non-admin UI/API denial | Account activation in the People journey is an API fixture; password acceptance has its separate UI journey |
 | Projects | UI create; invite-and-add unknown person; viewer/editor/owner role changes; last-owner refusal; removal cancellation/confirmation; rename/description persisted on a fresh page; archive cancellation/confirmation/read-only/server rejection/restore | Concurrent removals/demotions use PostgreSQL integration tests; broad feature-specific permission coverage continues in DNK-52–55 |
 | Permission boundaries | Viewer read-only UI; viewer/editor project/member mutations denied; viewer decision creation denied/editor allowed; other project UI unavailable/read-write 404; non-admin accounts/invitations/project creation denied; removed membership immediately loses access | Instance-admin non-membership and the full project route matrix use PostgreSQL integration tests; member fixtures sign in through the API |
-| Rules and contracts | Known graph fixture; edit a field through UI and verify persistence in a fresh page load | DNK-52: graph authoring, simulation panel, all field types/limits, raw schema, breaking contract changes |
-| Versions/scenarios | Save the current draft as a version through UI | DNK-52: diff/restore, scenario edit/run/failure paths |
-| Releases/Runtime | UI release, shown-once token, staging publication, actual Runtime result and unknown-token rejection | DNK-53: second-person approval, rejection, rollback, revocation behavior, scopes/rate limits and connector failures |
+| Rules and contracts | UI node creation/connections/expression, fresh-page graph persistence, real simulation and save-as-scenario; all four field types, range validation, enums, labels/PII, raw JSON validation and array/pattern schema persistence; real breaking/compatible review | Sibling resolution, simultaneous draft conflicts, viewer permissions and invalid saved schemas retain PostgreSQL integration tests; approval request/publication for the contract review are API fixtures |
+| Versions/scenarios | UI save/unchanged guard, passing/failing scenario execution, field-level mismatch, draft/version and version/version diff, restore cancellation/confirmation/new version, scenario edit/JSON validation/exact mode/delete; immutable captured results after deletion | History pagination, missing sibling versions, project-wide scenario snapshots and viewer/isolation boundaries retain PostgreSQL integration tests |
+| Releases/Runtime | UI release, shown-once token, staging publication, actual Runtime result and unknown-token rejection; published input contract rejects missing/type/range/enum/array-pattern violations with field paths | DNK-53: second-person approval, rejection, rollback, revocation behavior, scopes/rate limits and connector failures |
 | Records/explanations/audit | Existing Rust and API e2e checks remain separate evidence | DNK-54: record ingestion/search/replay, redaction/explain states, audit UI, retention/key rotation |
 | Packs/onboarding/CLI | Existing component/unit/API checks remain separate evidence | DNK-55: import/duplicate/export, checklist/tours and real CLI sync/contracts |
 | Foundation/operations | [Foundation audit](foundation-evidence.md) and existing install/API e2e jobs | DNK-49 coverage/security gates; DNK-50 restore/upgrade rehearsal |
@@ -166,3 +172,29 @@ format/lint/types, 197 tests across 42 files, 950 matching catalog keys and the 
 pass. The [journey sources](../../apps/web/e2e/) and
 [rate-limit sources](../../apps/web/security-probes/) are committed with the story. The full
 three-engine matrix remains a release gate; these results certify Chromium for this PR.
+
+## Editor/contract integration evidence
+
+The browser journeys above complement the real PostgreSQL handler tests in
+`apps/app/tests/{decisions,versions,scenarios,releases}.rs`:
+
+| Boundary | Integration journeys |
+|---|---|
+| Shared drafts | `two_people_saving_the_same_draft_get_a_conflict_not_an_overwrite`, `two_saves_at_the_same_moment_give_one_save_and_one_conflict`; hook tests separately exercise both conflict choices |
+| Simulation and permissions | `simulate_evaluates_the_draft_with_every_sibling_decision`, `viewers_open_and_simulate_but_cannot_change`, `decisions_stay_inside_their_project` |
+| Version safety | `versions_cannot_be_changed_or_deleted`, `history_lists_versions_newest_first_a_page_at_a_time`, `viewers_read_the_history_but_cannot_save_or_restore`, `a_deleted_decision_keeps_its_history_and_frees_its_key` |
+| Contract safety | `saving_a_version_reports_fields_the_contract_and_the_rules_disagree_on`, `a_version_with_a_broken_contract_is_refused`; release tests check frozen artifact schemas and approval comparisons |
+| Scenario snapshots | `editors_write_scenarios_with_a_unique_name_per_decision`, `viewers_read_scenarios_and_other_projects_see_nothing`, `every_version_runs_the_project_scenarios_and_keeps_the_results` (including missing saved sibling versions) |
+
+These are integration evidence, not additional deployed-browser claims. The Runtime journey
+uses the real published artifact and token; it checks number bounds, integer type, enums,
+booleans and array patterns, while the core release journey checks required nested fields.
+
+DNK-52 validation (2026-10-20): 80 main Chromium cases and eight live rate-limit cases pass
+across all eight UI modes. An eight-case editor follow-up verifies the same workflows with
+the page returned to the top for the PR captures. The reports contain no failures, retries or
+skips. Web formatting/lint/types, 197 tests across 42 files, 950 matching catalog keys, the
+production export and Storybook build pass. Rust formatting, strict Clippy, all 258 tests and
+Studio/Runtime engine-version agreement (2.0.1) pass. All 360 Storybook browser render checks,
+including the component interactions, pass. The three-engine matrix remains a release
+gate; this story's deployed browser evidence is Chromium.
