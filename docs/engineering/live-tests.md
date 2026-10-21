@@ -249,3 +249,18 @@ sqlx suite on that service. Run the Runtime connector crate with
 `cargo test -p donka-connectors --features live --locked` for its real local HTTP fixtures.
 These are distinct from the deployed Playwright evidence and do not replace the release
 matrix or the remaining DNK-54/55 journeys.
+
+DNK-53 validation (2026-10-21): 104 main Chromium cases and eight live authentication
+rate-limit cases pass across all eight UI modes. A 24-case follow-up verifies completed
+rejection submission, waits for the revoked token row after a fresh load and captures settled
+panels with the page returned to the top. The final reports contain no failures, retries or
+skips. All 32 feature captures were inspected; public evidence contains synthetic data and
+token fingerprints, with credentials and raw reports kept private.
+
+The publication regression reproduces a mixed live/latest environment response before the
+snapshot fix and passes afterward, including the full 259-test PostgreSQL-backed Rust suite.
+Rust formatting, strict Clippy and Studio/Runtime engine agreement (2.0.1) pass. Runtime's
+connector crate passes all 22 tests with live HTTP fixtures and strict Clippy. Web formatting,
+lint/types, 197 tests across 42 files, 950 matching catalog keys, both builds and all 360
+Storybook browser checks pass. No API schema, migration or locked dependency changes are
+required. The expanded three-engine release matrix remains a release gate.

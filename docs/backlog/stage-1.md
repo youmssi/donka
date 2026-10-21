@@ -1143,10 +1143,12 @@ use the real PostgreSQL integration suite. Firefox/WebKit remain required before
 **Type:** test · **Repos:** S, R · **Dependencies:** DNK-48 · **Size:** L
 
 #### Acceptance criteria
-- [ ] Separate author/approver sessions prove self-approval denial, approval/rejection and approved rollback
-- [ ] Token scope/revocation, Runtime limits and environment boundaries are exercised
-- [ ] Connector mapping, secret references and timeout/failure/fallback behavior have real service evidence
-- [ ] The coverage map distinguishes Studio simulation mocks from Runtime external calls
+- [x] Separate author/approver sessions prove self-approval denial, approval/rejection and approved rollback
+- [x] Token scope/revocation, Runtime limits and environment boundaries are exercised
+- [x] Connector mapping, secret references and timeout/failure/fallback behavior have real service evidence
+- [x] The coverage map distinguishes Studio simulation mocks from Runtime external calls
+
+Evidence: [live journeys and exact integration boundaries](../engineering/live-tests.md#approvalruntimeconnector-integration-boundaries).
 
 ---
 

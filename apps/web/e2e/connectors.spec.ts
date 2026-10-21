@@ -86,7 +86,7 @@ test('connector settings persist; Studio uses mocks while Runtime maps authentic
   await expect(sheet.getByLabel(m.connector.url, { exact: true })).toHaveValue(`${connector}/${key}-score/score`);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await testInfo.attach('connector-settings', {
-    body: await page.screenshot({ fullPage: true }),
+    body: await page.screenshot({ fullPage: true, animations: 'disabled' }),
     contentType: 'image/png',
   });
   await sheet.getByRole('button', { name: m.common.cancel, exact: true }).click();

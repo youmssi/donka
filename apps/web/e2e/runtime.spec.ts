@@ -92,10 +92,12 @@ test('Runtime tokens isolate projects and environments, revoke live and have ind
     await expect(await evaluate(runtime, project.key, independent.token)).toBeOK();
     // A fresh page must only show token names/fingerprints, never recover the shown-once value.
     page = await openPage(context, page.url(), page);
+    await expect(tokenRow().getByText(m.tokens.revokedBadge, { exact: true })).toBeVisible();
     expect(await page.content()).not.toContain(independent.token);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.evaluate(() => window.scrollTo(0, 0));
     await testInfo.attach('runtime-token-revocation', {
-      body: await page.screenshot({ fullPage: true }),
+      body: await page.screenshot({ fullPage: true, animations: 'disabled' }),
       contentType: 'image/png',
     });
   } finally {

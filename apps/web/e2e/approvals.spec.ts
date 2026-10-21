@@ -100,6 +100,7 @@ test('a separate owner rejects and approves production; an owner rolls back only
     await expect(dialog.getByText(m.validation.required, { exact: true })).toBeVisible();
     await dialog.getByLabel(m.approvals.reason, { exact: true }).fill('Check the sample boundary before promotion');
     await dialog.getByRole('button', { name: m.approvals.reject, exact: true }).click();
+    await expect(dialog).toBeHidden();
     await expect(owner.getByText('Check the sample boundary before promotion', { exact: true })).toBeVisible();
     const review = await admin.get(`${path}/approvals/${rejected.id}`);
     expect(await review.json()).toMatchObject({ status: 'rejected', decidedBy: { email } });
@@ -120,7 +121,7 @@ test('a separate owner rejects and approves production; an owner rolls back only
     });
     expect(crossed.status()).toBe(401);
     await testInfo.attach('production-approval', {
-      body: await owner.screenshot({ fullPage: true }),
+      body: await owner.screenshot({ fullPage: true, animations: 'disabled' }),
       contentType: 'image/png',
     });
     // A second version changes observable Runtime behavior; rollback must restore the first.
@@ -158,8 +159,9 @@ test('a separate owner rejects and approves production; an owner rolls back only
     await output(first.id, 24);
     await expect(production().getByText(m.environments.rolledBack, { exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.evaluate(() => window.scrollTo(0, 0));
     await testInfo.attach('approved-rollback', {
-      body: await page.screenshot({ fullPage: true }),
+      body: await page.screenshot({ fullPage: true, animations: 'disabled' }),
       contentType: 'image/png',
     });
   } finally {
