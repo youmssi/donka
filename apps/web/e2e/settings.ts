@@ -4,7 +4,7 @@ export function required(name: string): string {
   return value;
 }
 
-function origin(name: string): string {
+export function origin(name: string): string {
   const url = new URL(required(name));
   if (
     !['http:', 'https:'].includes(url.protocol) ||

@@ -126,6 +126,8 @@ jobs:
   # post-deploy smoke test against it. Images come from the same compose file (bake), cached.
   install:
     runs-on: ubuntu-latest
+    env:
+      COMPOSE_FILE: docker-compose.yml:scripts/feature-services.compose.yml
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -192,6 +194,10 @@ jobs:
         env:
           DONKA_E2E_BASE_URL: http://localhost:8080
           DONKA_E2E_RUNTIME_URL: http://localhost:8090
+          DONKA_E2E_PRODUCTION_RUNTIME_URL: http://localhost:8091
+          DONKA_E2E_LIMITED_RUNTIME_URL: http://localhost:8092
+          DONKA_E2E_BUREAU_URL: http://localhost:8099
+          DONKA_E2E_CONNECTOR_URL: http://feature-bureau:8099
           DONKA_E2E_MAILPIT_URL: http://localhost:8025
           DONKA_E2E_ADMIN_EMAIL: admin@donka.local
           DONKA_E2E_ADMIN_PASSWORD: smoke test passphrase

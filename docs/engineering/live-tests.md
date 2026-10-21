@@ -3,7 +3,8 @@
 Playwright Test opens the production Studio UI and checks real service results. The committed
 suite covers authentication, People, project membership/settings, permission boundaries,
 graph authoring/simulation, input contracts, versions/scenarios, release creation, token
-issuance, staging publication and real Runtime evaluations. A separate service restart
+issuance, production approval/rejection/rollback, token isolation/revocation, connector
+failure policies, staging publication and real Runtime evaluations. A separate service restart
 exercises actual authentication throttling.
 The reset journey deliberately holds JavaScript requests to prove static form controls stay
 disabled until hydration, then exercises the real email and password change. This guards the
@@ -20,7 +21,18 @@ polling. Feature-group stories below extend client-side navigation coverage.
 ## Environment
 
 Use an isolated synthetic-data installation with Studio, PostgreSQL 16, MinIO/S3, Runtime and
-Mailpit. The existing `docker compose --profile full up -d --build` starts this stack on a
+Mailpit. The feature override adds a production Runtime, a staging Runtime limited to three
+requests per minute per token, and a controlled bureau. Start the disposable stack with:
+
+```bash
+docker compose -f docker-compose.yml -f scripts/feature-services.compose.yml --profile full up -d --build
+```
+
+Keep the same two `-f` arguments for subsequent Compose commands in this section. The override
+contains a public synthetic bureau secret and must only be used for tests. The Runtime uses
+`DONKA_SECRET_E2E_BUREAU_KEY`; graphs store only `E2E_BUREAU_KEY`. The bureau reports received
+synthetic bodies and an authentication boolean, never the secret or request headers.
+The existing `docker compose --profile full up -d --build` starts the basic stack on a
 fresh test machine; follow the [installation guide](../install.md) to set the initial admin
 password. Do not share its database with customer data or use a real outbound mail service.
 
@@ -36,6 +48,10 @@ The runner requires these Node-only environment variables (also in `.env.example
 |---|---|
 | `DONKA_E2E_BASE_URL` | Studio origin, e.g. `http://localhost:8080` |
 | `DONKA_E2E_RUNTIME_URL` | Runtime origin, e.g. `http://localhost:8090` |
+| `DONKA_E2E_PRODUCTION_RUNTIME_URL` | Runtime serving `production/`, e.g. `http://localhost:8091` |
+| `DONKA_E2E_LIMITED_RUNTIME_URL` | Staging Runtime with requests=3/window=60000 ms, e.g. `http://localhost:8092` |
+| `DONKA_E2E_BUREAU_URL` | Controlled service reachable by Playwright, e.g. `http://localhost:8099` |
+| `DONKA_E2E_CONNECTOR_URL` | Same service reachable by Runtime, e.g. `http://feature-bureau:8099` on Compose |
 | `DONKA_E2E_MAILPIT_URL` | Local email API, e.g. `http://localhost:8025` |
 | `DONKA_E2E_ADMIN_EMAIL` | Administrator of that isolated installation |
 | `DONKA_E2E_ADMIN_PASSWORD` | Its test password, supplied privately |
@@ -56,14 +72,14 @@ pnpm --dir apps/web exec playwright install --with-deps chromium
 pnpm --dir apps/web test:e2e
 ```
 
-The default command selects Chromium: ten tests across EN/FR, light/dark and desktop/390 px
-(80 cases). To run one project while investigating a failure:
+The default command selects Chromium: thirteen tests across EN/FR, light/dark and desktop/390 px
+(104 cases). To run one project while investigating a failure:
 
 ```bash
 pnpm --dir apps/web exec playwright test --project=chromium-en-light-1440
 ```
 
-Before a release, install all engines and run the same suite in all three (240 cases):
+Before a release, install all engines and run the same suite in all three (312 cases):
 
 ```bash
 pnpm --dir apps/web exec playwright install --with-deps chromium firefox webkit
@@ -79,7 +95,7 @@ and wait for `/api/v1/ready`. Restarting clears the process-local address budget
 other sign-in/reset clients concurrently against this process.
 
 Set the Node runner's `DONKA_E2E_SIGN_IN_RATE_LIMIT=2` and
-`DONKA_E2E_PASSWORD_RESET_RATE_LIMIT=1` to match, retain the five environment variables above,
+`DONKA_E2E_PASSWORD_RESET_RATE_LIMIT=1` to match, retain the environment variables above,
 then run:
 
 ```bash
@@ -136,7 +152,8 @@ the output into view. It does not inject editor state or replace service respons
 | Permission boundaries | Viewer read-only UI; viewer/editor project/member mutations denied; viewer decision creation denied/editor allowed; other project UI unavailable/read-write 404; non-admin accounts/invitations/project creation denied; removed membership immediately loses access | Instance-admin non-membership and the full project route matrix use PostgreSQL integration tests; member fixtures sign in through the API |
 | Rules and contracts | UI node creation/connections/expression, fresh-page graph persistence, real simulation and save-as-scenario; all four field types, range validation, enums, labels/PII, raw JSON validation and array/pattern schema persistence; real breaking/compatible review | Sibling resolution, simultaneous draft conflicts, viewer permissions and invalid saved schemas retain PostgreSQL integration tests; approval request/publication for the contract review are API fixtures |
 | Versions/scenarios | UI save/unchanged guard, passing/failing scenario execution, field-level mismatch, draft/version and version/version diff, restore cancellation/confirmation/new version, scenario edit/JSON validation/exact mode/delete; immutable captured results after deletion | History pagination, missing sibling versions, project-wide scenario snapshots and viewer/isolation boundaries retain PostgreSQL integration tests |
-| Releases/Runtime | UI release, shown-once token, staging publication, actual Runtime result and unknown-token rejection; published input contract rejects missing/type/range/enum/array-pattern violations with field paths | DNK-53: second-person approval, rejection, rollback, revocation behavior, scopes/rate limits and connector failures |
+| Releases/Runtime | UI release, shown-once token, staging publication, actual Runtime result and contract violations; separate owner signs in and rejects/approves production, author cannot decide, required reasons, approved rollback cancellation/confirmation restores the earlier Runtime result; live token project/environment isolation, UI revocation, independent rate budgets and health exemption | Graphs, versions, staging publication, token issuance and second-owner account activation in DNK-53 are API fixtures; concurrent decisions, stale staging requests and permission matrices retain PostgreSQL integration coverage |
+| Connectors | UI settings/secret validation and fresh-page persistence; actual Studio simulation returns its mock without contacting the bureau; Runtime sends mapped nested JSON with the named secret, retries a transient 503, applies bounded timeout/failure/non-JSON/missing-secret fallback, stops when configured to fail and opens its breaker after five failures without making a sixth call | Additional failure-policy graphs are API fixtures; connector maximum caps, template errors and breaker cooldown retain connector integration tests |
 | Records/explanations/audit | Existing Rust and API e2e checks remain separate evidence | DNK-54: record ingestion/search/replay, redaction/explain states, audit UI, retention/key rotation |
 | Packs/onboarding/CLI | Existing component/unit/API checks remain separate evidence | DNK-55: import/duplicate/export, checklist/tours and real CLI sync/contracts |
 | Foundation/operations | [Foundation audit](foundation-evidence.md) and existing install/API e2e jobs | DNK-49 coverage/security gates; DNK-50 restore/upgrade rehearsal |
@@ -198,3 +215,37 @@ production export and Storybook build pass. Rust formatting, strict Clippy, all 
 Studio/Runtime engine-version agreement (2.0.1) pass. All 360 Storybook browser render checks,
 including the component interactions, pass. The three-engine matrix remains a release
 gate; this story's deployed browser evidence is Chromium.
+
+## Approval/Runtime/connector integration boundaries
+
+The deployed DNK-53 journeys use different browser sessions for the author and second owner.
+The second owner signs in through the UI. Invitation/password activation, project graphs,
+versions, release snapshots and staging deployments are explicitly seeded through the API.
+Production requests, rejection, approval, rollback and token revocation use the UI; independent
+API and Runtime calls verify their effects. Rollback changes the real evaluated output from
+36 back to 24, and verifies the release id. Synthetic data and isolated tokens keep the
+three-request budget independent for every UI mode.
+
+The connector journey configures one node in the real editor, saves it, cold-loads it and
+simulates it. The controlled service has zero calls until Runtime evaluation. Each failure
+fixture has a unique URL, so unrelated failures cannot trip its breaker. The service's call
+count, rendered nested body and authentication boolean are checked independently of the
+Runtime trace. Delayed answers intentionally arrive after the node's 100 ms timeout; this
+service delay is test input, not a browser synchronization sleep.
+
+The following boundaries retain separate integration evidence:
+
+| Boundary | Exact integration journeys |
+|---|---|
+| Atomic approval | Studio `two_owners_deciding_at_once_produce_one_outcome`, `the_releases_author_cannot_approve_it`, `a_project_needs_another_owner_to_approve` |
+| Publication snapshot | Studio `environment_reads_stay_consistent_during_publication` reads while the real publisher commits; live/latest/token reads use a read-only repeatable-read transaction so the UI cannot stop polling on a mixed snapshot |
+| Rejection/withdrawal/rollback | Studio `rejecting_records_a_reason_and_withdrawing_is_for_the_asker`, `only_a_release_approved_for_production_can_come_back`, `a_rollback_keeps_waiting_requests_and_survives_token_changes` |
+| Publication and roles | Studio `a_storage_failure_is_retried_and_visible`, `a_newer_deployment_supersedes_one_not_yet_published`, `viewers_read_releases_but_cannot_release_or_deploy` |
+| Connector bounds and errors | Runtime connector crate, `live::retries_are_capped_by_the_runtime`, `live::a_refusal_or_a_non_json_answer_is_not_retried`, `live::an_unreachable_service_falls_back_too`, `live::errors_never_carry_the_secret` |
+| Breaker recovery | Runtime connector crate, `live::the_circuit_opens_after_repeated_failures` checks opening, suppression and the probe after cooldown |
+
+Run Studio's full `cargo test --workspace --locked` suite against PostgreSQL without another
+sqlx suite on that service. Run the Runtime connector crate with
+`cargo test -p donka-connectors --features live --locked` for its real local HTTP fixtures.
+These are distinct from the deployed Playwright evidence and do not replace the release
+matrix or the remaining DNK-54/55 journeys.
