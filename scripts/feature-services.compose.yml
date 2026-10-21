@@ -1,0 +1,28 @@
+# Disposable services for the live feature suite. Use with docker-compose.yml.
+# Never add this override to a customer installation.
+services:
+  feature-bureau:
+    image: python:3.13-alpine
+    command: [python, /fixture/feature-bureau.py, 0.0.0.0, '8099']
+    environment:
+      FAKE_BUREAU_KEY: feature-test-secret
+    volumes: ['./scripts/feature-bureau.py:/fixture/feature-bureau.py:ro']
+    ports: ['127.0.0.1:8099:8099']
+  runtime:
+    environment:
+      DONKA_SECRET_E2E_BUREAU_KEY: feature-test-secret
+  runtime-production:
+    extends:
+      file: docker-compose.yml
+      service: runtime
+    environment:
+      PROVIDER__PREFIX: production/
+    ports: !override ['127.0.0.1:8091:8080']
+  runtime-limited:
+    extends:
+      file: docker-compose.yml
+      service: runtime
+    environment:
+      RATE_LIMIT__REQUESTS: '3'
+      RATE_LIMIT__WINDOW: '60000'
+    ports: !override ['127.0.0.1:8092:8080']

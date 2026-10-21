@@ -668,7 +668,12 @@ impl Releases {
         &self,
         access: &Access,
     ) -> Result<Vec<EnvironmentState>, ReleaseError> {
-        let mut conn = self.pool.acquire().await?;
+        let mut tx = self.pool.begin().await?;
+        // Publication can commit between these reads. Keep live/latest/tokens in one snapshot
+        // so clients never stop polling an already-published latest deployment with stale live data.
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+            .execute(&mut *tx)
+            .await?;
         let mut states = Vec::with_capacity(Environment::ALL.len());
         for environment in Environment::ALL {
             let live: Option<DeploymentRow> = sqlx::query_as(sql(format!(
@@ -676,14 +681,14 @@ impl Releases {
             )))
             .bind(access.project_id())
             .bind(environment.as_str())
-            .fetch_optional(&mut *conn)
+            .fetch_optional(&mut *tx)
             .await?;
             let latest: Option<DeploymentRow> = sqlx::query_as(sql(format!(
                 "{DEPLOYMENTS} AND d.superseded_at IS NULL ORDER BY d.seq DESC LIMIT 1"
             )))
             .bind(access.project_id())
             .bind(environment.as_str())
-            .fetch_optional(&mut *conn)
+            .fetch_optional(&mut *tx)
             .await?;
             let (tokens,): (i64,) = sqlx::query_as(
                 "SELECT count(*) FROM runtime_tokens \
@@ -691,7 +696,7 @@ impl Releases {
             )
             .bind(access.project_id())
             .bind(environment.as_str())
-            .fetch_one(&mut *conn)
+            .fetch_one(&mut *tx)
             .await?;
             states.push(EnvironmentState {
                 environment,
@@ -700,6 +705,7 @@ impl Releases {
                 tokens,
             });
         }
+        tx.commit().await?;
         Ok(states)
     }
 

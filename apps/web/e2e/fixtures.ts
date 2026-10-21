@@ -1,4 +1,4 @@
-import { test as base, expect, type APIRequestContext, type Page } from '@playwright/test';
+import { test as base, expect, type APIRequestContext, type Page, type BrowserContext } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
@@ -16,6 +16,25 @@ interface Fixtures extends UiOptions {
   services: APIRequestContext;
   appearance: void;
   pageErrors: void;
+  reviewer: BrowserContext;
+}
+
+async function appearance(context: BrowserContext, theme: UiOptions['theme']) {
+  await context.addInitScript(
+    ({ origin, value }) => {
+      // Editor sandboxes have opaque origins and must not access the app's storage.
+      if (window === window.top && location.origin === origin) localStorage.setItem('theme', value);
+    },
+    { origin: settings().studio, value: theme },
+  );
+}
+
+function pageErrors(context: BrowserContext) {
+  const errors: string[] = [];
+  const listen = (page: Page) => page.on('pageerror', (error) => errors.push(error.message));
+  context.on('page', listen);
+  context.pages().forEach(listen);
+  return errors;
 }
 
 export const test = base.extend<Fixtures>({
@@ -36,32 +55,40 @@ export const test = base.extend<Fixtures>({
     }
   },
   services: async ({ playwright }, run) => {
-    const api = await playwright.request.newContext();
+    const api = await playwright.request.newContext({ storageState: { cookies: [], origins: [] } });
     try {
       await run(api);
     } finally {
       await api.dispose();
     }
   },
+  reviewer: async ({ browser, appLocale, theme }, run, testInfo) => {
+    const context = await browser.newContext({
+      baseURL: settings().studio,
+      storageState: { cookies: [], origins: [] },
+      viewport: testInfo.project.use.viewport,
+      locale: appLocale,
+      colorScheme: theme,
+    });
+    await appearance(context, theme);
+    const errors = pageErrors(context);
+    try {
+      await run(context);
+    } finally {
+      await context.close();
+      expect(errors, 'No reviewer JavaScript page errors').toEqual([]);
+    }
+  },
   appearance: [
     async ({ context, theme }, run) => {
-      await context.addInitScript(
-        ({ origin, value }) => {
-          // Editor sandboxes have opaque origins and must not access the app's storage.
-          if (window === window.top && location.origin === origin) localStorage.setItem('theme', value);
-        },
-        { origin: settings().studio, value: theme },
-      );
+      await appearance(context, theme);
       await run();
     },
     { auto: true },
   ],
   pageErrors: [
     async ({ context }, run) => {
-      const errors: string[] = [];
-      const listen = (page: Page) => page.on('pageerror', (error) => errors.push(error.message));
-      context.on('page', listen);
-      context.pages().forEach(listen);
+      const errors = pageErrors(context);
       await run();
       expect(errors, 'No unexpected JavaScript page errors').toEqual([]);
     },

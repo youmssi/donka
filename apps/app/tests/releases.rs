@@ -553,6 +553,47 @@ async fn a_storage_failure_is_retried_and_visible(db: PgPool) {
 }
 
 #[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn environment_reads_stay_consistent_during_publication(db: PgPool) {
+    let app = with_database(db.clone());
+    let (admin, _, _, project, release) = staged(&app).await;
+    let me = call(&app, "GET", "/auth/me", None, &admin).await;
+    assert_eq!(me.status, StatusCode::OK);
+    let projects = donka_project::Projects::new(db, app.clock.clone());
+    let access = projects
+        .access(
+            uuid::Uuid::parse_str(me.body["id"].as_str().unwrap()).unwrap(),
+            uuid::Uuid::parse_str(&project).unwrap(),
+        )
+        .await
+        .unwrap();
+    let release = uuid::Uuid::parse_str(&release).unwrap();
+
+    for _ in 0..24 {
+        app.clock.advance(chrono::Duration::seconds(1));
+        app.releases
+            .deploy(&access, donka_release::Environment::Staging, release)
+            .await
+            .unwrap();
+        let read = async {
+            for _ in 0..16 {
+                for state in app.releases.environments(&access).await.unwrap() {
+                    let Some(latest) = state.latest else { continue };
+                    if latest.status == donka_release::DeploymentStatus::Published {
+                        assert_eq!(
+                            state.live.map(|live| live.id),
+                            Some(latest.id),
+                            "a published latest deployment must also be live in the same snapshot"
+                        );
+                    }
+                }
+            }
+        };
+        let ((), published) = tokio::join!(read, app.releases.publish_due());
+        assert_eq!(published.unwrap(), 1);
+    }
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
 async fn a_newer_deployment_supersedes_one_not_yet_published(db: PgPool) {
     let app = with_database(db);
     let admin = signed_in_admin(&app).await;
