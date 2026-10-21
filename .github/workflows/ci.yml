@@ -158,6 +158,24 @@ jobs:
           curl -sS --fail-with-body -X POST localhost:8080/api/v1/auth/password-setup \
             -H 'content-type: application/json' -H 'x-donka-csrf: 1' \
             --data "{\"token\": \"$token\", \"password\": \"smoke test passphrase\"}"
+      - name: Disposable Runtime feed and explanation instance
+        run: |
+          bash scripts/configure-feature-runtime.sh
+          docker compose --profile full --profile feature-explanations up -d --wait runtime app-explanations
+          for url in "$DONKA_E2E_EXPLAIN_STUDIO_URL/api/v1/ready" "$DONKA_E2E_EXPLAIN_SERVICE_URL/health"; do
+            for _ in $(seq 1 60); do
+              curl -sf "$url" >/dev/null && break
+              sleep 1
+            done
+            curl -sf "$url" >/dev/null || exit 1
+          done
+        env:
+          STUDIO_URL: http://localhost:8080
+          DONKA_E2E_ADMIN_EMAIL: admin@donka.local
+          DONKA_E2E_ADMIN_PASSWORD: smoke test passphrase
+          DONKA_FEATURE_FEED_URL: http://app:8080/api/v1/decision-log/records
+          DONKA_E2E_EXPLAIN_STUDIO_URL: http://localhost:8083
+          DONKA_E2E_EXPLAIN_SERVICE_URL: http://localhost:8100
       - run: scripts/smoke.sh
         env:
           STUDIO_URL: http://localhost:8080
@@ -198,6 +216,8 @@ jobs:
           DONKA_E2E_LIMITED_RUNTIME_URL: http://localhost:8092
           DONKA_E2E_BUREAU_URL: http://localhost:8099
           DONKA_E2E_CONNECTOR_URL: http://feature-bureau:8099
+          DONKA_E2E_EXPLAIN_STUDIO_URL: http://localhost:8083
+          DONKA_E2E_EXPLAIN_SERVICE_URL: http://localhost:8100
           DONKA_E2E_MAILPIT_URL: http://localhost:8025
           DONKA_E2E_ADMIN_EMAIL: admin@donka.local
           DONKA_E2E_ADMIN_PASSWORD: smoke test passphrase

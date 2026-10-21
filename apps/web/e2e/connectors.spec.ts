@@ -2,28 +2,8 @@ import type { ApiSchemas } from '../src/components/shared/api';
 import { test, expect } from './fixtures';
 import { openPage } from './navigation';
 import { saveVersion } from './decision-actions';
-import { issueToken, ruleProject, snapshot, stage, version } from './release-fixtures';
+import { connectorGraph, issueToken, ruleProject, snapshot, stage, version } from './release-fixtures';
 import { origin, settings } from './settings';
-
-function connectorGraph(config: Record<string, unknown>) {
-  return {
-    nodes: [
-      { id: 'input', name: 'Request', type: 'inputNode', position: { x: 0, y: 0 } },
-      {
-        id: 'bureau',
-        name: 'Bureau',
-        type: 'customNode',
-        position: { x: 0, y: 160 },
-        content: { kind: 'donka.connector', config },
-      },
-      { id: 'output', name: 'Response', type: 'outputNode', position: { x: 0, y: 320 } },
-    ],
-    edges: [
-      { id: 'in', sourceId: 'input', targetId: 'bureau' },
-      { id: 'out', sourceId: 'bureau', targetId: 'output' },
-    ],
-  };
-}
 
 test('connector settings persist; Studio uses mocks while Runtime maps authenticated calls and bounds failures', async ({
   context,

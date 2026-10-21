@@ -82,3 +82,29 @@ export async function issueToken(
   const token: ApiSchemas['IssuedTokenResponse'] = await response.json();
   return token;
 }
+
+export function connectorGraph(config: Record<string, unknown>, inputSchema?: Record<string, unknown>) {
+  return {
+    nodes: [
+      {
+        id: 'input',
+        name: 'Request',
+        type: 'inputNode',
+        position: { x: 0, y: 0 },
+        ...(inputSchema ? { content: { schema: JSON.stringify(inputSchema) } } : {}),
+      },
+      {
+        id: 'bureau',
+        name: 'Bureau',
+        type: 'customNode',
+        position: { x: 0, y: 160 },
+        content: { kind: 'donka.connector', config },
+      },
+      { id: 'output', name: 'Response', type: 'outputNode', position: { x: 0, y: 320 } },
+    ],
+    edges: [
+      { id: 'in', sourceId: 'input', targetId: 'bureau' },
+      { id: 'out', sourceId: 'bureau', targetId: 'output' },
+    ],
+  };
+}

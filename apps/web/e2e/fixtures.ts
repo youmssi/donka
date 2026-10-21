@@ -4,7 +4,7 @@ import { z } from 'zod';
 
 import en from '../src/messages/en.json';
 import fr from '../src/messages/fr.json';
-import { required, settings } from './settings';
+import { origin, required, settings } from './settings';
 
 export interface UiOptions {
   appLocale: 'en' | 'fr';
@@ -17,15 +17,16 @@ interface Fixtures extends UiOptions {
   appearance: void;
   pageErrors: void;
   reviewer: BrowserContext;
+  explaining: BrowserContext;
 }
 
-async function appearance(context: BrowserContext, theme: UiOptions['theme']) {
+async function appearance(context: BrowserContext, theme: UiOptions['theme'], studio = settings().studio) {
   await context.addInitScript(
     ({ origin, value }) => {
       // Editor sandboxes have opaque origins and must not access the app's storage.
       if (window === window.top && location.origin === origin) localStorage.setItem('theme', value);
     },
-    { origin: settings().studio, value: theme },
+    { origin: studio, value: theme },
   );
 }
 
@@ -77,6 +78,24 @@ export const test = base.extend<Fixtures>({
     } finally {
       await context.close();
       expect(errors, 'No reviewer JavaScript page errors').toEqual([]);
+    }
+  },
+  explaining: async ({ browser, appLocale, theme }, run, testInfo) => {
+    const studio = origin('DONKA_E2E_EXPLAIN_STUDIO_URL');
+    const context = await browser.newContext({
+      baseURL: studio,
+      storageState: required('DONKA_E2E_AUTH_FILE'),
+      viewport: testInfo.project.use.viewport,
+      locale: appLocale,
+      colorScheme: theme,
+    });
+    await appearance(context, theme, studio);
+    const errors = pageErrors(context);
+    try {
+      await run(context);
+    } finally {
+      await context.close();
+      expect(errors, 'No explanation-instance JavaScript page errors').toEqual([]);
     }
   },
   appearance: [
