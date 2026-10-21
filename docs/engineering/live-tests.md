@@ -237,6 +237,7 @@ The following boundaries retain separate integration evidence:
 
 | Boundary | Exact integration journeys |
 |---|---|
+| Invitation delivery | Studio `an_immediate_recipient_waits_for_the_email_transaction_to_commit` pauses SMTP after exposing the link, observes password setup waiting on the token's transaction lock, then commits delivery and verifies setup/sign-in and one-use; an unknown token is refused while delivery remains paused |
 | Atomic approval | Studio `two_owners_deciding_at_once_produce_one_outcome`, `the_releases_author_cannot_approve_it`, `a_project_needs_another_owner_to_approve` |
 | Publication snapshot | Studio `environment_reads_stay_consistent_during_publication` reads while the real publisher commits; live/latest/token reads use a read-only repeatable-read transaction so the UI cannot stop polling on a mixed snapshot |
 | Rejection/withdrawal/rollback | Studio `rejecting_records_a_reason_and_withdrawing_is_for_the_asker`, `only_a_release_approved_for_production_can_come_back`, `a_rollback_keeps_waiting_requests_and_survives_token_changes` |
@@ -258,9 +259,20 @@ skips. All 32 feature captures were inspected; public evidence contains syntheti
 token fingerprints, with credentials and raw reports kept private.
 
 The publication regression reproduces a mixed live/latest environment response before the
-snapshot fix and passes afterward, including the full 259-test PostgreSQL-backed Rust suite.
+snapshot fix and passes afterward, including the full 260-test PostgreSQL-backed Rust suite.
 Rust formatting, strict Clippy and Studio/Runtime engine agreement (2.0.1) pass. Runtime's
 connector crate passes all 22 tests with live HTTP fixtures and strict Clippy. Web formatting,
 lint/types, 197 tests across 42 files, 950 matching catalog keys, both builds and all 360
 Storybook browser checks pass. No API schema, migration or locked dependency changes are
 required. The expanded three-engine release matrix remains a release gate.
+
+Installation CI also exposed an immediate-recipient race: Mailpit could expose a password
+link before the mail worker committed its token. The PostgreSQL regression above reproduces
+the same HTTP 400 before the fix and passes afterward. Issuing and consuming the link now
+share a transaction-scoped lock keyed by the token's hash; the recipient waits for delivery
+to commit, while unrelated invalid tokens are still refused. Failed sends still roll back
+their tokens, and expiry, replacement and one-use checks remain covered by the full suite.
+An additional 24-case Chromium run against the corrected service passes project membership,
+permission boundaries and separate-owner production approvals/rollback in all eight UI modes,
+with no failures, retries or skips. The service was rebuilt after the full 260-test suite,
+formatting, strict Clippy and engine-version checks passed.

@@ -297,6 +297,96 @@ async fn a_reset_request_is_validated_and_needs_the_csrf_header(db: PgPool) {
 // --- delivery ----------------------------------------------------------------------
 
 #[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn an_immediate_recipient_waits_for_the_email_transaction_to_commit(db: PgPool) {
+    struct DeliveryGate {
+        received: tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<donka_mail::Email>>>,
+        finish: tokio::sync::Notify,
+    }
+
+    #[async_trait::async_trait]
+    impl donka_mail::Mailer for DeliveryGate {
+        async fn send(&self, email: &donka_mail::Email) -> Result<(), donka_mail::MailError> {
+            self.received
+                .lock()
+                .await
+                .take()
+                .unwrap()
+                .send(email.clone())
+                .unwrap();
+            self.finish.notified().await;
+            Ok(())
+        }
+    }
+
+    let app = with_database(db.clone());
+    let admin = signed_in_admin(&app).await;
+    assert_eq!(
+        invite(&app, &admin, json!({ "email": INVITEE }))
+            .await
+            .status,
+        StatusCode::CREATED
+    );
+    let (sent, received) = tokio::sync::oneshot::channel();
+    let mailer = DeliveryGate {
+        received: tokio::sync::Mutex::new(Some(sent)),
+        finish: tokio::sync::Notify::new(),
+    };
+    let delivery = app.identity.deliver_due_emails(&mailer, PUBLIC_URL);
+    tokio::pin!(delivery);
+    // SMTP has exposed the link, but the worker has not yet acknowledged or committed it.
+    let email = tokio::select! {
+        result = &mut delivery => panic!("delivery finished before the gate: {result:?}"),
+        email = received => email.unwrap(),
+    };
+    let token = token_in(&email);
+    // A different token must not wait behind this delivery.
+    assert_error(
+        &set_password(&app, "unknown-setup-token", INVITEE_PASSWORD).await,
+        StatusCode::BAD_REQUEST,
+        "INVALID_SETUP_LINK",
+    );
+    let setup = set_password(&app, &token, INVITEE_PASSWORD);
+    tokio::pin!(setup);
+    let waiting = async {
+        tokio::time::timeout(std::time::Duration::from_secs(30), async {
+            loop {
+                let (waiting,): (bool,) = sqlx::query_as(
+                    "SELECT EXISTS(SELECT 1 FROM pg_locks WHERE locktype = 'advisory' \
+                     AND database = (SELECT oid FROM pg_database WHERE datname = current_database()) \
+                     AND NOT granted)",
+                )
+                .fetch_one(&db)
+                .await
+                .unwrap();
+                if waiting {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+    };
+    tokio::select! {
+        reply = &mut setup => panic!("setup finished before delivery committed: {}", reply.status),
+        () = waiting => {}
+    }
+    mailer.finish.notify_one();
+    let (delivered, reply) = tokio::join!(delivery, setup);
+    assert_eq!(delivered.unwrap(), 1);
+    assert_eq!(reply.status, StatusCode::NO_CONTENT, "{}", reply.body);
+    assert_eq!(
+        sign_in(&app, INVITEE, INVITEE_PASSWORD).await.status,
+        StatusCode::OK
+    );
+    assert_error(
+        &set_password(&app, &token, INVITEE_PASSWORD).await,
+        StatusCode::BAD_REQUEST,
+        "INVALID_SETUP_LINK",
+    );
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
 async fn a_failed_send_is_retried_with_backoff_and_leaves_no_working_link(db: PgPool) {
     let app = with_database(db.clone());
     admin_with_password(&app).await;

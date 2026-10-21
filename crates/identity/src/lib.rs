@@ -270,12 +270,16 @@ impl Identity {
         let now = self.clock.now();
         let hash = hash_off_thread(password.to_owned()).await?;
         let mut tx = self.pool.begin().await?;
+        let token_hash = secret::hash_token(token);
+        // SMTP can expose the link before its worker commits. Wait for that transaction
+        // before deciding whether the token exists; a row lock cannot see an uncommitted insert.
+        lock_setup_token(&mut tx, &token_hash).await?;
         let user_id: Option<(Uuid,)> = sqlx::query_as(
             "UPDATE password_setup_tokens SET used_at = $2 \
              WHERE token_hash = $1 AND used_at IS NULL AND expires_at > $2 \
              RETURNING user_id",
         )
-        .bind(secret::hash_token(token))
+        .bind(token_hash)
         .bind(now)
         .fetch_optional(&mut *tx)
         .await?;
@@ -698,6 +702,7 @@ impl Identity {
         lifetime: Duration,
     ) -> Result<IssuedToken, IdentityError> {
         let (token, token_hash) = secret::new_token()?;
+        lock_setup_token(tx, &token_hash).await?;
         sqlx::query(
             "INSERT INTO password_setup_tokens (token_hash, user_id, created_at, expires_at) \
              VALUES ($1, $2, $3, $4)",
@@ -839,6 +844,21 @@ async fn queue_email(
     .bind(user_id)
     .bind(kind.as_str())
     .bind(now)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
+/// Serializes issuing and consuming one setup link, without storing its clear value.
+async fn lock_setup_token(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    token_hash: &[u8],
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "SELECT pg_advisory_xact_lock(\
+         hashtextextended('password-setup:' || encode($1, 'hex'), 0))",
+    )
+    .bind(token_hash)
     .execute(&mut **tx)
     .await?;
     Ok(())
