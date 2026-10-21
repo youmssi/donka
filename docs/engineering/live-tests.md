@@ -276,3 +276,15 @@ An additional 24-case Chromium run against the corrected service passes project 
 permission boundaries and separate-owner production approvals/rollback in all eight UI modes,
 with no failures, retries or skips. The service was rebuilt after the full 260-test suite,
 formatting, strict Clippy and engine-version checks passed.
+
+## DNK-54 verification plan
+
+This story is in progress; the following is planned coverage, not executed evidence.
+Use real Runtime evaluations and the asynchronous feed to exercise record search, detail and
+replay. A controlled connector service must observe no additional call during replay.
+Exercise explanation-off behavior on the default test installation and explanation success,
+language, redaction and provider failure on an isolated enabled instance using a controlled
+endpoint. Verify the received payload independently of the displayed answer. Audit journeys
+must check recorded actions, filters/export and owner/member boundaries. Preserve and name
+the PostgreSQL and operational evidence for retention, encryption and key rotation rather
+than implying those were exercised through the browser.
