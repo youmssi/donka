@@ -1157,10 +1157,12 @@ Evidence: [live journeys and exact integration boundaries](../engineering/live-t
 **Type:** test · **Repos:** S, R · **Dependencies:** DNK-48 · **Size:** L
 
 #### Acceptance criteria
-- [ ] Real Runtime records reach Studio and can be searched, opened and replayed through the UI
-- [ ] Explanation disabled/enabled/error states and redaction use a controlled endpoint and verify what is sent
-- [ ] Audit screens reflect relevant actions and access rules; retention and key rotation retain integration/operational evidence
-- [ ] The coverage map identifies what was executed and what remains
+- [x] Real Runtime records reach Studio and can be searched, opened and replayed through the UI
+- [x] Explanation disabled/enabled/error states and redaction use a controlled endpoint and verify what is sent
+- [x] Audit screens reflect relevant actions and access rules; retention and key rotation retain integration/operational evidence
+- [x] The coverage map identifies what was executed and what remains
+
+Evidence: [live journeys and exact integration boundaries](../engineering/live-tests.md#recordexplanationaudit-integration-boundaries).
 
 ---
 

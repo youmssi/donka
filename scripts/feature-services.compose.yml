@@ -1,6 +1,26 @@
 # Disposable services for the live feature suite. Use with docker-compose.yml.
 # Never add this override to a customer installation.
 services:
+  feature-explain:
+    image: python:3.13-alpine
+    command: [python, /fixture/feature-explain.py, 0.0.0.0, '8100']
+    environment:
+      FEATURE_EXPLAIN_KEY: feature-explain-secret
+    volumes: ['./scripts/feature-explain.py:/fixture/feature-explain.py:ro']
+    ports: ['127.0.0.1:8100:8100']
+  app-explanations:
+    # Start after the main app has bootstrapped its first administrator.
+    profiles: !override [feature-explanations]
+    extends:
+      file: docker-compose.yml
+      service: app
+    environment:
+      DONKA_PUBLIC_URL: http://localhost:8083
+      DONKA_EXPLAIN_URL: http://feature-explain:8100/v1/messages
+      DONKA_EXPLAIN_API_KEY: feature-explain-secret
+      DONKA_EXPLAIN_API: anthropic
+      DONKA_EXPLAIN_MODEL: feature-explain-model
+    ports: !override ['127.0.0.1:8083:8080']
   feature-bureau:
     image: python:3.13-alpine
     command: [python, /fixture/feature-bureau.py, 0.0.0.0, '8099']
@@ -9,6 +29,9 @@ services:
     volumes: ['./scripts/feature-bureau.py:/fixture/feature-bureau.py:ro']
     ports: ['127.0.0.1:8099:8099']
   runtime:
+    env_file:
+      - path: .feature-runtime.env
+        required: false
     environment:
       DONKA_SECRET_E2E_BUREAU_KEY: feature-test-secret
   runtime-production:

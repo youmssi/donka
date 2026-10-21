@@ -5,6 +5,8 @@ apps/web/.next
 apps/web/out
 .git
 .env
+runtime.env
+.feature-runtime.env
 **/playwright-report
 **/playwright-report-security
 **/test-results

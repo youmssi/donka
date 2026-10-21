@@ -66,7 +66,7 @@ function RecordView({ project, id }: { project: Project; id: string }) {
   const record = result.data;
   const replayed = replay.data;
   return (
-    <div className="grid gap-6">
+    <div className="grid min-w-0 gap-6">
       <PageHeader
         title={record.reference ?? t('recordTitle')}
         description={t('recordOf', { key: record.decisionKey })}
@@ -111,7 +111,7 @@ function RecordView({ project, id }: { project: Project; id: string }) {
       ) : null}
       <div className="grid items-start gap-6 lg:grid-cols-3">
         <Summary record={record} />
-        <div className="grid gap-6 lg:col-span-2">
+        <div className="grid min-w-0 gap-6 lg:col-span-2">
           <JsonCard title={t('input')} description={t('inputDescription')} value={record.input} />
           {record.status === 'succeeded' ? (
             <JsonCard title={t('output')} description={t('outputDescription')} value={record.output} />
@@ -221,7 +221,7 @@ function ReplayResult({ record, replay }: { record: DecisionRecord; replay: Repl
 
 function JsonCard({ title, description, value }: { title: string; description?: string; value: unknown }) {
   return (
-    <Card>
+    <Card className="min-w-0">
       <CardHeader>
         <CardTitle>{title}</CardTitle>
         {description ? <CardDescription>{description}</CardDescription> : null}
@@ -237,7 +237,7 @@ function JsonCard({ title, description, value }: { title: string; description?: 
 function TraceCard({ trace }: { trace: unknown }) {
   const t = useTranslations('decisionLog');
   return (
-    <Card>
+    <Card className="min-w-0">
       <details className="group">
         <summary className="cursor-pointer list-none">
           <CardHeader>
