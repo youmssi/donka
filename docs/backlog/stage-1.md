@@ -989,6 +989,10 @@ installation can import.
 - [x] Packs "KYC risk rating" and "Mobile money tiered limits" (CEMAC), with scenarios and guides
 - [x] Audited; English and French
 
+DNK-55 verifies duplication and export/reimport into independent projects in one installation.
+Transfer between separate installations still requires DNK-50's isolated-install rehearsal;
+the existing PostgreSQL round-trip test does not start a second installation.
+
 ---
 
 ### DNK-45 — Show and hide passwords
@@ -1099,7 +1103,7 @@ the current Studio workflow does not enforce them. Audit the other repos before 
 **Type:** test · **Repos:** S, R, C · **Dependencies:** DNK-49, DNK-51, DNK-52, DNK-53, DNK-54, DNK-55 · **Size:** M
 
 #### Acceptance criteria
-- [ ] Fresh install and post-deploy smoke checks pass in an isolated environment
+- [ ] Fresh install and post-deploy smoke checks pass in an isolated environment, including importing an exported pack from the source installation
 - [ ] Database, release bucket and required secrets restore together; rule versions, approvals and encrypted decision records remain usable
 - [ ] Upgrade and recovery follow the documented order and migrations; the original development stack is preserved
 - [ ] Live browser and Studio-to-Runtime checks prove the restored/upgraded system works
@@ -1171,7 +1175,9 @@ Evidence: [live journeys and exact integration boundaries](../engineering/live-t
 **Type:** test · **Repos:** S, C · **Dependencies:** DNK-48 · **Size:** L
 
 #### Acceptance criteria
-- [ ] Catalogue/file import, independent duplicate, export/reimport and invalid/conflicting pack paths are exercised
-- [ ] Real-progress checklist and skippable/replayable tours work with persisted per-user state
-- [ ] CLI sync targets, checksums, contract pull/check/init and relevant templates are verified against real Studio as appropriate
-- [ ] The coverage map is current; Phase 1 is not marked complete while a required feature group remains unverified
+- [x] Catalogue/file import, independent duplicate, export/reimport and invalid/conflicting pack paths are exercised
+- [x] Real-progress checklist and skippable/replayable tours work with persisted per-user state
+- [x] CLI sync targets, checksums, contract pull/check/init and relevant templates are verified against real Studio as appropriate
+- [x] The coverage map is current; Phase 1 is not marked complete while a required feature group remains unverified
+
+Evidence: [live journeys and exact integration boundaries](../engineering/live-tests.md#packonboardingcli-integration-boundaries).

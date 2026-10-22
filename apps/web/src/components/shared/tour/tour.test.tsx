@@ -7,7 +7,7 @@ import messages from '@/messages/en.json';
 
 import { TourProvider, useCurrentTour, usePageTour, type PageTour } from './tour';
 
-function Page() {
+function Page({ ready = true }: { ready?: boolean }) {
   const tour = useMemo<PageTour>(
     () => ({
       id: 'editor',
@@ -19,7 +19,7 @@ function Page() {
     }),
     [],
   );
-  usePageTour(tour);
+  usePageTour(tour, ready);
   const current = useCurrentTour();
   return (
     <>
@@ -31,15 +31,16 @@ function Page() {
   );
 }
 
-function renderPage(seen: string[] | undefined, onSeen = vi.fn()) {
-  render(
+function renderPage(seen: string[] | undefined, onSeen = vi.fn(), ready = true) {
+  const content = (ready: boolean) => (
     <NextIntlClientProvider locale="en" messages={messages}>
       <TourProvider seen={seen} onSeen={onSeen}>
-        <Page />
+        <Page ready={ready} />
       </TourProvider>
-    </NextIntlClientProvider>,
+    </NextIntlClientProvider>
   );
-  return onSeen;
+  const view = render(content(ready));
+  return { onSeen, setReady: (ready: boolean) => view.rerender(content(ready)) };
 }
 
 beforeEach(() => vi.useFakeTimers({ shouldAdvanceTime: true }));
@@ -49,7 +50,7 @@ afterEach(() => {
 });
 
 it('starts once for someone who has not seen it, and skipping counts as seen', async () => {
-  const onSeen = renderPage([]);
+  const { onSeen } = renderPage([]);
   await act(() => vi.advanceTimersByTimeAsync(700));
   expect(await screen.findByRole('dialog', { name: 'First thing' })).toBeInTheDocument();
   expect(screen.getByText('1 of 3')).toBeInTheDocument();
@@ -73,4 +74,15 @@ it('waits while what was seen is unknown', async () => {
   renderPage(undefined);
   await act(() => vi.advanceTimersByTimeAsync(700));
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+it('offers neither automatic nor manual tours until the page is ready', async () => {
+  const { setReady } = renderPage([], vi.fn(), false);
+  await act(() => vi.advanceTimersByTimeAsync(1200));
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Replay' })).toBeDisabled();
+  setReady(true);
+  await act(() => vi.advanceTimersByTimeAsync(700));
+  expect(screen.getByRole('button', { name: 'Replay' })).toBeEnabled();
+  expect(await screen.findByRole('dialog', { name: 'First thing' })).toBeInTheDocument();
 });
