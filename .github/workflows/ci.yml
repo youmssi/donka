@@ -199,6 +199,20 @@ jobs:
           cache-dependency-path: apps/web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
         working-directory: apps/web
+      - uses: actions/checkout@v4
+        with:
+          repository: youmssi/donka-cli
+          ref: 515dd51403ca334db14b312045c6c654cf6f9878
+          path: .feature-cli
+          persist-credentials: false
+      - name: Build and verify the locked CLI reference
+        working-directory: .feature-cli
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm lint
+          pnpm format
+          pnpm typecheck
+          pnpm test
       - uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
@@ -221,6 +235,14 @@ jobs:
           DONKA_E2E_MAILPIT_URL: http://localhost:8025
           DONKA_E2E_ADMIN_EMAIL: admin@donka.local
           DONKA_E2E_ADMIN_PASSWORD: smoke test passphrase
+          DONKA_E2E_CLI_DIR: ${{ github.workspace }}/.feature-cli
+      - name: Packaged CLI templates against real Studio
+        run: node scripts/test-cli-templates.mjs
+        env:
+          DONKA_E2E_BASE_URL: http://localhost:8080
+          DONKA_E2E_ADMIN_EMAIL: admin@donka.local
+          DONKA_E2E_ADMIN_PASSWORD: smoke test passphrase
+          DONKA_E2E_CLI_DIR: ${{ github.workspace }}/.feature-cli
       - name: Restart isolated Studio with small authentication limits
         run: |
           printf '%s\n' 'DONKA_SIGN_IN_RATE_LIMIT=2' 'DONKA_PASSWORD_RESET_RATE_LIMIT=1' > .env

@@ -6,6 +6,8 @@ import en from '../src/messages/en.json';
 import fr from '../src/messages/fr.json';
 import { origin, required, settings } from './settings';
 
+export type Messages = typeof en;
+
 export interface UiOptions {
   appLocale: 'en' | 'fr';
   theme: 'light' | 'dark';
@@ -32,7 +34,7 @@ async function appearance(context: BrowserContext, theme: UiOptions['theme'], st
 
 function pageErrors(context: BrowserContext) {
   const errors: string[] = [];
-  const listen = (page: Page) => page.on('pageerror', (error) => errors.push(error.message));
+  const listen = (page: Page) => page.on('pageerror', (error) => errors.push(error.stack ?? error.message));
   context.on('page', listen);
   context.pages().forEach(listen);
   return errors;
@@ -118,6 +120,24 @@ export { expect };
 
 export function unique(prefix: string): string {
   return `${prefix}-${randomUUID().slice(0, 8)}`;
+}
+
+/** Invited/activated account fixture; the journey signs in through the real UI. */
+export async function newUser(
+  admin: APIRequestContext,
+  services: APIRequestContext,
+  locale: UiOptions['appLocale'],
+  isAdmin = false,
+) {
+  const email = `${unique('journey')}@donka.local`;
+  const password = 'disposable feature journey passphrase';
+  await expect(await admin.post('/api/v1/users/invitations', { data: { email, locale, isAdmin } })).toBeOK();
+  await expect(
+    await admin.post('/api/v1/auth/password-setup', {
+      data: { token: await passwordLink(services, email), password },
+    }),
+  ).toBeOK();
+  return { email, password };
 }
 
 const mailList = z.object({

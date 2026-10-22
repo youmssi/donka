@@ -6,7 +6,7 @@ import { useMemo } from 'react';
 import { usePageTour, type PageTour } from '@/components/shared/tour';
 
 /** The guided tour of the decision editor (DNK-41), started once per person. */
-export function useEditorTour() {
+export function useEditorTour(ready: boolean) {
   const t = useTranslations('tours.editor');
   const tour = useMemo<PageTour>(
     () => ({
@@ -21,5 +21,5 @@ export function useEditorTour() {
     }),
     [t],
   );
-  usePageTour(tour);
+  usePageTour(tour, ready);
 }

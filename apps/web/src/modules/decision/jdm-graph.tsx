@@ -15,7 +15,7 @@ import {
 import { FlaskConical, PlayCircle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useTheme } from 'next-themes';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import type { ActionResult } from '@/components/shared/api';
 import { Button } from '@/components/ui/button';
@@ -27,6 +27,8 @@ import type { SimulationResult } from './schema';
 type Graph = Parameters<NonNullable<Parameters<typeof DecisionGraph>[0]['onChange']>>[0];
 
 export interface JdmGraphProps {
+  /** The lazy-loaded graph has mounted; its page can now offer the guided tour. */
+  onReady?: () => void;
   value: unknown;
   onChange: (graph: unknown) => void;
   disabled: boolean;
@@ -99,6 +101,7 @@ function useCustomNodes() {
 }
 
 export function JdmGraph({
+  onReady,
   value,
   onChange,
   disabled,
@@ -118,6 +121,9 @@ export function JdmGraph({
   const customNodes = useCustomNodes();
   const [running, setRunning] = useState(false);
   const [lastRun, setLastRun] = useState<SimulatorRun | null>(null);
+  useEffect(() => {
+    onReady?.();
+  }, [onReady]);
 
   async function run({ graph, context }: { graph: Graph; context: unknown }) {
     setRunning(true);

@@ -129,7 +129,9 @@ function Editor({ project, decision, others }: { project: Project; decision: Dec
   const [fieldsOpen, setFieldsOpen] = useState(false);
   const [warnings, setWarnings] = useState<{ number: number; items: ContractWarning[] } | null>(null);
 
-  useEditorTour();
+  const [graphReady, setGraphReady] = useState(false);
+  const onGraphReady = useCallback(() => setGraphReady(true), []);
+  useEditorTour(graphReady);
 
   const simulate = useCallback(
     (graph: unknown, context: unknown) => simulateDecision(project.id, decision.id, graph, context),
@@ -189,6 +191,7 @@ function Editor({ project, decision, others }: { project: Project; decision: Dec
       ) : null}
       <div data-tour="editor-graph" className={`${EDITOR_HEIGHT} min-h-96 overflow-hidden rounded-lg border`}>
         <JdmGraph
+          onReady={onGraphReady}
           value={draft.graph}
           onChange={draft.change}
           disabled={!editable}

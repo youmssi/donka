@@ -108,9 +108,9 @@ export function usePageTour(tour: PageTour, ready = true) {
   const started = useRef(false);
 
   useEffect(() => {
-    setCurrent(tour);
+    setCurrent(ready ? tour : null);
     return () => setCurrent(null);
-  }, [tour, setCurrent]);
+  }, [tour, ready, setCurrent]);
 
   useEffect(() => {
     if (!ready || !seen || seen.has(tour.id) || started.current) return;

@@ -5,7 +5,7 @@ suite covers authentication, People, project membership/settings, permission bou
 graph authoring/simulation, input contracts, versions/scenarios, release creation, token
 issuance, production approval/rejection/rollback, token isolation/revocation, connector
 failure policies, staging publication, real Runtime records/replay, explanations/redaction
-and audit access/export. A separate service restart
+and audit access/export, pack import/copy/export, onboarding and real CLI sync/contracts. A separate service restart
 exercises actual authentication throttling.
 The reset journey deliberately holds JavaScript requests to prove static form controls stay
 disabled until hydration, then exercises the real email and password change. This guards the
@@ -78,6 +78,7 @@ The runner requires these Node-only environment variables (also in `.env.example
 | `DONKA_E2E_MAILPIT_URL` | Local email API, e.g. `http://localhost:8025` |
 | `DONKA_E2E_ADMIN_EMAIL` | Administrator of that isolated installation |
 | `DONKA_E2E_ADMIN_PASSWORD` | Its test password, supplied privately |
+| `DONKA_E2E_CLI_DIR` | Absolute path to the verified CLI checkout with its built `dist/main.js` |
 
 Origins must be HTTP(S), with no path or embedded credentials. Do not commit an environment
 file or print these values. In Bash, `read -r -s DONKA_E2E_ADMIN_PASSWORD` followed by `export
@@ -90,19 +91,27 @@ installed Edge for Chromium projects; Firefox/WebKit still use their own engines
 From the repository root with Node 22 and the repository's pnpm version:
 
 ```bash
+git clone https://github.com/youmssi/donka-cli.git .feature-cli
+git -C .feature-cli checkout --detach 515dd51403ca334db14b312045c6c654cf6f9878
+pnpm --dir .feature-cli install --frozen-lockfile
+pnpm --dir .feature-cli lint
+pnpm --dir .feature-cli format
+pnpm --dir .feature-cli typecheck
+pnpm --dir .feature-cli test
+export DONKA_E2E_CLI_DIR="$(pwd)/.feature-cli"
 pnpm --dir apps/web install --frozen-lockfile
 pnpm --dir apps/web exec playwright install --with-deps chromium
 pnpm --dir apps/web test:e2e
 ```
 
-The default command selects Chromium: sixteen tests across EN/FR, light/dark and desktop/390 px
-(128 cases). To run one project while investigating a failure:
+The default command selects Chromium: nineteen tests across EN/FR, light/dark and desktop/390 px
+(152 cases). To run one project while investigating a failure:
 
 ```bash
 pnpm --dir apps/web exec playwright test --project=chromium-en-light-1440
 ```
 
-Before a release, install all engines and run the same suite in all three (384 cases):
+Before a release, install all engines and run the same suite in all three (456 cases):
 
 ```bash
 pnpm --dir apps/web exec playwright install --with-deps chromium firefox webkit
@@ -178,7 +187,7 @@ the output into view. It does not inject editor state or replace service respons
 | Releases/Runtime | UI release, shown-once token, staging publication, actual Runtime result and contract violations; separate owner signs in and rejects/approves production, author cannot decide, required reasons, approved rollback cancellation/confirmation restores the earlier Runtime result; live token project/environment isolation, UI revocation, independent rate budgets and health exemption | Graphs, versions, staging publication, token issuance and second-owner account activation in DNK-53 are API fixtures; concurrent decisions, stale staging requests and permission matrices retain PostgreSQL integration coverage |
 | Connectors | UI settings/secret validation and fresh-page persistence; actual Studio simulation returns its mock without contacting the bureau; Runtime sends mapped nested JSON with the named secret, retries a transient 503, applies bounded timeout/failure/non-JSON/missing-secret fallback, stops when configured to fail and opens its breaker after five failures without making a sixth call | Additional failure-policy graphs are API fixtures; connector maximum caps, template errors and breaker cooldown retain connector integration tests |
 | Records/explanations/audit | Real Runtime feed, reference/decision/outcome/environment/status filters, pagination, detail/trace, successful/failed replay without new connector calls, frozen-release replay after a draft change; explanation off/on/language/owner and contract redaction/provider errors; audit actions/person filters/CSV and viewer/isolation boundaries | Graphs, releases, tokens and activated member accounts are API fixtures; record date filtering, audit date filtering, retention, encryption, key rotation and append-only guarantees retain PostgreSQL integration evidence; process-level restore/reseal rehearsal remains DNK-50 |
-| Packs/onboarding/CLI | Existing component/unit/API checks remain separate evidence | DNK-55: import/duplicate/export, checklist/tours and real CLI sync/contracts |
+| Packs/onboarding/CLI | UI catalogue/file import, draft/release copies, independent content/settings, export/reimport, invalid zip/key conflict; actual checklist progress and per-user tours across sign-in; owner CI-token issue/revocation and viewer denial; built CLI sync targets/checksums/nested contracts/forms against real Studio; six packaged CI template script bodies | Account activation and source-release/member/record setup are API fixtures; all catalogue packs and broader permissions retain PostgreSQL tests; separate-installation transfer remains DNK-50; hostile archive/checksum cases retain unit/controlled-service checks; hosted GitLab/Azure runner orchestration is outside the local script harness |
 | Foundation/operations | [Foundation audit](foundation-evidence.md) and existing install/API e2e jobs | DNK-49 coverage/security gates; DNK-50 restore/upgrade rehearsal |
 
 Close these gaps story by story before the Phase 1 exit gate. Add new feature journeys in the
@@ -363,3 +372,99 @@ verify the staging feed credential stays out of the other Runtimes and the enabl
 starts only under its explicit profile after bootstrap. No API schema, migration or locked
 dependency changes are required. The expanded release gate is 384 main plus 24 security cases
 across Chromium, Firefox and WebKit; it has not been executed for this story.
+
+## Pack/onboarding/CLI integration boundaries
+
+The packs journey imports the mobile-money catalogue pack through the UI. API fixtures add a
+member, release, staging caller and real Runtime record to the source. The browser duplicates
+the editable draft and a frozen release, exports that release and imports its downloaded zip
+under a new project key. Independent API reads check graph content, saved passing scenario
+results, copied record settings and the absence of source memberships, releases, deployments,
+tokens and records. Editing the copy leaves the source unchanged. Invalid zip bytes and a
+conflicting project key are refused through the UI without losing the entered project name.
+The file round-trip uses another project in the same installation. Transfer between separate
+installations remains an explicit part of DNK-50's isolated-install rehearsal.
+
+The onboarding journey activates a new administrator through the invitation API, then signs
+in through the UI. Checklist links lead through actual catalogue import, editor simulation,
+release creation, staging deployment and caller-token creation. Independent API reads compare
+the checklist with persisted progress, and the caller receives the expected real Runtime
+result. A held real graph-script regression checks that Help's tour option stays disabled
+and no tour opens while the lazy bundle remains unavailable, then verifies the actual graph
+and automatic tour together after the script loads. The component regression separately
+advances the tour timer past its delay while the page is not ready. The live editor keeps
+native browser time: Monaco's input-latency measurements require real performance entries.
+Tours can be skipped, replayed from Help, advanced by buttons or the keyboard and
+closed with Escape. Keyboard replay uses the app's reduced-motion preference and waits for
+rendering rather than racing the tour animation. Tour exits persist per person and survive
+signing out and back in; another person's state is unchanged. Component tests separately
+control the automatic-tour clock.
+
+The CLI journey seeds two releases through the API, with staging deliberately on the older
+one. The owner issues and revokes a CI token through the UI. The built, pinned CLI checks
+`main`, `commit:`, `release:` and `env:staging` against real Studio. Downloads are independently
+hashed; unpacked environment artifacts contain only the scoped Runtime-token hashes, while
+release artifacts omit them. Each target supports unchanged detection and nested contract
+pull. Form initialization respects EN/FR labels; matching and drifted forms report the
+documented exit codes. Unpublished production, unsupported branches, another project and a
+missing token are refused. Changing caller tokens creates a new environment commit even when
+the release stays the same. A viewer cannot manage CI tokens; UI revocation immediately
+prevents further CLI reads. Fixture accounts are API-activated and sign in through the UI.
+
+On Linux with Node 22, bash/sh and jq, run the template harness after the main browser suite,
+before restarting Studio with small sign-in limits:
+
+```bash
+node scripts/test-cli-templates.mjs
+```
+
+It uses `DONKA_E2E_BASE_URL`, the private admin credentials and `DONKA_E2E_CLI_DIR` above. It
+creates a disposable project and actual staging publication, issues a scoped CI token, packs
+the verified CLI with `npm pack` and executes the six checked-in GitHub/GitLab/Azure script
+bodies with their declared environment/parameter expansion. Twelve checks cover download,
+unchanged target, matching form and drift. They independently verify release/commit/checksum
+outputs, failure exit codes and credential masking. The harness revokes its token, signs out
+and removes its private temporary package, files and npm cache. It exercises the script bodies
+locally, not GitLab/Azure hosted orchestration or their runner setup tasks. The retained CLI
+suite additionally checks template edge cases against its controlled fake Studio.
+
+CI pins CLI commit `515dd51403ca334db14b312045c6c654cf6f9878`, installs its frozen dependencies,
+runs all CLI checks and builds it before the Playwright journeys and template harness. The
+ignored `.feature-cli` reference is excluded from Docker build contexts. CLI child processes
+receive only OS essentials and their scoped token; administrator credentials are not inherited.
+Raw output is captured privately and never printed on an assertion failure.
+
+The full Studio suite retains these separate PostgreSQL-backed checks:
+
+| Boundary | Exact integration journeys |
+|---|---|
+| Every catalogue pack and repeated imports | `every_pack_of_the_catalogue_imports_and_its_scenarios_pass`, `a_pack_imports_twice_as_independent_projects` in `apps/app/tests/packs.rs` |
+| Import/export permissions and invalid content | `only_administrators_make_projects_from_packs`, `only_owners_export`, `a_broken_pack_file_is_refused_with_its_reason` |
+| File round-trip and source selection | `an_exported_project_imports_in_another_installation`, `a_project_duplicates_from_its_drafts_or_a_release` |
+| Checklist membership and persisted tours | `the_checklist_follows_what_happened_in_the_project`, `the_checklist_reads_only_the_users_own_projects`, `each_user_sees_a_tour_once_on_any_device` in `apps/app/tests/onboarding.rs` |
+
+Despite its name, `an_exported_project_imports_in_another_installation` uses one `TestApp` and
+database for export and import. It verifies the archive round-trip, not a second independent
+installation. DNK-50 must exercise the separate-installation transfer before Phase 1 exits.
+
+Pack parsing/zip safety and CLI checksum-tampering/extraction defenses also retain their unit
+and controlled-service checks; a positive live download does not replace those negative tests.
+Phase 1 still requires DNK-49 coverage/security gates, DNK-50 isolated backup/restore/upgrade
+and the expanded 456-main/24-security three-engine release matrix.
+
+DNK-55 validation (2026-10-22): one clean Linux Chromium run passes all 152 main
+cases, followed by eight real authentication rate-limit cases, across EN/FR, light/dark and
+desktop/390 px. Both final reports contain no failures, retries or skips. All 40 new viewport
+captures were visually inspected. [PR #55](https://github.com/youmssi/donka/pull/55) records
+the evidence. Credentials and raw reports remain private.
+
+Rust formatting, strict Clippy, all 260 PostgreSQL-backed workspace tests and Studio/Runtime
+engine agreement (2.0.1) pass. Web formatting/lint/types, 198 tests across 42 files, 950 matching
+catalog keys, production/Storybook builds and all 360 component browser checks pass. The pinned
+CLI passes its frozen install, formatting/lint/types/build and all 40 retained command/template
+tests. All twelve packaged-template checks above pass against real Studio. The premature
+editor tour was reproduced before the fix. The ready-state component regression fails on the
+prior implementation and passes afterward; live held-script checks pass with native editor
+timing. Automatic and manual tours now wait for page readiness. No API schema, migrations or
+locked dependencies changed. DNK-49, DNK-50 and the expanded three-engine release matrix remain
+required; this does not declare Phase 1 ready for a pilot.
