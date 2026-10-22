@@ -363,3 +363,14 @@ verify the staging feed credential stays out of the other Runtimes and the enabl
 starts only under its explicit profile after bootstrap. No API schema, migration or locked
 dependency changes are required. The expanded release gate is 384 main plus 24 security cases
 across Chromium, Firefox and WebKit; it has not been executed for this story.
+
+## DNK-55 verification plan
+
+This story is in progress; the following is planned coverage, not executed evidence.
+Exercise catalogue and file import, independent copies, export/reimport and invalid/conflicting
+packs through the UI. Check the checklist against real project progress and persist each
+person's skippable/replayable tours on the server. Run the built CLI against real Studio for
+sync targets, downloaded checksums, contract pull/check/init and the relevant CI templates.
+Keep API-seeded fixtures, browser actions, command checks and retained PostgreSQL boundaries
+explicit in the coverage map. Phase 1 still requires the coverage/security gates and isolated
+backup/restore/upgrade rehearsal after this feature group.
