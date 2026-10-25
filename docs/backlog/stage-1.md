@@ -1405,6 +1405,7 @@ Confirmed 2026-10-25, before the pilot:
 #### Acceptance criteria
 - [ ] The site builds in CI from tagged releases of the three repositories and fails on a broken link or an unpublished change to a generated reference
 - [ ] Discover: what Donka does, the architecture diagrams, the four packs as use cases, the architecture decisions that matter to a customer
+- [ ] The home page opens on a diagram of how the pieces connect: the customer's core banking system and channels call the Runtime, which serves decisions and records them in Studio; Studio feeds the documentation and API reference, the CLI and its MCP bridge, and Fieldkit. Drawn in Mermaid or as a component, in English and French, light and dark, readable at 390 px
 - [ ] Get started: the five-minute first decision (DNK-64) and from a pack to production
 - [ ] Integrate: Runtime API, connectors and core banking (DNK-63), identity providers, CLI and CI/CD
 - [ ] Operate: install, upgrade (DNK-64), backup and restore (DNK-50), secrets (DNK-65), monitoring
