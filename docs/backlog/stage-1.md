@@ -1411,6 +1411,8 @@ Confirmed 2026-10-25, before the pilot:
 - [ ] Security and compliance: encryption and keys, access control and audit, personal data, and answers to a typical bank security questionnaire
 - [ ] Reference: generated API and CLI pages, every configuration variable, the artifact format, release notes
 - [ ] English and French; a version selector per release; a PDF export of a chosen version
+- [ ] A public **Trust** page publishes the trust dossier (DNK-73): each standard with its exact status (self-assessed or third-party verified), the penetration test attestation summary (DNK-69), SBOMs, the signing public key and the disclosure policy; nothing is claimed without its evidence
+- [ ] A public **Performance** page publishes the load-test targets and results (DNK-67) with the method and scripts to reproduce them
 - [ ] Studio serves an interactive API reference (Scalar, through `utoipa-scalar`) at `/api/docs` from its own OpenAPI document, so each installation shows the API of its installed version
 - [ ] AGENTS.md in the three repositories adds the documentation rule to the checks before a pull request
 
@@ -1498,4 +1500,43 @@ in writing before the pilot.
 
 #### Out of scope
 Certification (SOC 2, ISO 27001), which stays in Phase 3.
+
+---
+
+### DNK-73 — A trust dossier banks can verify
+
+**Type:** chore · **Repos:** S, R, C · **Dependencies:** DNK-69, DNK-64 · **Size:** M
+
+#### Why
+Banks select suppliers against international security standards. Most certifications
+(ISO/IEC 27001, SOC 2) certify an organisation, not software, and PCI DSS applies only to card
+data. What a bank can check on the software itself is its application security, how it is
+built and delivered, and whether it falls inside its regulated scopes.
+
+#### Decisions
+Confirmed 2026-10-25, before the pilot. Each item states its status exactly; a self-assessment
+is never presented as a certification:
+- **OWASP ASVS 5.0 level 2** self-assessment of Studio and the Runtime, with evidence per
+  requirement (test, configuration or document).
+- **NIST SSDF (SP 800-218)** mapping of the development practices.
+- **SLSA build level 3** provenance for the published images (DNK-64).
+- **OpenSSF Scorecard** and the **OpenSSF Best Practices badge** for the public repositories.
+- **CIS Docker Benchmark** checks of the images.
+- **PCI DSS out of scope by design**: Donka needs no card numbers; contracts reject fields
+  that look like a primary account number, so Donka stays outside the bank's card-data scope.
+- A pre-filled answer pack for a typical bank security questionnaire, with a mapping to
+  supervisory expectations on outsourcing and ICT third parties.
+
+#### Acceptance criteria
+- [ ] The ASVS level 2 self-assessment lists every applicable requirement with its evidence; failures become stories or written exceptions
+- [ ] The SSDF mapping links each practice to the repository's rules, CI and reviews
+- [ ] Published images carry SLSA level 3 provenance that a bank verifies offline with the documented commands
+- [ ] OpenSSF Scorecard runs on each public repository and the Best Practices badge is obtained; their results are linked
+- [ ] Images pass the applicable CIS Docker Benchmark checks or document each exception
+- [ ] Saving a contract with a field that holds or looks like a card number is refused, and the PCI DSS scope statement is published
+- [ ] The questionnaire answer pack (EN/FR) and the dossier appear on the Trust page (DNK-66)
+
+#### Out of scope
+ISO/IEC 27001 and SOC 2 Type II certification of the company, and third-party verification of
+the ASVS assessment (Phase 3, when Donka operates a hosted service or a customer requires it).
 

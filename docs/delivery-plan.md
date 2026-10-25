@@ -28,7 +28,9 @@ Remaining order:
    against published targets.
 5. **DNK-49:** enforce the coverage and dependency-security gates already required by the
    engineering guides, plus image scanning. Their current absence is an audit finding, not a
-   passing check. **DNK-69** follows: a threat model and an external penetration test.
+   passing check. **DNK-69** follows: a threat model and an external penetration test; then **DNK-73**, a
+   trust dossier (OWASP ASVS level 2 self-assessment, NIST SSDF, SLSA level 3, OpenSSF, CIS,
+   PCI DSS out of scope by design) published with the load-test results on the documentation site.
 6. **DNK-50:** rehearse installation, database/bucket/secret backup and restore, upgrade and
    recovery in isolation; verify the restored system through the full smoke journey; state and
    meet recovery point and time objectives; keep Runtimes answering during restarts.
@@ -90,7 +92,9 @@ Confirmed 2026-10-25, see [Stage 2 stories](backlog/stage-2.md):
 ## Phase 3 — enterprise
 
 Global roles, decision-path coverage, the policy-document editor, Studio MCP
-bridge, Case Tracker, the SOC 2 readiness program and optional multi-tenant SaaS remain here.
+bridge, Case Tracker, the ISO/IEC 27001 and SOC 2 Type II programme for the company (started
+when Donka operates a hosted service or a customer requires it, with third-party verification
+of the ASVS assessment) and optional multi-tenant SaaS remain here.
 These are roadmap themes requiring their own acceptance criteria and phase-entry agreement.
 Document ingestion for Phase 2 authoring does not imply delivery of the Phase 3 policy editor.
 

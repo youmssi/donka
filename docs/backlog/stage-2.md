@@ -220,6 +220,23 @@ blocks the production approval unless an owner records a justification.
 
 ---
 
+### Fieldkit baseline (input to the Phase 2 Fieldkit story)
+
+Agreed 2026-10-25: field-collection tools such as KoboToolbox and ODK set the expected baseline.
+The Fieldkit story is written to meet it, then to add what only Fieldkit does:
+
+- offline first, with synchronisation, retries and conflict handling when two agents edit
+  the same application;
+- GPS location, photos and signatures captured with the form;
+- data encrypted on the device, wiped on sign-out or remote revocation;
+- form versions, with submissions kept against the version that produced them;
+- English and French forms from the contract's labels;
+- agents, teams and devices managed by an administrator;
+- **the decision on the device**: the published release evaluated locally through the engine's
+  WebAssembly build, then confirmed by the Runtime on synchronisation.
+
+---
+
 ### DNK-72 — Fieldkit on its own, and with XLSForm
 
 **Type:** feature · **Repos:** Fieldkit · **Dependencies:** the Phase 2 Fieldkit story · **Size:** M

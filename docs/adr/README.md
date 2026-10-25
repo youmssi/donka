@@ -76,6 +76,11 @@
   (DNK-67), image scanning in DNK-49, a security review with a penetration test (DNK-69), and
   RPO/RTO with Runtime availability in DNK-50. Phase 2 candidates add batch evaluation
   (DNK-70), protected characteristics (DNK-71) and Fieldkit on its own with XLSForm (DNK-72).
+- A trust dossier (DNK-73) before the pilot: OWASP ASVS level 2 self-assessment, NIST SSDF,
+  SLSA level 3, OpenSSF, CIS checks and PCI DSS kept out of scope by design; public Trust and
+  Performance pages state each status exactly. Company certifications (ISO/IEC 27001, SOC 2
+  Type II) wait for Phase 3. Fieldkit's Phase 2 story starts from the field-collection baseline
+  in `docs/backlog/stage-2.md`.
 - Release storage: a shared disk volume on one server, the customer's S3 across machines,
   PGSTY SILO (maintained MinIO fork) as the documented self-hosted S3, Garage as the alternative.
 - One language model configuration, chosen by the customer (their endpoint and key, hosted or

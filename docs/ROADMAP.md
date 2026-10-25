@@ -70,6 +70,7 @@ docker-compose for PostgreSQL, MinIO and Mailpit.
 | 42 | DNK-67 Measured performance with published targets | R S |
 | 43 | DNK-49 Enforce coverage, dependency and image security gates | S R C |
 | 44 | DNK-69 Security review before the pilot | S R C |
+| 44b | DNK-73 A trust dossier banks can verify | S R C |
 | 45 | DNK-50 Isolated backup, restore and upgrade rehearsal, with RPO/RTO and Runtime availability | S R C |
 | 46 | DNK-66 Product documentation for the organisations that run Donka | docs S R C |
 
@@ -90,5 +91,5 @@ protected characteristics and DNK-72 Fieldkit on its own with XLSForm. Define an
 story order at phase entry; see the [approved scope](delivery-plan.md#phase-2--assisted-creation-fieldkit-and-governance).
 
 ## Stage 3: enterprise
-Global roles, path coverage, policy-document editor, MCP bridge in Studio, SOC 2
+Global roles, path coverage, policy-document editor, MCP bridge in Studio, ISO/IEC 27001 and SOC 2
 program, Case Tracker, optional multi-tenant SaaS.
