@@ -4,7 +4,8 @@ Stage 1 is the MVP for one self-hosted pilot (a bank or microfinance lender). St
 acceptance criteria: [`docs/backlog/stage-1.md`](backlog/stage-1.md). One story at a time, each
 merged before the next.
 
-Phase scope, owner decisions and exit gates: [Delivery plan](delivery-plan.md).
+Phase scope, owner decisions and exit gates: [Delivery plan](delivery-plan.md). Every rules-platform
+and credit-scoring capability, and where it stands: [Capability map](capability-map.md).
 Phase 1 is Studio + Runtime + CLI with a second sign-in step; Fieldkit, AI authoring and SSO are
 Phase 2; global roles are Phase 3.
 

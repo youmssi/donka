@@ -1356,7 +1356,7 @@ Confirmed 2026-10-25, before DNK-50:
   with cosign using a key pair whose public key is published, so a bank verifies them without
   network access; an SBOM and a provenance attestation per image; the offline bundle carries
   the same signatures.
-- **Assisted upgrade** (confirmed 2026-10-25): `donka upgrade <version>` verifies the signature
+- **Assisted upgrade** (confirmed 2026-10-25): `donka-admin upgrade <version>` verifies the signature
   and compatibility, backs up the database, release storage and keys, upgrades the Runtime
   first and then Studio, runs the smoke test and restores everything if a check fails. It
   writes a timestamped report for the bank's change record. Unattended upgrades exist only for
@@ -1367,7 +1367,7 @@ Confirmed 2026-10-25, before DNK-50:
 - [ ] The offline bundle installs the same version with no network access
 - [ ] Generated secrets are random, written once, never printed except the one-time setup link, and never overwritten by a second run
 - [ ] Without the demo option, nothing is imported; with it, the Get started checklist (DNK-41) shows the demo project's progress
-- [ ] `donka upgrade` refuses an image whose signature does not verify, and an upgrade the release notes mark as incompatible with the installed version
+- [ ] `donka-admin upgrade` refuses an image whose signature does not verify, and an upgrade the release notes mark as incompatible with the installed version
 - [ ] An upgrade whose smoke test fails restores the previous version and data, and says what failed; a successful one keeps the data and writes its report
 - [ ] Studio shows when a newer version is published, without any outgoing call when the installation is offline; unattended upgrades, when enabled, run only in the configured window and never in production
 - [ ] The DNK-50 rehearsal runs on this installation and this upgrade path
@@ -1564,27 +1564,30 @@ packs and modules it wants. Asked one by one, with checks, they take minutes ins
 
 #### Decisions
 Confirmed 2026-10-25:
-- **A command-line assistant in the Studio image**, in the manner of `create-next-app`:
+- **`donka-admin`**, a Rust binary in the Studio image, holds every server command (`init`,
+  `doctor`, `upgrade`, `modules`, `support-bundle`); the developers' CLI keeps the name `donka`
+  (`pull`, `form`, `mcp`). Nothing beyond Docker is installed on the bank's server.
+- **A command-line assistant** (`donka-admin init`), in the manner of `create-next-app`:
   organisation, domain and TLS, storage (disk, the customer's S3, SILO), identity (local
   accounts with a second step, or single sign-on), mail, language model (endpoint and key
   chosen by the customer), modules (explanations, analysis, connectors), packs to import, tools
   (CLI, `donka-scorecard`), licence file (DNK-77) and demo mode. Defaults are offered for each.
 - It writes secrets as files and a readable `donka.yaml`; running with that file replays the
   installation without questions.
-- `donka doctor` checks the database, storage, mail, identity provider, language model and
+- `donka-admin doctor` checks the database, storage, mail, identity provider, language model and
   connector endpoints, and explains each failure in plain words.
 - **A first-run assistant in the browser** creates the first administrator and their second
   step, names the organisation and imports the chosen packs; the DNK-41 checklist follows.
-- Modules are enabled or disabled later (`donka modules enable|disable`), and upgrades go
-  through `donka upgrade` (DNK-64).
-- `donka support-bundle` collects versions, configuration and logs with secrets removed, to
+- Modules are enabled or disabled later (`donka-admin modules enable|disable`), and upgrades go
+  through `donka-admin upgrade` (DNK-64).
+- `donka-admin support-bundle` collects versions, configuration and logs with secrets removed, to
   send for support without access to the bank.
 - A desktop installer is not built: installations run on headless servers.
 
 #### Acceptance criteria
 - [ ] The assistant runs from the published image with only Docker installed, in English and French, and every question has a default
 - [ ] Running again with `donka.yaml` produces the same installation without questions; secrets are never printed nor overwritten
-- [ ] `donka doctor` reports each dependency as working or not, with the reason and the setting to change
+- [ ] `donka-admin doctor` reports each dependency as working or not, with the reason and the setting to change
 - [ ] The browser assistant appears only until the first administrator exists, enrols their second step, and imports the selected packs
 - [ ] Enabling or disabling a module keeps data, is audited and takes effect after a restart
 - [ ] The support bundle contains no secret, token or personal data; a test checks it
@@ -1615,6 +1618,7 @@ Confirmed 2026-10-25, before the pilot:
 
 #### Acceptance criteria
 - [ ] Searching by a personal identifier finds that person's records across the project's decisions without decrypting the log
+- [ ] Records stored before this story are indexed by a resumable, audited job, like key re-sealing (DNK-40)
 - [ ] The access report includes every record found, its reasons and explanation, in English or French
 - [ ] Anonymising removes the person's fields from input, output and trace, keeps outcome, release and time, and cannot be undone; a documented retention rule blocks it with the rule shown
 - [ ] A contest and its review outcome are recorded on the decision and shown in its history

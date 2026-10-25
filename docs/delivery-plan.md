@@ -28,7 +28,7 @@ Remaining order:
    against published targets. Also confirmed 2026-10-25: DNK-76 table verification after the
    engine upgrade; DNK-75 the rights of the people decisions are about (access, anonymisation,
    contest) after partitioning; DNK-77 a signed licence file; DNK-74 a guided command-line and
-   browser setup with chosen modules, `donka doctor` and a support bundle, after DNK-64.
+   browser setup with chosen modules, `donka-admin doctor` and a support bundle, after DNK-64.
 5. **DNK-49:** enforce the coverage and dependency-security gates already required by the
    engineering guides, plus image scanning. Their current absence is an audit finding, not a
    passing check. **DNK-69** follows: a threat model and an external penetration test; then **DNK-73**, a

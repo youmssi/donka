@@ -267,7 +267,7 @@ at that moment.
 
 #### Acceptance criteria
 - [ ] An approved release can be scheduled for an environment at a date and time with its time zone
-- [ ] The Runtime switches at that time from the artifact it already holds, so a Studio outage does not delay it
+- [ ] The Runtime switches at that time from the artifact it already holds, so a Studio outage does not delay it; the artifact format gains the schedule additively and the Runtime ships first
 - [ ] Scheduled, cancelled and applied changes are audited and visible on the environment
 
 ---
