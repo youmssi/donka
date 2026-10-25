@@ -50,7 +50,8 @@
   playground testing and chat edits. The owner sees proposed changes and a diff, then accepts
   before they are applied to the editable draft. Existing releases and approvals still apply.
 - SSO/OIDC remains Phase 3 (moved to Phase 2 on 2026-10-25, below). The earlier Phase 1
-  read-only explanation decision remains valid; Phase 2 authoring is a new capability with its architecture to be designed in that phase.
+  read-only explanation decision remains valid; Phase 2 authoring is a new capability with its
+  architecture to be designed in that phase.
 - Agree each phase and then proceed by story; unclear requirements and material scope changes
   require interactive alignment before implementation.
 - Live Playwright verification follows every implemented feature. Chromium runs on each
