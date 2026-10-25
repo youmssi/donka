@@ -1339,9 +1339,13 @@ Confirmed 2026-10-25, before DNK-50:
 - The promise covers a demo with simulated connectors. Real core banking and bureau
   integrations, and AI authoring (Phase 2), are not part of the five minutes.
 
-[INTERACTIVE STEP] before implementation: the image registry and signing method; and the
-release storage for one server (see the options analysed on 2026-10-25: a shared disk volume
-by default with the customer's S3 as the option, versus a self-hosted S3 server).
+- **Release storage** (confirmed 2026-10-25): a disk volume shared by Studio and the staging
+  Runtime by default, for one server and the demo; the customer's S3 when Studio and a Runtime
+  run on different machines; Garage documented and tested in CI for a customer without S3.
+  MinIO leaves the installation: its upstream is archived and its images are no longer
+  published.
+
+[INTERACTIVE STEP] before implementation: the image registry and signing method.
 
 #### Acceptance criteria
 - [ ] From an empty server with Docker, pulling the images, preparing the installation and starting it reaches a Runtime decision recorded in Studio in five minutes or less on the documented reference machine; CI measures it
@@ -1349,6 +1353,7 @@ by default with the customer's S3 as the option, versus a self-hosted S3 server)
 - [ ] Generated secrets are random, written once, never printed except the one-time setup link, and never overwritten by a second run
 - [ ] Without the demo option, nothing is imported; with it, the Get started checklist (DNK-41) shows the demo project's progress
 - [ ] Upgrading uses the same images and keeps the data (the DNK-50 rehearsal runs on this installation)
+- [ ] Studio publishes to a disk volume that the Runtime's `Filesystem` provider serves and hot-reloads; S3 still works; CI runs the storage tests against Garage instead of MinIO
 - [ ] The install guides (EN/FR) start with this path; building from source moves to the contributor guide
 
 #### Out of scope

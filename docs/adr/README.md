@@ -14,7 +14,7 @@
 
 | Topic | Decision |
 |---|---|
-| Release storage | MinIO in Docker Compose, any S3-compatible store in production |
+| Release storage | Shared disk volume on one server, the customer's S3 across machines, Garage as the documented self-hosted S3 (decided 2026-10-25; MinIO before) |
 | Version history | Linear history per project + releases; branches in Stage 2 |
 | Rule formats | Decision graphs only in Stage 1 (policy documents have no open-source editor) |
 | AI explain | Off by default; calls the customer's own LLM endpoint; read-only |
@@ -68,6 +68,8 @@
 - Phase 1 also adds the engine upgrade (DNK-62), OAuth2 and mutual TLS connectors for the
   pilot's core banking system (DNK-63), secrets from files (DNK-65) and a five-minute install
   (DNK-64).
+- Release storage: a shared disk volume on one server, the customer's S3 across machines,
+  Garage as the documented self-hosted S3. MinIO is removed (upstream archived).
 - One language model configuration, chosen by the customer (their endpoint and key, hosted or
   on their own servers), serves explanations and the Phase 2 assistant.
 - Python stays in `donka-scorecard`; it never enters Studio or the Runtime.

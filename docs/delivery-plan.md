@@ -51,7 +51,9 @@ by this planning change. The approved product workflow is:
 4. Fieldkit form definitions, EN/FR labels, validation and mappings use the same input contract
    as the rules and the Runtime. Runtime credentials stay on the customer's backend.
 5. A playground combines the form, rules and controlled connector responses. It is a view over
-   the existing simulation (one evaluation path through `DecisionRuntime`), never a second one. The owner can
+   the existing simulation (one evaluation path through `DecisionRuntime`), never a second one:
+   confirmed 2026-10-25 as a mode of the editor's simulator panel (form input, proposed diff
+   side by side), not a separate page. The owner can
    inspect expected results, traces, boundary cases and source references.
 6. Chat can explain and revise rules, forms and mappings. It first presents proposed changes
    and a diff. **The owner accepts before anything is applied to the editable project draft.**

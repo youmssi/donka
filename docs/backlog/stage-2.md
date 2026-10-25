@@ -190,3 +190,5 @@ Kept for the phase-entry discussion; each needs its own story and the owner's ag
   logs it without applying it; a later step splits traffic deterministically by reference.
   Touches the release artifact contract (Runtime ships first), approvals and explanations.
 - **Passkeys** (`webauthn-rs`) for local accounts, after DNK-59.
+- **Documentation site** built from the repositories' Markdown (mdBook or Starlight), for
+  customers' install and operations guides; documentation stays in the repositories.
