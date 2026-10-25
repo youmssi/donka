@@ -111,7 +111,7 @@ the log.
 - [x] Passwords are never logged or returned
 
 #### Out of scope
-SSO/OIDC (Stage 3). Password reset and invitations (DNK-5).
+SSO/OIDC (DNK-60, Phase 2). Password reset and invitations (DNK-5). Second step (DNK-59).
 
 ---
 
@@ -1181,3 +1181,49 @@ Evidence: [live journeys and exact integration boundaries](../engineering/live-t
 - [x] The coverage map is current; Phase 1 is not marked complete while a required feature group remains unverified
 
 Evidence: [live journeys and exact integration boundaries](../engineering/live-tests.md#packonboardingcli-integration-boundaries).
+
+---
+
+### DNK-59 — Two-step sign-in with an authenticator app
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-4, DNK-5, DNK-40 (merged) · **Size:** M
+
+#### Why
+A password alone protects the people who can release rules to production. Banks expect a second
+factor for such a tool, and the pilot's administrators and owners cannot wait for single
+sign-on (DNK-60, Phase 2) to get one.
+
+#### Decisions
+Confirmed 2026-10-25, before the pilot:
+- **Time-based one-time codes** (RFC 6238; SHA-1, six digits, 30 seconds, one step of clock
+  tolerance) from any authenticator app, through `totp-rs` (MIT). A code is accepted once.
+  SMS codes are not offered (SIM-swap risk, cost per message).
+- **Recovery codes**: ten single-use codes, shown once at enrolment, stored hashed.
+- **Secrets** are encrypted at rest under their own key with previous keys for rotation, the
+  DNK-40 keyring pattern; never logged, returned after enrolment or exported in a pack.
+- **Policy** from configuration: `DONKA_MFA_REQUIRED=none|privileged|all`. `privileged` means
+  instance administrators and anyone owning a project. A person the policy covers who has no
+  second step enrols right after the password, before anything else opens.
+- **Lost device**: another administrator resets the person's second step; the person enrols
+  again at the next sign-in. A person cannot remove their own without a code.
+
+#### Behaviour
+| Where | Before | After |
+|---|---|---|
+| Sign-in | Email and password | Then a six-digit code (or a recovery code) when the account has a second step |
+| Account | Password | Set up, regenerate recovery codes, turn off (needs a code; refused when policy requires it) |
+| People (admin) | Invite, resend | Shows who has a second step; resets one |
+
+#### Acceptance criteria
+- [ ] Enrolment shows a QR code and the key as text, and completes only after a valid code; recovery codes are shown once
+- [ ] Sign-in asks for the code after the password; the password step alone opens no session; the pending step expires and is single-use
+- [ ] Wrong codes count towards the existing lockout; answers stay generic; a code already used is refused
+- [ ] A recovery code signs in once; regenerating codes invalidates the old ones
+- [ ] The configured policy forces enrolment for the people it covers; `none` keeps today's sign-in
+- [ ] An administrator's reset, enrolment, removal and recovery-code use are audited and send the person a notice email (EN/FR)
+- [ ] Secrets survive key rotation; the backup/restore rehearsal (DNK-50) includes the key
+- [ ] Runtime, decision-log and CI tokens are unaffected
+- [ ] Strings in English and French; integration tests and a live Playwright journey cover each criterion above
+
+#### Out of scope
+Passkeys/WebAuthn (later, `webauthn-rs`); single sign-on (DNK-60); SMS or email codes.

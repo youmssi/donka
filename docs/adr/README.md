@@ -49,12 +49,20 @@
 - Phase 2: Fieldkit plus document-assisted rule creation, input/form/connector mapping,
   playground testing and chat edits. The owner sees proposed changes and a diff, then accepts
   before they are applied to the editable draft. Existing releases and approvals still apply.
-- SSO/OIDC remains Phase 3. The earlier Phase 1 read-only explanation decision remains valid;
-  Phase 2 authoring is a new capability with its architecture to be designed in that phase.
+- SSO/OIDC remains Phase 3 (moved to Phase 2 on 2026-10-25, below). The earlier Phase 1
+  read-only explanation decision remains valid; Phase 2 authoring is a new capability with its architecture to be designed in that phase.
 - Agree each phase and then proceed by story; unclear requirements and material scope changes
   require interactive alignment before implementation.
 - Live Playwright verification follows every implemented feature. Chromium runs on each
   feature PR; Chromium, Firefox and WebKit run before release. UI coverage includes EN/FR,
   light/dark, desktop and 390 px.
+
+## Roadmap decisions confirmed 2026-10-25
+
+- Phase 1 adds a second sign-in step for local accounts (DNK-59) before the pilot.
+- Single sign-on through OpenID Connect moves to Phase 2 (DNK-60). Donka ships no identity
+  provider; authorization stays in Studio.
+- Phase 2 adds analysis on recorded decisions (DNK-56, DNK-57, DNK-58) in a module that can be
+  turned off, and the open-source `donka-scorecard` package (DNK-61) built on optbinning.
 
 See the [delivery plan](../delivery-plan.md) for the complete scope and phase exit gates.

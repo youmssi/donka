@@ -1,6 +1,6 @@
 # Delivery plan
 
-Product-owner decisions confirmed on 2026-10-20. This page adds the delivery gates and future
+Product-owner decisions confirmed on 2026-10-20 and 2026-10-25. This page adds the delivery gates and future
 scope to the existing [roadmap](ROADMAP.md); the [backlog](backlog/stage-1.md) defines each story.
 
 ## Phase 1 — pilot MVP
@@ -18,11 +18,13 @@ Remaining order:
    versions/scenarios, approvals/rollback, tokens/connectors, records/explanations/audit,
    packs/onboarding and CLI sync/contracts. Fix defects blocking the current journey in its
    story; record unrelated defects in separate stories.
-3. **DNK-49:** enforce the coverage and dependency-security gates already required by the
+3. **DNK-59** (confirmed 2026-10-25): a second sign-in step with an authenticator app and
+   recovery codes, required by configuration for administrators and owners.
+4. **DNK-49:** enforce the coverage and dependency-security gates already required by the
    engineering guides. Their current absence is an audit finding, not a passing check.
-4. **DNK-50:** rehearse installation, database/bucket/secret backup and restore, upgrade and
+5. **DNK-50:** rehearse installation, database/bucket/secret backup and restore, upgrade and
    recovery in isolation; verify the restored system through the full smoke journey.
-5. Close every applicable feature-test gap, confirm customer policy values and the pilot target,
+6. Close every applicable feature-test gap, confirm customer policy values and the pilot target,
    then obtain the deployment decision and follow the release workflow.
 
 Phase exit: acceptance evidence is current, business journeys pass against running services,
@@ -59,14 +61,22 @@ The previously planned branches, multi-person approvals, webhooks, GitSync and a
 connectors remain in Phase 2. Agree their story order at phase entry; do not silently grow
 Phase 1 to include them.
 
-Confirmed 2026-10-25: rule-impact analysis on recorded decisions (DNK-56) and input drift
-monitoring (DNK-57) are Phase 2 candidates, built on the decision log. Repayment outcomes,
-shadow/champion-challenger evaluation and a separate statistical scorecard package stay later
-candidates until agreed. See [Stage 2 stories](backlog/stage-2.md).
+Confirmed 2026-10-25, see [Stage 2 stories](backlog/stage-2.md):
+
+- **Single sign-on** moves here from Phase 3 (DNK-60): OpenID Connect to the customer's
+  identity provider, tested against Keycloak; Studio still decides permissions; no identity
+  provider ships with Donka.
+- **Analysis on recorded decisions**, a module that can be turned off: swap-in/swap-out of a
+  release in the approval review (DNK-56), decision mix and population stability (DNK-57),
+  then the same swap analysis in the playground (DNK-58).
+- **`donka-scorecard`** (DNK-61), a separate Apache-2.0 Python package on optbinning that
+  writes statistical scorecards as packs; its scenarios prove Studio computes the same score.
+- Repayment outcomes, shadow and champion/challenger evaluation, core banking connector
+  authentication and passkeys stay later candidates until agreed.
 
 ## Phase 3 — enterprise
 
-SSO/OIDC and global roles, decision-path coverage, the policy-document editor, Studio MCP
+Global roles, decision-path coverage, the policy-document editor, Studio MCP
 bridge, Case Tracker, the SOC 2 readiness program and optional multi-tenant SaaS remain here.
 These are roadmap themes requiring their own acceptance criteria and phase-entry agreement.
 Document ingestion for Phase 2 authoring does not imply delivery of the Phase 3 policy editor.
