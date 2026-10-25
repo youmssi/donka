@@ -29,9 +29,10 @@ services:
       retries: 10
 
   minio:
-    # minio/minio and minio/mc were removed from Docker Hub; pgsty/* are maintained builds
-    # of the same server and client (see docs/engineering/references.md).
-    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
+    # minio/minio and minio/mc were removed from Docker Hub. PGSTY SILO is the maintained fork
+    # of the same server (same command, MINIO_* variables and data); pgsty/mc is its client
+    # (see docs/engineering/references.md).
+    image: pgsty/silo:RELEASE.2026-10-18T00-00-00Z
     command: server /data --console-address :9001
     environment:
       MINIO_ROOT_USER: ${DONKA_STORAGE_ACCESS_KEY_ID:-donka}
