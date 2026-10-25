@@ -91,6 +91,9 @@ file and add what is specific to that tool.
   Chromium, Firefox and WebKit before release. UI: EN/FR, light/dark, desktop and 390 px.
   Storybook is component evidence; full business journeys need their own tests. API/CLI and
   operational changes retain the appropriate command/integration tests.
+- **Documentation.** A change a customer or integrator would notice updates its page in the same
+  story: the guide in this repository, assembled into the product site (DNK-66). Generated
+  references (API, CLI) are never edited by hand.
 - **Phase alignment.** Agree the phase, then proceed one story at a time. Ask interactive
   questions with options and a recommendation before implementing unclear requirements or
   material scope changes. The approved phase boundaries are in `docs/delivery-plan.md`.

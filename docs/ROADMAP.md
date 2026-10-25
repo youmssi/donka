@@ -5,7 +5,8 @@ acceptance criteria: [`docs/backlog/stage-1.md`](backlog/stage-1.md). One story 
 merged before the next.
 
 Phase scope, owner decisions and exit gates: [Delivery plan](delivery-plan.md).
-Phase 1 is Studio + Runtime + CLI; Fieldkit and AI authoring are Phase 2; SSO is Phase 3.
+Phase 1 is Studio + Runtime + CLI with a second sign-in step; Fieldkit, AI authoring and SSO are
+Phase 2; global roles are Phase 3.
 
 Already on `develop` before the playbook was adopted: Cargo workspace, `crates/engine`
 (`DecisionRuntime` + `ZenRuntime` on zen-engine 2.0.1), `apps/app` with health and simulate, CI,
@@ -60,8 +61,18 @@ docker-compose for PostgreSQL, MinIO and Mailpit.
 | 35d | DNK-53 Approval, rollback, Runtime and connectors | S R |
 | 35e | DNK-54 Decision records, explanations and audit | S R |
 | 35f | DNK-55 Packs, onboarding and CLI integration | S C |
-| 36 | DNK-49 Enforce coverage and dependency-security gates | S R C |
-| 37 | DNK-50 Isolated backup, restore and upgrade rehearsal | S R C |
+| 36 | DNK-59 Two-step sign-in with an authenticator app | S |
+| 37 | DNK-62 Bring the decision engine up to date | R S |
+| 38 | DNK-68 Partition the decision log by month | S |
+| 39 | DNK-63 Connectors that authenticate like the core banking system | R S |
+| 40 | DNK-65 Read secrets from files | S R |
+| 41 | DNK-64 A first decision five minutes after install | S R |
+| 42 | DNK-67 Measured performance with published targets | R S |
+| 43 | DNK-49 Enforce coverage, dependency and image security gates | S R C |
+| 44 | DNK-69 Security review before the pilot | S R C |
+| 44b | DNK-73 A trust dossier banks can verify | S R C |
+| 45 | DNK-50 Isolated backup, restore and upgrade rehearsal, with RPO/RTO and Runtime availability | S R C |
+| 46 | DNK-66 Product documentation for the organisations that run Donka | docs S R C |
 
 Practices from the upstream codebases, scheduled next to the stories that need them:
 DNK-26 `/version` (after DNK-4), DNK-28 container builds (before DNK-23), DNK-27 OpenTelemetry
@@ -72,9 +83,13 @@ on sign-in and password reset (before the pilot).
 Fieldkit Stage 1 (forms from DNK-37), document-assisted AI rule creation and chat editing,
 connector/field mappings and the owner playground. Proposed edits require an owner-reviewed
 diff before application to a draft; normal release approval remains. Branches, N-eyes approvals,
-webhooks, GitSync and more connectors remain in this phase. Define and agree the detailed
+webhooks, GitSync and more connectors remain in this phase. Agreed candidates in
+[`backlog/stage-2.md`](backlog/stage-2.md): DNK-60 single sign-on, DNK-56 swap-in/swap-out
+on past decisions, DNK-57 decision mix and stability, DNK-58 the same in the playground, and
+DNK-61 the open-source `donka-scorecard` package, with DNK-70 batch evaluation, DNK-71
+protected characteristics and DNK-72 Fieldkit on its own with XLSForm. Define and agree the detailed
 story order at phase entry; see the [approved scope](delivery-plan.md#phase-2--assisted-creation-fieldkit-and-governance).
 
 ## Stage 3: enterprise
-SSO/OIDC, global roles, path coverage, policy-document editor, MCP bridge in Studio, SOC 2
+Global roles, path coverage, policy-document editor, MCP bridge in Studio, ISO/IEC 27001 and SOC 2
 program, Case Tracker, optional multi-tenant SaaS.

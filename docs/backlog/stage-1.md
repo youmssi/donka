@@ -111,7 +111,7 @@ the log.
 - [x] Passwords are never logged or returned
 
 #### Out of scope
-SSO/OIDC (Stage 3). Password reset and invitations (DNK-5).
+SSO/OIDC (DNK-60, Phase 2). Password reset and invitations (DNK-5). Second step (DNK-59).
 
 ---
 
@@ -1093,6 +1093,7 @@ the current Studio workflow does not enforce them. Audit the other repos before 
 #### Acceptance criteria
 - [ ] CI measures business-logic coverage and enforces the documented floor with a justified module scope
 - [ ] Dependency checks fail on fixable high/critical vulnerabilities in the affected ecosystems
+- [ ] Published container images are scanned (Trivy or equivalent) and a fixable high/critical finding fails the release (added 2026-10-25)
 - [ ] Findings are fixed at their cause; no skipped tests, arbitrary exclusions or lowered thresholds to obtain green
 - [ ] Local commands and CI behavior are documented; gaps found in Runtime/CLI are tracked and resolved
 
@@ -1108,6 +1109,8 @@ the current Studio workflow does not enforce them. Audit the other repos before 
 - [ ] Upgrade and recovery follow the documented order and migrations; the original development stack is preserved
 - [ ] Live browser and Studio-to-Runtime checks prove the restored/upgraded system works
 - [ ] EN/FR operations guides reflect the exercised procedure and any remaining customer decisions
+- [ ] Recovery point and recovery time objectives are stated and met by the rehearsal (added 2026-10-25)
+- [ ] Two Runtimes behind a load balancer keep answering while one restarts, and while Studio is down; the guide covers PostgreSQL provided by the customer or replicated (added 2026-10-25)
 
 #### Out of scope
 Customer production deployment or declaring customer policy values approved without their owner.
@@ -1181,3 +1184,359 @@ Evidence: [live journeys and exact integration boundaries](../engineering/live-t
 - [x] The coverage map is current; Phase 1 is not marked complete while a required feature group remains unverified
 
 Evidence: [live journeys and exact integration boundaries](../engineering/live-tests.md#packonboardingcli-integration-boundaries).
+
+---
+
+### DNK-59 — Two-step sign-in with an authenticator app
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-4, DNK-5, DNK-40 (merged) · **Size:** M
+
+#### Why
+A password alone protects the people who can release rules to production. Banks expect a second
+factor for such a tool, and the pilot's administrators and owners cannot wait for single
+sign-on (DNK-60, Phase 2) to get one.
+
+#### Decisions
+Confirmed 2026-10-25, before the pilot:
+- **Time-based one-time codes** (RFC 6238; SHA-1, six digits, 30 seconds, one step of clock
+  tolerance) from any authenticator app, through `totp-rs` (MIT). A code is accepted once.
+  SMS codes are not offered (SIM-swap risk, cost per message).
+- **Recovery codes**: ten single-use codes, shown once at enrolment, stored hashed.
+- **Secrets** are encrypted at rest under their own key with previous keys for rotation, the
+  DNK-40 keyring pattern; never logged, returned after enrolment or exported in a pack.
+- **Policy** from configuration: `DONKA_MFA_REQUIRED=none|privileged|all`. `privileged` means
+  instance administrators and anyone owning a project. A person the policy covers who has no
+  second step enrols right after the password, before anything else opens.
+- **Lost device**: another administrator resets the person's second step; the person enrols
+  again at the next sign-in. A person cannot remove their own without a code.
+
+#### Behaviour
+| Where | Before | After |
+|---|---|---|
+| Sign-in | Email and password | Then a six-digit code (or a recovery code) when the account has a second step |
+| Account | Password | Set up, regenerate recovery codes, turn off (needs a code; refused when policy requires it) |
+| People (admin) | Invite, resend | Shows who has a second step; resets one |
+
+#### Acceptance criteria
+- [ ] Enrolment shows a QR code and the key as text, and completes only after a valid code; recovery codes are shown once
+- [ ] Sign-in asks for the code after the password; the password step alone opens no session; the pending step expires and is single-use
+- [ ] Wrong codes count towards the existing lockout; answers stay generic; a code already used is refused
+- [ ] A recovery code signs in once; regenerating codes invalidates the old ones
+- [ ] The configured policy forces enrolment for the people it covers; `none` keeps today's sign-in
+- [ ] An administrator's reset, enrolment, removal and recovery-code use are audited and send the person a notice email (EN/FR)
+- [ ] Secrets survive key rotation; the backup/restore rehearsal (DNK-50) includes the key
+- [ ] Runtime, decision-log and CI tokens are unaffected
+- [ ] Strings in English and French; integration tests and a live Playwright journey cover each criterion above
+
+#### Out of scope
+Passkeys/WebAuthn (later, `webauthn-rs`); single sign-on (DNK-60); SMS or email codes.
+
+---
+
+### DNK-62 — Bring the decision engine up to date
+
+**Type:** chore · **Repos:** R, S · **Dependencies:** none · **Size:** M
+
+#### Why
+Studio and the Runtime pin zen-engine 2.0.1 while upstream is at 2.1.6 (2026-10-21). The newer
+releases fix a stack overflow from a graph expression that references `$` in itself (a request
+could stop a Runtime), number serialization, and how null and required policy inputs are
+handled, which changes behaviour. The dependency gate (DNK-49) only reports published
+advisories, so it would not flag this.
+
+#### Decisions
+Confirmed 2026-10-25, before the pilot. One exact version in both repos (ADR-003), Runtime
+first. The upgrade is accepted on evidence, not on the changelog: every pack scenario and a
+replay of recorded decisions must give the same results, or the difference is explained.
+
+#### Acceptance criteria
+- [ ] The Runtime, then Studio, pin the same latest 2.1.x; `scripts/check-engine-version.sh` passes; `arbitrary_precision` stays enabled in the Runtime
+- [ ] Every scenario of every catalogue pack passes in Studio and through a Runtime evaluation
+- [ ] The decision-log e2e records replay as identical after the upgrade
+- [ ] A regression test covers a self-referencing `$` expression: it fails cleanly without stopping the process
+- [ ] Each behaviour change upstream lists (null and required inputs, number output) is either covered by a test that shows Donka's result or documented in the release notes for customers
+- [ ] The in-editor expression hints (`@gorules/jdm-editor`) are on its latest release; NOTICE files are current
+- [ ] `docs/engineering` describes the upgrade procedure so the next one follows it
+
+#### Out of scope
+Adopting new 2.1 features in the editor; the policy-document editor (Phase 3).
+
+---
+
+### DNK-63 — Connectors that authenticate like the core banking system
+
+**Type:** feature · **Repos:** R, S · **Dependencies:** DNK-17 (merged) · **Size:** M
+
+#### Why
+The pilot's core banking system requires OAuth2 or mutual TLS. Today a connector sends one
+secret in a header, so the Runtime cannot call it and the pilot's main data source is out of
+reach.
+
+#### Decisions
+Confirmed 2026-10-25, before the pilot. Both methods live in the MIT connectors crate, behind
+the existing connector settings; graphs keep secret **names** only:
+- **OAuth2 client credentials**: token URL, client id, scopes and the name of the secret; the
+  token is cached until shortly before it expires and fetched again once after a `401`.
+- **Mutual TLS**: names of the client certificate, its key and an optional CA bundle, read from
+  the Runtime's environment or files.
+
+- **Built on the standards**, confirmed 2026-10-25 while the pilot's core banking system is not
+  yet known: OAuth2 client credentials (RFC 6749 §4.4) and mutual TLS, tested against generic
+  local servers. The pilot's system is then connected by configuration; its details come from
+  the [integration questionnaire](../pilot-questionnaire.md).
+
+#### Acceptance criteria
+- [ ] A connector authenticates with OAuth2 client credentials; the token is reused until expiry, refreshed once on `401`, and a token endpoint failure counts towards the retry policy and the circuit breaker
+- [ ] A connector authenticates with a client certificate and trusts a configured CA; a wrong certificate fails with a clear error naming the connector, never the secret
+- [ ] Studio's editor configures both methods; simulation still answers from mocks and makes no call
+- [ ] No token, key or certificate appears in artifacts, logs, traces or the decision log
+- [ ] Tests run against a local OAuth2 server and an mTLS server in CI; docs (EN/FR) show both setups
+- [ ] When the pilot's answers to the questionnaire arrive, its flow is checked against these tests and any gap becomes its own story
+
+#### Out of scope
+SOAP and proprietary protocols (the customer's integration layer); other OAuth2 flows.
+
+---
+
+### DNK-65 — Read secrets from files
+
+**Type:** feature · **Repos:** S, R · **Dependencies:** none · **Size:** S
+
+#### Why
+An installation already holds seven secrets (database, storage, decision-log key, TOTP key,
+SMTP, LLM key, connector secrets) and more come with single sign-on. Banks keep them in a vault
+or as Docker/Kubernetes secrets, which arrive as files, not as environment variables.
+
+#### Decisions
+Confirmed 2026-10-25: every secret setting `X` can instead be given as `X_FILE`, a path whose
+content is the value; setting both fails at start. Donka integrates with no vault directly:
+OpenBao, Vault, Infisical and Kubernetes all write files through their own agents.
+
+#### Acceptance criteria
+- [ ] Every secret setting of Studio and the Runtime accepts the `_FILE` form; trailing newlines are trimmed; an unreadable file fails at start and names the setting
+- [ ] Setting both forms fails at start
+- [ ] `.env.example`, the install guides (EN/FR) and the Runtime configuration guide list the file form with a Docker secrets example
+- [ ] Tests cover each rule above
+
+#### Out of scope
+A direct vault client; dynamic secrets; automatic rotation.
+
+---
+
+### DNK-64 — A first decision five minutes after install
+
+**Type:** feature · **Repos:** S, R · **Dependencies:** DNK-62, DNK-65 · **Size:** L
+
+#### Why
+Installing Donka builds it from source (15 to 30 minutes), then asks for a setup link from the
+logs, a decision-log token pasted into `runtime.env` and a restart. A bank's team should see a
+decision served end to end within five minutes, and the pilot's installation should be the one
+DNK-50 rehearses.
+
+#### Decisions
+Confirmed 2026-10-25, before DNK-50:
+- **Published images** for Studio and the Runtime, versioned and signed, plus an offline
+  bundle for servers without internet access.
+- **One command prepares the installation**: the Studio image writes a complete `.env` with
+  random secrets and prints the first administrator's setup link; no tool beyond Docker.
+- **The staging Runtime is wired at first start**: Studio provisions its decision-log token.
+- **A demo option** imports the retail-credit pack, publishes it to staging and points its
+  bureau connector at a bundled fake bureau.
+- The promise covers a demo with simulated connectors. Real core banking and bureau
+  integrations, and AI authoring (Phase 2), are not part of the five minutes.
+
+- **Release storage** (confirmed 2026-10-25): a disk volume shared by Studio and the staging
+  Runtime by default, for one server and the demo; the customer's S3 when Studio and a Runtime
+  run on different machines. For a customer without S3: PGSTY SILO, the maintained MinIO fork
+  that the current `pgsty/minio` image comes from, documented and tested in CI, with Garage
+  named as the alternative. Donka only uses the S3 API, so the server can change later.
+
+- **Registry and signing** (confirmed 2026-10-25): GitHub Container Registry, public for the
+  Runtime and the CLI (MIT), private for Studio with a read token per customer; images signed
+  with cosign using a key pair whose public key is published, so a bank verifies them without
+  network access; an SBOM and a provenance attestation per image; the offline bundle carries
+  the same signatures.
+- **Assisted upgrade** (confirmed 2026-10-25): `donka upgrade <version>` verifies the signature
+  and compatibility, backs up the database, release storage and keys, upgrades the Runtime
+  first and then Studio, runs the smoke test and restores everything if a check fails. It
+  writes a timestamped report for the bank's change record. Unattended upgrades exist only for
+  staging and demo installations, off by default; production never upgrades by itself.
+
+#### Acceptance criteria
+- [ ] From an empty server with Docker, pulling the images, preparing the installation and starting it reaches a Runtime decision recorded in Studio in five minutes or less on the documented reference machine; CI measures it
+- [ ] The offline bundle installs the same version with no network access
+- [ ] Generated secrets are random, written once, never printed except the one-time setup link, and never overwritten by a second run
+- [ ] Without the demo option, nothing is imported; with it, the Get started checklist (DNK-41) shows the demo project's progress
+- [ ] `donka upgrade` refuses an image whose signature does not verify, and an upgrade the release notes mark as incompatible with the installed version
+- [ ] An upgrade whose smoke test fails restores the previous version and data, and says what failed; a successful one keeps the data and writes its report
+- [ ] Studio shows when a newer version is published, without any outgoing call when the installation is offline; unattended upgrades, when enabled, run only in the configured window and never in production
+- [ ] The DNK-50 rehearsal runs on this installation and this upgrade path
+- [ ] Studio publishes to a disk volume that the Runtime's `Filesystem` provider serves and hot-reloads; S3 still works; CI runs the storage tests against the latest SILO release
+- [ ] The install guides (EN/FR) start with this path; building from source moves to the contributor guide
+
+#### Out of scope
+Kubernetes charts; high availability; production hardening beyond the documented settings.
+
+---
+
+### DNK-66 — Product documentation for the organisations that run Donka
+
+**Type:** docs · **Repos:** new `donka-docs`, S, R, C · **Dependencies:** DNK-64, DNK-50 · **Size:** L
+
+#### Why
+The repositories hold about 3,700 lines of documentation written for the team. A bank that
+evaluates, integrates and operates Donka needs another reading: what it does and why, how it
+connects to its systems, how to run it, and the answers its security review asks for.
+
+#### Decisions
+Confirmed 2026-10-25, before the pilot:
+- A `donka-docs` repository built with **Fumadocs** (MIT, Next.js, the stack of Studio's web
+  app), exported as a static, versioned site in English and French, with a PDF export to hand
+  to a customer.
+- Organised by reader and intent (Diátaxis): discover, get started, guides, integrate,
+  operate, security and compliance, reference.
+- What can be generated is generated at each release: the API reference from Studio's and the
+  Runtime's OpenAPI documents (the same ones Studio serves as its interactive reference), the
+  CLI reference from `--help`, and screenshots from the
+  Playwright journeys. Explanations stay next to the code and are assembled into the site.
+- Every story updates the pages it changes as part of being done (AGENTS.md).
+- No wiki server: team wikis are not versioned with the code.
+
+#### Acceptance criteria
+- [ ] The site builds in CI from tagged releases of the three repositories and fails on a broken link or an unpublished change to a generated reference
+- [ ] Discover: what Donka does, the architecture diagrams, the four packs as use cases, the architecture decisions that matter to a customer
+- [ ] Get started: the five-minute first decision (DNK-64) and from a pack to production
+- [ ] Integrate: Runtime API, connectors and core banking (DNK-63), identity providers, CLI and CI/CD
+- [ ] Operate: install, upgrade (DNK-64), backup and restore (DNK-50), secrets (DNK-65), monitoring
+- [ ] Security and compliance: encryption and keys, access control and audit, personal data, and answers to a typical bank security questionnaire
+- [ ] Reference: generated API and CLI pages, every configuration variable, the artifact format, release notes
+- [ ] English and French; a version selector per release; a PDF export of a chosen version
+- [ ] A public **Trust** page publishes the trust dossier (DNK-73): each standard with its exact status (self-assessed or third-party verified), the penetration test attestation summary (DNK-69), SBOMs, the signing public key and the disclosure policy; nothing is claimed without its evidence
+- [ ] A public **Performance** page publishes the load-test targets and results (DNK-67) with the method and scripts to reproduce them
+- [ ] Studio serves an interactive API reference (Scalar, through `utoipa-scalar`) at `/api/docs` from its own OpenAPI document, so each installation shows the API of its installed version
+- [ ] AGENTS.md in the three repositories adds the documentation rule to the checks before a pull request
+
+#### Out of scope
+A team wiki; hosted search services; documentation of Phase 2 features before they exist.
+
+---
+
+### DNK-67 — Measured performance with published targets
+
+**Type:** test · **Repos:** R, S · **Dependencies:** DNK-64 · **Size:** M
+
+#### Why
+The engine evaluates in microseconds, but nothing measures Donka itself: the Runtime's response
+time, its throughput, the decision-log feed and Studio's search at pilot volumes. A bank asks
+for these figures in its first questionnaire, and without a baseline a slowdown goes unnoticed.
+
+#### Decisions
+Confirmed 2026-10-25. Targets are stated per reference machine and checked in CI against the
+published images; external calls are excluded (the connectors' own budgets are configured
+separately).
+
+[INTERACTIVE STEP] at story start: the reference machine and the volumes to hold (decisions
+per second at peak, records per day), taken from the pilot questionnaire when available.
+
+#### Acceptance criteria
+- [ ] A repeatable load test (scripted, in the repository) measures the Runtime's p50/p95/p99 and maximum throughput on each starter pack, without connectors and with mocked ones
+- [ ] The decision-log feed keeps up with the target throughput; back-pressure and loss behaviour under Studio outage are measured
+- [ ] Studio's decision-log search and replay stay within their targets on a database holding the retention period's volume
+- [ ] CI runs a shortened version and fails when a target regresses beyond a stated margin
+- [ ] The targets and results are published in the documentation (DNK-66)
+
+#### Out of scope
+Tuning beyond what the measurements show is needed; customer-specific capacity planning.
+
+---
+
+### DNK-68 — Partition the decision log by month
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-18 (merged) · **Size:** M
+
+#### Why
+Records are kept five years by default. At tens of thousands of decisions a day, one
+`decision_records` table grows to tens of millions of encrypted rows: purging becomes a long
+delete and searches slow down. Partitioning is cheap now and costly once a customer has data.
+
+#### Decisions
+Confirmed 2026-10-25, before any pilot data: PostgreSQL range partitions by month on the
+evaluation time; partitions are created ahead by Studio; retention drops whole partitions
+(records of a partially expired month are deleted individually until the month expires).
+
+#### Acceptance criteria
+- [ ] A forward migration moves existing records into monthly partitions without losing or re-encrypting any
+- [ ] Studio creates upcoming partitions ahead of time; a record never fails for a missing partition
+- [ ] Retention purge drops expired partitions, deletes the expired rows of the boundary month, and stays audited
+- [ ] Search, opening, replay, explanation and key rotation (DNK-40) behave as before; their tests pass unchanged
+- [ ] Backup and restore (DNK-50) cover the partitions
+
+#### Out of scope
+Archiving to cold storage; partitioning other tables.
+
+---
+
+### DNK-69 — Security review before the pilot
+
+**Type:** chore · **Repos:** S, R, C · **Dependencies:** DNK-64 · **Size:** M
+
+#### Why
+A bank's security officer asks for the threats considered, an independent test and how
+findings were handled before anything reaches production.
+
+#### Decisions
+Confirmed 2026-10-25: a written threat model (STRIDE) of the whole installation, then an
+external penetration test of the pilot's installation path; findings are fixed or accepted
+in writing before the pilot.
+
+[INTERACTIVE STEP] at story start: who performs the penetration test, and its budget.
+
+#### Acceptance criteria
+- [ ] The threat model covers Studio, the Runtime, the CLI, storage, secrets, the decision log, connectors, identity and the language model endpoint, with each mitigation linked to code, configuration or a story
+- [ ] An external penetration test runs against an installation built from the published images
+- [ ] Every high or critical finding is fixed and retested; others are fixed or accepted with a reason and an owner
+- [ ] The documentation's security section (DNK-66) publishes the threat model summary and the test's outcome
+- [ ] A security contact and disclosure policy exist in each repository
+
+#### Out of scope
+Certification (SOC 2, ISO 27001), which stays in Phase 3.
+
+---
+
+### DNK-73 — A trust dossier banks can verify
+
+**Type:** chore · **Repos:** S, R, C · **Dependencies:** DNK-69, DNK-64 · **Size:** M
+
+#### Why
+Banks select suppliers against international security standards. Most certifications
+(ISO/IEC 27001, SOC 2) certify an organisation, not software, and PCI DSS applies only to card
+data. What a bank can check on the software itself is its application security, how it is
+built and delivered, and whether it falls inside its regulated scopes.
+
+#### Decisions
+Confirmed 2026-10-25, before the pilot. Each item states its status exactly; a self-assessment
+is never presented as a certification:
+- **OWASP ASVS 5.0 level 2** self-assessment of Studio and the Runtime, with evidence per
+  requirement (test, configuration or document).
+- **NIST SSDF (SP 800-218)** mapping of the development practices.
+- **SLSA build level 3** provenance for the published images (DNK-64).
+- **OpenSSF Scorecard** and the **OpenSSF Best Practices badge** for the public repositories.
+- **CIS Docker Benchmark** checks of the images.
+- **PCI DSS out of scope by design**: Donka needs no card numbers; contracts reject fields
+  that look like a primary account number, so Donka stays outside the bank's card-data scope.
+- A pre-filled answer pack for a typical bank security questionnaire, with a mapping to
+  supervisory expectations on outsourcing and ICT third parties.
+
+#### Acceptance criteria
+- [ ] The ASVS level 2 self-assessment lists every applicable requirement with its evidence; failures become stories or written exceptions
+- [ ] The SSDF mapping links each practice to the repository's rules, CI and reviews
+- [ ] Published images carry SLSA level 3 provenance that a bank verifies offline with the documented commands
+- [ ] OpenSSF Scorecard runs on each public repository and the Best Practices badge is obtained; their results are linked
+- [ ] Images pass the applicable CIS Docker Benchmark checks or document each exception
+- [ ] Saving a contract with a field that holds or looks like a card number is refused, and the PCI DSS scope statement is published
+- [ ] The questionnaire answer pack (EN/FR) and the dossier appear on the Trust page (DNK-66)
+
+#### Out of scope
+ISO/IEC 27001 and SOC 2 Type II certification of the company, and third-party verification of
+the ASVS assessment (Phase 3, when Donka operates a hosted service or a customer requires it).
+
