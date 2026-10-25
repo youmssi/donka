@@ -1277,8 +1277,10 @@ the existing connector settings; graphs keep secret **names** only:
 - **Mutual TLS**: names of the client certificate, its key and an optional CA bundle, read from
   the Runtime's environment or files.
 
-[INTERACTIVE STEP] at story start: the pilot's core banking system and its exact flow (token
-endpoint, scopes, certificate authority), so the reference test matches it.
+- **Built on the standards**, confirmed 2026-10-25 while the pilot's core banking system is not
+  yet known: OAuth2 client credentials (RFC 6749 §4.4) and mutual TLS, tested against generic
+  local servers. The pilot's system is then connected by configuration; its details come from
+  the [integration questionnaire](../pilot-questionnaire.md).
 
 #### Acceptance criteria
 - [ ] A connector authenticates with OAuth2 client credentials; the token is reused until expiry, refreshed once on `401`, and a token endpoint failure counts towards the retry policy and the circuit breaker
@@ -1286,6 +1288,7 @@ endpoint, scopes, certificate authority), so the reference test matches it.
 - [ ] Studio's editor configures both methods; simulation still answers from mocks and makes no call
 - [ ] No token, key or certificate appears in artifacts, logs, traces or the decision log
 - [ ] Tests run against a local OAuth2 server and an mTLS server in CI; docs (EN/FR) show both setups
+- [ ] When the pilot's answers to the questionnaire arrive, its flow is checked against these tests and any gap becomes its own story
 
 #### Out of scope
 SOAP and proprietary protocols (the customer's integration layer); other OAuth2 flows.
@@ -1345,16 +1348,66 @@ Confirmed 2026-10-25, before DNK-50:
   MinIO leaves the installation: its upstream is archived and its images are no longer
   published.
 
-[INTERACTIVE STEP] before implementation: the image registry and signing method.
+- **Registry and signing** (confirmed 2026-10-25): GitHub Container Registry, public for the
+  Runtime and the CLI (MIT), private for Studio with a read token per customer; images signed
+  with cosign using a key pair whose public key is published, so a bank verifies them without
+  network access; an SBOM and a provenance attestation per image; the offline bundle carries
+  the same signatures.
+- **Assisted upgrade** (confirmed 2026-10-25): `donka upgrade <version>` verifies the signature
+  and compatibility, backs up the database, release storage and keys, upgrades the Runtime
+  first and then Studio, runs the smoke test and restores everything if a check fails. It
+  writes a timestamped report for the bank's change record. Unattended upgrades exist only for
+  staging and demo installations, off by default; production never upgrades by itself.
 
 #### Acceptance criteria
 - [ ] From an empty server with Docker, pulling the images, preparing the installation and starting it reaches a Runtime decision recorded in Studio in five minutes or less on the documented reference machine; CI measures it
 - [ ] The offline bundle installs the same version with no network access
 - [ ] Generated secrets are random, written once, never printed except the one-time setup link, and never overwritten by a second run
 - [ ] Without the demo option, nothing is imported; with it, the Get started checklist (DNK-41) shows the demo project's progress
-- [ ] Upgrading uses the same images and keeps the data (the DNK-50 rehearsal runs on this installation)
+- [ ] `donka upgrade` refuses an image whose signature does not verify, and an upgrade the release notes mark as incompatible with the installed version
+- [ ] An upgrade whose smoke test fails restores the previous version and data, and says what failed; a successful one keeps the data and writes its report
+- [ ] Studio shows when a newer version is published, without any outgoing call when the installation is offline; unattended upgrades, when enabled, run only in the configured window and never in production
+- [ ] The DNK-50 rehearsal runs on this installation and this upgrade path
 - [ ] Studio publishes to a disk volume that the Runtime's `Filesystem` provider serves and hot-reloads; S3 still works; CI runs the storage tests against Garage instead of MinIO
 - [ ] The install guides (EN/FR) start with this path; building from source moves to the contributor guide
 
 #### Out of scope
 Kubernetes charts; high availability; production hardening beyond the documented settings.
+
+---
+
+### DNK-66 — Product documentation for the organisations that run Donka
+
+**Type:** docs · **Repos:** new `donka-docs`, S, R, C · **Dependencies:** DNK-64, DNK-50 · **Size:** L
+
+#### Why
+The repositories hold about 3,700 lines of documentation written for the team. A bank that
+evaluates, integrates and operates Donka needs another reading: what it does and why, how it
+connects to its systems, how to run it, and the answers its security review asks for.
+
+#### Decisions
+Confirmed 2026-10-25, before the pilot:
+- A `donka-docs` repository built with **Fumadocs** (MIT, Next.js, the stack of Studio's web
+  app), exported as a static, versioned site in English and French, with a PDF export to hand
+  to a customer.
+- Organised by reader and intent (Diátaxis): discover, get started, guides, integrate,
+  operate, security and compliance, reference.
+- What can be generated is generated at each release: the API reference from Studio's and the
+  Runtime's OpenAPI documents, the CLI reference from `--help`, and screenshots from the
+  Playwright journeys. Explanations stay next to the code and are assembled into the site.
+- Every story updates the pages it changes as part of being done (AGENTS.md).
+- No wiki server: team wikis are not versioned with the code.
+
+#### Acceptance criteria
+- [ ] The site builds in CI from tagged releases of the three repositories and fails on a broken link or an unpublished change to a generated reference
+- [ ] Discover: what Donka does, the architecture diagrams, the four packs as use cases, the architecture decisions that matter to a customer
+- [ ] Get started: the five-minute first decision (DNK-64) and from a pack to production
+- [ ] Integrate: Runtime API, connectors and core banking (DNK-63), identity providers, CLI and CI/CD
+- [ ] Operate: install, upgrade (DNK-64), backup and restore (DNK-50), secrets (DNK-65), monitoring
+- [ ] Security and compliance: encryption and keys, access control and audit, personal data, and answers to a typical bank security questionnaire
+- [ ] Reference: generated API and CLI pages, every configuration variable, the artifact format, release notes
+- [ ] English and French; a version selector per release; a PDF export of a chosen version
+- [ ] AGENTS.md in the three repositories adds the documentation rule to the checks before a pull request
+
+#### Out of scope
+A team wiki; hosted search services; documentation of Phase 2 features before they exist.

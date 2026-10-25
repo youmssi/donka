@@ -68,6 +68,7 @@ docker-compose for PostgreSQL, MinIO and Mailpit.
 | 40 | DNK-64 A first decision five minutes after install | S R |
 | 41 | DNK-49 Enforce coverage and dependency-security gates | S R C |
 | 42 | DNK-50 Isolated backup, restore and upgrade rehearsal | S R C |
+| 43 | DNK-66 Product documentation for the organisations that run Donka | docs S R C |
 
 Practices from the upstream codebases, scheduled next to the stories that need them:
 DNK-26 `/version` (after DNK-4), DNK-28 container builds (before DNK-23), DNK-27 OpenTelemetry

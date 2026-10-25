@@ -28,7 +28,9 @@ Remaining order:
    engineering guides. Their current absence is an audit finding, not a passing check.
 6. **DNK-50:** rehearse installation, database/bucket/secret backup and restore, upgrade and
    recovery in isolation; verify the restored system through the full smoke journey.
-7. Close every applicable feature-test gap, confirm customer policy values and the pilot target,
+7. **DNK-66** (confirmed 2026-10-25): the product documentation site, built from the
+   repositories, versioned in English and French, covering integration, operations and security.
+8. Close every applicable feature-test gap, confirm customer policy values and the pilot target,
    then obtain the deployment decision and follow the release workflow.
 
 Phase exit: acceptance evidence is current, business journeys pass against running services,

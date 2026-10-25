@@ -68,6 +68,10 @@
 - Phase 1 also adds the engine upgrade (DNK-62), OAuth2 and mutual TLS connectors for the
   pilot's core banking system (DNK-63), secrets from files (DNK-65) and a five-minute install
   (DNK-64).
+- Images on GitHub Container Registry, signed with cosign keys; upgrades are assisted and
+  reversible (`donka upgrade`), never unattended in production.
+- Product documentation in a `donka-docs` repository (Fumadocs), generated where possible and
+  updated by every story (DNK-66).
 - Release storage: a shared disk volume on one server, the customer's S3 across machines,
   Garage as the documented self-hosted S3. MinIO is removed (upstream archived).
 - One language model configuration, chosen by the customer (their endpoint and key, hosted or
