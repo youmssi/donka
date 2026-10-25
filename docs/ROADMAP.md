@@ -63,12 +63,15 @@ docker-compose for PostgreSQL, MinIO and Mailpit.
 | 35f | DNK-55 Packs, onboarding and CLI integration | S C |
 | 36 | DNK-59 Two-step sign-in with an authenticator app | S |
 | 37 | DNK-62 Bring the decision engine up to date | R S |
-| 38 | DNK-63 Connectors that authenticate like the core banking system | R S |
-| 39 | DNK-65 Read secrets from files | S R |
-| 40 | DNK-64 A first decision five minutes after install | S R |
-| 41 | DNK-49 Enforce coverage and dependency-security gates | S R C |
-| 42 | DNK-50 Isolated backup, restore and upgrade rehearsal | S R C |
-| 43 | DNK-66 Product documentation for the organisations that run Donka | docs S R C |
+| 38 | DNK-68 Partition the decision log by month | S |
+| 39 | DNK-63 Connectors that authenticate like the core banking system | R S |
+| 40 | DNK-65 Read secrets from files | S R |
+| 41 | DNK-64 A first decision five minutes after install | S R |
+| 42 | DNK-67 Measured performance with published targets | R S |
+| 43 | DNK-49 Enforce coverage, dependency and image security gates | S R C |
+| 44 | DNK-69 Security review before the pilot | S R C |
+| 45 | DNK-50 Isolated backup, restore and upgrade rehearsal, with RPO/RTO and Runtime availability | S R C |
+| 46 | DNK-66 Product documentation for the organisations that run Donka | docs S R C |
 
 Practices from the upstream codebases, scheduled next to the stories that need them:
 DNK-26 `/version` (after DNK-4), DNK-28 container builds (before DNK-23), DNK-27 OpenTelemetry
@@ -82,7 +85,8 @@ diff before application to a draft; normal release approval remains. Branches, N
 webhooks, GitSync and more connectors remain in this phase. Agreed candidates in
 [`backlog/stage-2.md`](backlog/stage-2.md): DNK-60 single sign-on, DNK-56 swap-in/swap-out
 on past decisions, DNK-57 decision mix and stability, DNK-58 the same in the playground, and
-DNK-61 the open-source `donka-scorecard` package. Define and agree the detailed
+DNK-61 the open-source `donka-scorecard` package, with DNK-70 batch evaluation, DNK-71
+protected characteristics and DNK-72 Fieldkit on its own with XLSForm. Define and agree the detailed
 story order at phase entry; see the [approved scope](delivery-plan.md#phase-2--assisted-creation-fieldkit-and-governance).
 
 ## Stage 3: enterprise

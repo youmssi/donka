@@ -7,7 +7,8 @@ stories, are set at phase entry. Nothing here starts before the Phase 1 exit gat
 story also carries the standing criteria of Stage 1, including live browser verification.
 
 Order agreed 2026-10-25 for these candidates: DNK-60, DNK-56, DNK-57, then DNK-58 once the
-playground story exists. DNK-61 is a separate repository and runs in parallel.
+playground story exists. DNK-61 is a separate repository and runs in parallel. DNK-70 and
+DNK-71 are agreed candidates without a fixed slot; DNK-72 is scoped with the Fieldkit story.
 
 ---
 
@@ -177,6 +178,68 @@ scorecard; uploading to Studio directly (import through DNK-43).
 
 ---
 
+### DNK-70 — Evaluate a portfolio in one request
+
+**Type:** feature · **Repos:** R, S · **Dependencies:** DNK-18 (merged) · **Size:** M
+
+#### Why
+Banks re-score whole portfolios: monthly limit reviews, campaigns, a policy change applied to
+existing customers. Calling the Runtime once per customer from a script is slow and leaves no
+grouped trace.
+
+#### Decisions
+Confirmed 2026-10-25 as a Phase 2 candidate: a batch endpoint on the Runtime evaluating many
+inputs against one release, each logged as an ordinary record with a shared batch reference.
+
+#### Acceptance criteria
+- [ ] One request evaluates up to a configured number of inputs and returns each result or error in order
+- [ ] Each evaluation is recorded in the decision log with its own reference and the batch's
+- [ ] Contract validation, connectors, rate limits and tokens apply per evaluation as for single calls
+- [ ] Studio's decision log filters by batch; tests cover limits, partial failures and isolation
+
+---
+
+### DNK-71 — Keep protected characteristics out of decisions
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-37 (merged) · **Size:** S
+
+#### Why
+Fair-lending rules forbid deciding on characteristics such as sex, religion or ethnicity, and
+supervisors increasingly ask lenders to show it. Today nothing stops a rule from reading them.
+
+#### Decisions
+Confirmed 2026-10-25 as a Phase 2 candidate: the input contract marks a field as protected,
+next to the existing personal-data flag. Using a protected field in a rule warns at save and
+blocks the production approval unless an owner records a justification.
+
+#### Acceptance criteria
+- [ ] Contract fields can be marked protected; the mark is visible in the editor and the contract diff
+- [ ] Saving a decision that reads a protected field warns, naming the node and field
+- [ ] Requesting production for such a release requires a recorded justification, shown in the approval and the audit log
+- [ ] Packs ship with their protected fields marked; tests cover each rule above
+
+---
+
+### DNK-72 — Fieldkit on its own, and with XLSForm
+
+**Type:** feature · **Repos:** Fieldkit · **Dependencies:** the Phase 2 Fieldkit story · **Size:** M
+
+#### Why
+Field teams in Africa largely collect with KoboToolbox and ODK, which use XLSForm. Fieldkit
+reaches beyond Donka customers if it runs without Studio and speaks that format.
+
+#### Decisions
+Confirmed 2026-10-25 as a Phase 2 candidate, its scope set with the Fieldkit story at phase
+entry: a standalone mode (forms from a JSON Schema contract, submissions to a webhook) and
+XLSForm import and export.
+
+#### Acceptance criteria
+- [ ] Fieldkit renders and validates a form from a JSON Schema contract with no Studio, and posts submissions to a configured webhook
+- [ ] An XLSForm imports into a Fieldkit form, and a Fieldkit form exports to XLSForm; unsupported constructs are listed, never dropped silently
+- [ ] With Studio, the same form still decides through the published release
+
+---
+
 ## Later candidates (not agreed)
 
 Kept for the phase-entry discussion; each needs its own story and the owner's agreement.
@@ -190,3 +253,5 @@ Kept for the phase-entry discussion; each needs its own story and the owner's ag
   logs it without applying it; a later step splits traffic deterministically by reference.
   Touches the release artifact contract (Runtime ships first), approvals and explanations.
 - **Passkeys** (`webauthn-rs`) for local accounts, after DNK-59.
+- **Fieldkit Cloud**: forms and submissions as a hosted service for small institutions, with
+  the renderer open source; decided after the pilot shows whether field agents use Fieldkit.

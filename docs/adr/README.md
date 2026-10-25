@@ -72,6 +72,10 @@
   reversible (`donka upgrade`), never unattended in production.
 - Product documentation in a `donka-docs` repository (Fumadocs), generated where possible and
   updated by every story (DNK-66).
+- Phase 1 also gains a monthly-partitioned decision log (DNK-68), measured performance
+  (DNK-67), image scanning in DNK-49, a security review with a penetration test (DNK-69), and
+  RPO/RTO with Runtime availability in DNK-50. Phase 2 candidates add batch evaluation
+  (DNK-70), protected characteristics (DNK-71) and Fieldkit on its own with XLSForm (DNK-72).
 - Release storage: a shared disk volume on one server, the customer's S3 across machines,
   PGSTY SILO (maintained MinIO fork) as the documented self-hosted S3, Garage as the alternative.
 - One language model configuration, chosen by the customer (their endpoint and key, hosted or

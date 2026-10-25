@@ -23,11 +23,15 @@ Remaining order:
 4. **DNK-62, DNK-63, DNK-65, DNK-64** (confirmed 2026-10-25): the decision engine brought up
    to date with replay evidence; connectors with OAuth2 client credentials and mutual TLS for the
    pilot's core banking system; secrets read from files; published images, a prepared
-   installation and a demo that reach a first decision within five minutes.
+   installation and a demo that reach a first decision within five minutes. DNK-68 partitions
+   the decision log first, before any pilot data exists; DNK-67 then measures performance
+   against published targets.
 5. **DNK-49:** enforce the coverage and dependency-security gates already required by the
-   engineering guides. Their current absence is an audit finding, not a passing check.
+   engineering guides, plus image scanning. Their current absence is an audit finding, not a
+   passing check. **DNK-69** follows: a threat model and an external penetration test.
 6. **DNK-50:** rehearse installation, database/bucket/secret backup and restore, upgrade and
-   recovery in isolation; verify the restored system through the full smoke journey.
+   recovery in isolation; verify the restored system through the full smoke journey; state and
+   meet recovery point and time objectives; keep Runtimes answering during restarts.
 7. **DNK-66** (confirmed 2026-10-25): the product documentation site, built from the
    repositories, versioned in English and French, covering integration, operations and security.
 8. Close every applicable feature-test gap, confirm customer policy values and the pilot target,

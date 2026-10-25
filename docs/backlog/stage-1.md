@@ -1093,6 +1093,7 @@ the current Studio workflow does not enforce them. Audit the other repos before 
 #### Acceptance criteria
 - [ ] CI measures business-logic coverage and enforces the documented floor with a justified module scope
 - [ ] Dependency checks fail on fixable high/critical vulnerabilities in the affected ecosystems
+- [ ] Published container images are scanned (Trivy or equivalent) and a fixable high/critical finding fails the release (added 2026-10-25)
 - [ ] Findings are fixed at their cause; no skipped tests, arbitrary exclusions or lowered thresholds to obtain green
 - [ ] Local commands and CI behavior are documented; gaps found in Runtime/CLI are tracked and resolved
 
@@ -1108,6 +1109,8 @@ the current Studio workflow does not enforce them. Audit the other repos before 
 - [ ] Upgrade and recovery follow the documented order and migrations; the original development stack is preserved
 - [ ] Live browser and Studio-to-Runtime checks prove the restored/upgraded system works
 - [ ] EN/FR operations guides reflect the exercised procedure and any remaining customer decisions
+- [ ] Recovery point and recovery time objectives are stated and met by the rehearsal (added 2026-10-25)
+- [ ] Two Runtimes behind a load balancer keep answering while one restarts, and while Studio is down; the guide covers PostgreSQL provided by the customer or replicated (added 2026-10-25)
 
 #### Out of scope
 Customer production deployment or declaring customer policy values approved without their owner.
@@ -1413,3 +1416,86 @@ Confirmed 2026-10-25, before the pilot:
 
 #### Out of scope
 A team wiki; hosted search services; documentation of Phase 2 features before they exist.
+
+---
+
+### DNK-67 — Measured performance with published targets
+
+**Type:** test · **Repos:** R, S · **Dependencies:** DNK-64 · **Size:** M
+
+#### Why
+The engine evaluates in microseconds, but nothing measures Donka itself: the Runtime's response
+time, its throughput, the decision-log feed and Studio's search at pilot volumes. A bank asks
+for these figures in its first questionnaire, and without a baseline a slowdown goes unnoticed.
+
+#### Decisions
+Confirmed 2026-10-25. Targets are stated per reference machine and checked in CI against the
+published images; external calls are excluded (the connectors' own budgets are configured
+separately).
+
+[INTERACTIVE STEP] at story start: the reference machine and the volumes to hold (decisions
+per second at peak, records per day), taken from the pilot questionnaire when available.
+
+#### Acceptance criteria
+- [ ] A repeatable load test (scripted, in the repository) measures the Runtime's p50/p95/p99 and maximum throughput on each starter pack, without connectors and with mocked ones
+- [ ] The decision-log feed keeps up with the target throughput; back-pressure and loss behaviour under Studio outage are measured
+- [ ] Studio's decision-log search and replay stay within their targets on a database holding the retention period's volume
+- [ ] CI runs a shortened version and fails when a target regresses beyond a stated margin
+- [ ] The targets and results are published in the documentation (DNK-66)
+
+#### Out of scope
+Tuning beyond what the measurements show is needed; customer-specific capacity planning.
+
+---
+
+### DNK-68 — Partition the decision log by month
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-18 (merged) · **Size:** M
+
+#### Why
+Records are kept five years by default. At tens of thousands of decisions a day, one
+`decision_records` table grows to tens of millions of encrypted rows: purging becomes a long
+delete and searches slow down. Partitioning is cheap now and costly once a customer has data.
+
+#### Decisions
+Confirmed 2026-10-25, before any pilot data: PostgreSQL range partitions by month on the
+evaluation time; partitions are created ahead by Studio; retention drops whole partitions
+(records of a partially expired month are deleted individually until the month expires).
+
+#### Acceptance criteria
+- [ ] A forward migration moves existing records into monthly partitions without losing or re-encrypting any
+- [ ] Studio creates upcoming partitions ahead of time; a record never fails for a missing partition
+- [ ] Retention purge drops expired partitions, deletes the expired rows of the boundary month, and stays audited
+- [ ] Search, opening, replay, explanation and key rotation (DNK-40) behave as before; their tests pass unchanged
+- [ ] Backup and restore (DNK-50) cover the partitions
+
+#### Out of scope
+Archiving to cold storage; partitioning other tables.
+
+---
+
+### DNK-69 — Security review before the pilot
+
+**Type:** chore · **Repos:** S, R, C · **Dependencies:** DNK-64 · **Size:** M
+
+#### Why
+A bank's security officer asks for the threats considered, an independent test and how
+findings were handled before anything reaches production.
+
+#### Decisions
+Confirmed 2026-10-25: a written threat model (STRIDE) of the whole installation, then an
+external penetration test of the pilot's installation path; findings are fixed or accepted
+in writing before the pilot.
+
+[INTERACTIVE STEP] at story start: who performs the penetration test, and its budget.
+
+#### Acceptance criteria
+- [ ] The threat model covers Studio, the Runtime, the CLI, storage, secrets, the decision log, connectors, identity and the language model endpoint, with each mitigation linked to code, configuration or a story
+- [ ] An external penetration test runs against an installation built from the published images
+- [ ] Every high or critical finding is fixed and retested; others are fixed or accepted with a reason and an owner
+- [ ] The documentation's security section (DNK-66) publishes the threat model summary and the test's outcome
+- [ ] A security contact and disclosure policy exist in each repository
+
+#### Out of scope
+Certification (SOC 2, ISO 27001), which stays in Phase 3.
+
