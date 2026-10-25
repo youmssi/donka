@@ -81,6 +81,11 @@
   Performance pages state each status exactly. Company certifications (ISO/IEC 27001, SOC 2
   Type II) wait for Phase 3. Fieldkit's Phase 2 story starts from the field-collection baseline
   in `docs/backlog/stage-2.md`.
+- Also before the pilot: table verification (DNK-76), the rights of the people decisions are
+  about (DNK-75), a signed licence file that never affects the Runtime (DNK-77) and a guided
+  setup with chosen modules (DNK-74). The trust dossier adds compliance matrices with shared
+  responsibility, for the CEMAC, UEMOA and Guinea markets first. Effective-dated policies
+  (DNK-78) and an auditors' rules document (DNK-79) are Phase 2 candidates. No desktop installer.
 - Release storage: a shared disk volume on one server, the customer's S3 across machines,
   PGSTY SILO (maintained MinIO fork) as the documented self-hosted S3, Garage as the alternative.
 - One language model configuration, chosen by the customer (their endpoint and key, hosted or

@@ -257,6 +257,35 @@ XLSForm import and export.
 
 ---
 
+### DNK-78 — Policies that take effect on a date
+
+**Type:** feature · **Repos:** S, R · **Dependencies:** DNK-14, DNK-15 (merged) · **Size:** M
+
+#### Why
+Banks publish credit policies effective from a set date and time. Today someone must deploy
+at that moment.
+
+#### Acceptance criteria
+- [ ] An approved release can be scheduled for an environment at a date and time with its time zone
+- [ ] The Runtime switches at that time from the artifact it already holds, so a Studio outage does not delay it
+- [ ] Scheduled, cancelled and applied changes are audited and visible on the environment
+
+---
+
+### DNK-79 — The rules as a document for auditors
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-15 (merged) · **Size:** M
+
+#### Why
+Internal audit and supervisors ask for the policy in force as a document, with who changed and
+approved it. The data exists; the document does not.
+
+#### Acceptance criteria
+- [ ] A release exports as a PDF (EN/FR): decisions, tables, expressions and contract in readable form, with version history, approvals and test results
+- [ ] The export is audited and states the release, environment and date it describes
+
+---
+
 ## Later candidates (not agreed)
 
 Kept for the phase-entry discussion; each needs its own story and the owner's agreement.

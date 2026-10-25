@@ -1527,6 +1527,14 @@ is never presented as a certification:
   that look like a primary account number, so Donka stays outside the bank's card-data scope.
 - A pre-filled answer pack for a typical bank security questionnaire, with a mapping to
   supervisory expectations on outsourcing and ICT third parties.
+- **Compliance matrices** (confirmed 2026-10-25), each requirement linked to its evidence and to
+  who is responsible (Donka, the customer, or both), since the customer hosts Donka:
+  ISO/IEC 27001:2022 Annex A, SOC 2 trust services criteria, GDPR, ISO 22301, the EU AI Act
+  obligations for high-risk credit scoring, WCAG 2.2 AA, the Malabo Convention, and the
+  banking and data-protection rules of the target region: CEMAC (COBAC), UEMOA (Commission
+  Bancaire de l'UMOA, BCEAO) and Guinea, with each pilot country's data-protection law
+  (for example Cameroon's law 2024/017). Each matrix starts from the strictest common rules
+  and gains a country section when a customer there signs.
 
 #### Acceptance criteria
 - [ ] The ASVS level 2 self-assessment lists every applicable requirement with its evidence; failures become stories or written exceptions
@@ -1535,9 +1543,126 @@ is never presented as a certification:
 - [ ] OpenSSF Scorecard runs on each public repository and the Best Practices badge is obtained; their results are linked
 - [ ] Images pass the applicable CIS Docker Benchmark checks or document each exception
 - [ ] Saving a contract with a field that holds or looks like a card number is refused, and the PCI DSS scope statement is published
+- [ ] Each compliance matrix lists every requirement with its evidence, its owner (Donka, customer, shared) and its status; gaps become stories or written exceptions; legal texts are cited from their official sources
+- [ ] A WCAG 2.2 AA self-assessment of Studio's screens is part of the dossier
 - [ ] The questionnaire answer pack (EN/FR) and the dossier appear on the Trust page (DNK-66)
 
 #### Out of scope
 ISO/IEC 27001 and SOC 2 Type II certification of the company, and third-party verification of
 the ASVS assessment (Phase 3, when Donka operates a hosted service or a customer requires it).
+
+---
+
+### DNK-74 — Guided setup with chosen modules
+
+**Type:** feature · **Repos:** S, R · **Dependencies:** DNK-64, DNK-77 · **Size:** M
+
+#### Why
+DNK-64 makes a first decision possible in five minutes. A bank's real installation still asks
+for many choices: its domain and certificate, storage, identity, mail, language model, which
+packs and modules it wants. Asked one by one, with checks, they take minutes instead of days.
+
+#### Decisions
+Confirmed 2026-10-25:
+- **A command-line assistant in the Studio image**, in the manner of `create-next-app`:
+  organisation, domain and TLS, storage (disk, the customer's S3, SILO), identity (local
+  accounts with a second step, or single sign-on), mail, language model (endpoint and key
+  chosen by the customer), modules (explanations, analysis, connectors), packs to import, tools
+  (CLI, `donka-scorecard`), licence file (DNK-77) and demo mode. Defaults are offered for each.
+- It writes secrets as files and a readable `donka.yaml`; running with that file replays the
+  installation without questions.
+- `donka doctor` checks the database, storage, mail, identity provider, language model and
+  connector endpoints, and explains each failure in plain words.
+- **A first-run assistant in the browser** creates the first administrator and their second
+  step, names the organisation and imports the chosen packs; the DNK-41 checklist follows.
+- Modules are enabled or disabled later (`donka modules enable|disable`), and upgrades go
+  through `donka upgrade` (DNK-64).
+- `donka support-bundle` collects versions, configuration and logs with secrets removed, to
+  send for support without access to the bank.
+- A desktop installer is not built: installations run on headless servers.
+
+#### Acceptance criteria
+- [ ] The assistant runs from the published image with only Docker installed, in English and French, and every question has a default
+- [ ] Running again with `donka.yaml` produces the same installation without questions; secrets are never printed nor overwritten
+- [ ] `donka doctor` reports each dependency as working or not, with the reason and the setting to change
+- [ ] The browser assistant appears only until the first administrator exists, enrols their second step, and imports the selected packs
+- [ ] Enabling or disabling a module keeps data, is audited and takes effect after a restart
+- [ ] The support bundle contains no secret, token or personal data; a test checks it
+- [ ] The install guides (EN/FR) and DNK-50's rehearsal use this path
+
+---
+
+### DNK-75 — Rights of the people decisions are about
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-18, DNK-68 · **Size:** M
+
+#### Why
+Data-protection laws in the target region and the GDPR give a person the right to know what is
+held about them, to have it erased when the law allows, and to contest a decision made
+automatically. Cameroon's law 2024/017 has applied since June 2026. A lender must answer these
+requests within legal deadlines; today nobody can find every decision about one person.
+
+#### Decisions
+Confirmed 2026-10-25, before the pilot:
+- An owner looks up the decisions about a person by the identifiers the contract marks as
+  personal (national ID, phone…), searched through keyed hashes so nothing is decrypted to
+  search.
+- The result exports as a readable report (EN/FR) of inputs, outcome, reasons and explanation.
+- Erasure anonymises the person's fields in their records, unless a retention rule the owner
+  documents requires keeping them; the record and its outcome stay for audit.
+- A contest is recorded against the decision with its outcome after human review; the review
+  itself happens in the lender's own systems.
+
+#### Acceptance criteria
+- [ ] Searching by a personal identifier finds that person's records across the project's decisions without decrypting the log
+- [ ] The access report includes every record found, its reasons and explanation, in English or French
+- [ ] Anonymising removes the person's fields from input, output and trace, keeps outcome, release and time, and cannot be undone; a documented retention rule blocks it with the rule shown
+- [ ] A contest and its review outcome are recorded on the decision and shown in its history
+- [ ] Every search, export, anonymisation and contest is audited; only owners can perform them
+- [ ] Tests cover each criterion, including records in several monthly partitions (DNK-68)
+
+---
+
+### DNK-76 — Find gaps and overlaps in decision tables
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-62 · **Size:** S
+
+#### Why
+A table with a gap lets an application through without a decision; overlapping rows make the
+result depend on row order. Rule analysis is a standard feature of mature rule platforms, and
+the upgraded engine (2.1) provides table verification and diagnostics.
+
+#### Decisions
+Confirmed 2026-10-25: the engine's verification runs in `crates/engine` and its findings
+appear in the editor and in the production approval review.
+
+#### Acceptance criteria
+- [ ] Saving a table reports gaps, overlapping rows and rows that can never match, with the row and column
+- [ ] The approval review lists the findings of the release under review
+- [ ] Findings warn and never block a save; an owner can acknowledge one with a reason, which is audited
+- [ ] Strings in English and French; tests use tables with each kind of finding
+
+---
+
+### DNK-77 — Licence file for Studio
+
+**Type:** feature · **Repos:** S · **Dependencies:** none · **Size:** S
+
+#### Why
+Studio is proprietary software delivered to each customer. Nothing yet ties an installation
+to its contract, its validity or the modules it includes.
+
+#### Decisions
+Confirmed 2026-10-25: a licence file signed by Donka (Ed25519), verified offline with the public
+key built into Studio. It names the customer, the validity dates and the modules included.
+Decisions are never affected: the Runtime does not read licences and keeps serving released
+rules. Without a valid licence Studio stays readable and exportable but refuses new versions
+and releases, and says why.
+
+#### Acceptance criteria
+- [ ] Studio verifies the licence file at start and daily, without network access
+- [ ] Modules outside the licence are hidden and their routes refused with a clear error
+- [ ] Thirty days before expiry, administrators see a notice; after expiry Studio refuses new versions and releases, while reading, exporting and the Runtime keep working
+- [ ] A tampered or foreign licence is refused and named in the log; replacing the file needs no restart beyond a reload
+- [ ] A tool kept outside the customer installation issues licences; its signing key never ships
 

@@ -63,10 +63,14 @@ docker-compose for PostgreSQL, MinIO and Mailpit.
 | 35f | DNK-55 Packs, onboarding and CLI integration | S C |
 | 36 | DNK-59 Two-step sign-in with an authenticator app | S |
 | 37 | DNK-62 Bring the decision engine up to date | R S |
+| 37b | DNK-76 Find gaps and overlaps in decision tables | S |
 | 38 | DNK-68 Partition the decision log by month | S |
+| 38b | DNK-75 Rights of the people decisions are about | S |
 | 39 | DNK-63 Connectors that authenticate like the core banking system | R S |
 | 40 | DNK-65 Read secrets from files | S R |
 | 41 | DNK-64 A first decision five minutes after install | S R |
+| 41b | DNK-77 Licence file for Studio | S |
+| 41c | DNK-74 Guided setup with chosen modules | S R |
 | 42 | DNK-67 Measured performance with published targets | R S |
 | 43 | DNK-49 Enforce coverage, dependency and image security gates | S R C |
 | 44 | DNK-69 Security review before the pilot | S R C |
