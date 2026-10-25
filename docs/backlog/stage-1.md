@@ -1227,3 +1227,129 @@ Confirmed 2026-10-25, before the pilot:
 
 #### Out of scope
 Passkeys/WebAuthn (later, `webauthn-rs`); single sign-on (DNK-60); SMS or email codes.
+
+---
+
+### DNK-62 — Bring the decision engine up to date
+
+**Type:** chore · **Repos:** R, S · **Dependencies:** none · **Size:** M
+
+#### Why
+Studio and the Runtime pin zen-engine 2.0.1 while upstream is at 2.1.6 (2026-10-21). The newer
+releases fix a stack overflow from a graph expression that references `$` in itself (a request
+could stop a Runtime), number serialization, and how null and required policy inputs are
+handled, which changes behaviour. The dependency gate (DNK-49) only reports published
+advisories, so it would not flag this.
+
+#### Decisions
+Confirmed 2026-10-25, before the pilot. One exact version in both repos (ADR-003), Runtime
+first. The upgrade is accepted on evidence, not on the changelog: every pack scenario and a
+replay of recorded decisions must give the same results, or the difference is explained.
+
+#### Acceptance criteria
+- [ ] The Runtime, then Studio, pin the same latest 2.1.x; `scripts/check-engine-version.sh` passes; `arbitrary_precision` stays enabled in the Runtime
+- [ ] Every scenario of every catalogue pack passes in Studio and through a Runtime evaluation
+- [ ] The decision-log e2e records replay as identical after the upgrade
+- [ ] A regression test covers a self-referencing `$` expression: it fails cleanly without stopping the process
+- [ ] Each behaviour change upstream lists (null and required inputs, number output) is either covered by a test that shows Donka's result or documented in the release notes for customers
+- [ ] The in-editor expression hints (`@gorules/jdm-editor`) are on its latest release; NOTICE files are current
+- [ ] `docs/engineering` describes the upgrade procedure so the next one follows it
+
+#### Out of scope
+Adopting new 2.1 features in the editor; the policy-document editor (Phase 3).
+
+---
+
+### DNK-63 — Connectors that authenticate like the core banking system
+
+**Type:** feature · **Repos:** R, S · **Dependencies:** DNK-17 (merged) · **Size:** M
+
+#### Why
+The pilot's core banking system requires OAuth2 or mutual TLS. Today a connector sends one
+secret in a header, so the Runtime cannot call it and the pilot's main data source is out of
+reach.
+
+#### Decisions
+Confirmed 2026-10-25, before the pilot. Both methods live in the MIT connectors crate, behind
+the existing connector settings; graphs keep secret **names** only:
+- **OAuth2 client credentials**: token URL, client id, scopes and the name of the secret; the
+  token is cached until shortly before it expires and fetched again once after a `401`.
+- **Mutual TLS**: names of the client certificate, its key and an optional CA bundle, read from
+  the Runtime's environment or files.
+
+[INTERACTIVE STEP] at story start: the pilot's core banking system and its exact flow (token
+endpoint, scopes, certificate authority), so the reference test matches it.
+
+#### Acceptance criteria
+- [ ] A connector authenticates with OAuth2 client credentials; the token is reused until expiry, refreshed once on `401`, and a token endpoint failure counts towards the retry policy and the circuit breaker
+- [ ] A connector authenticates with a client certificate and trusts a configured CA; a wrong certificate fails with a clear error naming the connector, never the secret
+- [ ] Studio's editor configures both methods; simulation still answers from mocks and makes no call
+- [ ] No token, key or certificate appears in artifacts, logs, traces or the decision log
+- [ ] Tests run against a local OAuth2 server and an mTLS server in CI; docs (EN/FR) show both setups
+
+#### Out of scope
+SOAP and proprietary protocols (the customer's integration layer); other OAuth2 flows.
+
+---
+
+### DNK-65 — Read secrets from files
+
+**Type:** feature · **Repos:** S, R · **Dependencies:** none · **Size:** S
+
+#### Why
+An installation already holds seven secrets (database, storage, decision-log key, TOTP key,
+SMTP, LLM key, connector secrets) and more come with single sign-on. Banks keep them in a vault
+or as Docker/Kubernetes secrets, which arrive as files, not as environment variables.
+
+#### Decisions
+Confirmed 2026-10-25: every secret setting `X` can instead be given as `X_FILE`, a path whose
+content is the value; setting both fails at start. Donka integrates with no vault directly:
+OpenBao, Vault, Infisical and Kubernetes all write files through their own agents.
+
+#### Acceptance criteria
+- [ ] Every secret setting of Studio and the Runtime accepts the `_FILE` form; trailing newlines are trimmed; an unreadable file fails at start and names the setting
+- [ ] Setting both forms fails at start
+- [ ] `.env.example`, the install guides (EN/FR) and the Runtime configuration guide list the file form with a Docker secrets example
+- [ ] Tests cover each rule above
+
+#### Out of scope
+A direct vault client; dynamic secrets; automatic rotation.
+
+---
+
+### DNK-64 — A first decision five minutes after install
+
+**Type:** feature · **Repos:** S, R · **Dependencies:** DNK-62, DNK-65 · **Size:** L
+
+#### Why
+Installing Donka builds it from source (15 to 30 minutes), then asks for a setup link from the
+logs, a decision-log token pasted into `runtime.env` and a restart. A bank's team should see a
+decision served end to end within five minutes, and the pilot's installation should be the one
+DNK-50 rehearses.
+
+#### Decisions
+Confirmed 2026-10-25, before DNK-50:
+- **Published images** for Studio and the Runtime, versioned and signed, plus an offline
+  bundle for servers without internet access.
+- **One command prepares the installation**: the Studio image writes a complete `.env` with
+  random secrets and prints the first administrator's setup link; no tool beyond Docker.
+- **The staging Runtime is wired at first start**: Studio provisions its decision-log token.
+- **A demo option** imports the retail-credit pack, publishes it to staging and points its
+  bureau connector at a bundled fake bureau.
+- The promise covers a demo with simulated connectors. Real core banking and bureau
+  integrations, and AI authoring (Phase 2), are not part of the five minutes.
+
+[INTERACTIVE STEP] before implementation: the image registry and signing method; and the
+release storage for one server (see the options analysed on 2026-10-25: a shared disk volume
+by default with the customer's S3 as the option, versus a self-hosted S3 server).
+
+#### Acceptance criteria
+- [ ] From an empty server with Docker, pulling the images, preparing the installation and starting it reaches a Runtime decision recorded in Studio in five minutes or less on the documented reference machine; CI measures it
+- [ ] The offline bundle installs the same version with no network access
+- [ ] Generated secrets are random, written once, never printed except the one-time setup link, and never overwritten by a second run
+- [ ] Without the demo option, nothing is imported; with it, the Get started checklist (DNK-41) shows the demo project's progress
+- [ ] Upgrading uses the same images and keeps the data (the DNK-50 rehearsal runs on this installation)
+- [ ] The install guides (EN/FR) start with this path; building from source moves to the contributor guide
+
+#### Out of scope
+Kubernetes charts; high availability; production hardening beyond the documented settings.

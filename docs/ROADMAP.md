@@ -62,8 +62,12 @@ docker-compose for PostgreSQL, MinIO and Mailpit.
 | 35e | DNK-54 Decision records, explanations and audit | S R |
 | 35f | DNK-55 Packs, onboarding and CLI integration | S C |
 | 36 | DNK-59 Two-step sign-in with an authenticator app | S |
-| 37 | DNK-49 Enforce coverage and dependency-security gates | S R C |
-| 38 | DNK-50 Isolated backup, restore and upgrade rehearsal | S R C |
+| 37 | DNK-62 Bring the decision engine up to date | R S |
+| 38 | DNK-63 Connectors that authenticate like the core banking system | R S |
+| 39 | DNK-65 Read secrets from files | S R |
+| 40 | DNK-64 A first decision five minutes after install | S R |
+| 41 | DNK-49 Enforce coverage and dependency-security gates | S R C |
+| 42 | DNK-50 Isolated backup, restore and upgrade rehearsal | S R C |
 
 Practices from the upstream codebases, scheduled next to the stories that need them:
 DNK-26 `/version` (after DNK-4), DNK-28 container builds (before DNK-23), DNK-27 OpenTelemetry

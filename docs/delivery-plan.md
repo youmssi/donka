@@ -20,11 +20,15 @@ Remaining order:
    story; record unrelated defects in separate stories.
 3. **DNK-59** (confirmed 2026-10-25): a second sign-in step with an authenticator app and
    recovery codes, required by configuration for administrators and owners.
-4. **DNK-49:** enforce the coverage and dependency-security gates already required by the
+4. **DNK-62, DNK-63, DNK-65, DNK-64** (confirmed 2026-10-25): the decision engine brought up
+   to date with replay evidence; connectors with OAuth2 client credentials and mutual TLS for the
+   pilot's core banking system; secrets read from files; published images, a prepared
+   installation and a demo that reach a first decision within five minutes.
+5. **DNK-49:** enforce the coverage and dependency-security gates already required by the
    engineering guides. Their current absence is an audit finding, not a passing check.
-5. **DNK-50:** rehearse installation, database/bucket/secret backup and restore, upgrade and
+6. **DNK-50:** rehearse installation, database/bucket/secret backup and restore, upgrade and
    recovery in isolation; verify the restored system through the full smoke journey.
-6. Close every applicable feature-test gap, confirm customer policy values and the pilot target,
+7. Close every applicable feature-test gap, confirm customer policy values and the pilot target,
    then obtain the deployment decision and follow the release workflow.
 
 Phase exit: acceptance evidence is current, business journeys pass against running services,
@@ -46,7 +50,8 @@ by this planning change. The approved product workflow is:
    unresolved endpoints, credentials and business rules remain explicit questions.
 4. Fieldkit form definitions, EN/FR labels, validation and mappings use the same input contract
    as the rules and the Runtime. Runtime credentials stay on the customer's backend.
-5. A playground combines the form, rules and controlled connector responses. The owner can
+5. A playground combines the form, rules and controlled connector responses. It is a view over
+   the existing simulation (one evaluation path through `DecisionRuntime`), never a second one. The owner can
    inspect expected results, traces, boundary cases and source references.
 6. Chat can explain and revise rules, forms and mappings. It first presents proposed changes
    and a diff. **The owner accepts before anything is applied to the editable project draft.**
@@ -71,8 +76,8 @@ Confirmed 2026-10-25, see [Stage 2 stories](backlog/stage-2.md):
   then the same swap analysis in the playground (DNK-58).
 - **`donka-scorecard`** (DNK-61), a separate Apache-2.0 Python package on optbinning that
   writes statistical scorecards as packs; its scenarios prove Studio computes the same score.
-- Repayment outcomes, shadow and champion/challenger evaluation, core banking connector
-  authentication and passkeys stay later candidates until agreed.
+- Repayment outcomes, shadow and champion/challenger evaluation and passkeys stay later
+  candidates until agreed; core banking connector authentication moved to Phase 1 (DNK-63).
 
 ## Phase 3 — enterprise
 

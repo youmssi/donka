@@ -65,5 +65,17 @@
   provider; authorization stays in Studio.
 - Phase 2 adds analysis on recorded decisions (DNK-56, DNK-57, DNK-58) in a module that can be
   turned off, and the open-source `donka-scorecard` package (DNK-61) built on optbinning.
+- Phase 1 also adds the engine upgrade (DNK-62), OAuth2 and mutual TLS connectors for the
+  pilot's core banking system (DNK-63), secrets from files (DNK-65) and a five-minute install
+  (DNK-64).
+- One language model configuration, chosen by the customer (their endpoint and key, hosted or
+  on their own servers), serves explanations and the Phase 2 assistant.
+- Python stays in `donka-scorecard`; it never enters Studio or the Runtime.
+- Not added: a cache server (sessions and lockout live in PostgreSQL, rate limits in memory per
+  instance), a feature-flag service (one installation per customer, configured by variables),
+  an embedded observability stack (OpenTelemetry exports to the customer's), a vault client
+  (secrets arrive as files) and a wiki server (documentation stays in the repositories).
+- Open edges, closed control plane: the Runtime, CLI, connectors and `donka-scorecard` are open
+  source; Studio is proprietary.
 
 See the [delivery plan](../delivery-plan.md) for the complete scope and phase exit gates.

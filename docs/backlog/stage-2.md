@@ -183,12 +183,10 @@ Kept for the phase-entry discussion; each needs its own story and the owner's ag
 
 - **Repayment outcomes.** Import performance labels (e.g. 90 days past due) from the core
   banking system, linked by `X-Donka-Reference`; then default rate by band, Gini and KS in
-  production. Needs an ingest API, retention and a personal-data decision. Ask the pilot
+  production. Needs an ingest API, retention and a personal-data decision. Name it
+  "repayment performance": in Donka, "outcome" is the decision's own output field. Ask the pilot
   whether labelled history exists.
 - **Shadow evaluation, then champion/challenger.** The Runtime evaluates a second release and
   logs it without applying it; a later step splits traffic deterministically by reference.
   Touches the release artifact contract (Runtime ships first), approvals and explanations.
-- **Core banking connector authentication.** OAuth2 client credentials and mutual TLS for
-  connectors, with the Phase 2 connector work. SOAP and proprietary protocols go through the
-  customer's integration layer rather than into the Runtime.
 - **Passkeys** (`webauthn-rs`) for local accounts, after DNK-59.
