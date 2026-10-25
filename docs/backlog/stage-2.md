@@ -272,3 +272,9 @@ Kept for the phase-entry discussion; each needs its own story and the owner's ag
 - **Passkeys** (`webauthn-rs`) for local accounts, after DNK-59.
 - **Fieldkit Cloud**: forms and submissions as a hosted service for small institutions, with
   the renderer open source; decided after the pilot shows whether field agents use Fieldkit.
+- **Runtime client SDKs** generated from the Runtime's OpenAPI document with an open-source
+  generator (openapi-generator, Apache-2.0) for the languages banks integrate in (Java, C#,
+  TypeScript), published with each Runtime release.
+- **"Ask" search in the documentation**: questions answered from the documentation site's
+  pages, through the language model the customer already configures (DNK-19), with sources
+  linked.
