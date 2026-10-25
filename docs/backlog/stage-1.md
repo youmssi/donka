@@ -1348,7 +1348,7 @@ Confirmed 2026-10-25, before DNK-50:
 - **Release storage** (confirmed 2026-10-25): a disk volume shared by Studio and the staging
   Runtime by default, for one server and the demo; the customer's S3 when Studio and a Runtime
   run on different machines. For a customer without S3: PGSTY SILO, the maintained MinIO fork
-  that the current `pgsty/minio` image comes from, documented and tested in CI, with Garage
+  already used by `docker-compose.yml` and CI (`pgsty/silo`), documented and tested in CI, with Garage
   named as the alternative. Donka only uses the S3 API, so the server can change later.
 
 - **Registry and signing** (confirmed 2026-10-25): GitHub Container Registry, public for the
