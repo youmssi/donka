@@ -72,7 +72,9 @@ on sign-in and password reset (before the pilot).
 Fieldkit Stage 1 (forms from DNK-37), document-assisted AI rule creation and chat editing,
 connector/field mappings and the owner playground. Proposed edits require an owner-reviewed
 diff before application to a draft; normal release approval remains. Branches, N-eyes approvals,
-webhooks, GitSync and more connectors remain in this phase. Define and agree the detailed
+webhooks, GitSync and more connectors remain in this phase, with the candidates DNK-56
+(impact of a rule change on past decisions) and DNK-57 (input drift) in
+[`backlog/stage-2.md`](backlog/stage-2.md). Define and agree the detailed
 story order at phase entry; see the [approved scope](delivery-plan.md#phase-2--assisted-creation-fieldkit-and-governance).
 
 ## Stage 3: enterprise

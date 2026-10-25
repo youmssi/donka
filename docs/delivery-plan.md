@@ -59,6 +59,11 @@ The previously planned branches, multi-person approvals, webhooks, GitSync and a
 connectors remain in Phase 2. Agree their story order at phase entry; do not silently grow
 Phase 1 to include them.
 
+Confirmed 2026-10-25: rule-impact analysis on recorded decisions (DNK-56) and input drift
+monitoring (DNK-57) are Phase 2 candidates, built on the decision log. Repayment outcomes,
+shadow/champion-challenger evaluation and a separate statistical scorecard package stay later
+candidates until agreed. See [Stage 2 stories](backlog/stage-2.md).
+
 ## Phase 3 — enterprise
 
 SSO/OIDC and global roles, decision-path coverage, the policy-document editor, Studio MCP
