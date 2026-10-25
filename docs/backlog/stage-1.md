@@ -1344,9 +1344,9 @@ Confirmed 2026-10-25, before DNK-50:
 
 - **Release storage** (confirmed 2026-10-25): a disk volume shared by Studio and the staging
   Runtime by default, for one server and the demo; the customer's S3 when Studio and a Runtime
-  run on different machines; Garage documented and tested in CI for a customer without S3.
-  MinIO leaves the installation: its upstream is archived and its images are no longer
-  published.
+  run on different machines. For a customer without S3: PGSTY SILO, the maintained MinIO fork
+  that the current `pgsty/minio` image comes from, documented and tested in CI, with Garage
+  named as the alternative. Donka only uses the S3 API, so the server can change later.
 
 - **Registry and signing** (confirmed 2026-10-25): GitHub Container Registry, public for the
   Runtime and the CLI (MIT), private for Studio with a read token per customer; images signed
@@ -1368,7 +1368,7 @@ Confirmed 2026-10-25, before DNK-50:
 - [ ] An upgrade whose smoke test fails restores the previous version and data, and says what failed; a successful one keeps the data and writes its report
 - [ ] Studio shows when a newer version is published, without any outgoing call when the installation is offline; unattended upgrades, when enabled, run only in the configured window and never in production
 - [ ] The DNK-50 rehearsal runs on this installation and this upgrade path
-- [ ] Studio publishes to a disk volume that the Runtime's `Filesystem` provider serves and hot-reloads; S3 still works; CI runs the storage tests against Garage instead of MinIO
+- [ ] Studio publishes to a disk volume that the Runtime's `Filesystem` provider serves and hot-reloads; S3 still works; CI runs the storage tests against the latest SILO release
 - [ ] The install guides (EN/FR) start with this path; building from source moves to the contributor guide
 
 #### Out of scope
@@ -1393,7 +1393,8 @@ Confirmed 2026-10-25, before the pilot:
 - Organised by reader and intent (Diátaxis): discover, get started, guides, integrate,
   operate, security and compliance, reference.
 - What can be generated is generated at each release: the API reference from Studio's and the
-  Runtime's OpenAPI documents, the CLI reference from `--help`, and screenshots from the
+  Runtime's OpenAPI documents (the same ones Studio serves as its interactive reference), the
+  CLI reference from `--help`, and screenshots from the
   Playwright journeys. Explanations stay next to the code and are assembled into the site.
 - Every story updates the pages it changes as part of being done (AGENTS.md).
 - No wiki server: team wikis are not versioned with the code.
@@ -1407,6 +1408,7 @@ Confirmed 2026-10-25, before the pilot:
 - [ ] Security and compliance: encryption and keys, access control and audit, personal data, and answers to a typical bank security questionnaire
 - [ ] Reference: generated API and CLI pages, every configuration variable, the artifact format, release notes
 - [ ] English and French; a version selector per release; a PDF export of a chosen version
+- [ ] Studio serves an interactive API reference (Scalar, through `utoipa-scalar`) at `/api/docs` from its own OpenAPI document, so each installation shows the API of its installed version
 - [ ] AGENTS.md in the three repositories adds the documentation rule to the checks before a pull request
 
 #### Out of scope

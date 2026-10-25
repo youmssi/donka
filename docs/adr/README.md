@@ -14,7 +14,7 @@
 
 | Topic | Decision |
 |---|---|
-| Release storage | Shared disk volume on one server, the customer's S3 across machines, Garage as the documented self-hosted S3 (decided 2026-10-25; MinIO before) |
+| Release storage | Shared disk volume on one server, the customer's S3 across machines, SILO as the documented self-hosted S3, Garage as the alternative (decided 2026-10-25) |
 | Version history | Linear history per project + releases; branches in Stage 2 |
 | Rule formats | Decision graphs only in Stage 1 (policy documents have no open-source editor) |
 | AI explain | Off by default; calls the customer's own LLM endpoint; read-only |
@@ -73,7 +73,7 @@
 - Product documentation in a `donka-docs` repository (Fumadocs), generated where possible and
   updated by every story (DNK-66).
 - Release storage: a shared disk volume on one server, the customer's S3 across machines,
-  Garage as the documented self-hosted S3. MinIO is removed (upstream archived).
+  PGSTY SILO (maintained MinIO fork) as the documented self-hosted S3, Garage as the alternative.
 - One language model configuration, chosen by the customer (their endpoint and key, hosted or
   on their own servers), serves explanations and the Phase 2 assistant.
 - Python stays in `donka-scorecard`; it never enters Studio or the Runtime.
