@@ -64,6 +64,7 @@ Une réponse « je ne sais pas » est utile : elle devient une question à suivr
 
 | Question | Pourquoi |
 |---|---|
+| Pays, superviseur bancaire (COBAC, Commission Bancaire de l'UMOA, BCRG…) et autorité de protection des données ? | Matrices de conformité (DNK-73), droits des personnes (DNK-75) |
 | Règles internes et réglementaires applicables (protection des données, régulateur bancaire) ? | Chiffrement, masquage, conservation |
 | Durée de conservation des décisions exigée ? | `DONKA_DECISION_LOG_RETENTION_DAYS` |
 | Où doivent être gardées les clés de chiffrement (coffre, HSM, fichiers) ? | Secrets (DNK-65) |

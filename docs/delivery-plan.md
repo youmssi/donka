@@ -25,12 +25,17 @@ Remaining order:
    pilot's core banking system; secrets read from files; published images, a prepared
    installation and a demo that reach a first decision within five minutes. DNK-68 partitions
    the decision log first, before any pilot data exists; DNK-67 then measures performance
-   against published targets.
+   against published targets. Also confirmed 2026-10-25: DNK-76 table verification after the
+   engine upgrade; DNK-75 the rights of the people decisions are about (access, anonymisation,
+   contest) after partitioning; DNK-77 a signed licence file; DNK-74 a guided command-line and
+   browser setup with chosen modules, `donka-admin doctor` and a support bundle, after DNK-64.
 5. **DNK-49:** enforce the coverage and dependency-security gates already required by the
    engineering guides, plus image scanning. Their current absence is an audit finding, not a
    passing check. **DNK-69** follows: a threat model and an external penetration test; then **DNK-73**, a
    trust dossier (OWASP ASVS level 2 self-assessment, NIST SSDF, SLSA level 3, OpenSSF, CIS,
-   PCI DSS out of scope by design) published with the load-test results on the documentation site.
+   PCI DSS out of scope by design, and compliance matrices for ISO/IEC 27001, SOC 2, GDPR,
+   ISO 22301, the EU AI Act, WCAG 2.2, the Malabo Convention and the CEMAC, UEMOA and Guinea
+   rules) published with the load-test results on the documentation site.
 6. **DNK-50:** rehearse installation, database/bucket/secret backup and restore, upgrade and
    recovery in isolation; verify the restored system through the full smoke journey; state and
    meet recovery point and time objectives; keep Runtimes answering during restarts.

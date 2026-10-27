@@ -64,6 +64,7 @@ installation. Each answer opens or closes a specific piece of work; the "Why" co
 
 | Question | Why |
 |---|---|
+| Country, banking supervisor (COBAC, Commission Bancaire de l'UMOA, BCRG…) and data-protection authority? | Compliance matrices (DNK-73), rights of individuals (DNK-75) |
 | Internal and regulatory rules that apply (data protection, banking supervisor)? | Encryption, redaction, retention |
 | Required retention of decisions? | `DONKA_DECISION_LOG_RETENTION_DAYS` |
 | Where must encryption keys be kept (vault, HSM, files)? | Secrets (DNK-65) |

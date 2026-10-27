@@ -41,7 +41,8 @@ file and add what is specific to that tool.
 - **Deployment:** self-hosted, one installation per customer (Docker Compose or Kubernetes).
   No multi-tenancy.
 - **Source of truth for scope:** `docs/backlog/` (stories), `docs/ROADMAP.md` (order) and
-  `docs/delivery-plan.md` (approved phase scope and exit gates).
+  `docs/delivery-plan.md` (approved phase scope and exit gates). `docs/capability-map.md` maps
+  each rules-platform and credit-scoring capability to its story; keep it current.
 - **Architecture decisions:** `docs/adr/`. Architecture overview: `docs/ARCHITECTURE.md`.
 
 ## 3. Hard rules (non-negotiable)
