@@ -92,7 +92,10 @@ webhooks, GitSync and more connectors remain in this phase. Agreed candidates in
 [`backlog/stage-2.md`](backlog/stage-2.md): DNK-60 single sign-on, DNK-56 swap-in/swap-out
 on past decisions, DNK-57 decision mix and stability, DNK-58 the same in the playground, and
 DNK-61 the open-source `donka-scorecard` package, with DNK-70 batch evaluation, DNK-71
-protected characteristics and DNK-72 Fieldkit on its own with XLSForm. Define and agree the detailed
+protected characteristics and DNK-72 Fieldkit on its own with XLSForm. From the first bank
+pilot's requirements: DNK-80 pre-qualification on the lender's website without documents, DNK-81
+the intake queue for branch staff and DNK-82 verified evaluation with declared-versus-verified
+gaps. Define and agree the detailed
 story order at phase entry; see the [approved scope](delivery-plan.md#phase-2--assisted-creation-fieldkit-and-governance).
 
 ## Stage 3: enterprise
