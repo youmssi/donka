@@ -274,6 +274,17 @@ impl Projects {
             .collect())
     }
 
+    /// Whether the user owns at least one project, archived ones included. Policy
+    /// on the second sign-in step (DNK-59) treats owners as privileged.
+    pub async fn owns_any(&self, user: Uuid) -> Result<bool, ProjectError> {
+        Ok(sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM project_members WHERE user_id = $1 AND role = 'owner')",
+        )
+        .bind(user)
+        .fetch_one(&self.pool)
+        .await?)
+    }
+
     /// The user's access to the project; `NotFound` when they are not a member,
     /// whether or not the project exists.
     pub async fn access(&self, user: Uuid, project_id: Uuid) -> Result<Access, ProjectError> {

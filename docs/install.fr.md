@@ -56,6 +56,8 @@ DONKA_POSTGRES_PASSWORD=<généré>                # openssl rand -hex 24
 DONKA_STORAGE_ACCESS_KEY_ID=donka
 DONKA_STORAGE_SECRET_ACCESS_KEY=<généré>        # openssl rand -hex 24
 DONKA_DECISION_LOG_KEY=<généré>                 # openssl rand -base64 32
+DONKA_SECOND_STEP_KEY=<généré>                  # openssl rand -base64 32
+DONKA_MFA_REQUIRED=privileged                   # seconde étape pour administrateurs et propriétaires
 DONKA_SMTP_URL=smtp://user:pass@mail.banque.example:587?tls=required
 DONKA_SMTP_FROM=Donka <donka@banque.example>
 ```
@@ -147,7 +149,9 @@ docker compose run --rm -v "$PWD/backups:/backups" --entrypoint sh minio-init -c
 
 Gardez `.env` et `runtime.env` dans votre coffre à secrets. **Sans `DONKA_DECISION_LOG_KEY` (et,
 après un renouvellement, les clés de `DONKA_DECISION_LOG_PREVIOUS_KEYS`), le journal des
-décisions est illisible**, même depuis une sauvegarde.
+décisions est illisible**, même depuis une sauvegarde. **Sans `DONKA_SECOND_STEP_KEY` (et ses
+clés précédentes), personne ayant une seconde étape de connexion ne peut se connecter** après une
+restauration : conservez-la aussi avec les sauvegardes.
 
 Copiez les sauvegardes hors du serveur et testez une restauration régulièrement. Pour
 restaurer, Studio arrêté :
@@ -237,8 +241,23 @@ avec l'ancienne clé : gardez l'ancienne clé avec ces sauvegardes, dans votre c
 jusqu'à leur expiration. Si la clé a fuité, restreignez aussi l'accès à la base et à ses
 sauvegardes : la clé seule ne donne pas accès aux enregistrements.
 
+**Clé de la seconde étape** : les secrets des applications d'authentification sont scellés avec
+`DONKA_SECOND_STEP_KEY`. Pour la remplacer, déplacez la valeur actuelle dans
+`DONKA_SECOND_STEP_PREVIOUS_KEYS`, renseignez la nouvelle clé et lancez `docker compose up -d app`.
+Chaque secret est rescellé avec la nouvelle clé à la prochaine connexion de son titulaire ; gardez
+l'ancienne clé jusqu'à ce que chacun se soit connecté une fois (ou qu'un administrateur ait
+réinitialisé la seconde étape des autres).
+
 **Mots de passe des personnes** : chacun change le sien avec *Mot de passe oublié ?* sur la
 page de connexion.
+
+**Connexion en deux étapes** : chacun peut l'activer dans *Compte*, avec n'importe quelle
+application d'authentification (codes de six chiffres renouvelés toutes les 30 secondes).
+`DONKA_MFA_REQUIRED=privileged` l'impose aux administrateurs et aux propriétaires de projet, `all`
+à tout le monde ; ils la configurent juste après leur mot de passe à leur prochaine connexion. Une
+personne qui a perdu son téléphone se connecte avec un de ses codes de secours ; s'il ne lui en
+reste plus, un autre administrateur réinitialise sa seconde étape dans *Personnes*, puis elle la
+configure à nouveau. Chaque changement est audité et la personne est prévenue par e-mail.
 
 ## Dépannage
 

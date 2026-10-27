@@ -43,6 +43,26 @@ pub enum Action {
     #[serde(rename = "user.invited")]
     #[sqlx(rename = "user.invited")]
     UserInvited,
+    /// A second sign-in step (authenticator app) was turned on.
+    #[serde(rename = "user.second_step_enabled")]
+    #[sqlx(rename = "user.second_step_enabled")]
+    UserSecondStepEnabled,
+    /// The person turned their second sign-in step off.
+    #[serde(rename = "user.second_step_removed")]
+    #[sqlx(rename = "user.second_step_removed")]
+    UserSecondStepRemoved,
+    /// An administrator removed a person's second sign-in step (lost device).
+    #[serde(rename = "user.second_step_reset")]
+    #[sqlx(rename = "user.second_step_reset")]
+    UserSecondStepReset,
+    /// A recovery code replaced the authenticator code at sign-in; `details.remaining` codes are left.
+    #[serde(rename = "user.recovery_code_used")]
+    #[sqlx(rename = "user.recovery_code_used")]
+    UserRecoveryCodeUsed,
+    /// New recovery codes replaced the previous ones.
+    #[serde(rename = "user.recovery_codes_regenerated")]
+    #[sqlx(rename = "user.recovery_codes_regenerated")]
+    UserRecoveryCodesRegenerated,
     #[serde(rename = "project.created")]
     #[sqlx(rename = "project.created")]
     ProjectCreated,
@@ -168,6 +188,11 @@ impl Action {
             Self::UserPasswordSet => "user.password_set",
             Self::UserPasswordResetRequested => "user.password_reset_requested",
             Self::UserInvited => "user.invited",
+            Self::UserSecondStepEnabled => "user.second_step_enabled",
+            Self::UserSecondStepRemoved => "user.second_step_removed",
+            Self::UserSecondStepReset => "user.second_step_reset",
+            Self::UserRecoveryCodeUsed => "user.recovery_code_used",
+            Self::UserRecoveryCodesRegenerated => "user.recovery_codes_regenerated",
             Self::ProjectCreated => "project.created",
             Self::ProjectUpdated => "project.updated",
             Self::ProjectArchived => "project.archived",
@@ -363,6 +388,11 @@ mod tests {
             Action::UserPasswordSet,
             Action::UserPasswordResetRequested,
             Action::UserInvited,
+            Action::UserSecondStepEnabled,
+            Action::UserSecondStepRemoved,
+            Action::UserSecondStepReset,
+            Action::UserRecoveryCodeUsed,
+            Action::UserRecoveryCodesRegenerated,
             Action::ProjectCreated,
             Action::ProjectUpdated,
             Action::ProjectArchived,

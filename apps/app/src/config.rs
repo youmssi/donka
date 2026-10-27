@@ -59,6 +59,14 @@ pub struct Config {
     /// records until `donka-app decision-log reseal` re-seals them, and never
     /// seal. Secrets, like the current key.
     pub decision_log_previous_keys: Vec<String>,
+    /// Base64 of the 32-byte key second-step secrets are sealed with (DNK-59). A
+    /// secret: without it, nobody with a second step can sign in.
+    pub second_step_key: String,
+    /// Keys second-step secrets were sealed with before a rotation: they still
+    /// open them, and each secret is re-sealed with the current key at its next use.
+    pub second_step_previous_keys: Vec<String>,
+    /// Who must use a second sign-in step (`DONKA_MFA_REQUIRED`).
+    pub mfa_required: MfaRequired,
     /// Decision records older than this are purged.
     pub decision_log_retention_days: u32,
     /// The customer's LLM endpoint that explains logged decisions; `None`
@@ -67,6 +75,15 @@ pub struct Config {
     /// Folder of the packs offered when a project is created (DNK-43), one folder per
     /// pack; none are offered when unset. Projects can still be made from a pack file.
     pub packs_dir: Option<PathBuf>,
+}
+
+/// Who must sign in with a second step (DNK-59). Anyone may turn one on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MfaRequired {
+    None,
+    /// Instance administrators and anyone owning a project.
+    Privileged,
+    All,
 }
 
 /// The web app calls the API here (apps/web `API_BASE`).
@@ -168,19 +185,29 @@ impl Config {
             "DONKA_DECISION_LOG_KEY",
             "is required: 32 random bytes in base64 (e.g. `openssl rand -base64 32`)",
         )?;
-        donka_decision_log::Cipher::from_base64(&decision_log_key)
+        donka_shared::cipher::Cipher::from_base64(&decision_log_key)
             .map_err(|err| invalid("DONKA_DECISION_LOG_KEY", &err.to_string()))?;
-        // Separated by commas, spaces or new lines.
-        let decision_log_previous_keys: Vec<String> = get("DONKA_DECISION_LOG_PREVIOUS_KEYS")
-            .unwrap_or_default()
-            .split(|c: char| c == ',' || c.is_whitespace())
-            .filter(|key| !key.is_empty())
-            .map(str::to_owned)
-            .collect();
-        for key in &decision_log_previous_keys {
-            donka_decision_log::Cipher::from_base64(key)
-                .map_err(|err| invalid("DONKA_DECISION_LOG_PREVIOUS_KEYS", &err.to_string()))?;
-        }
+        let decision_log_previous_keys = previous_keys(&get, "DONKA_DECISION_LOG_PREVIOUS_KEYS")?;
+
+        let second_step_key = required(
+            &get,
+            "DONKA_SECOND_STEP_KEY",
+            "is required: 32 random bytes in base64 (e.g. `openssl rand -base64 32`)",
+        )?;
+        donka_shared::cipher::Cipher::from_base64(&second_step_key)
+            .map_err(|err| invalid("DONKA_SECOND_STEP_KEY", &err.to_string()))?;
+        let second_step_previous_keys = previous_keys(&get, "DONKA_SECOND_STEP_PREVIOUS_KEYS")?;
+        let mfa_required = match get("DONKA_MFA_REQUIRED").as_deref().map(str::trim) {
+            None | Some("") | Some("none") => MfaRequired::None,
+            Some("privileged") => MfaRequired::Privileged,
+            Some("all") => MfaRequired::All,
+            Some(_) => {
+                return Err(invalid(
+                    "DONKA_MFA_REQUIRED",
+                    "must be none, privileged or all",
+                ))
+            }
+        };
 
         let explain = explain_settings(&get)?;
 
@@ -216,6 +243,9 @@ impl Config {
             publish_max_attempts: positive(&get, "DONKA_PUBLISH_MAX_ATTEMPTS")?.unwrap_or(10),
             decision_log_key,
             decision_log_previous_keys,
+            second_step_key,
+            second_step_previous_keys,
+            mfa_required,
             // Five years, a common minimum for credit files.
             decision_log_retention_days: positive(&get, "DONKA_DECISION_LOG_RETENTION_DAYS")?
                 .unwrap_or(1825),
@@ -225,6 +255,25 @@ impl Config {
                 .map(PathBuf::from),
         })
     }
+}
+
+/// Keys used before a rotation, separated by commas, spaces or new lines; each
+/// must be a valid key.
+fn previous_keys(
+    get: &impl Fn(&str) -> Option<String>,
+    var: &'static str,
+) -> Result<Vec<String>, ConfigError> {
+    let keys: Vec<String> = get(var)
+        .unwrap_or_default()
+        .split(|c: char| c == ',' || c.is_whitespace())
+        .filter(|key| !key.is_empty())
+        .map(str::to_owned)
+        .collect();
+    for key in &keys {
+        donka_shared::cipher::Cipher::from_base64(key)
+            .map_err(|err| invalid(var, &err.to_string()))?;
+    }
+    Ok(keys)
 }
 
 /// Explanations are on only when an endpoint is configured; then its key,
@@ -376,7 +425,7 @@ mod tests {
     use super::*;
     use std::collections::HashMap;
 
-    const REQUIRED: [(&str, &str); 5] = [
+    const REQUIRED: [(&str, &str); 6] = [
         ("DATABASE_URL", "postgres://donka@localhost/donka"),
         ("DONKA_SMTP_URL", "smtp://localhost:1025"),
         ("DONKA_SMTP_FROM", "donka@bank.example"),
@@ -384,6 +433,10 @@ mod tests {
         (
             "DONKA_DECISION_LOG_KEY",
             "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+        ),
+        (
+            "DONKA_SECOND_STEP_KEY",
+            "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8=",
         ),
     ];
 
@@ -437,6 +490,45 @@ mod tests {
         );
         let config = load(&[("DONKA_DECISION_LOG_RETENTION_DAYS", "365")]).unwrap();
         assert_eq!(config.decision_log_retention_days, 365);
+    }
+
+    #[test]
+    fn the_second_step_key_is_required_and_checked() {
+        for bad in ["", "too-short", "AAECAwQFBgcICQoLDA0ODw=="] {
+            assert_eq!(
+                load(&[("DONKA_SECOND_STEP_KEY", bad)]).unwrap_err().var,
+                "DONKA_SECOND_STEP_KEY",
+                "{bad}"
+            );
+        }
+        let previous = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=";
+        let config = load(&[("DONKA_SECOND_STEP_PREVIOUS_KEYS", previous)]).unwrap();
+        assert_eq!(config.second_step_previous_keys, vec![previous]);
+        assert_eq!(
+            load(&[("DONKA_SECOND_STEP_PREVIOUS_KEYS", "nope")])
+                .unwrap_err()
+                .var,
+            "DONKA_SECOND_STEP_PREVIOUS_KEYS"
+        );
+    }
+
+    #[test]
+    fn the_second_step_policy_defaults_to_none() {
+        assert_eq!(load(&[]).unwrap().mfa_required, MfaRequired::None);
+        for (value, policy) in [
+            ("none", MfaRequired::None),
+            ("privileged", MfaRequired::Privileged),
+            ("all", MfaRequired::All),
+        ] {
+            assert_eq!(
+                load(&[("DONKA_MFA_REQUIRED", value)]).unwrap().mfa_required,
+                policy
+            );
+        }
+        assert_eq!(
+            load(&[("DONKA_MFA_REQUIRED", "admins")]).unwrap_err().var,
+            "DONKA_MFA_REQUIRED"
+        );
     }
 
     #[test]

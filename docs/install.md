@@ -52,6 +52,8 @@ DONKA_POSTGRES_PASSWORD=<generated>             # openssl rand -hex 24
 DONKA_STORAGE_ACCESS_KEY_ID=donka
 DONKA_STORAGE_SECRET_ACCESS_KEY=<generated>     # openssl rand -hex 24
 DONKA_DECISION_LOG_KEY=<generated>              # openssl rand -base64 32
+DONKA_SECOND_STEP_KEY=<generated>               # openssl rand -base64 32
+DONKA_MFA_REQUIRED=privileged                   # second sign-in step for admins and owners
 DONKA_SMTP_URL=smtp://user:pass@mail.bank.example:587?tls=required
 DONKA_SMTP_FROM=Donka <donka@bank.example>
 ```
@@ -140,7 +142,8 @@ docker compose run --rm -v "$PWD/backups:/backups" --entrypoint sh minio-init -c
 
 Keep `.env` and `runtime.env` in your secret store. **Without `DONKA_DECISION_LOG_KEY` (and,
 after a rotation, the keys in `DONKA_DECISION_LOG_PREVIOUS_KEYS`) the decision log cannot be
-read**, even from a backup.
+read**, even from a backup. **Without `DONKA_SECOND_STEP_KEY` (and its previous keys) nobody
+with a second sign-in step can sign in** after a restore: keep it with the backups too.
 
 Copy the backups off the server and test a restore regularly. To restore, onto a stopped Studio:
 
@@ -222,7 +225,20 @@ Backups taken before the re-seal still hold records sealed with the old key: kee
 with those backups, in your secret store, until they expire. If the key leaked, also restrict
 access to the database and its backups: the key alone does not give access to records.
 
+**Second-step key**: authenticator secrets are sealed with `DONKA_SECOND_STEP_KEY`. To replace
+it, move the current value to `DONKA_SECOND_STEP_PREVIOUS_KEYS`, set the new key and run
+`docker compose up -d app`. Each secret is re-sealed with the new key the next time its owner
+signs in; keep the previous key until everyone with a second step has signed in once (or an
+administrator has reset the steps of those who have not).
+
 **User passwords**: people change theirs with *Forgot your password?* on the sign-in page.
+
+**Two-step sign-in**: anyone can turn it on in *Account*, with any authenticator app (codes of
+six digits that change every 30 seconds). `DONKA_MFA_REQUIRED=privileged` requires it of
+instance administrators and project owners, `all` of everyone; they set it up right after their
+password at their next sign-in. A person who lost their phone signs in with one of their
+recovery codes; if they have none left, another administrator resets their second step in
+*People*, and they set it up again. Each change is audited and the person is told by email.
 
 ## Troubleshooting
 

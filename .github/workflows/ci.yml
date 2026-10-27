@@ -332,6 +332,7 @@ jobs:
           DONKA_STORAGE_REGION=us-east-1 DONKA_STORAGE_ACCESS_KEY_ID=donka \
           DONKA_STORAGE_SECRET_ACCESS_KEY=donka-secret \
           DONKA_DECISION_LOG_KEY=$(openssl rand -base64 32) \
+          DONKA_SECOND_STEP_KEY=$(openssl rand -base64 32) \
             nohup target/debug/donka-app > studio.log 2>&1 &
           for _ in $(seq 1 60); do
             curl -sf localhost:8181/api/v1/health >/dev/null && exit 0

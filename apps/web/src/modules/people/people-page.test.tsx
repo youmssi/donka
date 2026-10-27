@@ -6,11 +6,22 @@ import { search } from '@/test/navigation-mock';
 import { renderWithProviders } from '@/test/render';
 
 import { PeoplePage } from './people-page';
-import { invite, listAccounts } from './people.service';
+import { invite, listAccounts, resetSecondStep } from './people.service';
 
-vi.mock('./people.service', () => ({ listAccounts: vi.fn(), invite: vi.fn(), PAGE_SIZE: 50 }));
+vi.mock('./people.service', () => ({
+  listAccounts: vi.fn(),
+  invite: vi.fn(),
+  resetSecondStep: vi.fn(),
+  PAGE_SIZE: 50,
+}));
 const listMock = vi.mocked(listAccounts);
 const inviteMock = vi.mocked(invite);
+const resetMock = vi.mocked(resetSecondStep);
+
+// Signed in as an administrator who is not one of the listed people.
+vi.mock('@/modules/identity', () => ({
+  useCurrentUser: () => ({ id: 'u-9', email: 'alan@bank.example', isAdmin: true, locale: 'en' }),
+}));
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -21,6 +32,7 @@ const accounts = [
     isAdmin: true,
     locale: 'en' as const,
     active: true,
+    secondStep: true,
     createdAt: '2026-09-28T09:00:00Z',
   },
   {
@@ -29,6 +41,7 @@ const accounts = [
     isAdmin: false,
     locale: 'fr' as const,
     active: false,
+    secondStep: false,
     createdAt: '2026-09-28T10:00:00Z',
   },
 ];
@@ -98,4 +111,21 @@ it('explains the page is for administrators', async () => {
   renderWithProviders(<PeoplePage />);
   expect(await screen.findByText('Only administrators see this page')).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Invite a person' })).not.toBeInTheDocument();
+});
+
+it('shows who has two-step sign-in and lets an administrator reset it', async () => {
+  listMock.mockResolvedValue({ ok: true, data: { items: accounts, total: 2 } });
+  resetMock.mockResolvedValue({ ok: true, data: null });
+  renderWithProviders(<PeoplePage />);
+  expect(await screen.findByText('grace@bank.example')).toBeInTheDocument();
+  const [, ada, grace] = within(screen.getByRole('table', { name: 'People' })).getAllByRole('row');
+  expect(ada).toHaveTextContent('On');
+  expect(grace).toHaveTextContent('Off');
+
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: 'Reset two-step sign-in for ada@bank.example' }));
+  expect(await screen.findByText('Reset two-step sign-in for ada@bank.example?')).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Reset two-step sign-in' }));
+  expect(resetMock).toHaveBeenCalledWith('u-1');
+  expect(toast.success).toHaveBeenCalledWith('Two-step sign-in reset for ada@bank.example.');
 });

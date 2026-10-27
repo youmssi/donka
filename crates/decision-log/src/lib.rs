@@ -26,10 +26,9 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 use uuid::Uuid;
 
-pub mod cipher;
 mod feed;
 
-pub use cipher::{Cipher, CipherError};
+pub use donka_shared::cipher::{Cipher, CipherError};
 use feed::FeedRecord;
 pub use feed::{Payload, Rejection, Status, MAX_TEXT_CHARS};
 
@@ -673,7 +672,7 @@ impl DecisionLog {
         tx.commit().await?;
         let plaintext = self.cipher.open(
             id,
-            &cipher::Sealed {
+            &donka_shared::cipher::Sealed {
                 key_id: record.key_id.clone(),
                 nonce: record.nonce.clone(),
                 ciphertext: record.payload.clone(),
@@ -833,7 +832,7 @@ impl DecisionLog {
             let (id, key_id) = (row.id, row.key_id);
             let plaintext = self.cipher.open(
                 id,
-                &cipher::Sealed {
+                &donka_shared::cipher::Sealed {
                     key_id: key_id.clone(),
                     nonce: row.nonce,
                     ciphertext: row.payload,

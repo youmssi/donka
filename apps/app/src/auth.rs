@@ -9,6 +9,10 @@ use axum::response::{IntoResponse, Response};
 use donka_identity::User;
 
 pub const SESSION_COOKIE: &str = "donka_session";
+/// Holds a correct password step until the second step is done (DNK-59).
+pub const PENDING_COOKIE: &str = "donka_pending";
+/// The second step must follow the password within this many seconds.
+const PENDING_MAX_AGE_SECONDS: i64 = 300;
 
 /// State-changing requests must carry this header. Browsers cannot add a custom
 /// header to a cross-site request without a CORS preflight, which Studio never
@@ -31,10 +35,23 @@ impl CookieSettings {
         self.build("", 0)
     }
 
+    /// Strict: the password step is never carried by a request from another site.
+    pub fn pending(&self, token: &str) -> HeaderValue {
+        self.cookie(PENDING_COOKIE, token, "Strict", PENDING_MAX_AGE_SECONDS)
+    }
+
+    pub fn clear_pending(&self) -> HeaderValue {
+        self.cookie(PENDING_COOKIE, "", "Strict", 0)
+    }
+
     fn build(&self, value: &str, max_age: i64) -> HeaderValue {
+        self.cookie(SESSION_COOKIE, value, "Lax", max_age)
+    }
+
+    fn cookie(&self, name: &str, value: &str, same_site: &str, max_age: i64) -> HeaderValue {
         let secure = if self.secure { "; Secure" } else { "" };
         let cookie = format!(
-            "{SESSION_COOKIE}={value}; Path=/; HttpOnly; SameSite=Lax; Max-Age={max_age}{secure}"
+            "{name}={value}; Path=/; HttpOnly; SameSite={same_site}; Max-Age={max_age}{secure}"
         );
         // Tokens are URL-safe base64, so the value is always a valid header.
         HeaderValue::from_str(&cookie).unwrap_or_else(|_| HeaderValue::from_static(""))
@@ -43,13 +60,22 @@ impl CookieSettings {
 
 /// The session token sent by the browser, if any.
 pub fn session_token(headers: &HeaderMap) -> Option<&str> {
+    cookie_value(headers, SESSION_COOKIE)
+}
+
+/// The pending sign-in token sent by the browser, if any.
+pub fn pending_token(headers: &HeaderMap) -> Option<&str> {
+    cookie_value(headers, PENDING_COOKIE)
+}
+
+fn cookie_value<'a>(headers: &'a HeaderMap, cookie: &str) -> Option<&'a str> {
     headers
         .get_all(header::COOKIE)
         .iter()
         .filter_map(|value| value.to_str().ok())
         .flat_map(|cookies| cookies.split(';'))
         .filter_map(|pair| pair.trim().split_once('='))
-        .find(|(name, _)| *name == SESSION_COOKIE)
+        .find(|(name, _)| *name == cookie)
         .map(|(_, value)| value)
         .filter(|value| !value.is_empty())
 }

@@ -14,8 +14,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Link, useRouter } from '@/i18n/navigation';
 
 import { safeNext } from './safe-next';
-import { signInSchema, type SignInValues } from './schema';
-import { useSession, useSignIn } from './useSession';
+import { signInSchema, type SignInValues, type User } from './schema';
+import { CodeForm, EnrolmentSteps, RecoveryCodes } from './second-step';
+import {
+  useCompleteSignIn,
+  useConfirmSignInEnrolment,
+  useFinishSignIn,
+  useSession,
+  useSignIn,
+  useStartSignInEnrolment,
+} from './useSession';
+
+/** Where a sign-in stands: the password, then a second step when the account has or needs one. */
+type Step =
+  { kind: 'password' } | { kind: 'code' } | { kind: 'enrol' } | { kind: 'codes'; user: User; codes: string[] };
 
 export function SignInForm() {
   const t = useTranslations('signIn');
@@ -25,6 +37,7 @@ export function SignInForm() {
   const session = useSession();
   const signIn = useSignIn();
   const [error, setError] = useState<ActionError | null>(null);
+  const [step, setStep] = useState<Step>({ kind: 'password' });
 
   const signedIn = session.data?.ok === true && session.data.data !== null;
   useEffect(() => {
@@ -38,10 +51,19 @@ export function SignInForm() {
       setError(null);
       const result = await signIn.mutateAsync(value);
       if (!result.ok) setError(result.error);
+      else if (result.data.step !== 'signedIn') setStep({ kind: result.data.step });
     },
   });
 
+  /** The password step expired or was refused: start over with a message. */
+  function restart(expired: ActionError) {
+    setStep({ kind: 'password' });
+    form.setFieldValue('password', '');
+    setError(expired);
+  }
+
   if (session.isPending || signedIn) return <PageSkeleton />;
+  if (step.kind !== 'password') return <SecondStepCard step={step} onStep={setStep} onExpired={restart} />;
 
   return (
     <Card>
@@ -80,6 +102,78 @@ export function SignInForm() {
             </Link>
           </form.Form>
         </form.AppForm>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SecondStepCard({
+  step,
+  onStep,
+  onExpired,
+}: {
+  step: Exclude<Step, { kind: 'password' }>;
+  onStep: (step: Step) => void;
+  onExpired: (error: ActionError) => void;
+}) {
+  const t = useTranslations('secondStep');
+  const complete = useCompleteSignIn();
+  const startEnrolment = useStartSignInEnrolment();
+  const confirmEnrolment = useConfirmSignInEnrolment();
+  const finish = useFinishSignIn();
+
+  const title = { code: t('signInTitle'), enrol: t('enrolTitle'), codes: t('codesTitle') }[step.kind];
+  const description = {
+    code: t('signInDescription'),
+    enrol: t('enrolRequiredDescription'),
+    codes: t('codesDescription'),
+  }[step.kind];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        {step.kind === 'code' ? (
+          <CodeForm
+            recovery
+            submitLabel={t('verify')}
+            submit={async (values) => {
+              const result = await complete.mutateAsync(values);
+              if (result.ok) return null;
+              if (result.error.code === 'SIGN_IN_EXPIRED') onExpired(result.error);
+              // The server answers a wrong code like a wrong password (no hint about a
+              // lockout); at this step the person only typed a code, so say that.
+              return result.error.code === 'INVALID_CREDENTIALS'
+                ? { ...result.error, code: 'INVALID_CODE' }
+                : result.error;
+            }}
+          />
+        ) : null}
+        {step.kind === 'enrol' ? (
+          <EnrolmentSteps
+            start={async () => {
+              const result = await startEnrolment.mutateAsync();
+              if (!result.ok && result.error.code === 'SIGN_IN_EXPIRED') onExpired(result.error);
+              return result;
+            }}
+            confirm={async (values) => {
+              const result = await confirmEnrolment.mutateAsync(values);
+              if (!result.ok) {
+                if (result.error.code === 'SIGN_IN_EXPIRED') onExpired(result.error);
+                return result;
+              }
+              onStep({ kind: 'codes', user: result.data.user, codes: result.data.recoveryCodes });
+              return { ok: true, data: result.data.recoveryCodes };
+            }}
+            onConfirmed={() => undefined}
+          />
+        ) : null}
+        {step.kind === 'codes' ? (
+          <RecoveryCodes codes={step.codes} doneLabel={t('continue')} onDone={() => finish(step.user)} />
+        ) : null}
       </CardContent>
     </Card>
   );

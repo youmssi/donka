@@ -43,6 +43,10 @@
           },
           "locale": {
             "$ref": "#/components/schemas/Locale"
+          },
+          "secondStep": {
+            "description": "The person has turned on a second sign-in step (DNK-59).",
+            "type": "boolean"
           }
         },
         "required": [
@@ -51,6 +55,7 @@
           "isAdmin",
           "locale",
           "active",
+          "secondStep",
           "createdAt"
         ],
         "type": "object"
@@ -64,6 +69,11 @@
           "user.password_set",
           "user.password_reset_requested",
           "user.invited",
+          "user.second_step_enabled",
+          "user.second_step_removed",
+          "user.second_step_reset",
+          "user.recovery_code_used",
+          "user.recovery_codes_regenerated",
           "project.created",
           "project.updated",
           "project.archived",
@@ -438,6 +448,18 @@
           "hint",
           "createdAt",
           "createdBy"
+        ],
+        "type": "object"
+      },
+      "CodeRequest": {
+        "properties": {
+          "code": {
+            "description": "Six digits from the authenticator app, or a recovery code.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
         ],
         "type": "object"
       },
@@ -1017,6 +1039,42 @@
         ],
         "type": "object"
       },
+      "EnrolledResponse": {
+        "properties": {
+          "recoveryCodes": {
+            "description": "Shown once; each works once instead of a code.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserResponse"
+          }
+        },
+        "required": [
+          "user",
+          "recoveryCodes"
+        ],
+        "type": "object"
+      },
+      "EnrolmentResponse": {
+        "properties": {
+          "key": {
+            "description": "The key to type into the authenticator app (base32).",
+            "type": "string"
+          },
+          "otpauthUrl": {
+            "description": "The same key as an `otpauth://` URL, to show as a QR code.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "otpauthUrl"
+        ],
+        "type": "object"
+      },
       "EnvironmentListResponse": {
         "properties": {
           "items": {
@@ -1517,6 +1575,14 @@
         ],
         "type": "object"
       },
+      "NextStep": {
+        "description": "The step that follows a correct password.",
+        "enum": [
+          "code",
+          "enrol"
+        ],
+        "type": "string"
+      },
       "NextVersionsResponse": {
         "description": "The version each bump would give the next release.",
         "properties": {
@@ -1906,6 +1972,21 @@
           "releaseId",
           "evaluatedAt",
           "durationUs"
+        ],
+        "type": "object"
+      },
+      "RecoveryCodesResponse": {
+        "properties": {
+          "recoveryCodes": {
+            "description": "Shown once; each works once instead of a code.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "recoveryCodes"
         ],
         "type": "object"
       },
@@ -2319,6 +2400,38 @@
           "createdBy",
           "updatedAt",
           "updatedBy"
+        ],
+        "type": "object"
+      },
+      "SecondStepResponse": {
+        "properties": {
+          "next": {
+            "$ref": "#/components/schemas/NextStep"
+          }
+        },
+        "required": [
+          "next"
+        ],
+        "type": "object"
+      },
+      "SecondStepStatusResponse": {
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "recoveryCodesLeft": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "required": {
+            "description": "Policy requires a second step of this person: it cannot be turned off.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled",
+          "required",
+          "recoveryCodesLeft"
         ],
         "type": "object"
       },
@@ -3002,6 +3115,254 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/account/second-step": {
+      "get": {
+        "operationId": "status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecondStepStatusResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not signed in (UNAUTHENTICATED)"
+          }
+        },
+        "summary": "Whether the signed-in person has a second step, and whether policy requires one.",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/account/second-step/disable": {
+      "post": {
+        "operationId": "disable",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CodeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Turned off"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Wrong code (INVALID_CODE)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not signed in (UNAUTHENTICATED)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Already off (SECOND_STEP_OFF) or required by policy (SECOND_STEP_REQUIRED)"
+          }
+        },
+        "summary": "Turns the person's second step off with an authenticator or recovery code.",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/account/second-step/enrolment": {
+      "post": {
+        "operationId": "begin_enrolment",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrolmentResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not signed in (UNAUTHENTICATED)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Already on (SECOND_STEP_ALREADY_ON)"
+          }
+        },
+        "summary": "Starts setting up a second step. Starting again replaces the key not yet confirmed.",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/account/second-step/enrolment/confirm": {
+      "post": {
+        "operationId": "confirm_enrolment",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CodeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryCodesResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Wrong code (INVALID_CODE)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not signed in (UNAUTHENTICATED)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Already on (SECOND_STEP_ALREADY_ON) or no enrolment started (SECOND_STEP_OFF)"
+          }
+        },
+        "summary": "Turns the second step on with a first valid code; returns the recovery codes.",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/account/second-step/recovery-codes": {
+      "post": {
+        "operationId": "regenerate_recovery_codes",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CodeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryCodesResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Wrong code (INVALID_CODE)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not signed in (UNAUTHENTICATED)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Two-step sign-in is off (SECOND_STEP_OFF)"
+          }
+        },
+        "summary": "Replaces the recovery codes; needs a current authenticator code.",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
     "/auth/me": {
       "get": {
         "operationId": "me",
@@ -3135,6 +3496,16 @@
             },
             "description": "Signed in; the session cookie is set"
           },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecondStepResponse"
+                }
+              }
+            },
+            "description": "Password accepted; the second step comes next (the pending cookie is set)"
+          },
           "401": {
             "content": {
               "application/json": {
@@ -3166,7 +3537,160 @@
             "description": "Too many sign-in attempts from this address (RATE_LIMITED); `Retry-After` says when to try again"
           }
         },
-        "summary": "Signs in and sets the httpOnly session cookie.",
+        "summary": "Checks the password. Without a second step the session opens (200); with one,\nor when policy requires one the account lacks, it answers 202 with the next\nstep and a short-lived cookie that holds the password step.",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/auth/sign-in/code": {
+      "post": {
+        "operationId": "sign_in_code",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CodeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            },
+            "description": "Signed in; the session cookie is set"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Wrong code or locked account (INVALID_CREDENTIALS); no password step or it expired (SIGN_IN_EXPIRED)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Too many attempts from this address (RATE_LIMITED)"
+          }
+        },
+        "summary": "Finishes a sign-in with an authenticator code or a recovery code. A wrong\ncode counts towards the account lockout, like a wrong password.",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/auth/sign-in/enrolment": {
+      "post": {
+        "operationId": "sign_in_enrolment",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrolmentResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "No password step, or it expired (SIGN_IN_EXPIRED)"
+          }
+        },
+        "summary": "Starts setting up a second step when policy holds the sign-in until there is one.",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/auth/sign-in/enrolment/confirm": {
+      "post": {
+        "operationId": "sign_in_enrolment_confirm",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CodeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrolledResponse"
+                }
+              }
+            },
+            "description": "Signed in; the session cookie is set; recovery codes shown once"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Wrong code (INVALID_CODE)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "No password step, or it expired (SIGN_IN_EXPIRED)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "No enrolment started (SECOND_STEP_OFF)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Too many attempts from this address (RATE_LIMITED)"
+          }
+        },
+        "summary": "Turns the second step on with a first valid code and opens the session.",
         "tags": [
           "identity"
         ]
@@ -8267,6 +8791,62 @@
           }
         },
         "summary": "Invites a person by email (administrators only). Inviting someone who has not\naccepted yet sends a new link and revokes the previous one.",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/users/{user_id}/second-step/reset": {
+      "post": {
+        "operationId": "reset",
+        "parameters": [
+          {
+            "description": "The person whose second step to reset",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Reset; the person is signed out everywhere"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not signed in (UNAUTHENTICATED)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not an administrator, or one's own account (FORBIDDEN)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The person has no second step (SECOND_STEP_OFF)"
+          }
+        },
+        "summary": "An administrator removes another person's second step (lost device) and\nsigns them out. They are told by email.",
         "tags": [
           "identity"
         ]

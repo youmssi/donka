@@ -18,3 +18,11 @@ export function invite(values: InviteValues): Promise<ActionResult<InvitedUser>>
     return response.ok ? success(await response.json<InvitedUser>()) : failure(response);
   });
 }
+
+/** Removes another person's second sign-in step (lost device) and signs them out. */
+export function resetSecondStep(userId: string): Promise<ActionResult<null>> {
+  return attempt(async () => {
+    const response = await http.post(`users/${userId}/second-step/reset`);
+    return response.ok ? success(null) : failure(response);
+  });
+}

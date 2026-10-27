@@ -60,6 +60,8 @@ pub struct AccountResponse {
     pub locale: Locale,
     /// False while the invitation is pending (no password chosen yet).
     pub active: bool,
+    /// The person has turned on a second sign-in step (DNK-59).
+    pub second_step: bool,
     pub created_at: DateTime<Utc>,
 }
 
@@ -71,6 +73,7 @@ impl From<Account> for AccountResponse {
             is_admin: account.is_admin,
             locale: account.locale,
             active: account.active,
+            second_step: account.second_step,
             created_at: account.created_at,
         }
     }

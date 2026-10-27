@@ -1106,6 +1106,7 @@ the current Studio workflow does not enforce them. Audit the other repos before 
 #### Acceptance criteria
 - [ ] Fresh install and post-deploy smoke checks pass in an isolated environment, including importing an exported pack from the source installation
 - [ ] Database, release bucket and required secrets restore together; rule versions, approvals and encrypted decision records remain usable
+- [ ] A person with a second sign-in step signs in after the restore: the rehearsal restores `DONKA_SECOND_STEP_KEY` with the database (added 2026-10-27, DNK-59)
 - [ ] Upgrade and recovery follow the documented order and migrations; the original development stack is preserved
 - [ ] Live browser and Studio-to-Runtime checks prove the restored/upgraded system works
 - [ ] EN/FR operations guides reflect the exercised procedure and any remaining customer decisions
@@ -1218,15 +1219,15 @@ Confirmed 2026-10-25, before the pilot:
 | People (admin) | Invite, resend | Shows who has a second step; resets one |
 
 #### Acceptance criteria
-- [ ] Enrolment shows a QR code and the key as text, and completes only after a valid code; recovery codes are shown once
-- [ ] Sign-in asks for the code after the password; the password step alone opens no session; the pending step expires and is single-use
-- [ ] Wrong codes count towards the existing lockout; answers stay generic; a code already used is refused
-- [ ] A recovery code signs in once; regenerating codes invalidates the old ones
-- [ ] The configured policy forces enrolment for the people it covers; `none` keeps today's sign-in
-- [ ] An administrator's reset, enrolment, removal and recovery-code use are audited and send the person a notice email (EN/FR)
-- [ ] Secrets survive key rotation; the backup/restore rehearsal (DNK-50) includes the key
-- [ ] Runtime, decision-log and CI tokens are unaffected
-- [ ] Strings in English and French; integration tests and a live Playwright journey cover each criterion above
+- [x] Enrolment shows a QR code and the key as text, and completes only after a valid code; recovery codes are shown once
+- [x] Sign-in asks for the code after the password; the password step alone opens no session; the pending step expires and is single-use
+- [x] Wrong codes count towards the existing lockout; answers stay generic; a code already used is refused
+- [x] A recovery code signs in once; regenerating codes invalidates the old ones
+- [x] The configured policy forces enrolment for the people it covers; `none` keeps today's sign-in
+- [x] An administrator's reset, enrolment, removal and recovery-code use are audited and send the person a notice email (EN/FR)
+- [x] Secrets survive key rotation; the backup/restore rehearsal (DNK-50) includes the key
+- [x] Runtime, decision-log and CI tokens are unaffected
+- [x] Strings in English and French; integration tests and a live Playwright journey cover each criterion above
 
 #### Out of scope
 Passkeys/WebAuthn (later, `webauthn-rs`); single sign-on (DNK-60); SMS or email codes.
