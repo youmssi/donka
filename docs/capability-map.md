@@ -48,6 +48,9 @@ Status: **Done** · **P1**, **P2**, **P3** (phase) · **Later** (candidate, not 
 | Repayment performance: default rate by band, Gini/KS in production | Later | Needs labelled outcomes from the core banking system |
 | Shadow evaluation, then champion/challenger | Later | Needs repayment performance first |
 | Field capture tied to the decision contract | Done (contracts, CLI) · P2 (Fieldkit) | DNK-37, DNK-38, Fieldkit baseline, DNK-72 |
+| Public pre-qualification without documents | P2 | DNK-80 |
+| Intake queue: assignment, call log, overdue alerts | P2 | DNK-81 (first slice of the Case Tracker) |
+| Verified evaluation, declared-versus-verified gaps, screening gate, overrides | P2 | DNK-82 |
 
 ## Security, privacy and compliance
 

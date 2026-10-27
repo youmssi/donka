@@ -9,6 +9,8 @@ story also carries the standing criteria of Stage 1, including live browser veri
 Order agreed 2026-10-25 for these candidates: DNK-60, DNK-56, DNK-57, then DNK-58 once the
 playground story exists. DNK-61 is a separate repository and runs in parallel. DNK-70 and
 DNK-71 are agreed candidates without a fixed slot; DNK-72 is scoped with the Fieldkit story.
+DNK-80, DNK-81 and DNK-82, recorded 2026-10-27 from the first bank pilot's requirements, follow
+the Fieldkit story in that order.
 
 ---
 
@@ -283,6 +285,72 @@ approved it. The data exists; the document does not.
 #### Acceptance criteria
 - [ ] A release exports as a PDF (EN/FR): decisions, tables, expressions and contract in readable form, with version history, approvals and test results
 - [ ] The export is audited and states the release, environment and date it describes
+
+---
+
+### DNK-80 — Pre-qualification on the lender's website, without documents
+
+**Type:** feature · **Repos:** Fieldkit, S, R · **Dependencies:** the Phase 2 Fieldkit story, DNK-37 (merged) · **Size:** L
+
+#### Why
+The first bank pilot (Afriland First Bank Guinée, project "Niami") wants applicants to learn
+in a minute whether they are likely eligible, instead of after several branch visits. Asking
+anonymous visitors for identity documents online raises fraud, consent and retention risks the
+bank does not want, so the portal collects declarations only and the branch verifies them.
+
+#### Decisions
+Recorded 2026-10-27 from the pilot requirements (cahier des charges v3.0, PQ-01 to PQ-10,
+SE-01, SE-02, DO-03). Phase 2, in the agreed order; not pulled into Phase 1.
+
+#### Acceptance criteria
+- [ ] A public Fieldkit form, per product, renders from the release's input contract with band answers and conditional questions; it accepts no file upload and no identity or account number
+- [ ] The result is favourable, to review or unfavourable, labelled non-binding, with the documents to bring and an optional indicative cost
+- [ ] An unfavourable result is worded neutrally; a reason flagged as confidential in the contract (for example anti-money-laundering) is never shown
+- [ ] Each submission gets a reference code; a phone number for a call back is stored only after explicit, timestamped consent and is erased after a configurable delay when no file is opened
+- [ ] The public form runs in an exposed zone separate from Studio and the Runtime's internal API, with request limits and bot protection; a deployment guide shows the network layout
+
+---
+
+### DNK-81 — Branch staff see and follow up pre-qualified requests
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-80 · **Size:** M
+
+#### Why
+Pre-qualification only helps if an account officer calls the applicant back quickly. The bank
+needs a live list of requests, who owns each one and how long it has waited. This is the first
+slice of the Phase 3 Case Tracker, limited to intake.
+
+#### Decisions
+Recorded 2026-10-27 from the pilot requirements (CA-01 to CA-05, CA-10, NO-01). Phase 2.
+Analysis, committee, minutes and disbursement stay in the bank's existing process.
+
+#### Acceptance criteria
+- [ ] Staff see pre-qualified requests in real time, filtered by product, branch, result, status and age
+- [ ] A request is assigned manually or by a configurable rule (branch, product), and each call is logged with date, outcome and next appointment
+- [ ] Statuses are pre-qualified, contacted, in verification, complete and sent on, abandoned, not eligible
+- [ ] Requests not contacted within the target delay are flagged and the owner is emailed
+
+---
+
+### DNK-82 — Verified evaluation and declared-versus-verified gaps
+
+**Type:** feature · **Repos:** S, R · **Dependencies:** DNK-81, DNK-63 · **Size:** M
+
+#### Why
+At the branch the officer checks documents and core banking data. The decision must run again on
+verified values, and any gap with what the applicant declared online is a fraud and quality
+signal the bank wants to keep.
+
+#### Decisions
+Recorded 2026-10-27 from the pilot requirements (CA-06 to CA-09, CR-01, CR-02, AV-03). Phase 2.
+
+#### Acceptance criteria
+- [ ] The officer finds a customer in the core banking system by customer number and the known fields prefill
+- [ ] A product checklist records each document with its expiry date
+- [ ] The release evaluates the verified values; declared and verified values show side by side and gaps above a configurable threshold send the request to review
+- [ ] A screening step (sanctions, politically exposed persons) through the bank's connector runs before the evaluation; a hit blocks it and routes to compliance without telling the applicant
+- [ ] An override needs a reason and, when configured, a second person
+- [ ] A pre-assessment sheet (data, result per criterion, release, documents) exports to PDF
 
 ---
 
