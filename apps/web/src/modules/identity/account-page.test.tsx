@@ -32,7 +32,9 @@ beforeEach(() => {
 });
 
 it('turns two-step sign-in on and shows the recovery codes once', async () => {
-  statusMock.mockResolvedValue({ ok: true, data: { enabled: false, required: false, recoveryCodesLeft: 0 } });
+  statusMock.mockResolvedValueOnce({ ok: true, data: { enabled: false, required: false, recoveryCodesLeft: 0 } });
+  // Any later read of the status says it is on, as the server would.
+  statusMock.mockResolvedValue({ ok: true, data: { enabled: true, required: false, recoveryCodesLeft: 10 } });
   vi.mocked(startEnrolment).mockResolvedValue({
     ok: true,
     data: { key: 'JBSWY3DPEHPK3PXP', otpauthUrl: 'otpauth://totp/Donka:ada?secret=JBSWY3DPEHPK3PXP' },
@@ -47,7 +49,13 @@ it('turns two-step sign-in on and shows the recovery codes once', async () => {
   await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Turn on' }));
   await waitFor(() => expect(confirmEnrolment).toHaveBeenCalledWith({ code: '123456' }));
   expect(await screen.findByText('ABCD-EFGH-JK09')).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Done' })).toBeDisabled();
+  const done = screen.getByRole('button', { name: 'Done' });
+  expect(done).toBeDisabled();
+  // The codes stay on screen until the person says they saved them.
+  await user.click(screen.getByLabelText('I have saved my recovery codes'));
+  expect(screen.getByText('ABCD-EFGH-JK09')).toBeInTheDocument();
+  await user.click(done);
+  expect(await screen.findByText('10 recovery codes left.')).toBeInTheDocument();
 });
 
 it('cannot turn off a second step the organisation requires', async () => {

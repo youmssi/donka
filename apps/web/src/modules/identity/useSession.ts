@@ -78,8 +78,17 @@ function useSecondStepMutation<T>(fn: (values: CodeValues) => Promise<T>) {
   });
 }
 
+/**
+ * Not refreshed on success: the status would turn "on" and replace the dialog
+ * that is showing the recovery codes. Call `useRefreshSecondStep` once they are saved.
+ */
 export function useConfirmEnrolment() {
-  return useSecondStepMutation(confirmEnrolment);
+  return useMutation({ mutationFn: (values: CodeValues) => confirmEnrolment(values) });
+}
+
+export function useRefreshSecondStep() {
+  const queryClient = useQueryClient();
+  return () => void queryClient.invalidateQueries({ queryKey: SECOND_STEP_KEY });
 }
 
 export function useRegenerateRecoveryCodes() {

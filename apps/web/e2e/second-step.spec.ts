@@ -42,10 +42,10 @@ test('a person turns on two-step sign-in, signs in with a recovery code and is r
   expect(key).toMatch(/^[A-Z2-7]{32}$/);
   await dialog.getByLabel(m.secondStep.code, { exact: true }).fill(totp(key));
   await dialog.getByRole('button', { name: m.secondStep.turnOn, exact: true }).click();
-  const codes = (
-    await dialog.getByRole('list', { name: m.secondStep.codesLabel }).getByRole('listitem').allInnerTexts()
-  ).map((code) => code.trim());
-  expect(codes).toHaveLength(10);
+  // The codes replace the setup form once the server confirms; wait for all ten.
+  const items = dialog.getByRole('list', { name: m.secondStep.codesLabel }).getByRole('listitem');
+  await expect(items).toHaveCount(10);
+  const codes = (await items.allInnerTexts()).map((code) => code.trim());
   const done = dialog.getByRole('button', { name: m.secondStep.done, exact: true });
   await expect(done).toBeDisabled();
   await dialog.getByLabel(m.secondStep.codesSaved, { exact: true }).check();

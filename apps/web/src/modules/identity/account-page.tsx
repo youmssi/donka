@@ -24,7 +24,13 @@ import { startEnrolment } from './identity.service';
 import type { SecondStepStatus } from './schema';
 import { CodeForm, EnrolmentSteps, RecoveryCodes } from './second-step';
 import { useCurrentUser } from './signed-in-frame';
-import { useConfirmEnrolment, useDisableSecondStep, useRegenerateRecoveryCodes, useSecondStep } from './useSession';
+import {
+  useConfirmEnrolment,
+  useDisableSecondStep,
+  useRefreshSecondStep,
+  useRegenerateRecoveryCodes,
+  useSecondStep,
+} from './useSession';
 
 /** The signed-in person's own settings: for now, two-step sign-in (DNK-59). */
 export function AccountPage() {
@@ -106,6 +112,7 @@ function StatusText({ status }: { status: SecondStepStatus }) {
 function EnableDialog() {
   const t = useTranslations('secondStep');
   const confirm = useConfirmEnrolment();
+  const refresh = useRefreshSecondStep();
   const [open, setOpen] = useState(false);
   const [codes, setCodes] = useState<string[] | null>(null);
 
@@ -142,6 +149,7 @@ function EnableDialog() {
             onDone={() => {
               setCodes(null);
               setOpen(false);
+              refresh();
               toast.success(t('enabled'));
             }}
           />
