@@ -1,13 +1,13 @@
-//! Encryption at rest of what a decision read and answered.
+//! Encryption at rest with key rotation (DNK-40).
 //!
-//! AES-256-GCM with a fresh random nonce per record, and the record id as
-//! associated data: a payload copied onto another record does not decrypt.
-//! New records are sealed with `DONKA_DECISION_LOG_KEY`. Each record names the
-//! key it was sealed with (`key_id`, the start of the key's SHA-256), so after a
-//! rotation (DNK-40) the keys listed in `DONKA_DECISION_LOG_PREVIOUS_KEYS` still
-//! open the records sealed before, until they are re-sealed. Losing a key still
-//! in use makes its records unreadable: keys belong in the installation's
-//! secret store.
+//! AES-256-GCM with a fresh random nonce per value, and the owning row's id as
+//! associated data: a payload copied onto another row does not decrypt. New
+//! values are sealed with the current key. Each value names the key it was
+//! sealed with (`key_id`, the start of the key's SHA-256), so after a rotation
+//! the previous keys still open the values sealed before, until they are
+//! re-sealed. Losing a key still in use makes its values unreadable: keys belong
+//! in the installation's secret store. Used by the decision log and by second
+//! sign-in steps.
 
 use aes_gcm::aead::{Aead, KeyInit, Payload};
 use aes_gcm::{Aes256Gcm, Key, Nonce};
@@ -32,7 +32,7 @@ pub enum CipherError {
     Corrupt,
 }
 
-/// A record's payload, sealed.
+/// A value, sealed.
 #[derive(Debug, Clone)]
 pub struct Sealed {
     pub key_id: String,
@@ -75,7 +75,7 @@ fn decode(key: &str) -> Result<(String, Aes256Gcm), CipherError> {
 }
 
 impl Cipher {
-    /// From the base64 value of `DONKA_DECISION_LOG_KEY`.
+    /// From the base64 value of a key setting (e.g. `DONKA_DECISION_LOG_KEY`).
     pub fn from_base64(key: &str) -> Result<Self, CipherError> {
         let (key_id, aead) = decode(key)?;
         Ok(Self {
@@ -84,8 +84,8 @@ impl Cipher {
         })
     }
 
-    /// Adds the keys of `DONKA_DECISION_LOG_PREVIOUS_KEYS`: they open the records
-    /// sealed with them, and never seal.
+    /// Adds previous keys (e.g. `DONKA_DECISION_LOG_PREVIOUS_KEYS`): they open the
+    /// values sealed with them, and never seal.
     pub fn with_previous<'a>(
         mut self,
         keys: impl IntoIterator<Item = &'a str>,

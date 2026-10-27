@@ -29,7 +29,8 @@
     "hidePassword": "Masquer le mot de passe",
     "copyToken": "Copier le jeton",
     "tokenCopied": "Jeton copié.",
-    "tokenCopyFailed": "La copie a échoué. Sélectionnez le jeton et copiez-le."
+    "tokenCopyFailed": "La copie a échoué. Sélectionnez le jeton et copiez-le.",
+    "accountSettings": "Compte"
   },
   "errors": {
     "INVALID_CREDENTIALS": "L'e-mail ou le mot de passe est incorrect.",
@@ -83,7 +84,12 @@
     "INVALID_CONTRACT": "Les champs d'entrée ne sont pas utilisables en l'état. Corrigez-les dans Champs d'entrée, puis enregistrez de nouveau la version.",
     "INVALID_PACK": "Ce pack n'est pas utilisable.",
     "PACK_TOO_LARGE": "Un fichier pack fait 5 Mo au plus.",
-    "PACK_NOT_FOUND": "Cette installation ne propose plus ce pack."
+    "PACK_NOT_FOUND": "Cette installation ne propose plus ce pack.",
+    "SIGN_IN_EXPIRED": "Cette connexion a expiré. Saisissez à nouveau votre e-mail et votre mot de passe.",
+    "INVALID_CODE": "Ce code n'est pas valide. Utilisez le code actuel de votre application d'authentification.",
+    "SECOND_STEP_ALREADY_ON": "La connexion en deux étapes est déjà activée sur ce compte.",
+    "SECOND_STEP_OFF": "La connexion en deux étapes n'est pas activée sur ce compte.",
+    "SECOND_STEP_REQUIRED": "Votre organisation exige la connexion en deux étapes pour ce compte ; elle ne peut pas être désactivée."
   },
   "validation": {
     "email": "Saisissez une adresse e-mail valide.",
@@ -118,6 +124,60 @@
     "submitting": "Connexion…",
     "forgotPassword": "Mot de passe oublié ?",
     "signedOut": "Vous êtes déconnecté(e)."
+  },
+  "secondStep": {
+    "title": "Connexion en deux étapes",
+    "description": "Après votre mot de passe, Donka demande un code à six chiffres d'une application d'authentification sur votre téléphone (Google Authenticator, Microsoft Authenticator, FreeOTP…).",
+    "on": "Activée",
+    "off": "Désactivée",
+    "onText": "Chaque connexion demande un code de votre application d'authentification.",
+    "offText": "La connexion ne demande que votre mot de passe.",
+    "requiredOff": "Votre organisation exige la connexion en deux étapes : vous la configurerez à votre prochaine connexion, ou dès maintenant.",
+    "requiredOn": "Votre organisation exige la connexion en deux étapes pour votre compte : elle ne peut pas être désactivée.",
+    "codesLeft": "{count, plural, one {# code de secours restant.} other {# codes de secours restants.}}",
+    "enable": "Activer",
+    "enabled": "La connexion en deux étapes est activée.",
+    "disable": "Désactiver",
+    "disableTitle": "Désactiver la connexion en deux étapes ?",
+    "disableDescription": "Saisissez un code de votre application d'authentification, ou un code de secours. La connexion ne demandera ensuite que votre mot de passe.",
+    "disableSubmit": "Désactiver",
+    "disabled": "La connexion en deux étapes est désactivée.",
+    "regenerate": "Nouveaux codes de secours",
+    "regenerateTitle": "Remplacer vos codes de secours",
+    "regenerateDescription": "Saisissez un code de votre application d'authentification. Vos codes de secours actuels cessent de fonctionner.",
+    "regenerateSubmit": "Remplacer les codes",
+    "enrolTitle": "Configurer la connexion en deux étapes",
+    "enrolDescription": "Associez une application d'authentification à votre compte.",
+    "enrolRequiredDescription": "Votre organisation exige la connexion en deux étapes. Associez une application d'authentification pour terminer la connexion.",
+    "stepApp": "Installez une application d'authentification sur votre téléphone si vous n'en avez pas.",
+    "stepScan": "Dans l'application, ajoutez un compte et scannez le QR code, ou saisissez la clé.",
+    "stepCode": "Saisissez le code à six chiffres affiché par l'application.",
+    "qrLabel": "QR code à scanner avec votre application d'authentification",
+    "keyLabel": "Clé, si vous ne pouvez pas scanner",
+    "turnOn": "Activer",
+    "code": "Code de votre application d'authentification",
+    "codeOrRecovery": "Code",
+    "codeOrRecoveryHint": "Six chiffres de votre application d'authentification, ou un de vos codes de secours.",
+    "checking": "Vérification…",
+    "verify": "Vérifier",
+    "signInTitle": "Saisissez votre code",
+    "signInDescription": "Ouvrez votre application d'authentification et saisissez le code de Donka.",
+    "codesTitle": "Enregistrez vos codes de secours",
+    "codesDescription": "Ils ne sont affichés que maintenant.",
+    "codesIntro": "Si vous perdez votre téléphone, chacun de ces {count} codes vous connecte une fois à la place d'un code de l'application. Gardez-les en lieu sûr, à l'écart de votre téléphone.",
+    "codesLabel": "Codes de secours",
+    "copyCodes": "Copier",
+    "downloadCodes": "Télécharger",
+    "codesCopied": "Codes de secours copiés.",
+    "codesCopyFailed": "Copie impossible. Sélectionnez les codes et copiez-les à la main.",
+    "codesFileHeader": "Codes de secours Donka. Chacun ne fonctionne qu’une fois.",
+    "codesSaved": "J'ai enregistré mes codes de secours",
+    "continue": "Continuer vers Studio",
+    "done": "Terminé",
+    "noCodesLeft": "Plus aucun code de secours : générez-en de nouveaux."
+  },
+  "account": {
+    "title": "Compte"
   },
   "forgotPassword": {
     "title": "Réinitialiser le mot de passe",
@@ -280,7 +340,15 @@
     "status": "Statut",
     "since": "Depuis",
     "emptyTitle": "Aucun compte pour l'instant",
-    "empty": "Invitez les personnes qui construisent et approuvent les décisions."
+    "empty": "Invitez les personnes qui construisent et approuvent les décisions.",
+    "secondStep": "Deux étapes",
+    "secondStepOn": "Activée",
+    "secondStepOff": "Non",
+    "resetSecondStep": "Réinitialiser la connexion en deux étapes",
+    "resetSecondStepFor": "Réinitialiser la connexion en deux étapes de {email}",
+    "resetSecondStepTitle": "Réinitialiser la connexion en deux étapes de {email} ?",
+    "resetSecondStepDescription": "À utiliser quand la personne a perdu son téléphone et n'a plus de code de secours. Elle est déconnectée partout et prévenue par e-mail ; elle configure à nouveau la connexion en deux étapes depuis Compte, ou à sa prochaine connexion si elle est exigée.",
+    "secondStepReset": "Connexion en deux étapes réinitialisée pour {email}."
   },
   "audit": {
     "title": "Journal d'audit",
@@ -317,7 +385,12 @@
       "signed_out": "Déconnexion",
       "password_set": "Mot de passe défini",
       "password_reset_requested": "Réinitialisation du mot de passe demandée",
-      "invited": "Invitation à Studio"
+      "invited": "Invitation à Studio",
+      "second_step_enabled": "Connexion en deux étapes activée",
+      "second_step_removed": "Connexion en deux étapes désactivée",
+      "second_step_reset": "Connexion en deux étapes réinitialisée par un administrateur",
+      "recovery_code_used": "Code de secours utilisé",
+      "recovery_codes_regenerated": "Codes de secours remplacés"
     },
     "project": {
       "created": "Projet créé",

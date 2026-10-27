@@ -130,6 +130,16 @@ pub enum ApiError {
     Forbidden,
     #[error("email already used")]
     EmailTaken,
+    #[error("sign-in expired")]
+    SignInExpired,
+    #[error("invalid code")]
+    InvalidCode,
+    #[error("second step already on")]
+    SecondStepAlreadyOn,
+    #[error("second step off")]
+    SecondStepOff,
+    #[error("second step required")]
+    SecondStepRequired,
     #[error("project not found")]
     ProjectNotFound,
     #[error("project key already used")]
@@ -307,6 +317,11 @@ impl From<IdentityError> for ApiError {
             IdentityError::InvalidSetupLink => Self::InvalidSetupLink,
             IdentityError::Forbidden => Self::Forbidden,
             IdentityError::EmailTaken => Self::EmailTaken,
+            IdentityError::SignInExpired => Self::SignInExpired,
+            IdentityError::InvalidCode => Self::InvalidCode,
+            IdentityError::SecondStepAlreadyOn => Self::SecondStepAlreadyOn,
+            IdentityError::SecondStepOff => Self::SecondStepOff,
+            IdentityError::SecondStepRequired => Self::SecondStepRequired,
             IdentityError::WeakPassword => Self::InvalidField {
                 field: "password",
                 message: IdentityError::WeakPassword.to_string(),
@@ -684,6 +699,43 @@ impl IntoResponse for ApiError {
                     "email".to_owned(),
                     "already used".to_owned(),
                 )])),
+                None,
+            ),
+            Self::SignInExpired => (
+                StatusCode::UNAUTHORIZED,
+                "SIGN_IN_EXPIRED",
+                "This sign-in has expired. Enter your email and password again.".to_owned(),
+                None,
+                None,
+            ),
+            Self::InvalidCode => (
+                StatusCode::BAD_REQUEST,
+                "INVALID_CODE",
+                "This code is not valid. Use the current code from your authenticator app."
+                    .to_owned(),
+                Some(BTreeMap::from([("code".to_owned(), "not valid".to_owned())])),
+                None,
+            ),
+            Self::SecondStepAlreadyOn => (
+                StatusCode::CONFLICT,
+                "SECOND_STEP_ALREADY_ON",
+                "Two-step sign-in is already on for this account.".to_owned(),
+                None,
+                None,
+            ),
+            Self::SecondStepOff => (
+                StatusCode::CONFLICT,
+                "SECOND_STEP_OFF",
+                "Two-step sign-in is not on for this account.".to_owned(),
+                None,
+                None,
+            ),
+            Self::SecondStepRequired => (
+                StatusCode::CONFLICT,
+                "SECOND_STEP_REQUIRED",
+                "Your organisation requires two-step sign-in for this account; it cannot be turned off."
+                    .to_owned(),
+                None,
                 None,
             ),
             // Also the answer for a project the reader is not a member of: whether

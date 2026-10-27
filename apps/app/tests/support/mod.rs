@@ -5,7 +5,8 @@ use axum::body::Body;
 use axum::http::{header, Request, StatusCode};
 use axum::Router;
 use chrono::{TimeZone, Utc};
-use donka_app::auth::{CookieSettings, CSRF_HEADER, SESSION_COOKIE};
+use donka_app::auth::{CookieSettings, CSRF_HEADER, PENDING_COOKIE, SESSION_COOKIE};
+use donka_app::config::MfaRequired;
 use donka_app::rate_limit::AuthLimits;
 use donka_app::{router, AppState};
 use donka_audit::AuditLog;
@@ -18,7 +19,7 @@ use donka_mail::testing::RecordingMailer;
 use donka_mail::Email;
 use donka_project::Projects;
 use donka_release::{ReleaseSettings, Releases};
-use donka_shared::clock::ManualClock;
+use donka_shared::clock::{Clock, ManualClock};
 use donka_storage::MemoryStore;
 use http_body_util::BodyExt;
 use serde_json::Value;
@@ -32,6 +33,8 @@ pub const ADMIN_PASSWORD: &str = "correct horse battery staple";
 pub const PUBLIC_URL: &str = "https://studio.bank.example";
 /// The decision-log key in tests (32 bytes, base64).
 pub const DECISION_LOG_KEY: &str = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=";
+/// The second-step key in tests (32 bytes, base64).
+pub const SECOND_STEP_KEY: &str = "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8=";
 /// How long decision records are kept, in tests.
 pub const RETENTION_DAYS: i64 = 30;
 
@@ -100,7 +103,49 @@ fn assemble(
     auth_limits: AuthLimits,
 ) -> TestApp {
     let cipher = Cipher::from_base64(DECISION_LOG_KEY).unwrap();
-    assemble_with_cipher(db, runtime, base, web_dir, explainer, auth_limits, cipher)
+    assemble_with_cipher(
+        db,
+        runtime,
+        base,
+        web_dir,
+        explainer,
+        auth_limits,
+        cipher,
+        SecondStep::default(),
+    )
+}
+
+/// The second sign-in step settings of a test app (DNK-59).
+pub struct SecondStep {
+    pub required: MfaRequired,
+    pub keys: Cipher,
+}
+
+impl Default for SecondStep {
+    fn default() -> Self {
+        Self {
+            required: MfaRequired::None,
+            keys: Cipher::from_base64(SECOND_STEP_KEY).unwrap(),
+        }
+    }
+}
+
+/// An app with this second-step policy and keys (`current`, then previous ones).
+pub fn with_second_step(db: PgPool, required: MfaRequired, keys: &[&str]) -> TestApp {
+    let keys = Cipher::from_base64(keys[0])
+        .unwrap()
+        .with_previous(keys[1..].iter().copied())
+        .unwrap();
+    assemble_with_cipher(
+        db,
+        Arc::new(ZenRuntime::new(1)),
+        BASE,
+        None,
+        None,
+        generous_limits(),
+        Cipher::from_base64(DECISION_LOG_KEY).unwrap(),
+        SecondStep { required, keys },
+    )
 }
 
 /// An app whose decision log seals with `current` and also opens records sealed
@@ -118,9 +163,11 @@ pub fn with_decision_log_keys(db: PgPool, current: &str, previous: &[&str]) -> T
         None,
         generous_limits(),
         cipher,
+        SecondStep::default(),
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn assemble_with_cipher(
     db: PgPool,
     runtime: Arc<dyn DecisionRuntime>,
@@ -129,11 +176,17 @@ fn assemble_with_cipher(
     explainer: Option<donka_explain::Explainer>,
     auth_limits: AuthLimits,
     cipher: Cipher,
+    second_step: SecondStep,
 ) -> TestApp {
     let clock = Arc::new(ManualClock::new(
         Utc.with_ymd_and_hms(2026, 9, 28, 9, 0, 0).unwrap(),
     ));
-    let identity = Identity::new(db.clone(), clock.clone(), policy());
+    let identity = Identity::new(
+        db.clone(),
+        clock.clone(),
+        policy(),
+        Arc::new(second_step.keys),
+    );
     let projects = Projects::new(db.clone(), clock.clone());
     let decisions = Decisions::new(db.clone(), clock.clone(), runtime.clone());
     let store = Arc::new(MemoryStore::default());
@@ -184,6 +237,7 @@ fn assemble_with_cipher(
                 max_age_seconds: 8 * 3600,
             },
             auth_limits,
+            mfa_required: second_step.required,
         },
         base,
         web_dir,
@@ -280,6 +334,38 @@ pub fn session_from(reply: &Reply) -> String {
         .and_then(|rest| rest.split(';').next())
         .unwrap()
         .to_owned()
+}
+
+/// The pending sign-in token from a 202 answer's `Set-Cookie` header.
+pub fn pending_from(reply: &Reply) -> String {
+    let cookie = reply.set_cookie.as_deref().expect("a Set-Cookie header");
+    cookie
+        .strip_prefix(&format!("{PENDING_COOKIE}="))
+        .and_then(|rest| rest.split(';').next())
+        .unwrap()
+        .to_owned()
+}
+
+/// A JSON POST carrying the pending sign-in cookie.
+pub fn post_pending(path: &str, body: &Value, pending: &str) -> Request<Body> {
+    Request::post(path)
+        .header(header::CONTENT_TYPE, "application/json")
+        .header(CSRF_HEADER, "1")
+        .header(header::COOKIE, format!("{PENDING_COOKIE}={pending}"))
+        .body(Body::from(body.to_string()))
+        .unwrap()
+}
+
+/// The authenticator code for `key` (base32) at the app's current time.
+pub fn code_at(app: &TestApp, key: &str) -> String {
+    let secret = totp_rs::Secret::try_from_base32(key).unwrap();
+    let totp = totp_rs::Builder::new()
+        .with_secret(secret)
+        .with_account_name("test")
+        .build()
+        .unwrap();
+    let now = u64::try_from(app.clock.now().timestamp()).unwrap();
+    totp.generate(now).to_string()
 }
 
 /// Creates the first administrator with a password.

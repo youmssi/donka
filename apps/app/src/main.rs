@@ -72,7 +72,16 @@ async fn main() -> anyhow::Result<()> {
         max_age_seconds: policy.session_idle_timeout.num_seconds(),
     };
     let clock = Arc::new(SystemClock);
-    let identity = Identity::new(db.clone(), clock.clone(), policy);
+    let second_step_keys = Cipher::from_base64(&config.second_step_key)
+        .unwrap_or_else(|err| exit_with(&format!("DONKA_SECOND_STEP_KEY {err}")))
+        .with_previous(config.second_step_previous_keys.iter().map(String::as_str))
+        .unwrap_or_else(|err| exit_with(&format!("DONKA_SECOND_STEP_PREVIOUS_KEYS {err}")));
+    let identity = Identity::new(
+        db.clone(),
+        clock.clone(),
+        policy,
+        Arc::new(second_step_keys),
+    );
     let projects = Projects::new(db.clone(), clock.clone());
     let decisions = Decisions::new(db.clone(), clock.clone(), runtime.clone());
     let storage = ObjectStorage::from_url(&config.storage_url, config.storage_options.clone())
@@ -177,6 +186,7 @@ async fn main() -> anyhow::Result<()> {
             packs,
             catalogue: Arc::new(catalogue),
             cookies,
+            mfa_required: config.mfa_required,
             auth_limits: donka_app::rate_limit::AuthLimits::new(
                 config.sign_in_rate_limit,
                 config.password_reset_rate_limit,

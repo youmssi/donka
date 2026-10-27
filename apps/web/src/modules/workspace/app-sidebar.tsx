@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, ChevronsUpDown, LogOut, Monitor, Moon, Sun } from 'lucide-react';
+import { Check, ChevronsUpDown, LogOut, Monitor, Moon, Sun, UserCog } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useTheme } from 'next-themes';
 
@@ -281,6 +281,13 @@ function AccountMenu() {
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-60" side={isMobile ? 'top' : 'right'} align="end">
             <DropdownMenuLabel className="truncate font-normal text-muted-foreground">{user.email}</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href="/account">
+                <UserCog aria-hidden />
+                {t('accountSettings')}
+              </Link>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuSub>
               <DropdownMenuSubTrigger>{t('language')}</DropdownMenuSubTrigger>

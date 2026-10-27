@@ -57,7 +57,7 @@ Status: **Done** · **P1**, **P2**, **P3** (phase) · **Later** (candidate, not 
 | Capability | Status | Where |
 |---|---|---|
 | Sessions, lockout, rate limits, CSRF, hashed tokens | Done | DNK-4, DNK-5, DNK-13, DNK-22, DNK-32 |
-| Two-step sign-in | P1 | DNK-59 |
+| Two-step sign-in | Done | DNK-59 |
 | Single sign-on with the customer's identity provider | P2 | DNK-60 |
 | Secrets from files; key rotation | P1 · Done | DNK-65 · DNK-40 |
 | Rights of individuals: access, anonymisation, contest | P1 | DNK-75 |

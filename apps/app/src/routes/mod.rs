@@ -11,6 +11,7 @@ pub mod projects;
 pub mod releases;
 pub mod rules_sync;
 pub mod scenarios;
+pub mod second_step;
 pub mod simulate;
 pub mod users;
 pub mod versions;

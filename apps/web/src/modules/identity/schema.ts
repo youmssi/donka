@@ -4,6 +4,11 @@ import type { ApiSchemas } from '@/components/shared/api';
 import openapi from '../../../openapi.json';
 
 export type User = ApiSchemas['UserResponse'];
+export type SecondStepStatus = ApiSchemas['SecondStepStatusResponse'];
+export type Enrolment = ApiSchemas['EnrolmentResponse'];
+
+/** What a correct password leads to (DNK-59). */
+export type SignInOutcome = { step: 'signedIn'; user: User } | { step: 'code' } | { step: 'enrol' };
 
 // Password limits come from the API contract, so the form and the server never disagree.
 const passwordRules = openapi.components.schemas.PasswordSetupRequest.properties.password;
@@ -29,3 +34,7 @@ export const setupPasswordSchema = z
   })
   .refine((values) => values.password === values.confirm, { path: ['confirm'], message: 'passwordMismatch' });
 export type SetupPasswordValues = z.infer<typeof setupPasswordSchema>;
+
+/** Six digits from the authenticator app, or a recovery code where one is accepted. */
+export const codeSchema = z.object({ code: z.string().trim().min(1, 'required') });
+export type CodeValues = z.infer<typeof codeSchema>;

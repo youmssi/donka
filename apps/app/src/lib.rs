@@ -71,6 +71,8 @@ pub struct AppState {
     /// The packs this installation offers (DNK-43).
     pub catalogue: Arc<Catalogue>,
     pub cookies: CookieSettings,
+    /// Who must sign in with a second step (DNK-59).
+    pub mfa_required: config::MfaRequired,
     /// Per-client-address limits on sign-in and password reset (DNK-32).
     pub auth_limits: rate_limit::AuthLimits,
 }
@@ -92,6 +94,9 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
         .routes(routes!(routes::health::ready))
         .routes(routes!(routes::health::version))
         .routes(routes!(routes::auth::sign_in))
+        .routes(routes!(routes::auth::sign_in_code))
+        .routes(routes!(routes::auth::sign_in_enrolment))
+        .routes(routes!(routes::auth::sign_in_enrolment_confirm))
         .routes(routes!(routes::auth::password_setup))
         .routes(routes!(routes::auth::password_reset));
 
@@ -101,6 +106,12 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
         .routes(routes!(routes::simulate::simulate))
         .routes(routes!(routes::users::invite))
         .routes(routes!(routes::users::list))
+        .routes(routes!(routes::second_step::status))
+        .routes(routes!(routes::second_step::begin_enrolment))
+        .routes(routes!(routes::second_step::confirm_enrolment))
+        .routes(routes!(routes::second_step::regenerate_recovery_codes))
+        .routes(routes!(routes::second_step::disable))
+        .routes(routes!(routes::second_step::reset))
         .routes(routes!(routes::projects::list, routes::projects::create))
         .routes(routes!(routes::projects::get, routes::projects::update))
         .routes(routes!(routes::projects::get_by_key))

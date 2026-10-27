@@ -29,7 +29,8 @@
     "hidePassword": "Hide password",
     "copyToken": "Copy the token",
     "tokenCopied": "Token copied.",
-    "tokenCopyFailed": "Copy failed. Select the token and copy it."
+    "tokenCopyFailed": "Copy failed. Select the token and copy it.",
+    "accountSettings": "Account"
   },
   "errors": {
     "INVALID_CREDENTIALS": "Email or password is incorrect.",
@@ -83,7 +84,12 @@
     "INVALID_CONTRACT": "The input fields cannot be used as they are. Fix them in Input fields, then save the version again.",
     "INVALID_PACK": "This pack cannot be used.",
     "PACK_TOO_LARGE": "A pack file is at most 5 MB.",
-    "PACK_NOT_FOUND": "This installation no longer offers this pack."
+    "PACK_NOT_FOUND": "This installation no longer offers this pack.",
+    "SIGN_IN_EXPIRED": "This sign-in has expired. Enter your email and password again.",
+    "INVALID_CODE": "This code is not valid. Use the current code from your authenticator app.",
+    "SECOND_STEP_ALREADY_ON": "Two-step sign-in is already on for this account.",
+    "SECOND_STEP_OFF": "Two-step sign-in is not on for this account.",
+    "SECOND_STEP_REQUIRED": "Your organisation requires two-step sign-in for this account; it cannot be turned off."
   },
   "validation": {
     "email": "Enter a valid email address.",
@@ -118,6 +124,60 @@
     "submitting": "Signing in…",
     "forgotPassword": "Forgot your password?",
     "signedOut": "You are signed out."
+  },
+  "secondStep": {
+    "title": "Two-step sign-in",
+    "description": "After your password, Donka asks for a six-digit code from an authenticator app on your phone (Google Authenticator, Microsoft Authenticator, FreeOTP…).",
+    "on": "On",
+    "off": "Off",
+    "onText": "Each sign-in asks for a code from your authenticator app.",
+    "offText": "Signing in asks only for your password.",
+    "requiredOff": "Your organisation requires two-step sign-in: you will set it up at your next sign-in, or now.",
+    "requiredOn": "Your organisation requires two-step sign-in for your account: it cannot be turned off.",
+    "codesLeft": "{count, plural, one {# recovery code left.} other {# recovery codes left.}}",
+    "enable": "Turn on",
+    "enabled": "Two-step sign-in is on.",
+    "disable": "Turn off",
+    "disableTitle": "Turn off two-step sign-in?",
+    "disableDescription": "Enter a code from your authenticator app, or a recovery code. Signing in will then ask only for your password.",
+    "disableSubmit": "Turn off",
+    "disabled": "Two-step sign-in is off.",
+    "regenerate": "New recovery codes",
+    "regenerateTitle": "Replace your recovery codes",
+    "regenerateDescription": "Enter a code from your authenticator app. Your current recovery codes stop working.",
+    "regenerateSubmit": "Replace the codes",
+    "enrolTitle": "Set up two-step sign-in",
+    "enrolDescription": "Link an authenticator app to your account.",
+    "enrolRequiredDescription": "Your organisation requires two-step sign-in. Link an authenticator app to finish signing in.",
+    "stepApp": "Install an authenticator app on your phone if you do not have one.",
+    "stepScan": "In the app, add an account and scan the QR code, or type the key.",
+    "stepCode": "Enter the six-digit code the app shows.",
+    "qrLabel": "QR code to scan with your authenticator app",
+    "keyLabel": "Key, if you cannot scan",
+    "turnOn": "Turn on",
+    "code": "Code from your authenticator app",
+    "codeOrRecovery": "Code",
+    "codeOrRecoveryHint": "Six digits from your authenticator app, or one of your recovery codes.",
+    "checking": "Checking…",
+    "verify": "Verify",
+    "signInTitle": "Enter your code",
+    "signInDescription": "Open your authenticator app and enter the code for Donka.",
+    "codesTitle": "Save your recovery codes",
+    "codesDescription": "They are shown only now.",
+    "codesIntro": "If you lose your phone, each of these {count} codes signs you in once instead of a code from the app. Keep them somewhere safe, apart from your phone.",
+    "codesLabel": "Recovery codes",
+    "copyCodes": "Copy",
+    "downloadCodes": "Download",
+    "codesCopied": "Recovery codes copied.",
+    "codesCopyFailed": "Could not copy. Select the codes and copy them by hand.",
+    "codesFileHeader": "Donka recovery codes. Each works once.",
+    "codesSaved": "I have saved my recovery codes",
+    "continue": "Continue to Studio",
+    "done": "Done",
+    "noCodesLeft": "No recovery code left: generate new ones."
+  },
+  "account": {
+    "title": "Account"
   },
   "forgotPassword": {
     "title": "Reset your password",
@@ -280,7 +340,15 @@
     "status": "Status",
     "since": "Since",
     "emptyTitle": "No accounts yet",
-    "empty": "Invite the people who build and approve decisions."
+    "empty": "Invite the people who build and approve decisions.",
+    "secondStep": "Two-step",
+    "secondStepOn": "On",
+    "secondStepOff": "Off",
+    "resetSecondStep": "Reset two-step sign-in",
+    "resetSecondStepFor": "Reset two-step sign-in for {email}",
+    "resetSecondStepTitle": "Reset two-step sign-in for {email}?",
+    "resetSecondStepDescription": "Use this when the person lost their phone and has no recovery code left. They are signed out everywhere and told by email; they set two-step sign-in up again from Account, or at their next sign-in when it is required.",
+    "secondStepReset": "Two-step sign-in reset for {email}."
   },
   "audit": {
     "title": "Audit log",
@@ -317,7 +385,12 @@
       "signed_out": "Signed out",
       "password_set": "Password set",
       "password_reset_requested": "Password reset requested",
-      "invited": "Invited to Studio"
+      "invited": "Invited to Studio",
+      "second_step_enabled": "Two-step sign-in turned on",
+      "second_step_removed": "Two-step sign-in turned off",
+      "second_step_reset": "Two-step sign-in reset by an administrator",
+      "recovery_code_used": "Recovery code used",
+      "recovery_codes_regenerated": "Recovery codes replaced"
     },
     "project": {
       "created": "Project created",

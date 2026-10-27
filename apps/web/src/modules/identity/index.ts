@@ -1,3 +1,4 @@
+export { AccountPage } from './account-page';
 export { ForgotPasswordForm } from './forgot-password-form';
 export type { User } from './schema';
 export { SetupPasswordForm } from './setup-password-form';

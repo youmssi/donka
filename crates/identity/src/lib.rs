@@ -1,15 +1,17 @@
-//! Identity module: Studio users, sign-in with lockout, sessions, invitations,
-//! password reset and the one-time links they rely on.
+//! Identity module: Studio users, sign-in with lockout and an optional second
+//! step, sessions, invitations, password reset and the one-time links they rely on.
 //!
 //! Other modules use it only through [`Identity`] and the types exported here.
 
 mod emails;
+mod second_step;
 mod secret;
 
 use chrono::{DateTime, Duration, Utc};
 use donka_audit::{Action, Event};
 use donka_db::PgPool;
 use donka_mail::{Email, Mailer};
+use donka_shared::cipher::Cipher;
 use donka_shared::clock::Clock;
 use donka_shared::page::{Page, PageRequest};
 use emails::Kind;
@@ -20,6 +22,7 @@ use std::sync::Arc;
 use tokio::sync::Notify;
 use uuid::Uuid;
 
+pub use second_step::{Enrolment, RecoveryCodes, SecondStepStatus, SignIn, RECOVERY_CODE_COUNT};
 pub use secret::{MAX_PASSWORD_CHARS, MIN_PASSWORD_CHARS};
 
 /// Avoid a database write on every request: `last_seen_at` moves at most this often.
@@ -140,6 +143,8 @@ pub struct Account {
     pub locale: Locale,
     /// False until the person has chosen a password (an invitation is pending).
     pub active: bool,
+    /// The person has turned on a second sign-in step (DNK-59).
+    pub second_step: bool,
     pub created_at: DateTime<Utc>,
 }
 
@@ -177,10 +182,29 @@ pub enum IdentityError {
     Forbidden,
     #[error("a user with this email already exists")]
     EmailTaken,
+    /// The password step expired, was used, or never happened: sign in again.
+    #[error("the sign-in expired; enter your password again")]
+    SignInExpired,
+    /// An authenticator or recovery code was wrong, when the person is already
+    /// known (signed in, or setting up). At sign-in a wrong code is `InvalidCredentials`.
+    #[error("the code is not valid")]
+    InvalidCode,
+    #[error("two-step sign-in is already on")]
+    SecondStepAlreadyOn,
+    #[error("two-step sign-in is not on")]
+    SecondStepOff,
+    #[error("two-step sign-in is required for this account")]
+    SecondStepRequired,
     #[error(transparent)]
     Database(#[from] sqlx::Error),
     #[error("internal error: {0}")]
     Internal(String),
+}
+
+impl From<donka_shared::cipher::CipherError> for IdentityError {
+    fn from(err: donka_shared::cipher::CipherError) -> Self {
+        Self::Internal(format!("second-step secret: {err}"))
+    }
 }
 
 impl From<secret::SecretError> for IdentityError {
@@ -196,15 +220,23 @@ pub struct Identity {
     policy: Policy,
     /// Wakes the email worker when a transaction has queued an email.
     outbox: Arc<Notify>,
+    /// Seals second-step secrets (`DONKA_SECOND_STEP_KEY` and previous keys).
+    second_step_keys: Arc<Cipher>,
 }
 
 impl Identity {
-    pub fn new(pool: PgPool, clock: Arc<dyn Clock>, policy: Policy) -> Self {
+    pub fn new(
+        pool: PgPool,
+        clock: Arc<dyn Clock>,
+        policy: Policy,
+        second_step_keys: Arc<Cipher>,
+    ) -> Self {
         Self {
             pool,
             clock,
             policy,
             outbox: Arc::new(Notify::new()),
+            second_step_keys,
         }
     }
 
@@ -440,13 +472,18 @@ impl Identity {
             let lifetime = match kind {
                 Kind::Invitation => self.policy.invitation_link_lifetime,
                 Kind::PasswordReset => self.policy.reset_link_lifetime,
+                Kind::Notice(_) => Duration::zero(),
             };
 
             let mut attempt = tx.begin().await?;
-            let token = self
-                .issue_setup_token(&mut attempt, due.user_id, now, lifetime)
-                .await?;
-            let link = setup_link(public_url, due.locale, &token);
+            let link = if kind.carries_link() {
+                let token = self
+                    .issue_setup_token(&mut attempt, due.user_id, now, lifetime)
+                    .await?;
+                setup_link(public_url, due.locale, &token)
+            } else {
+                String::new()
+            };
             let content = emails::render(kind, due.locale, &link, lifetime);
             let email = Email {
                 to: due.email,
@@ -501,14 +538,17 @@ impl Identity {
         Ok(sent)
     }
 
-    /// Checks the credentials and opens a session. Every failure, including a
-    /// locked or unknown account, is reported as `InvalidCredentials` after the
-    /// same amount of work.
+    /// Checks the credentials. Without a second step the session opens; with
+    /// one, or when `second_step_required` and the account has none yet, the
+    /// sign-in waits for it (see [`SignIn`]). Every failure, including a locked
+    /// or unknown account, is reported as `InvalidCredentials` after the same
+    /// amount of work.
     pub async fn sign_in(
         &self,
         email: &str,
         password: &str,
-    ) -> Result<(IssuedToken, User), IdentityError> {
+        second_step_required: bool,
+    ) -> Result<SignIn, IdentityError> {
         let Ok(email) = normalize_email(email) else {
             verify_off_thread(password.to_owned(), None).await?;
             return Err(IdentityError::InvalidCredentials);
@@ -542,12 +582,43 @@ impl Identity {
             return Err(IdentityError::InvalidCredentials);
         }
 
+        let enrolled: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM second_steps \
+             WHERE user_id = $1 AND confirmed_at IS NOT NULL)",
+        )
+        .bind(account.id)
+        .fetch_one(&mut *tx)
+        .await?;
+        if enrolled || second_step_required {
+            // Failed attempts are cleared only when a session opens, so a known
+            // password does not reset the count of wrong codes.
+            let held = self
+                .hold_for_second_step(&mut tx, account.id, enrolled, now)
+                .await?;
+            tx.commit().await?;
+            return Ok(held);
+        }
+        let token = self
+            .open_session(&mut tx, account.id, now, serde_json::Value::Null)
+            .await?;
+        tx.commit().await?;
+        Ok(SignIn::Session(token, account.into_user()))
+    }
+
+    /// Clears failed attempts, creates the session and records the sign-in.
+    async fn open_session(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        user: Uuid,
+        now: DateTime<Utc>,
+        details: serde_json::Value,
+    ) -> Result<IssuedToken, IdentityError> {
         sqlx::query(
             "UPDATE users SET failed_sign_ins = 0, failed_window_started_at = NULL, \
              locked_until = NULL WHERE id = $1",
         )
-        .bind(account.id)
-        .execute(&mut *tx)
+        .bind(user)
+        .execute(&mut **tx)
         .await?;
         let (token, token_hash) = secret::new_token()?;
         sqlx::query(
@@ -555,17 +626,16 @@ impl Identity {
              VALUES ($1, $2, $3, $3)",
         )
         .bind(token_hash)
-        .bind(account.id)
+        .bind(user)
         .bind(now)
-        .execute(&mut *tx)
+        .execute(&mut **tx)
         .await?;
-        donka_audit::record(
-            &mut tx,
-            Event::new(now, Some(account.id), Action::UserSignedIn),
-        )
-        .await?;
-        tx.commit().await?;
-        Ok((IssuedToken(token), account.into_user()))
+        let mut event = Event::new(now, Some(user), Action::UserSignedIn);
+        if !details.is_null() {
+            event = event.with_details(details);
+        }
+        donka_audit::record(tx, event).await?;
+        Ok(IssuedToken(token))
     }
 
     /// Resolves a session token to its user, ending sessions idle for longer
@@ -640,7 +710,10 @@ impl Identity {
             return Err(IdentityError::Forbidden);
         }
         let items = sqlx::query_as(
-            "SELECT id, email, is_admin, locale, password_hash IS NOT NULL AS active, created_at \
+            "SELECT id, email, is_admin, locale, password_hash IS NOT NULL AS active, \
+                    EXISTS (SELECT 1 FROM second_steps s \
+                            WHERE s.user_id = users.id AND s.confirmed_at IS NOT NULL) AS second_step, \
+                    created_at \
              FROM users ORDER BY email LIMIT $1 OFFSET $2",
         )
         .bind(page.limit)

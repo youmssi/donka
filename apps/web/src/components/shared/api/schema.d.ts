@@ -4,6 +4,91 @@
  */
 
 export interface paths {
+  '/account/second-step': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Whether the signed-in person has a second step, and whether policy requires one. */
+    get: operations['status'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/account/second-step/disable': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Turns the person's second step off with an authenticator or recovery code. */
+    post: operations['disable'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/account/second-step/enrolment': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Starts setting up a second step. Starting again replaces the key not yet confirmed. */
+    post: operations['begin_enrolment'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/account/second-step/enrolment/confirm': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Turns the second step on with a first valid code; returns the recovery codes. */
+    post: operations['confirm_enrolment'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/account/second-step/recovery-codes': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Replaces the recovery codes; needs a current authenticator code. */
+    post: operations['regenerate_recovery_codes'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/auth/me': {
     parameters: {
       query?: never;
@@ -67,8 +152,66 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Signs in and sets the httpOnly session cookie. */
+    /**
+     * Checks the password. Without a second step the session opens (200); with one,
+     *     or when policy requires one the account lacks, it answers 202 with the next
+     *     step and a short-lived cookie that holds the password step.
+     */
     post: operations['sign_in'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/auth/sign-in/code': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Finishes a sign-in with an authenticator code or a recovery code. A wrong
+     *     code counts towards the account lockout, like a wrong password.
+     */
+    post: operations['sign_in_code'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/auth/sign-in/enrolment': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Starts setting up a second step when policy holds the sign-in until there is one. */
+    post: operations['sign_in_enrolment'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/auth/sign-in/enrolment/confirm': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Turns the second step on with a first valid code and opens the session. */
+    post: operations['sign_in_enrolment_confirm'];
     delete?: never;
     options?: never;
     head?: never;
@@ -1206,6 +1349,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/users/{user_id}/second-step/reset': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * An administrator removes another person's second step (lost device) and
+     *     signs them out. They are told by email.
+     */
+    post: operations['reset'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/version': {
     parameters: {
       query?: never;
@@ -1245,6 +1408,8 @@ export interface components {
       id: string;
       isAdmin: boolean;
       locale: components['schemas']['Locale'];
+      /** @description The person has turned on a second sign-in step (DNK-59). */
+      secondStep: boolean;
     };
     /**
      * @description Every kind of state change. The stored text is part of the audit record:
@@ -1258,6 +1423,11 @@ export interface components {
       | 'user.password_set'
       | 'user.password_reset_requested'
       | 'user.invited'
+      | 'user.second_step_enabled'
+      | 'user.second_step_removed'
+      | 'user.second_step_reset'
+      | 'user.recovery_code_used'
+      | 'user.recovery_codes_regenerated'
       | 'project.created'
       | 'project.updated'
       | 'project.archived'
@@ -1393,6 +1563,10 @@ export interface components {
       /** Format: date-time */
       revokedAt?: string | null;
       revokedBy?: null | components['schemas']['PersonRef'];
+    };
+    CodeRequest: {
+      /** @description Six digits from the authenticator app, or a recovery code. */
+      code: string;
     };
     /** @enum {string} */
     ContractChangeKind:
@@ -1609,6 +1783,17 @@ export interface components {
        */
       releaseId?: string | null;
     };
+    EnrolledResponse: {
+      /** @description Shown once; each works once instead of a code. */
+      recoveryCodes: string[];
+      user: components['schemas']['UserResponse'];
+    };
+    EnrolmentResponse: {
+      /** @description The key to type into the authenticator app (base32). */
+      key: string;
+      /** @description The same key as an `otpauth://` URL, to show as a QR code. */
+      otpauthUrl: string;
+    };
     EnvironmentListResponse: {
       items: components['schemas']['EnvironmentResponse'][];
     };
@@ -1763,6 +1948,11 @@ export interface components {
       key: string;
       name: string;
     };
+    /**
+     * @description The step that follows a correct password.
+     * @enum {string}
+     */
+    NextStep: 'code' | 'enrol';
     /** @description The version each bump would give the next release. */
     NextVersionsResponse: {
       major: string;
@@ -1891,6 +2081,10 @@ export interface components {
       /** Format: uuid */
       releaseId: string;
       status: components['schemas']['RecordStatus'];
+    };
+    RecoveryCodesResponse: {
+      /** @description Shown once; each works once instead of a code. */
+      recoveryCodes: string[];
     };
     RejectRequest: {
       /** @description Why the release may not go to production. */
@@ -2052,6 +2246,16 @@ export interface components {
       /** Format: date-time */
       updatedAt: string;
       updatedBy: components['schemas']['PersonRef'];
+    };
+    SecondStepResponse: {
+      next: components['schemas']['NextStep'];
+    };
+    SecondStepStatusResponse: {
+      enabled: boolean;
+      /** Format: int64 */
+      recoveryCodesLeft: number;
+      /** @description Policy requires a second step of this person: it cannot be turned off. */
+      required: boolean;
     };
     SignInRequest: {
       email: string;
@@ -2280,6 +2484,220 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+  status: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SecondStepStatusResponse'];
+        };
+      };
+      /** @description Not signed in (UNAUTHENTICATED) */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  disable: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CodeRequest'];
+      };
+    };
+    responses: {
+      /** @description Turned off */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Wrong code (INVALID_CODE) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Not signed in (UNAUTHENTICATED) */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Already off (SECOND_STEP_OFF) or required by policy (SECOND_STEP_REQUIRED) */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  begin_enrolment: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['EnrolmentResponse'];
+        };
+      };
+      /** @description Not signed in (UNAUTHENTICATED) */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Already on (SECOND_STEP_ALREADY_ON) */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  confirm_enrolment: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CodeRequest'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['RecoveryCodesResponse'];
+        };
+      };
+      /** @description Wrong code (INVALID_CODE) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Not signed in (UNAUTHENTICATED) */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Already on (SECOND_STEP_ALREADY_ON) or no enrolment started (SECOND_STEP_OFF) */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  regenerate_recovery_codes: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CodeRequest'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['RecoveryCodesResponse'];
+        };
+      };
+      /** @description Wrong code (INVALID_CODE) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Not signed in (UNAUTHENTICATED) */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Two-step sign-in is off (SECOND_STEP_OFF) */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
   me: {
     parameters: {
       query?: never;
@@ -2401,6 +2819,15 @@ export interface operations {
           'application/json': components['schemas']['UserResponse'];
         };
       };
+      /** @description Password accepted; the second step comes next (the pending cookie is set) */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SecondStepResponse'];
+        };
+      };
       /** @description Email or password is incorrect, or the account is locked (INVALID_CREDENTIALS) */
       401: {
         headers: {
@@ -2420,6 +2847,136 @@ export interface operations {
         };
       };
       /** @description Too many sign-in attempts from this address (RATE_LIMITED); `Retry-After` says when to try again */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  sign_in_code: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CodeRequest'];
+      };
+    };
+    responses: {
+      /** @description Signed in; the session cookie is set */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['UserResponse'];
+        };
+      };
+      /** @description Wrong code or locked account (INVALID_CREDENTIALS); no password step or it expired (SIGN_IN_EXPIRED) */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Too many attempts from this address (RATE_LIMITED) */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  sign_in_enrolment: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['EnrolmentResponse'];
+        };
+      };
+      /** @description No password step, or it expired (SIGN_IN_EXPIRED) */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  sign_in_enrolment_confirm: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CodeRequest'];
+      };
+    };
+    responses: {
+      /** @description Signed in; the session cookie is set; recovery codes shown once */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['EnrolledResponse'];
+        };
+      };
+      /** @description Wrong code (INVALID_CODE) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description No password step, or it expired (SIGN_IN_EXPIRED) */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description No enrolment started (SECOND_STEP_OFF) */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Too many attempts from this address (RATE_LIMITED) */
       429: {
         headers: {
           [name: string]: unknown;
@@ -5961,6 +6518,54 @@ export interface operations {
         };
       };
       /** @description The person already has an account (EMAIL_TAKEN) */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  reset: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description The person whose second step to reset */
+        user_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Reset; the person is signed out everywhere */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Not signed in (UNAUTHENTICATED) */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Not an administrator, or one's own account (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description The person has no second step (SECOND_STEP_OFF) */
       409: {
         headers: {
           [name: string]: unknown;

@@ -1,6 +1,6 @@
 [package]
 name = "donka-identity"
-description = "Studio users, password hashing, sessions and sign-in lockout"
+description = "Studio users, password hashing, sessions, sign-in lockout and the second sign-in step"
 version.workspace = true
 edition.workspace = true
 license-file.workspace = true
@@ -24,6 +24,7 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 sqlx = { workspace = true }
 thiserror = { workspace = true }
+totp-rs = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 uuid = { workspace = true }

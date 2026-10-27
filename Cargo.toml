@@ -28,8 +28,10 @@ argon2 = "0.6"
 sha2 = "0.10"
 base64 = "0.22"
 getrandom = "0.3"
-# Decision records encrypted at rest (DNK-18).
+# Encryption at rest of decision records (DNK-18) and second-step secrets (DNK-59).
 aes-gcm = "0.10"
+# Authenticator-app codes for the second sign-in step (DNK-59); the otpauth URL feeds the QR code.
+totp-rs = { version = "6", default-features = false, features = ["otpauth"] }
 # rustls with the system trust store, so a bank's internal mail relay CA is honoured.
 lettre = { version = "0.11", default-features = false, features = ["builder", "hostname", "pool", "smtp-transport", "tokio1", "tokio1-rustls", "ring", "rustls-platform-verifier"] }
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "macros", "migrate", "uuid", "chrono"] }

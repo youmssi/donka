@@ -1,6 +1,6 @@
 'use client';
 
-import { MailPlus, Users } from 'lucide-react';
+import { MailPlus, ShieldOff, Users } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
@@ -10,16 +10,28 @@ import { ErrorAlert } from '@/components/shared/error-alert';
 import { When } from '@/components/shared/format';
 import { PageHeader } from '@/components/shared/layout/page-header';
 import { Person } from '@/components/shared/person';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useCurrentUser } from '@/modules/identity';
 
 import { InviteDialog } from './invite-dialog';
 import { PAGE_SIZE } from './people.service';
 import type { Account } from './schema';
-import { useAccounts, useInvite } from './usePeople';
+import { useAccounts, useInvite, useResetSecondStep } from './usePeople';
 
 /** Every Studio account (administrators only; others see why not). */
 export function PeoplePage() {
@@ -61,6 +73,17 @@ export function PeoplePage() {
       ),
     },
     {
+      id: 'secondStep',
+      header: t('secondStep'),
+      cell: ({ row }) =>
+        row.original.secondStep ? (
+          <Badge variant="secondary">{t('secondStepOn')}</Badge>
+        ) : (
+          <span className="text-muted-foreground">{t('secondStepOff')}</span>
+        ),
+      meta: { className: 'hidden sm:table-cell' },
+    },
+    {
       id: 'since',
       header: t('since'),
       cell: ({ row }) => <When value={row.original.createdAt} />,
@@ -69,7 +92,14 @@ export function PeoplePage() {
     {
       id: 'actions',
       header: () => <span className="sr-only">{common('actions')}</span>,
-      cell: ({ row }) => (row.original.active ? null : <Resend account={row.original} />),
+      cell: ({ row }) =>
+        row.original.active ? (
+          row.original.secondStep ? (
+            <ResetSecondStep account={row.original} />
+          ) : null
+        ) : (
+          <Resend account={row.original} />
+        ),
       meta: { className: 'w-12 text-right' },
     },
   ];
@@ -149,5 +179,52 @@ function Resend({ account }: { account: Account }) {
       </TooltipTrigger>
       <TooltipContent>{t('resend')}</TooltipContent>
     </Tooltip>
+  );
+}
+
+/** Another administrator removes a person's second step when they lost their device. */
+function ResetSecondStep({ account }: { account: Account }) {
+  const t = useTranslations('people');
+  const common = useTranslations('common');
+  const errors = useTranslations('errors');
+  const reset = useResetSecondStep();
+  // Nobody resets their own second step: they turn it off in Account, with a code.
+  const me = useCurrentUser();
+
+  async function confirm() {
+    const result = await reset.mutateAsync(account.id);
+    if (result.ok) toast.success(t('secondStepReset', { email: account.email }));
+    else toast.error(errors(result.error.code));
+  }
+
+  if (me.id === account.id) return null;
+  return (
+    <AlertDialog>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              disabled={reset.isPending}
+              aria-label={t('resetSecondStepFor', { email: account.email })}
+            >
+              {reset.isPending ? <Spinner /> : <ShieldOff aria-hidden />}
+            </Button>
+          </AlertDialogTrigger>
+        </TooltipTrigger>
+        <TooltipContent>{t('resetSecondStep')}</TooltipContent>
+      </Tooltip>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{t('resetSecondStepTitle', { email: account.email })}</AlertDialogTitle>
+          <AlertDialogDescription>{t('resetSecondStepDescription')}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>{common('cancel')}</AlertDialogCancel>
+          <AlertDialogAction onClick={() => void confirm()}>{t('resetSecondStep')}</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

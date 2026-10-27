@@ -86,6 +86,8 @@ services:
       DONKA_STORAGE_SECRET_ACCESS_KEY: ${DONKA_STORAGE_SECRET_ACCESS_KEY:-donka-secret}
       # The default key is public (it is in this file): generate your own before real use.
       DONKA_DECISION_LOG_KEY: ${DONKA_DECISION_LOG_KEY:-cVJvqYsVeZAWH3ozwFWpgWbLUS5bhWIY88xqwroQSTQ=}
+      DONKA_SECOND_STEP_KEY: ${DONKA_SECOND_STEP_KEY:-0zZcVkJ0ShW8Xr0PI3jIlvd8Cpz9rKpnSp4iQCbwg6Y=}
+      DONKA_MFA_REQUIRED: ${DONKA_MFA_REQUIRED:-none}
     depends_on:
       postgres: { condition: service_healthy }
       mailpit: { condition: service_started }

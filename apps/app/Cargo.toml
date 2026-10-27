@@ -50,6 +50,7 @@ sqlx = { workspace = true }
 async-trait = { workspace = true }
 donka-mail = { workspace = true, features = ["testing"] }
 donka-storage = { workspace = true, features = ["testing"] }
+totp-rs = { workspace = true }
 zip = { workspace = true }
 sha2 = { workspace = true }
 http-body-util = "0.1"
