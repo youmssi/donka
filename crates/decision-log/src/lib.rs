@@ -27,6 +27,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 mod feed;
+pub mod report;
 
 pub use donka_shared::cipher::{Cipher, CipherError};
 use feed::FeedRecord;

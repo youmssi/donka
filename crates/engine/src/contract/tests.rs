@@ -113,7 +113,10 @@ fn an_identifier_is_personal_data_and_finds_the_person() {
     schema["properties"]["applicant"]["properties"]["phone"] =
         json!({ "type": "string", "x-donka": { "identifier": true } });
     assert_eq!(identifier_fields(&schema), ["applicant.phone"]);
-    assert_eq!(pii_fields(&schema), ["applicant.nationalId", "applicant.phone"]);
+    assert_eq!(
+        pii_fields(&schema),
+        ["applicant.nationalId", "applicant.phone"]
+    );
 }
 
 #[test]
