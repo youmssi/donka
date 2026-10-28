@@ -34,7 +34,7 @@ file and add what is specific to that tool.
   release artifacts to object storage; **Donka Runtime** (`youmssi/donka-runtime`) serves them;
   **Donka CLI** (`youmssi/donka-cli`) pulls them into CI/CD.
 - **API base path:** `/api/v1`, read from `DONKA_API_BASE_PATH`.
-- **Stack:** Rust stable (edition 2021), Axum 0.8, sqlx + PostgreSQL 16, zen-engine **2.0.1**
+- **Stack:** Rust stable (edition 2021), Axum 0.8, sqlx + PostgreSQL 16, zen-engine **2.1.6**
   (exact pin, see ADR-003), Next.js static export + React + TypeScript + Tailwind + shadcn/ui on
   Radix, TanStack Form + Zod, `@gorules/jdm-editor`, pnpm. Keep dependencies on the latest stable,
   mutually compatible versions.

@@ -326,7 +326,7 @@ jobs:
           FAKE_BUREAU_KEY=e2e-bureau-secret nohup scripts/fake-bureau.py 127.0.0.1 8099 > bureau.log 2>&1 &
           DATABASE_URL=postgres://donka:donka@localhost:5432/donka DONKA_LISTEN=127.0.0.1:8181 \
           DONKA_PUBLIC_URL=http://localhost:8181 DONKA_COOKIE_SECURE=false \
-          DONKA_BOOTSTRAP_ADMIN_EMAIL=ada@bank.example \
+          DONKA_BOOTSTRAP_ADMIN_EMAIL=ada@bank.example DONKA_PACKS_DIR=packs \
           DONKA_SMTP_URL=smtp://127.0.0.1:1025 DONKA_SMTP_FROM="Donka <donka@localhost>" \
           DONKA_STORAGE_URL=s3://donka-releases DONKA_STORAGE_ENDPOINT=http://127.0.0.1:9000 \
           DONKA_STORAGE_REGION=us-east-1 DONKA_STORAGE_ACCESS_KEY_ID=donka \

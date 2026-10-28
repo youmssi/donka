@@ -12,7 +12,7 @@
     <img src="https://img.shields.io/badge/rust-stable-b7410e?logo=rust&logoColor=white" alt="Rust stable"/>
     <img src="https://img.shields.io/badge/Next.js-static%20export-000?logo=nextdotjs&logoColor=white" alt="Next.js static export"/>
     <img src="https://img.shields.io/badge/PostgreSQL-16-4169e1?logo=postgresql&logoColor=white" alt="PostgreSQL 16"/>
-    <img src="https://img.shields.io/badge/zen--engine-2.0.1-1d4f91" alt="zen-engine 2.0.1"/>
+    <img src="https://img.shields.io/badge/zen--engine-2.1.6-1d4f91" alt="zen-engine 2.1.6"/>
     <img src="https://img.shields.io/badge/i18n-English%20%C2%B7%20Fran%C3%A7ais-1d4f91" alt="English and French"/>
 </p>
 

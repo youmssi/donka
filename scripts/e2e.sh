@@ -2,14 +2,16 @@
 # End to end: a release made in Studio reaches Donka Runtime and answers with a token, its
 # "bureau score" connector calls the bureau from the Runtime only, a CI pipeline pulls what is
 # live on staging, and every decision the Runtime makes lands in Studio's decision log, where it
-# is found, opened and replayed.
+# is found, opened and replayed. Every scenario of every catalogue pack is then checked on the
+# Runtime.
 #
-# Needs a running Studio (fresh database, DONKA_BOOTSTRAP_ADMIN_EMAIL set, its console output in
-# STUDIO_LOG) and scripts/fake-bureau.py at BUREAU_URL with FAKE_BUREAU_KEY set. The script
-# starts the Runtime itself (RUNTIME_BIN, output in RUNTIME_LOG) once it has a decision-log
-# token for it; the Runtime reads the rest of its settings from this environment: the same
-# bucket with PROVIDER__PREFIX=staging/, and DONKA_SECRET_BUREAU_API_KEY. BUREAU_SECRET is that
-# key's value: the test checks it never leaves the Runtime.
+# Needs a running Studio (fresh database, DONKA_BOOTSTRAP_ADMIN_EMAIL and DONKA_PACKS_DIR set,
+# its console output in STUDIO_LOG) and scripts/fake-bureau.py at BUREAU_URL with
+# FAKE_BUREAU_KEY set. The script starts the Runtime itself (RUNTIME_BIN, output in
+# RUNTIME_LOG) once it has a decision-log token for it; the Runtime reads the rest of its
+# settings from this environment: the same bucket with PROVIDER__PREFIX=staging/, and
+# DONKA_SECRET_BUREAU_API_KEY. BUREAU_SECRET is that key's value: the test checks it never
+# leaves the Runtime.
 #
 #   STUDIO_URL=http://localhost:8080 RUNTIME_URL=http://localhost:3000 RUNTIME_BIN=... \
 #   RUNTIME_LOG=/tmp/runtime.log BUREAU_URL=http://127.0.0.1:8099 BUREAU_SECRET=... \
@@ -158,4 +160,33 @@ replayed=$(studio POST "$P/decision-log/$decision_id/replay")
 studio GET "$P/audit?action=decision_record.replayed" | jq -e '.total == 1' >/dev/null \
   || fail "the replay is not in the audit log"
 
-echo "e2e: release 1.0.0 is live on staging, the Runtime answers with its token, the bureau connector scores from the Runtime, CI pulls staging, and the decision is logged, found and replayed"
+# Every scenario of every catalogue pack gives, through the Runtime, the output Studio expects
+# (the same comparison as Studio's: only the expected fields when partial, numbers by value).
+packs=$(studio GET /packs | jq -r '.items[].key')
+[ -n "$packs" ] || fail "Studio offers no pack: set DONKA_PACKS_DIR"
+for pack in $packs; do
+  imported=$(studio POST "/packs/$pack/import" "$(jq -n --arg k "e2e-$pack" '{key: $k, name: $k}')")
+  PP="/projects/$(jq -r .project.id <<<"$imported")"
+  pack_release=$(studio POST "$PP/releases" '{"bump": "minor", "notes": "Pack scenarios"}' | jq -r .id)
+  pack_token=$(studio POST "$PP/environments/staging/tokens" '{"name": "e2e"}' | jq -r .token)
+  studio POST "$PP/environments/staging/deployments" "$(jq -n --arg id "$pack_release" '{releaseId: $id}')" >/dev/null
+  scenarios=$(studio GET "$PP/test-scenarios?limit=100")
+  [ "$(jq '.items | length' <<<"$scenarios")" -gt 0 ] || fail "pack $pack has no scenarios"
+  while read -r scenario; do
+    key=$(jq -r .decisionKey <<<"$scenario")
+    answer=
+    for _ in $(seq 1 60); do
+      answer=$(curl -sS -X POST "$RUNTIME_URL/api/projects/e2e-$pack/evaluate/$key" \
+        -H 'content-type: application/json' -H "X-Access-Token: $pack_token" \
+        --data "$(jq -c '{context: .input}' <<<"$scenario")") && jq -e 'has("result")' <<<"$answer" >/dev/null && break
+      sleep 1
+    done
+    jq -e --argjson actual "$(jq .result <<<"$answer")" '
+      def covers($e; $a): if ($e | type) == "object" and ($a | type) == "object"
+        then all($e | to_entries[]; covers(.value; $a[.key])) else $e == $a end;
+      if .match == "exact" then .expected == $actual else covers(.expected; $actual) end' <<<"$scenario" >/dev/null \
+      || fail "pack $pack, scenario \"$(jq -r .name <<<"$scenario")\": the Runtime answered $answer"
+  done < <(jq -c '.items[]' <<<"$scenarios")
+done
+
+echo "e2e: release 1.0.0 is live on staging, the Runtime answers with its token, the bureau connector scores from the Runtime, CI pulls staging, the decision is logged, found and replayed, and every pack scenario passes on the Runtime"

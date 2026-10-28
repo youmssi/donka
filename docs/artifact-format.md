@@ -95,6 +95,9 @@ a release without parsing graphs.
   read these artifacts unchanged.
 - A Runtime refuses a request that breaks the contract with `400`; see the Runtime's
   `docs/contracts.md` for the answer's shape.
+- Since zen-engine 2.1 (DNK-62), `null` in an optional field counts as the field left out, and a
+  field declared `"format": "date"` or `"date-time"` reaches the rules as a date. A required
+  field holding `null` is still refused.
 
 ## Connector nodes
 

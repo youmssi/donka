@@ -41,12 +41,12 @@ sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio",
 object_store = { version = "0.14", features = ["aws"] }
 url = "2"
 zip = { version = "8", default-features = false, features = ["deflate"] }
-zen-engine = { version = "=2.0.1", features = ["arbitrary_precision"] }
+zen-engine = { version = "=2.1.6", features = ["arbitrary_precision"] }
 # Explanations from the customer's LLM endpoint (DNK-19); rustls with the system trust
 # store, so an endpoint behind a bank's internal CA is honoured.
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-native-roots"] }
 # Connector nodes, the same handler the Runtime runs; Studio uses its mock mode only (no `live`).
-donka-connectors = { git = "https://github.com/youmssi/donka-runtime", rev = "56af4927ac8fe0cf0f1fd90cb00913b705921f2f" }
+donka-connectors = { git = "https://github.com/youmssi/donka-runtime", rev = "3a2d5a2c094e8dac9819a085cf17a16d7d4d2a31" }
 
 donka-engine = { path = "crates/engine" }
 donka-db = { path = "crates/db" }

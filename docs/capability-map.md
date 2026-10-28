@@ -22,7 +22,7 @@ Status: **Done** · **P1**, **P2**, **P3** (phase) · **Later** (candidate, not 
 | Audit log with export | Done | DNK-11 |
 | Starter packs; import, duplicate, export | Done | DNK-24, DNK-43 |
 | Table verification: gaps, overlaps, unreachable rows | P1 | DNK-76 |
-| Up-to-date engine, upgraded on replay evidence | P1 | DNK-62 |
+| Up-to-date engine, upgraded on replay evidence | Done | DNK-62 (zen-engine 2.1.6) |
 | Impact of a change on past decisions (swap-in/out) | P2 | DNK-56, DNK-58 |
 | Branches, several approvers, webhooks, Git sync | P2 | Delivery plan, Phase 2 |
 | Document-assisted authoring and chat edits accepted as a diff | P2 | Delivery plan, Phase 2 |

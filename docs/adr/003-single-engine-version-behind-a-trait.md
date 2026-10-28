@@ -13,7 +13,7 @@ also not ripple through route handlers.
 
 ## Decision
 
-- Pin `zen-engine = "=2.0.1"` in Studio and in Donka Runtime; `scripts/check-engine-version.sh`
+- Pin `zen-engine = "=2.1.6"` (2.0.1 until DNK-62) in Studio and in Donka Runtime; `scripts/check-engine-version.sh`
   fails CI on drift.
 - Only `crates/engine` imports `zen_engine`; the rest of Studio uses the `DecisionRuntime` trait
   and evaluates whole project bundles so sub-decisions resolve as in a release.
@@ -25,3 +25,6 @@ also not ripple through route handlers.
   WASM and may lag; it only affects hints, never results. Bump it when upstream publishes.
 - Checked on 2026-09-28: donka-runtime compiles on 2.0.1 without code changes; its unit and
   non-container tests pass.
+- 2026-10-28, DNK-62: moved to 2.1.6 following `docs/engineering/engine-upgrade.md`; every pack
+  scenario passes in Studio and on the Runtime, and records logged by a 2.0.1 Runtime replay
+  identically.

@@ -35,7 +35,7 @@ artifact.
 |---|---|---|
 | `apps/web` | Next.js (static export), shadcn/ui + Radix + Tailwind, `@gorules/jdm-editor` (client-only) | All screens. Talks only to `apps/app`. |
 | `apps/app` | Rust, Axum, sqlx, Postgres | Auth, projects, versions, tests, releases, approvals, audit, decision log, AI explain, rules-sync API |
-| `crates/engine` | Rust, zen-engine 2.0.1 | `DecisionRuntime` trait + `ZenRuntime`. The only code that imports `zen_engine`. |
+| `crates/engine` | Rust, zen-engine 2.1.6 | `DecisionRuntime` trait + `ZenRuntime`. The only code that imports `zen_engine`. |
 | Donka Runtime | Rust (agent fork) | Evaluate endpoints, OpenAPI per project, token checks, connector handler, decision-log emitter |
 | Postgres | 16+ | Users, projects, versions, releases, approvals, append-only audit, decision log |
 | MinIO / S3 | | Release artifacts |
