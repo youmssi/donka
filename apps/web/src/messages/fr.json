@@ -1001,6 +1001,8 @@
     "required": "Obligatoire",
     "pii": "Donnée personnelle",
     "piiLong": "Donnée personnelle (jamais envoyée pour explication)",
+    "identifier": "Identifie la personne",
+    "identifierLong": "Identifie la personne (ses décisions sont retrouvées par ce champ ; donnée personnelle)",
     "edit": "Modifier {path}",
     "remove": "Supprimer {path}",
     "pathHint": "Noms de champs reliés par des points, comme les règles le lisent, par exemple customer.age.",

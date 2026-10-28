@@ -194,7 +194,8 @@ function FieldsTable({
                 <span className="block font-sans text-sm sm:hidden">{t(`types.${field.type}`)}</span>
                 <div className="mt-1 flex flex-wrap gap-1 font-sans">
                   {field.required ? <Badge variant="outline">{t('required')}</Badge> : null}
-                  {field.pii ? <Badge variant="secondary">{t('pii')}</Badge> : null}
+                  {field.identifier ? <Badge variant="secondary">{t('identifier')}</Badge> : null}
+                  {field.pii && !field.identifier ? <Badge variant="secondary">{t('pii')}</Badge> : null}
                 </div>
               </TableCell>
               <TableCell className="hidden sm:table-cell">{t(`types.${field.type}`)}</TableCell>
@@ -286,6 +287,7 @@ function fieldFormSchema(taken: string[]) {
       helpEn: z.string(),
       helpFr: z.string(),
       pii: z.boolean(),
+      identifier: z.boolean(),
     })
     .superRefine((value, ctx) => {
       if (parseValues(value.values, value.type) === null) {
@@ -327,6 +329,7 @@ function toValues(field: InputField): FieldValues {
     helpEn: field.help.en,
     helpFr: field.help.fr,
     pii: field.pii,
+    identifier: field.identifier,
   };
 }
 
@@ -345,7 +348,8 @@ function toField(value: FieldValues): InputField {
     format: text ? value.format : '',
     label: { en: value.labelEn.trim(), fr: value.labelFr.trim() },
     help: { en: value.helpEn.trim(), fr: value.helpFr.trim() },
-    pii: value.pii,
+    pii: value.pii || value.identifier,
+    identifier: value.identifier,
   };
 }
 
@@ -470,6 +474,15 @@ function FieldDialog({
                 <form.AppField name="pii">
                   {(field) => (
                     <field.CheckboxField label={t('piiLong')} className="w-auto gap-2" labelClassName="font-normal" />
+                  )}
+                </form.AppField>
+                <form.AppField name="identifier">
+                  {(field) => (
+                    <field.CheckboxField
+                      label={t('identifierLong')}
+                      className="w-auto gap-2"
+                      labelClassName="font-normal"
+                    />
                   )}
                 </form.AppField>
               </div>

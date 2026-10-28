@@ -1001,6 +1001,8 @@
     "required": "Required",
     "pii": "Personal data",
     "piiLong": "Personal data (never sent to be explained)",
+    "identifier": "Identifies the person",
+    "identifierLong": "Identifies the person (their decisions are found by it; personal data)",
     "edit": "Edit {path}",
     "remove": "Remove {path}",
     "pathHint": "Field names joined by dots, as rules read it, e.g. customer.age.",

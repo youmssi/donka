@@ -104,6 +104,16 @@ fn declared_fields_follow_nesting_required_and_pii() {
         ]
     );
     assert_eq!(pii_fields(&contract()), ["applicant.nationalId"]);
+    assert_eq!(identifier_fields(&contract()), Vec::<String>::new());
+}
+
+#[test]
+fn an_identifier_is_personal_data_and_finds_the_person() {
+    let mut schema = contract();
+    schema["properties"]["applicant"]["properties"]["phone"] =
+        json!({ "type": "string", "x-donka": { "identifier": true } });
+    assert_eq!(identifier_fields(&schema), ["applicant.phone"]);
+    assert_eq!(pii_fields(&schema), ["applicant.nationalId", "applicant.phone"]);
 }
 
 #[test]
