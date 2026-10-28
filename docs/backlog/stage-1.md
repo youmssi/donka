@@ -1628,13 +1628,13 @@ Confirmed 2026-10-28, when the story started:
   review; a reason is required at each step.
 
 #### Acceptance criteria
-- [ ] Searching by a personal identifier finds that person's records across the project's decisions without decrypting the log
-- [ ] Records stored before this story are indexed by a resumable, audited job, like key re-sealing (DNK-40)
-- [ ] The access report includes every record found, its reasons and explanation, in English or French
-- [ ] Anonymising removes the person's fields from input, output and trace, keeps outcome, release and time, and cannot be undone; a documented retention rule blocks it with the rule shown
-- [ ] A contest and its review outcome are recorded on the decision and shown in its history
-- [ ] Every search, export, anonymisation and contest is audited; only owners can perform them
-- [ ] Tests cover each criterion, including records in several monthly partitions (DNK-68)
+- [x] Searching by a personal identifier finds that person's records across the project's decisions without decrypting the log
+- [x] Records stored before this story are indexed by a resumable, audited job, like key re-sealing (DNK-40)
+- [x] The access report includes every record found, its reasons and explanation, in English or French
+- [x] Anonymising removes the person's fields from input, output and trace, keeps outcome, release and time, and cannot be undone; a documented retention rule blocks it with the rule shown
+- [x] A contest and its review outcome are recorded on the decision and shown in its history
+- [x] Every search, export, anonymisation and contest is audited; only owners can perform them
+- [x] Tests cover each criterion, including records in several monthly partitions (DNK-68)
 
 ---
 

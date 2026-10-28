@@ -400,6 +400,26 @@ function useSentence(event: AuditEvent): string {
       return t('decisionLogPurged', { records: detail(event, 'records'), days: detail(event, 'retentionDays') });
     case 'decision_log.resealed':
       return t('decisionLogResealed', { records: detail(event, 'records') });
+    case 'decision_log.people_indexed':
+      return t('decisionLogPeopleIndexed', { records: detail(event, 'records') });
+    case 'person.records_searched':
+      return t('personRecordsSearched', { records: detail(event, 'records') });
+    case 'person.report_exported':
+      return (event.details as { explained?: unknown } | null)?.explained === true
+        ? t('personReportExportedExplained', { records: detail(event, 'records') })
+        : t('personReportExported', { records: detail(event, 'records') });
+    case 'person.records_anonymised':
+      return t('personRecordsAnonymised', { records: detail(event, 'records') });
+    case 'retention_rule.created':
+      return t('retentionRuleCreated', { description: detail(event, 'description'), until: detail(event, 'until') });
+    case 'retention_rule.ended':
+      return t('retentionRuleEnded', { description: detail(event, 'description') });
+    case 'decision_contest.opened':
+      return t('decisionContestOpened');
+    case 'decision_contest.reviewed':
+      return detail(event, 'status') === 'revised'
+        ? t('decisionContestRevised', { outcome: detail(event, 'revisedOutcome') })
+        : t('decisionContestUpheld');
     case 'decision_log.settings_updated': {
       const field = detail(event, 'to', 'outcomeField');
       return field ? t('decisionLogSettingsUpdated', { field }) : t('decisionLogSettingsCleared');

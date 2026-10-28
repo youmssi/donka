@@ -70,7 +70,8 @@ Records without a readable `id` are skipped and logged by Studio. Other answers:
 - The **outcome** is read when the record arrives: `error` for a failed evaluation, otherwise the
   value at the project's outcome field (a dotted path such as `decision` or `result.band`) when
   it is a string, number or boolean.
-- Records cannot be changed, except to re-seal them with the current key after a rotation. They
+- Records cannot be changed, except to re-seal them with the current key after a rotation, and
+  to anonymise them once at the person's request ([people-rights.md](people-rights.md)). They
   are deleted only by the retention purge (`DONKA_DECISION_LOG_RETENTION_DAYS`, five years by
   default), which records one audit event per project it purges.
 - Records are kept in monthly partitions of their evaluation time (UTC), created three months
@@ -80,3 +81,6 @@ Records without a readable `id` are skipped and logged by Studio. Other answers:
 - Any project member can search the log; opening or replaying a record is audited. Replay
   evaluates the record's input with its release, connector nodes answering with their output
   in the record's trace, so no outside service is called.
+- The identifiers a record holds (the input fields its contract marks `identifier`) are indexed
+  as keyed hashes when it arrives, so owners find a person's records without decrypting the log
+  ([people-rights.md](people-rights.md)).

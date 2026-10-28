@@ -227,7 +227,8 @@ function ProjectSwitcher({
               onNavigate();
               // The same section in the other project, when the person may open it there.
               const same = navSection(section);
-              const next = same === 'audit' && other.role !== 'owner' ? 'decisions' : same;
+              const ownersOnly = same === 'audit' || same === 'people-requests';
+              const next = ownersOnly && other.role !== 'owner' ? 'decisions' : same;
               router.push(projectHref(next, other.key));
             }}
           >

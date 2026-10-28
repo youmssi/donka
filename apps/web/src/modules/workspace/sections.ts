@@ -10,6 +10,7 @@ import {
   Settings,
   ShieldCheck,
   Users,
+  UserSearch,
   UsersRound,
   Workflow,
 } from 'lucide-react';
@@ -29,7 +30,7 @@ export function placeOf(pathname: string): Place {
   if (pathname.startsWith('/people')) return { kind: 'people' };
   if (pathname.startsWith('/runtimes')) return { kind: 'runtimes' };
   const match =
-    /^\/projects\/(decisions|decision|scenarios|releases|environments|approvals|approval|decision-log|decision-record|settings|members|audit)\/?$/.exec(
+    /^\/projects\/(decisions|decision|scenarios|releases|environments|approvals|approval|decision-log|decision-record|people-requests|settings|members|audit)\/?$/.exec(
       pathname,
     );
   if (match) return { kind: 'project', section: match[1] as ProjectSection };
@@ -49,7 +50,7 @@ export function navSection(section: ProjectSection): ProjectSection {
   return section;
 }
 
-/** A project's sections a member may open: the audit log is for owners. */
+/** A project's sections a member may open: people's requests and the audit log are for owners. */
 export function projectSections(project: Project): { section: ProjectSection; icon: LucideIcon }[] {
   return [
     { section: 'decisions', icon: Workflow },
@@ -60,6 +61,11 @@ export function projectSections(project: Project): { section: ProjectSection; ic
     { section: 'decision-log', icon: ScrollText },
     { section: 'members', icon: Users },
     { section: 'settings', icon: Settings },
-    ...(project.role === 'owner' ? [{ section: 'audit' as const, icon: History }] : []),
+    ...(project.role === 'owner'
+      ? [
+          { section: 'people-requests' as const, icon: UserSearch },
+          { section: 'audit' as const, icon: History },
+        ]
+      : []),
   ];
 }

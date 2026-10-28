@@ -90,7 +90,12 @@
     "INVALID_CODE": "Ce code n'est pas valide. Utilisez le code actuel de votre application d'authentification.",
     "SECOND_STEP_ALREADY_ON": "La connexion en deux étapes est déjà activée sur ce compte.",
     "SECOND_STEP_OFF": "La connexion en deux étapes n'est pas activée sur ce compte.",
-    "SECOND_STEP_REQUIRED": "Votre organisation exige la connexion en deux étapes pour ce compte ; elle ne peut pas être désactivée."
+    "SECOND_STEP_REQUIRED": "Votre organisation exige la connexion en deux étapes pour ce compte ; elle ne peut pas être désactivée.",
+    "RETENTION_RULE_RUNS": "Une règle de conservation impose de garder intacts les enregistrements de ce projet : ils ne peuvent pas être anonymisés avant qu'elle prenne fin.",
+    "RETENTION_RULE_NOT_FOUND": "Ce projet n'a pas cette règle de conservation.",
+    "CONTEST_NOT_FOUND": "Ce projet n'a pas cette contestation.",
+    "CONTEST_OPEN": "Cette décision a déjà une contestation en cours d'examen.",
+    "CONTEST_REVIEWED": "Cette contestation a déjà été examinée."
   },
   "validation": {
     "email": "Saisissez une adresse e-mail valide.",
@@ -114,7 +119,8 @@
     "fieldPathTaken": "Un autre champ porte déjà ce nom.",
     "number": "Saisissez un nombre, ou laissez vide.",
     "minAboveMax": "Le maximum est inférieur au minimum.",
-    "allowedValues": "Séparez les valeurs par des virgules ; pour un champ numérique, uniquement des nombres."
+    "allowedValues": "Séparez les valeurs par des virgules ; pour un champ numérique, uniquement des nombres.",
+    "notPast": "Choisissez aujourd'hui ou un jour suivant."
   },
   "signIn": {
     "title": "Connexion",
@@ -275,7 +281,8 @@
     "approvals": "Approbations",
     "approval": "Approbation",
     "decision-log": "Journal des décisions",
-    "decision-record": "Décision enregistrée"
+    "decision-record": "Décision enregistrée",
+    "people-requests": "Demandes des personnes"
   },
   "members": {
     "title": "Membres",
@@ -441,7 +448,8 @@
     "decision_log": {
       "purged": "Décisions enregistrées purgées",
       "resealed": "Décisions enregistrées rechiffrées",
-      "settings_updated": "Réglages du journal des décisions modifiés"
+      "settings_updated": "Réglages du journal des décisions modifiés",
+      "people_indexed": "Enregistrements indexés par identifiant"
     },
     "decision_log_token": {
       "issued": "Jeton de journal créé",
@@ -450,6 +458,19 @@
     "ci_token": {
       "issued": "Jeton CI créé",
       "revoked": "Jeton CI révoqué"
+    },
+    "person": {
+      "records_searched": "Décisions d'une personne recherchées",
+      "report_exported": "Rapport d'accès exporté",
+      "records_anonymised": "Enregistrements d'une personne anonymisés"
+    },
+    "retention_rule": {
+      "created": "Règle de conservation documentée",
+      "ended": "Règle de conservation terminée"
+    },
+    "decision_contest": {
+      "opened": "Décision contestée",
+      "reviewed": "Contestation examinée"
     }
   },
   "auditSentences": {
@@ -494,7 +515,17 @@
     "projectExported": "A exporté les brouillons dans un fichier pack",
     "projectExportedRelease": "A exporté la version publiée {release} dans un fichier pack",
     "projectDuplicated": "A copié les brouillons dans le nouveau projet {key}",
-    "projectDuplicatedRelease": "A copié la version publiée {release} dans le nouveau projet {key}"
+    "projectDuplicatedRelease": "A copié la version publiée {release} dans le nouveau projet {key}",
+    "decisionLogPeopleIndexed": "A indexé {records} enregistrements de décisions par les identifiants qu'ils contiennent",
+    "personRecordsSearched": "A recherché les décisions d'une personne : {records} trouvées",
+    "personReportExported": "A exporté le rapport d'accès d'une personne, de {records} décisions",
+    "personReportExportedExplained": "A exporté le rapport d'accès d'une personne, de {records} décisions, avec explications",
+    "personRecordsAnonymised": "A retiré les données d'une personne de {records} enregistrements de décisions",
+    "retentionRuleCreated": "A documenté une règle de conservation jusqu'au {until} : « {description} »",
+    "retentionRuleEnded": "A mis fin à la règle de conservation « {description} »",
+    "decisionContestOpened": "A enregistré la contestation d'une décision",
+    "decisionContestUpheld": "A examiné une contestation : la décision est maintenue",
+    "decisionContestRevised": "A examiné une contestation : la décision est révisée en {outcome}"
   },
   "ui": {
     "close": "Fermer",
@@ -931,7 +962,9 @@
     "redactedFields": "Champs jamais envoyés pour une explication",
     "redactedFieldsHint": "Un champ par ligne, par exemple customer.id. Ils sont retirés de ce que la décision a lu et répondu, et de sa trace, avant l'envoi pour une explication. Au plus {max}.",
     "redactedFieldsHintOff": "Un champ par ligne, par exemple customer.id. Les explications sont désactivées dans cette installation ; la liste s'appliquera quand elles seront activées. Au plus {max}.",
-    "viewAuditedExplain": "Cet enregistrement peut contenir des données personnelles. Son ouverture, son rejeu et son explication sont inscrits au journal d'audit du projet."
+    "viewAuditedExplain": "Cet enregistrement peut contenir des données personnelles. Son ouverture, son rejeu et son explication sont inscrits au journal d'audit du projet.",
+    "anonymisedTitle": "Données personnelles retirées",
+    "anonymised": "À la demande de la personne, ses données personnelles ont été retirées de cet enregistrement le"
   },
   "runtimes": {
     "title": "Runtimes",
@@ -1216,5 +1249,98 @@
         "body": "Seule la release en ligne en staging peut aller en production, une fois approuvée par un autre propriétaire."
       }
     }
+  },
+  "peopleRequests": {
+    "ownersOnly": "Seuls les propriétaires du projet traitent les demandes des personnes concernées par les décisions.",
+    "findTitle": "Retrouver les décisions d'une personne",
+    "findDescription": "Recherchez par numéro national, téléphone ou numéro client : tout champ d'entrée que le contrat d'une décision marque comme identifiant. Rien n'est déchiffré pour chercher, l'identifiant n'est pas conservé, et chaque recherche est consignée dans le journal d'audit.",
+    "identifier": "Identifiant",
+    "identifierHint": "La casse, les espaces, les tirets et les points ne comptent pas.",
+    "search": "Rechercher",
+    "searching": "Recherche…",
+    "foundOne": "1 décision trouvée",
+    "foundMany": "{count} décisions trouvées",
+    "foundDescription": "Toutes les décisions de ce projet qui contiennent cet identifiant, les plus récentes d'abord.",
+    "resultsLabel": "Décisions concernant la personne",
+    "personalData": "Données personnelles",
+    "anonymised": "Retirées",
+    "held": "Conservées",
+    "noneTitle": "Aucune décision trouvée",
+    "none": "Aucune décision de ce projet ne contient cet identifiant dans un champ marqué comme tel. Les enregistrements antérieurs aux marques sont retrouvés une fois indexés par un administrateur.",
+    "report": "Rapport d'accès",
+    "reportTitle": "Rapport d'accès",
+    "reportDescription": "Un PDF de toutes les décisions trouvées : ce qu'elles ont utilisé, ce qu'elles ont répondu et pourquoi, et les contestations de la personne. Son export est consigné dans le journal d'audit.",
+    "language": "Langue",
+    "languageHint": "La langue de la personne.",
+    "english": "Anglais",
+    "french": "Français",
+    "explain": "Expliquer chaque décision en termes simples",
+    "explainHint": "Chaque décision est envoyée au service d'explication de cette installation sans ses champs personnels ni masqués. Cela prend plus de temps.",
+    "download": "Télécharger le PDF",
+    "preparing": "Préparation…",
+    "reportReady": "{file} téléchargé.",
+    "anonymise": "Anonymiser",
+    "anonymiseTitle": "Anonymiser les enregistrements de cette personne ?",
+    "anonymiseOne": "Ses données personnelles sont retirées d'1 enregistrement de décision.",
+    "anonymiseMany": "Ses données personnelles sont retirées de {count} enregistrements de décisions.",
+    "anonymiseKeeps": "Tous les champs que les contrats marquent comme données personnelles, et les champs masqués du projet, sont retirés de ce que chaque décision a utilisé et répondu, et de sa trace. Le résultat, la version et l'heure restent pour l'audit. C'est définitif, et la personne ne peut plus être retrouvée par ses identifiants.",
+    "anonymiseConfirm": "Anonymiser définitivement",
+    "anonymising": "Anonymisation…",
+    "anonymisedOne": "1 enregistrement anonymisé.",
+    "anonymisedMany": "{count} enregistrements anonymisés.",
+    "ruleRuns": "Une règle de conservation s'applique jusqu'au {until}"
+  },
+  "retentionRules": {
+    "title": "Règles de conservation",
+    "description": "Les règles qui imposent de garder intacts les enregistrements de ce projet, comme un litige ou un dossier de lutte anti-blanchiment. Tant qu'une règle s'applique, aucun enregistrement ne peut être anonymisé. Chaque règle est consignée dans le journal d'audit.",
+    "emptyTitle": "Aucune règle de conservation",
+    "empty": "Les enregistrements peuvent être anonymisés à la demande d'une personne.",
+    "readOnly": "Seuls les propriétaires documentent et terminent les règles de conservation.",
+    "running": "En vigueur",
+    "ended": "Terminée",
+    "expired": "Échue",
+    "until": "Jusqu'au {date}",
+    "end": "Mettre fin à la règle",
+    "endTitle": "Mettre fin à cette règle de conservation ?",
+    "endConfirm": "Les enregistrements peuvent de nouveau être anonymisés, sauf si une autre règle s'applique. La règle reste listée.",
+    "endedToast": "Règle de conservation terminée.",
+    "newTitle": "Documenter une règle",
+    "ruleDescription": "Ce qui impose de garder les enregistrements",
+    "ruleDescriptionHint": "Affiché à qui tente d'anonymiser des enregistrements tant qu'elle s'applique.",
+    "legalReference": "Référence juridique",
+    "legalReferenceHint": "Facultatif, par exemple un numéro de dossier ou un article de loi.",
+    "untilLabel": "Dernier jour",
+    "untilHint": "La règle s'applique jusqu'à la fin de ce jour.",
+    "create": "Ajouter la règle",
+    "creating": "Ajout…",
+    "created": "Règle de conservation documentée."
+  },
+  "contests": {
+    "title": "Contestations",
+    "description": "Quand la personne conteste cette décision : sa raison, et ce qu'a conclu l'examen mené dans vos propres systèmes.",
+    "none": "Personne n'a contesté cette décision.",
+    "open": "Enregistrer une contestation",
+    "openedOn": "Contestée le",
+    "reviewedOn": "Examinée le",
+    "newOutcome": "Nouveau résultat :",
+    "review": "Enregistrer l'examen",
+    "statusOpen": "En cours d'examen",
+    "statusUpheld": "Décision maintenue",
+    "statusRevised": "Décision révisée",
+    "openTitle": "Enregistrer une contestation",
+    "openDescription": "La personne conteste cette décision. Indiquez pourquoi ; l'examen a lieu dans vos propres systèmes, et son résultat est enregistré ici ensuite.",
+    "reason": "La raison de la personne",
+    "reasonHint": "Avec ses mots, ou un résumé.",
+    "openSubmit": "Enregistrer la contestation",
+    "opened": "Contestation enregistrée.",
+    "reviewTitle": "Enregistrer l'examen",
+    "outcome": "Conclusion de l'examen",
+    "newOutcomeLabel": "Nouveau résultat",
+    "newOutcomeHint": "La décision révisée, par exemple approve.",
+    "reviewText": "Ce qu'a constaté l'examen",
+    "reviewHint": "Pourquoi la décision est maintenue ou révisée.",
+    "reviewSubmit": "Enregistrer l'examen",
+    "reviewed": "Examen enregistré.",
+    "saving": "Enregistrement…"
   }
 }

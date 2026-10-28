@@ -90,7 +90,12 @@
     "INVALID_CODE": "This code is not valid. Use the current code from your authenticator app.",
     "SECOND_STEP_ALREADY_ON": "Two-step sign-in is already on for this account.",
     "SECOND_STEP_OFF": "Two-step sign-in is not on for this account.",
-    "SECOND_STEP_REQUIRED": "Your organisation requires two-step sign-in for this account; it cannot be turned off."
+    "SECOND_STEP_REQUIRED": "Your organisation requires two-step sign-in for this account; it cannot be turned off.",
+    "RETENTION_RULE_RUNS": "A retention rule keeps this project's records whole: they cannot be anonymised until it ends.",
+    "RETENTION_RULE_NOT_FOUND": "This project has no such retention rule.",
+    "CONTEST_NOT_FOUND": "This project has no such contest.",
+    "CONTEST_OPEN": "This decision already has a contest under review.",
+    "CONTEST_REVIEWED": "This contest has already been reviewed."
   },
   "validation": {
     "email": "Enter a valid email address.",
@@ -114,7 +119,8 @@
     "fieldPathTaken": "Another field already has this name.",
     "number": "Enter a number, or leave it empty.",
     "minAboveMax": "The maximum is below the minimum.",
-    "allowedValues": "Separate values with commas; for a number field, numbers only."
+    "allowedValues": "Separate values with commas; for a number field, numbers only.",
+    "notPast": "Choose today or a later day."
   },
   "signIn": {
     "title": "Sign in",
@@ -275,7 +281,8 @@
     "approvals": "Approvals",
     "approval": "Approval",
     "decision-log": "Decision log",
-    "decision-record": "Decision record"
+    "decision-record": "Decision record",
+    "people-requests": "People's requests"
   },
   "members": {
     "title": "Members",
@@ -441,7 +448,8 @@
     "decision_log": {
       "purged": "Decision records purged",
       "resealed": "Decision records re-sealed",
-      "settings_updated": "Decision log settings changed"
+      "settings_updated": "Decision log settings changed",
+      "people_indexed": "Decision records indexed by identifier"
     },
     "decision_log_token": {
       "issued": "Decision-log token issued",
@@ -450,6 +458,19 @@
     "ci_token": {
       "issued": "CI token issued",
       "revoked": "CI token revoked"
+    },
+    "person": {
+      "records_searched": "Person's decisions looked up",
+      "report_exported": "Access report exported",
+      "records_anonymised": "Person's records anonymised"
+    },
+    "retention_rule": {
+      "created": "Retention rule documented",
+      "ended": "Retention rule ended"
+    },
+    "decision_contest": {
+      "opened": "Decision contested",
+      "reviewed": "Contest reviewed"
     }
   },
   "auditSentences": {
@@ -494,7 +515,17 @@
     "projectExported": "Exported the drafts as a pack file",
     "projectExportedRelease": "Exported release {release} as a pack file",
     "projectDuplicated": "Copied the drafts to the new project {key}",
-    "projectDuplicatedRelease": "Copied release {release} to the new project {key}"
+    "projectDuplicatedRelease": "Copied release {release} to the new project {key}",
+    "decisionLogPeopleIndexed": "Indexed {records} decision records by the identifiers they hold",
+    "personRecordsSearched": "Looked up a person's decisions: {records} found",
+    "personReportExported": "Exported a person's access report of {records} decisions",
+    "personReportExportedExplained": "Exported a person's access report of {records} decisions, with explanations",
+    "personRecordsAnonymised": "Removed a person's details from {records} decision records",
+    "retentionRuleCreated": "Documented a retention rule until {until}: “{description}”",
+    "retentionRuleEnded": "Ended the retention rule “{description}”",
+    "decisionContestOpened": "Recorded a contest of a decision",
+    "decisionContestUpheld": "Reviewed a contest: the decision is maintained",
+    "decisionContestRevised": "Reviewed a contest: the decision is revised to {outcome}"
   },
   "ui": {
     "close": "Close",
@@ -931,7 +962,9 @@
     "redactedFields": "Fields never sent for an explanation",
     "redactedFieldsHint": "One field per line, e.g. customer.id. They are removed from what the decision read and answered, and from its trace, before a record is sent to be explained. At most {max}.",
     "redactedFieldsHintOff": "One field per line, e.g. customer.id. Explanations are off in this installation; the list applies once they are on. At most {max}.",
-    "viewAuditedExplain": "This record may contain personal data. Opening, replaying and explaining it are recorded in the project's audit log."
+    "viewAuditedExplain": "This record may contain personal data. Opening, replaying and explaining it are recorded in the project's audit log.",
+    "anonymisedTitle": "Personal details removed",
+    "anonymised": "At the person's request, their personal details were removed from this record on"
   },
   "runtimes": {
     "title": "Runtimes",
@@ -1216,5 +1249,98 @@
         "body": "Only the release live on staging can go to production, once another owner approves it."
       }
     }
+  },
+  "peopleRequests": {
+    "ownersOnly": "Only the project's owners handle the requests of the people decisions are about.",
+    "findTitle": "Find a person's decisions",
+    "findDescription": "Search by a national ID, phone or customer number: any input field a decision's contract marks as an identifier. Nothing is decrypted to search, the identifier is not kept, and each search is recorded in the audit log.",
+    "identifier": "Identifier",
+    "identifierHint": "Case, spaces, dashes and dots do not matter.",
+    "search": "Search",
+    "searching": "Searching…",
+    "foundOne": "1 decision found",
+    "foundMany": "{count} decisions found",
+    "foundDescription": "Every decision of this project holding this identifier, newest first.",
+    "resultsLabel": "Decisions about the person",
+    "personalData": "Personal data",
+    "anonymised": "Removed",
+    "held": "Held",
+    "noneTitle": "No decision found",
+    "none": "No decision of this project holds this identifier in a field marked as one. Records stored before the marks were set are found once an administrator has indexed them.",
+    "report": "Access report",
+    "reportTitle": "Access report",
+    "reportDescription": "A PDF of every decision found: what it used, what it answered and why, and the person's contests. Exporting it is recorded in the audit log.",
+    "language": "Language",
+    "languageHint": "The person's language.",
+    "english": "English",
+    "french": "French",
+    "explain": "Explain each decision in plain words",
+    "explainHint": "Each decision is sent to this installation's explanation service without its personal and redacted fields. It takes longer.",
+    "download": "Download the PDF",
+    "preparing": "Preparing…",
+    "reportReady": "{file} downloaded.",
+    "anonymise": "Anonymise",
+    "anonymiseTitle": "Anonymise this person's records?",
+    "anonymiseOne": "Their personal details are removed from 1 decision record.",
+    "anonymiseMany": "Their personal details are removed from {count} decision records.",
+    "anonymiseKeeps": "Every field the contracts mark as personal data, and the project's redacted fields, are removed from what each decision used and answered and from its trace. The outcome, release and time stay for audit. This cannot be undone, and the person can no longer be found by their identifiers.",
+    "anonymiseConfirm": "Anonymise for good",
+    "anonymising": "Anonymising…",
+    "anonymisedOne": "1 record anonymised.",
+    "anonymisedMany": "{count} records anonymised.",
+    "ruleRuns": "A retention rule runs until {until}"
+  },
+  "retentionRules": {
+    "title": "Retention rules",
+    "description": "Rules that require keeping this project's decision records whole, such as a dispute or an anti-money-laundering file. While one runs, nobody's records can be anonymised. Each rule is recorded in the audit log.",
+    "emptyTitle": "No retention rule",
+    "empty": "Records can be anonymised at a person's request.",
+    "readOnly": "Only owners document and end retention rules.",
+    "running": "Running",
+    "ended": "Ended",
+    "expired": "Past",
+    "until": "Until {date}",
+    "end": "End the rule",
+    "endTitle": "End this retention rule?",
+    "endConfirm": "Records can be anonymised again unless another rule runs. The rule stays listed.",
+    "endedToast": "Retention rule ended.",
+    "newTitle": "Document a rule",
+    "ruleDescription": "What requires keeping the records",
+    "ruleDescriptionHint": "Shown to whoever tries to anonymise records while it runs.",
+    "legalReference": "Legal reference",
+    "legalReferenceHint": "Optional, e.g. a case number or an article of law.",
+    "untilLabel": "Last day",
+    "untilHint": "The rule runs until the end of this day.",
+    "create": "Add the rule",
+    "creating": "Adding…",
+    "created": "Retention rule documented."
+  },
+  "contests": {
+    "title": "Contests",
+    "description": "When the person contests this decision: their reason, and what the review in your own systems concluded.",
+    "none": "Nobody has contested this decision.",
+    "open": "Record a contest",
+    "openedOn": "Contested on",
+    "reviewedOn": "Reviewed on",
+    "newOutcome": "New outcome:",
+    "review": "Record the review",
+    "statusOpen": "Under review",
+    "statusUpheld": "Decision maintained",
+    "statusRevised": "Decision revised",
+    "openTitle": "Record a contest",
+    "openDescription": "The person contests this decision. Record why; the review happens in your own systems, and its outcome is recorded here afterwards.",
+    "reason": "The person's reason",
+    "reasonHint": "In their words, or a summary.",
+    "openSubmit": "Record the contest",
+    "opened": "Contest recorded.",
+    "reviewTitle": "Record the review",
+    "outcome": "Outcome of the review",
+    "newOutcomeLabel": "New outcome",
+    "newOutcomeHint": "The decision as revised, e.g. approve.",
+    "reviewText": "What the review found",
+    "reviewHint": "Why the decision is maintained or revised.",
+    "reviewSubmit": "Record the review",
+    "reviewed": "Review recorded.",
+    "saving": "Saving…"
   }
 }
