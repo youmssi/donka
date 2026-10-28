@@ -89,6 +89,33 @@ pub enum MfaRequired {
     All,
 }
 
+/// Settings that hold a secret, each with the setting naming a file that holds it instead
+/// (`X_FILE`): Docker and Kubernetes secrets, and vault agents, deliver secrets as files.
+pub const SECRET_SETTINGS: [(&str, &str); 10] = [
+    ("DATABASE_URL", "DATABASE_URL_FILE"),
+    ("DONKA_SMTP_URL", "DONKA_SMTP_URL_FILE"),
+    (
+        "DONKA_STORAGE_ACCESS_KEY_ID",
+        "DONKA_STORAGE_ACCESS_KEY_ID_FILE",
+    ),
+    (
+        "DONKA_STORAGE_SECRET_ACCESS_KEY",
+        "DONKA_STORAGE_SECRET_ACCESS_KEY_FILE",
+    ),
+    ("DONKA_DECISION_LOG_KEY", "DONKA_DECISION_LOG_KEY_FILE"),
+    (
+        "DONKA_DECISION_LOG_PREVIOUS_KEYS",
+        "DONKA_DECISION_LOG_PREVIOUS_KEYS_FILE",
+    ),
+    ("DONKA_PERSON_INDEX_KEY", "DONKA_PERSON_INDEX_KEY_FILE"),
+    ("DONKA_SECOND_STEP_KEY", "DONKA_SECOND_STEP_KEY_FILE"),
+    (
+        "DONKA_SECOND_STEP_PREVIOUS_KEYS",
+        "DONKA_SECOND_STEP_PREVIOUS_KEYS_FILE",
+    ),
+    ("DONKA_EXPLAIN_API_KEY", "DONKA_EXPLAIN_API_KEY_FILE"),
+];
+
 /// The web app calls the API here (apps/web `API_BASE`).
 const WEB_API_BASE_PATH: &str = "/api/v1";
 
@@ -104,8 +131,11 @@ impl Config {
         Self::from_lookup(|key| std::env::var(key).ok())
     }
 
-    /// Reads settings through `get` so tests do not touch the process environment.
+    /// Reads settings through `get` so tests do not touch the process environment. A secret
+    /// setting given as a file (`X_FILE`) is read first, as if it were `X`.
     pub fn from_lookup(get: impl Fn(&str) -> Option<String>) -> Result<Self, ConfigError> {
+        let files = secret_files(&get)?;
+        let get = |key: &str| files.get(key).cloned().or_else(|| get(key));
         let listen = get("DONKA_LISTEN")
             .unwrap_or_else(|| "0.0.0.0:8080".into())
             .parse()
@@ -343,6 +373,29 @@ fn explain_settings(
     }))
 }
 
+/// The secrets given as files, by setting name: the file's content without trailing newlines.
+/// Setting both forms, or naming a file that cannot be read, fails and names the setting.
+fn secret_files(
+    get: &impl Fn(&str) -> Option<String>,
+) -> Result<std::collections::HashMap<&'static str, String>, ConfigError> {
+    let mut files = std::collections::HashMap::new();
+    for (var, file_var) in SECRET_SETTINGS {
+        let Some(path) = get(file_var).filter(|v| !v.trim().is_empty()) else {
+            continue;
+        };
+        if get(var).is_some_and(|v| !v.trim().is_empty()) {
+            return Err(invalid(
+                var,
+                &format!("and {file_var} are both set: keep one"),
+            ));
+        }
+        let value = std::fs::read_to_string(path.trim())
+            .map_err(|err| invalid(file_var, &format!("cannot be read: {err}")))?;
+        files.insert(var, value.trim_end_matches(['\n', '\r']).to_owned());
+    }
+    Ok(files)
+}
+
 fn required(
     get: &impl Fn(&str) -> Option<String>,
     var: &'static str,
@@ -505,6 +558,102 @@ mod tests {
         );
         let config = load(&[("DONKA_DECISION_LOG_RETENTION_DAYS", "365")]).unwrap();
         assert_eq!(config.decision_log_retention_days, 365);
+    }
+
+    /// A file holding `content`, removed when the test ends.
+    struct SecretFile(std::path::PathBuf);
+
+    impl SecretFile {
+        fn new(name: &str, content: &str) -> Self {
+            let path = std::env::temp_dir().join(format!("donka-{}-{name}", std::process::id()));
+            std::fs::write(&path, content).unwrap();
+            Self(path)
+        }
+
+        fn path(&self) -> &str {
+            self.0.to_str().unwrap()
+        }
+    }
+
+    impl Drop for SecretFile {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.0);
+        }
+    }
+
+    /// Loads with the required variables set, without `skip`, plus `vars`.
+    fn load_without(skip: &str, vars: &[(&str, &str)]) -> Result<Config, ConfigError> {
+        let mut map: HashMap<String, String> = REQUIRED
+            .iter()
+            .filter(|(k, _)| *k != skip)
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+        map.extend(vars.iter().map(|(k, v)| (k.to_string(), v.to_string())));
+        Config::from_lookup(|k| map.get(k).cloned())
+    }
+
+    #[test]
+    fn every_secret_setting_can_be_a_file() {
+        let key = "QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl8=";
+        let file = SecretFile::new("person-key", &format!("{key}\n\n"));
+        let config = load_without(
+            "DONKA_PERSON_INDEX_KEY",
+            &[("DONKA_PERSON_INDEX_KEY_FILE", file.path())],
+        )
+        .unwrap();
+        assert_eq!(
+            config.person_index_key, key,
+            "trailing newlines are trimmed"
+        );
+
+        let database = SecretFile::new("database", "postgres://donka:s3cret@db/donka\n");
+        let config =
+            load_without("DATABASE_URL", &[("DATABASE_URL_FILE", database.path())]).unwrap();
+        assert_eq!(config.database_url, "postgres://donka:s3cret@db/donka");
+
+        let storage = SecretFile::new("storage", "minio-secret");
+        let config = load(&[("DONKA_STORAGE_SECRET_ACCESS_KEY_FILE", storage.path())]).unwrap();
+        assert!(config.storage_options.contains(&(
+            "aws_secret_access_key".to_owned(),
+            "minio-secret".to_owned()
+        )));
+
+        // Every secret setting has its file form, and only secret settings do.
+        for (var, file_var) in SECRET_SETTINGS {
+            assert_eq!(file_var, format!("{var}_FILE"));
+        }
+    }
+
+    #[test]
+    fn a_secret_given_twice_or_an_unreadable_file_fails_and_is_named() {
+        let file = SecretFile::new("twice", "QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl8=");
+        let err = load(&[("DONKA_PERSON_INDEX_KEY_FILE", file.path())]).unwrap_err();
+        assert_eq!(err.var, "DONKA_PERSON_INDEX_KEY");
+        assert!(
+            err.reason
+                .contains("DONKA_PERSON_INDEX_KEY_FILE are both set"),
+            "{err}"
+        );
+
+        let err = load_without(
+            "DONKA_SECOND_STEP_KEY",
+            &[(
+                "DONKA_SECOND_STEP_KEY_FILE",
+                "/nonexistent/donka-second-step-key",
+            )],
+        )
+        .unwrap_err();
+        assert_eq!(err.var, "DONKA_SECOND_STEP_KEY_FILE");
+        assert!(err.reason.starts_with("cannot be read"), "{err}");
+
+        // A file holding a bad value is checked like the variable.
+        let bad = SecretFile::new("bad-key", "too-short\n");
+        let err = load_without(
+            "DONKA_DECISION_LOG_KEY",
+            &[("DONKA_DECISION_LOG_KEY_FILE", bad.path())],
+        )
+        .unwrap_err();
+        assert_eq!(err.var, "DONKA_DECISION_LOG_KEY");
     }
 
     #[test]

@@ -59,6 +59,29 @@ DONKA_SMTP_URL=smtp://user:pass@mail.bank.example:587?tls=required
 DONKA_SMTP_FROM=Donka <donka@bank.example>
 ```
 
+**Secrets as files.** Every secret setting `X` (database URL, mail URL, storage keys, the
+decision-log, person-index and second-step keys and their previous keys, the LLM key) can
+instead be given as `X_FILE`, the path of a file holding the value, as Docker and Kubernetes
+secrets and vault agents (OpenBao, Vault, Infisical) provide them. Trailing newlines are
+removed. Setting both forms, or a file Studio cannot read, stops Studio at start and names the
+setting. With Docker secrets, for example:
+
+```yaml
+# docker-compose.override.yml
+services:
+  app:
+    environment:
+      DONKA_DECISION_LOG_KEY: ""                # the compose file sets a default: clear it
+      DONKA_DECISION_LOG_KEY_FILE: /run/secrets/decision_log_key
+    secrets: [decision_log_key]
+secrets:
+  decision_log_key:
+    file: ./secrets/decision_log_key           # openssl rand -base64 32 > secrets/decision_log_key
+```
+
+On Kubernetes, mount the secret as a volume and point `X_FILE` at the file. The Runtime takes
+the same form for its secrets ([configuration guide](https://github.com/youmssi/donka-runtime/blob/develop/docs/configuration.md)).
+
 Behind a reverse proxy, also set `DONKA_TRUSTED_PROXIES` to its address (or the Docker network,
 e.g. `172.16.0.0/12`): sign-in and password reset are limited per client address, and without
 it every client shares the proxy's.
