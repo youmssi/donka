@@ -229,3 +229,88 @@ async fn a_replay_answers_connectors_with_the_recorded_trace() {
         json!({ "mode": "replay", "outcome": "ok" })
     );
 }
+
+/// A graph of one expression node between the input (with `schema`, when given) and the output.
+fn expressions(schema: Option<Value>, expressions: &[(&str, &str)]) -> Bundle {
+    let input = match schema {
+        Some(schema) => json!({ "schema": schema.to_string() }),
+        None => json!({}),
+    };
+    let graph = json!({
+        "nodes": [
+            { "id": "in", "name": "request", "type": "inputNode", "content": input },
+            { "id": "expr", "name": "compute", "type": "expressionNode", "content": {
+                "expressions": expressions.iter().enumerate()
+                    .map(|(i, (key, value))| json!({ "id": format!("e{i}"), "key": key, "value": value }))
+                    .collect::<Vec<_>>()
+            }},
+            { "id": "out", "name": "response", "type": "outputNode", "content": {} }
+        ],
+        "edges": [
+            { "id": "a", "sourceId": "in", "targetId": "expr" },
+            { "id": "b", "sourceId": "expr", "targetId": "out" }
+        ]
+    });
+    Bundle::from_json(BTreeMap::from([("rule".to_string(), graph)])).unwrap()
+}
+
+async fn run(bundle: &Bundle, context: Value) -> Result<Value, RuntimeError> {
+    ZenRuntime::new(1)
+        .evaluate(bundle, "rule", context, EvaluateOptions::default())
+        .await
+        .map(|out| out.result)
+}
+
+/// Before zen-engine 2.1.2 an expression reading `$` (its own node's output) overflowed the
+/// stack and aborted the process (DNK-62). It now reads a copy of the output so far.
+#[tokio::test]
+async fn an_expression_reading_its_own_node_reads_a_copy() {
+    let bundle = expressions(None, &[("points", "income / 1000"), ("snapshot", "$")]);
+    for income in [250_000, 400_000] {
+        let points = income / 1000;
+        assert_eq!(
+            run(&bundle, json!({ "income": income })).await.unwrap(),
+            json!({ "points": points, "snapshot": { "points": points } })
+        );
+    }
+}
+
+/// From zen-engine 2.1 (DNK-62), `null` in an optional field counts as the field left out; a
+/// required field must hold a value.
+#[tokio::test]
+async fn null_counts_as_absent_only_for_optional_fields() {
+    let schema = json!({
+        "type": "object",
+        "required": ["amount"],
+        "properties": { "amount": { "type": "number" }, "income": { "type": "number" } }
+    });
+    let bundle = expressions(Some(schema), &[("approved", "amount < 1000")]);
+
+    let answer = run(&bundle, json!({ "amount": 500, "income": null })).await;
+    assert_eq!(answer.unwrap(), json!({ "approved": true }));
+
+    let refused = run(&bundle, json!({ "amount": null })).await.unwrap_err();
+    assert!(
+        matches!(refused, RuntimeError::Evaluation { .. }),
+        "{refused:?}"
+    );
+}
+
+/// Numbers keep their exact decimal value in both directions (`arbitrary_precision`); the 2.1
+/// change to number output only affects builds without it.
+#[tokio::test]
+async fn numbers_keep_their_exact_decimal_value() {
+    let bundle = expressions(
+        None,
+        &[("sum", "0.1 + 0.2"), ("rate", "rate"), ("big", "big + 1")],
+    );
+    let out = run(
+        &bundle,
+        json!({ "rate": 2.5, "big": 12345678901234567890u64 }),
+    )
+    .await
+    .unwrap();
+    assert_eq!(out["sum"].to_string(), "0.3");
+    assert_eq!(out["rate"].to_string(), "2.5");
+    assert_eq!(out["big"].to_string(), "12345678901234567891");
+}

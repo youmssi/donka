@@ -18,7 +18,8 @@ The [decision index](../adr/README.md#playbook-adaptations) links adaptations to
   and `Cargo.toml` lists the allowed dependencies. Cycles do not compile. Adding a dependency
   between two modules is a reviewed change.
 - Never query another module's tables. Never join across two modules' tables in SQL.
-- `crates/engine` is the only crate that imports `zen_engine` (ADR-003). `crates/shared` (when
+- `crates/engine` is the only crate that imports `zen_engine` (ADR-003); upgrading it follows
+  `engine-upgrade.md`. `crates/shared` (when
   needed) holds only cross-cutting code: the error model, pagination, clock, ids.
 - Split into separate services only when a real constraint forces it. Donka Runtime is already
   separate because it scales with customer traffic (ADR-001).

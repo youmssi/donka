@@ -4,7 +4,7 @@
 |---|---|
 | [001](001-separate-studio-and-runtime.md) | Studio and Runtime are separate; they share only release artifacts |
 | [002](002-static-web-same-origin-session.md) | Web is a static export served by the app; httpOnly same-origin session |
-| [003](003-single-engine-version-behind-a-trait.md) | zen-engine 2.0.1 everywhere, only behind `DecisionRuntime` |
+| [003](003-single-engine-version-behind-a-trait.md) | zen-engine 2.1.6 everywhere, only behind `DecisionRuntime` |
 | [004](004-ui-kit-shadcn-radix-with-jdm-editor.md) | shadcn/ui on Radix; jdm-editor unchanged |
 | [005](005-tanstack-form.md) | TanStack Form + Zod for all forms |
 | [006](006-fork-policy.md) | How the forks follow the playbook |

@@ -47,7 +47,7 @@ from code inspection so an unexecuted path is not presented as a live test.
 | Criterion | Evidence |
 |---|---|
 | Published dependency images, no latest tag | `docker-compose.yml`: PostgreSQL `16-alpine`, MinIO `RELEASE.2026-08-04T00-00-00Z`, mc `RELEASE.2026-09-16T00-00-00Z`, Mailpit `v1.31.3`. All four exist in the local Docker image store with registry digests. Studio/Runtime images are built locally with `DONKA_VERSION`; they are not claimed as published dependencies. CI install builds and starts the full stack. |
-| CI compares Runtime develop with Studio | `.github/workflows/ci.yml` checks out `youmssi/donka-runtime` at `develop`; `scripts/check-engine-version.sh` compares exact engine versions. Both currently pin 2.0.1. |
+| CI compares Runtime develop with Studio | `.github/workflows/ci.yml` checks out `youmssi/donka-runtime` at `develop`; `scripts/check-engine-version.sh` compares exact engine versions. Both currently pin 2.1.6. |
 | Missing Runtime fails, mismatch fails | Run the existing script with the real Runtime, a missing directory and a temporary manifest pinning 9.9.9. Matching pins succeed; the latter probes exit nonzero with the expected error. |
 
 ## Verification and remaining readiness work

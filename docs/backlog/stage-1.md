@@ -1251,13 +1251,13 @@ first. The upgrade is accepted on evidence, not on the changelog: every pack sce
 replay of recorded decisions must give the same results, or the difference is explained.
 
 #### Acceptance criteria
-- [ ] The Runtime, then Studio, pin the same latest 2.1.x; `scripts/check-engine-version.sh` passes; `arbitrary_precision` stays enabled in the Runtime
-- [ ] Every scenario of every catalogue pack passes in Studio and through a Runtime evaluation
-- [ ] The decision-log e2e records replay as identical after the upgrade
-- [ ] A regression test covers a self-referencing `$` expression: it fails cleanly without stopping the process
-- [ ] Each behaviour change upstream lists (null and required inputs, number output) is either covered by a test that shows Donka's result or documented in the release notes for customers
-- [ ] The in-editor expression hints (`@gorules/jdm-editor`) are on its latest release; NOTICE files are current
-- [ ] `docs/engineering` describes the upgrade procedure so the next one follows it
+- [x] The Runtime, then Studio, pin the same latest 2.1.x; `scripts/check-engine-version.sh` passes; `arbitrary_precision` stays enabled in the Runtime
+- [x] Every scenario of every catalogue pack passes in Studio and through a Runtime evaluation
+- [x] The decision-log e2e records replay as identical after the upgrade
+- [x] A regression test covers a self-referencing `$` expression: it fails cleanly without stopping the process
+- [x] Each behaviour change upstream lists (null and required inputs, number output) is either covered by a test that shows Donka's result or documented in the release notes for customers
+- [x] The in-editor expression hints (`@gorules/jdm-editor`) are on its latest release; NOTICE files are current
+- [x] `docs/engineering` describes the upgrade procedure so the next one follows it
 
 #### Out of scope
 Adopting new 2.1 features in the editor; the policy-document editor (Phase 3).
