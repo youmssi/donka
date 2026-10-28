@@ -50,8 +50,8 @@ import { restoreVersion, saveVersion } from './decision.service';
 import {
   MESSAGE_MAX,
   saveVersionSchema,
-  type ContractWarning,
   type Decision,
+  type SavedVersion,
   type SaveVersionValues,
   type Version,
 } from './schema';
@@ -92,10 +92,11 @@ export function SaveVersionDialog({
   projectId,
   decision,
   draft,
-  onWarnings,
+  onSaved,
 }: Omit<VersionsProps, 'editable' | 'callable' | 'decisionNodeLabels'> & {
-  /** What the saved version's input contract and its rules disagree on (DNK-37). */
-  onWarnings: (number: number, warnings: ContractWarning[]) => void;
+  /** The saved version, with what its contract and rules disagree on (DNK-37) and what the
+   * table checks found (DNK-76). */
+  onSaved: (saved: SavedVersion) => void;
 }) {
   const t = useTranslations('versions');
   const common = useTranslations('common');
@@ -122,7 +123,7 @@ export function SaveVersionDialog({
         draft.versionSaved(result.data.number);
         changedVersions();
         announce(t('saved', { number: result.data.number }), result.data.tests);
-        onWarnings(result.data.number, result.data.warnings);
+        onSaved(result.data);
         onOpenChange(false);
       } else {
         setError(result.error);

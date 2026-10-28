@@ -3,6 +3,7 @@ pub mod audit;
 pub mod auth;
 pub mod decision_log;
 pub mod decisions;
+pub mod findings;
 pub mod health;
 pub mod onboarding;
 pub mod packs;

@@ -112,6 +112,21 @@ it('says what Studio did on its own, such as re-sealing records after a key rota
   expect(screen.getByRole('cell', { name: 'Studio' })).toBeInTheDocument();
 });
 
+it('says which table finding an owner acknowledged, and why', async () => {
+  const acknowledged: AuditEvent = {
+    id: 7,
+    occurredAt: '2026-10-28T08:00:00Z',
+    actor: ada,
+    action: 'decision.finding_acknowledged',
+    details: { key: 'scorecard', table: 'Reason codes', kind: 'gap', row: null, reason: 'Strong files get no reason' },
+  };
+  listAuditMock.mockResolvedValue({ ok: true, data: { items: [acknowledged], total: 1 } });
+  renderWithProviders(<ProjectAuditPage />);
+  expect(
+    await screen.findByText('Acknowledged a table finding of scorecard (Reason codes): “Strong files get no reason”'),
+  ).toBeInTheDocument();
+});
+
 it('says where a project came from, and when it was copied or exported', async () => {
   const event = (id: number, action: AuditEvent['action'], details: unknown): AuditEvent => ({
     id,

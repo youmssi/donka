@@ -1,5 +1,6 @@
 use crate::error::{ApiError, ErrorBody};
 use crate::extract::{ApiJson, ApprovalId, ProjectAccess};
+use crate::routes::findings::{self, TableFindingResponse};
 use crate::routes::people::{emails, known_person, person, PersonRef};
 use crate::routes::releases::{
     one_deployment, summary, DeploymentResponse, PageQuery, ReleaseSummaryResponse,
@@ -108,6 +109,8 @@ pub struct DecisionChangeResponse {
     pub tests: Option<TestSummaryResponse>,
     /// How the decision's input contract changes, breaking changes first.
     pub contract: Vec<ContractChangeResponse>,
+    /// What the table checks find in the version the release brings, with acknowledgements.
+    pub findings: Vec<TableFindingResponse>,
 }
 
 /// One change to a decision's input contract.
@@ -291,6 +294,13 @@ pub async fn get(
     ApprovalId(id): ApprovalId,
 ) -> Result<Json<ApprovalReviewResponse>, ApiError> {
     let review = state.releases.approval(&access, id).await?;
+    let mut changes = Vec::with_capacity(review.changes.len());
+    for mut decision in review.changes {
+        let found = std::mem::take(&mut decision.findings);
+        let mut response = change(decision);
+        response.findings = findings::responses(&state, found).await?;
+        changes.push(response);
+    }
     let emails = emails(&state, people(&review.approval)).await?;
     let project = state.projects.get(&access).await?;
     let can_decide = review.approval.status == ApprovalStatus::Pending
@@ -300,7 +310,7 @@ pub async fn get(
     Ok(Json(ApprovalReviewResponse {
         approval: approval(&emails, review.approval),
         production_version: review.production.map(|v| v.to_string()),
-        changes: review.changes.into_iter().map(change).collect(),
+        changes,
         tests: review.tests.into(),
         can_decide,
     }))
@@ -417,6 +427,7 @@ fn change(c: DecisionChange) -> DecisionChangeResponse {
         to_version: c.to_version,
         tests: c.tests.map(Into::into),
         contract: c.contract.into_iter().map(Into::into).collect(),
+        findings: Vec::new(),
     }
 }
 

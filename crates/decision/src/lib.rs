@@ -12,6 +12,9 @@
 //!
 //! Test scenarios ([`scenarios`]) pin what a decision should answer; every
 //! version saved runs all of the project's and keeps the results ([`testing`]).
+//!
+//! Saving a version also reports what the table checks find: gaps, overlapping rows and
+//! conditions that never match ([`findings`]).
 
 use chrono::{DateTime, Utc};
 use donka_audit::{Action, Event};
@@ -25,10 +28,12 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 mod compare;
+mod findings;
 mod scenarios;
 mod testing;
 mod versions;
 pub use compare::{Match, Mismatch};
+pub use findings::{Acknowledgement, Finding, MAX_ACKNOWLEDGEMENT_CHARS};
 pub use scenarios::{check_scenario, Scenario, ScenarioFields, MAX_SCENARIO_NAME_CHARS};
 pub use testing::{TestResult, TestStatus, TestSummary};
 pub use versions::{
@@ -106,6 +111,11 @@ pub enum DecisionError {
     /// The input contract (the input node's JSON Schema) cannot be used; why, in words.
     #[error("{0}")]
     InvalidContract(String),
+    /// No such table finding in the decision's draft: it was fixed, or the table changed.
+    #[error("no such finding in the draft")]
+    FindingNotFound,
+    #[error("a reason is 1 to {MAX_ACKNOWLEDGEMENT_CHARS} characters")]
+    InvalidReason,
     #[error(transparent)]
     Project(#[from] ProjectError),
     #[error(transparent)]

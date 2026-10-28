@@ -14,7 +14,7 @@ use crate::{
 };
 use chrono::{DateTime, Utc};
 use donka_audit::{Action, Event};
-use donka_decision::TestSummary;
+use donka_decision::{Finding, TestSummary};
 use donka_engine::contract;
 use donka_mail::{Email, Mailer};
 use donka_project::{authorize_change, Access, Role};
@@ -114,6 +114,9 @@ pub struct DecisionChange {
     pub tests: Option<TestSummary>,
     /// How the decision's input contract changes, breaking changes first (DNK-37).
     pub contract: Vec<contract::Change>,
+    /// What the table checks find in the version the release brings, with acknowledgements
+    /// (DNK-76).
+    pub findings: Vec<Finding>,
 }
 
 /// What an approver looks at: the request, what production runs now and
@@ -358,7 +361,20 @@ impl Releases {
             None => Vec::new(),
         };
         let to = frozen(&mut conn, approval.release_id).await?;
-        let changes = compare(&from, &to);
+        let mut changes = compare(&from, &to);
+        let contents: Vec<(Uuid, &serde_json::Value)> = to
+            .iter()
+            .map(|row| (row.decision_id, &row.content))
+            .collect();
+        let findings = self.decisions.findings_of(access, &contents).await?;
+        for (row, found) in to.iter().zip(findings) {
+            if let Some(change) = changes
+                .iter_mut()
+                .find(|c| c.decision_id == row.decision_id)
+            {
+                change.findings = found;
+            }
+        }
         let tests = to
             .iter()
             .fold(TestSummary::default(), |sum, row| TestSummary {
@@ -783,6 +799,7 @@ fn compare(from: &[FrozenRow], to: &[FrozenRow]) -> Vec<DecisionChange> {
                 to_version: Some(new.version_number),
                 tests: Some(new.tests),
                 contract: breaking_first(contract::diff(before.as_ref(), new.schema().as_ref())),
+                findings: Vec::new(),
             }
         })
         .collect();
@@ -797,6 +814,7 @@ fn compare(from: &[FrozenRow], to: &[FrozenRow]) -> Vec<DecisionChange> {
                 to_version: None,
                 tests: None,
                 contract: breaking_first(contract::diff(old.schema().as_ref(), None)),
+                findings: Vec::new(),
             }),
     );
     let rank = |change: Change| match change {

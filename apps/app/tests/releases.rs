@@ -1460,3 +1460,137 @@ async fn a_rollback_keeps_waiting_requests_and_survives_token_changes(db: PgPool
     app.releases.publish_due().await.unwrap();
     assert_eq!(production_version(&app), "1.0.0");
 }
+
+/// The `table` fixture with a row an earlier row always answers first (row 2, `> 20`).
+fn overlapping_table() -> Value {
+    let mut table = fixture("table");
+    let rules = table["nodes"][1]["content"]["rules"]
+        .as_array_mut()
+        .unwrap();
+    rules.insert(
+        1,
+        json!({ "_id": "over-20", "xWauegxfG7": "> 20", "qGAHmak0xj": "20" }),
+    );
+    table
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn table_findings_warn_on_save_and_show_in_the_review_with_their_acknowledgement(db: PgPool) {
+    let app = with_database(db);
+    let (admin, grace, alan, p, _) = staged(&app).await;
+    let list = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/decisions"),
+        None,
+        &grace,
+    )
+    .await;
+    let normalize = list.body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|d| d["key"] == "bureau/normalize")
+        .unwrap()
+        .clone();
+    let base = format!(
+        "/projects/{p}/decisions/{}",
+        normalize["id"].as_str().unwrap()
+    );
+    let revision = normalize["revision"].as_i64().unwrap();
+
+    // The editor's save goes through and says what the table check found.
+    save_draft(&app, &grace, &base, overlapping_table(), revision).await;
+    let saved = save_version(&app, &grace, &base, revision + 1, "Over 20").await;
+    assert_eq!(saved.status, StatusCode::CREATED, "{}", saved.body);
+    let findings = saved.body["findings"].as_array().unwrap();
+    assert_eq!(findings.len(), 1, "{}", saved.body);
+    let finding = &findings[0];
+    assert_eq!(finding["kind"], "overlap");
+    assert_eq!(finding["tableName"], "Hello");
+    assert_eq!(
+        (finding["row"].clone(), finding["rowId"].clone()),
+        (json!(2), json!("over-20"))
+    );
+    assert_eq!(finding["coveredBy"], json!([1]));
+    assert!(finding["acknowledgement"].is_null());
+    let fingerprint = finding["fingerprint"].as_str().unwrap();
+    let draft = call(&app, "GET", &format!("{base}/findings"), None, &grace).await;
+    assert_eq!(draft.body["items"][0]["fingerprint"], fingerprint);
+
+    // Only an owner acknowledges, with a reason, a finding the draft still has.
+    let ack = |session: &str, fingerprint: &str, reason: &str| {
+        let path = format!("{base}/findings/{fingerprint}/acknowledgement");
+        let body = json!({ "reason": reason });
+        let session = session.to_owned();
+        let app = &app;
+        async move { call(app, "PUT", &path, Some(body), &session).await }
+    };
+    assert_error(
+        &ack(&grace, fingerprint, "Known").await,
+        StatusCode::FORBIDDEN,
+        "FORBIDDEN",
+    );
+    assert_error(
+        &ack(&alan, fingerprint, "  ").await,
+        StatusCode::BAD_REQUEST,
+        "INVALID_REQUEST",
+    );
+    assert_error(
+        &ack(&alan, "0123456789abcdef0123456789abcdef", "Known").await,
+        StatusCode::NOT_FOUND,
+        "FINDING_NOT_FOUND",
+    );
+    let acknowledged = ack(&alan, fingerprint, "Scores over 20 are capped upstream").await;
+    assert_eq!(acknowledged.status, StatusCode::OK, "{}", acknowledged.body);
+    assert_eq!(
+        acknowledged.body["acknowledgement"]["reason"],
+        "Scores over 20 are capped upstream"
+    );
+    assert_eq!(
+        acknowledged.body["acknowledgement"]["acknowledgedBy"]["email"],
+        ALAN
+    );
+    let audit = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/audit?action=decision.finding_acknowledged"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(audit.body["total"], 1, "{}", audit.body);
+    assert_eq!(audit.body["items"][0]["details"]["key"], "bureau/normalize");
+    assert_eq!(audit.body["items"][0]["details"]["kind"], "overlap");
+
+    // The release under review lists the finding with its acknowledgement.
+    let next = release(&app, &grace, &p, "minor", "Over 20").await;
+    let next_id = next.body["id"].as_str().unwrap().to_owned();
+    deploy(&app, &grace, &p, "staging", &next_id).await;
+    app.releases.publish_due().await.unwrap();
+    let asked = approval(&app, &grace, &p, &next_id).await;
+    assert_eq!(asked.status, StatusCode::CREATED, "{}", asked.body);
+    let review = call(
+        &app,
+        "GET",
+        &format!(
+            "/projects/{p}/approvals/{}",
+            asked.body["id"].as_str().unwrap()
+        ),
+        None,
+        &alan,
+    )
+    .await;
+    let changes = review.body["changes"].as_array().unwrap();
+    let change = changes
+        .iter()
+        .find(|c| c["key"] == "bureau/normalize")
+        .unwrap();
+    assert_eq!(change["findings"][0]["fingerprint"], fingerprint);
+    assert_eq!(
+        change["findings"][0]["acknowledgement"]["reason"],
+        "Scores over 20 are capped upstream"
+    );
+    let unchanged = changes.iter().find(|c| c["key"] == "person-score").unwrap();
+    assert_eq!(unchanged["findings"], json!([]));
+}

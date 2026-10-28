@@ -13,6 +13,7 @@ use donka_shared::page::{Page, PageRequest};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
+use crate::findings::{acknowledgements, with_acknowledgements, Finding};
 use crate::testing::{latest_siblings, TestSummary, SUMMARY_JOIN};
 use crate::{
     fetch, lock_at, sql, write_draft, Decision, DecisionError, DecisionSummary, Decisions, Tx,
@@ -44,6 +45,8 @@ pub struct SavedVersion {
     pub summary: VersionSummary,
     /// Fields rules read but the contract does not declare, and required fields no rule reads.
     pub warnings: Vec<contract::Warning>,
+    /// What the table checks find in the version, with the acknowledgements kept for them.
+    pub findings: Vec<Finding>,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -98,6 +101,8 @@ impl Decisions {
             ),
         )
         .await?;
+        let acknowledged = acknowledgements(&mut tx, &[current.id]).await?;
+        let findings = with_acknowledgements(current.id, &content, &acknowledged);
         let warnings = match &schema {
             Some(schema) => {
                 let mut contents = latest_siblings(&mut tx, access, current.id).await?;
@@ -110,6 +115,7 @@ impl Decisions {
         Ok(SavedVersion {
             summary: version,
             warnings,
+            findings,
         })
     }
 

@@ -45,7 +45,7 @@ import {
 } from '@/components/ui/item';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Link } from '@/i18n/navigation';
-import { TestBadge, VersionDiffDialog } from '@/modules/decision';
+import { FindingList, TestBadge, VersionDiffDialog } from '@/modules/decision';
 import { useCurrentUser } from '@/modules/identity';
 import { decisionHref, projectHref, ProjectFrame, type Project } from '@/modules/project';
 
@@ -285,6 +285,7 @@ function Changes({ project, review }: { project: Project; review: ApprovalReview
                     {change.tests ? <TestBadge summary={change.tests} /> : null}
                   </ItemDescription>
                   {change.contract.length > 0 ? <ContractChanges changes={change.contract} /> : null}
+                  {change.findings.length > 0 ? <TableChecks findings={change.findings} /> : null}
                 </ItemContent>
                 {change.change !== 'unchanged' ? (
                   <ItemActions>
@@ -345,6 +346,20 @@ function ContractChanges({ changes }: { changes: DecisionChange['contract'] }) {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+/** What the table checks find in the version under review, with the acknowledged ones (DNK-76). */
+function TableChecks({ findings }: { findings: DecisionChange['findings'] }) {
+  const t = useTranslations('tableChecks');
+  const waiting = findings.filter((finding) => !finding.acknowledgement).length;
+  return (
+    <div className="mt-2 grid gap-1 text-sm">
+      <p className="font-medium">
+        {t('inReview')} · {t('open', { count: waiting })}
+      </p>
+      <FindingList findings={findings} />
     </div>
   );
 }

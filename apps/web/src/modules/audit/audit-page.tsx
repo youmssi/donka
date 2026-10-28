@@ -341,6 +341,12 @@ function useSentence(event: AuditEvent): string {
         version: detail(event, 'version'),
         from: detail(event, 'from'),
       });
+    case 'decision.finding_acknowledged':
+      return t('decisionFindingAcknowledged', {
+        key: detail(event, 'key'),
+        table: detail(event, 'table'),
+        reason: detail(event, 'reason'),
+      });
     case 'scenario.created':
       return t('scenarioCreated', { name: detail(event, 'name'), key: detail(event, 'key') });
     case 'scenario.updated':

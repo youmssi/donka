@@ -1642,10 +1642,10 @@ Confirmed 2026-10-25: the engine's verification runs in `crates/engine` and its 
 appear in the editor and in the production approval review.
 
 #### Acceptance criteria
-- [ ] Saving a table reports gaps, overlapping rows and rows that can never match, with the row and column
-- [ ] The approval review lists the findings of the release under review
-- [ ] Findings warn and never block a save; an owner can acknowledge one with a reason, which is audited
-- [ ] Strings in English and French; tests use tables with each kind of finding
+- [x] Saving a table reports gaps, overlapping rows and rows that can never match, with the row and column
+- [x] The approval review lists the findings of the release under review
+- [x] Findings warn and never block a save; an owner can acknowledge one with a reason, which is audited
+- [x] Strings in English and French; tests use tables with each kind of finding
 
 ---
 

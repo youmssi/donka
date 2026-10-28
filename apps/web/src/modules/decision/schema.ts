@@ -9,6 +9,7 @@ export type SimulationResult = ApiSchemas['SimulateResponse'];
 export type Version = ApiSchemas['DecisionVersionResponse'];
 export type SavedVersion = ApiSchemas['SavedVersionResponse'];
 export type ContractWarning = ApiSchemas['ContractWarningResponse'];
+export type TableFinding = ApiSchemas['TableFindingResponse'];
 export type VersionDetail = ApiSchemas['DecisionVersionDetailResponse'];
 export type VersionList = ApiSchemas['DecisionVersionListResponse'];
 export type Restored = ApiSchemas['RestoreResponse'];
@@ -27,6 +28,13 @@ export const saveVersionSchema = z.object({
   message: z.string().trim().min(1, 'required').max(MESSAGE_MAX, 'maxLength'),
 });
 export type SaveVersionValues = z.infer<typeof saveVersionSchema>;
+
+// Why a table finding is intended (DNK-76); the length rule comes from the API contract.
+export const ACKNOWLEDGE_MAX = openapi.components.schemas.AcknowledgeRequest.properties.reason.maxLength;
+export const acknowledgeSchema = z.object({
+  reason: z.string().trim().min(1, 'required').max(ACKNOWLEDGE_MAX, 'maxLength'),
+});
+export type AcknowledgeValues = z.infer<typeof acknowledgeSchema>;
 
 // The key rule comes from the API contract, so the form and the server never disagree.
 const keyField = openapi.components.schemas.CreateDecisionRequest.properties.key;

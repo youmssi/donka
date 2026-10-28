@@ -818,6 +818,43 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/projects/{project_id}/decisions/{decision_id}/findings': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** What the table checks find in the decision's draft (any member). */
+    get: operations['list'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/decisions/{decision_id}/findings/{fingerprint}/acknowledgement': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Acknowledges a finding of the draft as intended, with why (owners). The acknowledgement holds
+     *     on later versions while the same finding comes back; acknowledging again replaces the reason.
+     */
+    put: operations['acknowledge'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/projects/{project_id}/decisions/{decision_id}/simulate': {
     parameters: {
       query?: never;
@@ -1411,6 +1448,16 @@ export interface components {
       /** @description The person has turned on a second sign-in step (DNK-59). */
       secondStep: boolean;
     };
+    AcknowledgeRequest: {
+      /** @description Why the finding is intended, 1 to 1000 characters. */
+      reason: string;
+    };
+    AcknowledgementResponse: {
+      /** Format: date-time */
+      acknowledgedAt: string;
+      acknowledgedBy: components['schemas']['PersonRef'];
+      reason: string;
+    };
     /**
      * @description Every kind of state change. The stored text is part of the audit record:
      *     never rename a value, only add new ones.
@@ -1440,6 +1487,7 @@ export interface components {
       | 'decision.created'
       | 'decision.deleted'
       | 'decision.version_saved'
+      | 'decision.finding_acknowledged'
       | 'decision.version_restored'
       | 'scenario.created'
       | 'scenario.updated'
@@ -1628,6 +1676,8 @@ export interface components {
       contract: components['schemas']['ContractChangeResponse'][];
       /** Format: uuid */
       decisionId: string;
+      /** @description What the table checks find in the version the release brings, with acknowledgements. */
+      findings: components['schemas']['TableFindingResponse'][];
       /**
        * Format: int32
        * @description The version production runs, if any.
@@ -1855,6 +1905,18 @@ export interface components {
       code: string;
       /** Format: uuid */
       id: string;
+    };
+    GapCaseResponse: {
+      conditions: components['schemas']['GapConditionResponse'][];
+      /** @description An input, as a request's context would carry it. */
+      example?: {
+        [key: string]: unknown;
+      } | null;
+    };
+    GapConditionResponse: {
+      column: components['schemas']['TableColumnResponse'];
+      /** @description The condition, in the table's expression language (`> 60`). */
+      condition: string;
     };
     ImportedResponse: {
       project: components['schemas']['ProjectResponse'];
@@ -2211,6 +2273,11 @@ export interface components {
     /** @description A version just saved, with what its author should know about the input contract. */
     SavedVersionResponse: components['schemas']['DecisionVersionResponse'] & {
       /**
+       * @description What the table checks find in the version: gaps, overlapping rows, conditions that never
+       *     match (DNK-76). They warn and never block the save.
+       */
+      findings: components['schemas']['TableFindingResponse'][];
+      /**
        * @description Fields rules read but the input contract does not declare (`undeclared`), and required
        *     fields no rule reads (`unread`). Empty when the decision has no contract.
        */
@@ -2375,6 +2442,46 @@ export interface components {
       project?: null | components['schemas']['SyncProjectRef'];
       release?: null | components['schemas']['SyncRelease'];
       target: string;
+    };
+    TableColumnResponse: {
+      id: string;
+      /** @description The name the editor shows: the column's name, else its field. */
+      name: string;
+    };
+    /** @enum {string} */
+    TableFindingKind: 'gap' | 'overlap' | 'neverMatches' | 'incomplete';
+    TableFindingListResponse: {
+      items: components['schemas']['TableFindingResponse'][];
+    };
+    TableFindingResponse: {
+      acknowledgement?: null | components['schemas']['AcknowledgementResponse'];
+      /** @description Overlap: other rows further down that never fire for the same reason. */
+      also: number[];
+      /** Format: int32 */
+      caseCount?: number | null;
+      /** @description Gap: the first uncovered inputs, out of `caseCount`. */
+      cases: components['schemas']['GapCaseResponse'][];
+      column?: null | components['schemas']['TableColumnResponse'];
+      /** @description Overlap: the earlier rows that already match all the row matches. */
+      coveredBy: number[];
+      /** @description An input, as a request's context would carry it. */
+      example?: {
+        [key: string]: unknown;
+      } | null;
+      /** @description Stays the same while the finding does; acknowledge the finding with it. */
+      fingerprint: string;
+      kind: components['schemas']['TableFindingKind'];
+      /**
+       * Format: int32
+       * @description The row at fault, numbered from 1 as in the editor (overlap, never matches).
+       */
+      row?: number | null;
+      rowId?: string | null;
+      /** @description Overlap: the covering row gives the same result, so removing the row changes nothing. */
+      sameResult: boolean;
+      /** @description The decision table node. */
+      tableId: string;
+      tableName: string;
     };
     TestResultListResponse: {
       items: components['schemas']['TestResultResponse'][];
@@ -4757,6 +4864,101 @@ export interface operations {
         };
       };
       /** @description PROJECT_NOT_FOUND or DECISION_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_ARCHIVED */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  list: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        decision_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['TableFindingListResponse'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or DECISION_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  acknowledge: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        decision_id: string;
+        /** @description The finding's fingerprint */
+        fingerprint: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AcknowledgeRequest'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['TableFindingResponse'];
+        };
+      };
+      /** @description Missing or too long reason (INVALID_REQUEST) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Only owners acknowledge findings (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND, DECISION_NOT_FOUND, or FINDING_NOT_FOUND (the draft no longer has it) */
       404: {
         headers: {
           [name: string]: unknown;
