@@ -10,6 +10,7 @@ pub mod packs;
 pub mod people;
 pub mod projects;
 pub mod releases;
+pub mod rights;
 pub mod rules_sync;
 pub mod scenarios;
 pub mod second_step;

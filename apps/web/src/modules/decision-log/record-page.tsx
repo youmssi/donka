@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronRight, CircleCheck, CircleX, Eye, RotateCcw, Sparkles } from 'lucide-react';
+import { ChevronRight, CircleCheck, CircleX, Eraser, Eye, RotateCcw, Sparkles } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
@@ -16,6 +16,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { Link } from '@/i18n/navigation';
 import { ProjectFrame, projectHref, type Project } from '@/modules/project';
 
+import { ContestsCard } from './contests';
 import { Duration, EnvironmentBadge, Outcome } from './decision-log-page';
 import type { DecisionRecord, ExplainLanguage, Explanation, Replay } from './schema';
 import { useExplain, useRecord, useReplay } from './useDecisionLog';
@@ -95,6 +96,17 @@ function RecordView({ project, id }: { project: Project; id: string }) {
         <Eye aria-hidden />
         <AlertDescription>{record.explainable ? t('viewAuditedExplain') : t('viewAudited')}</AlertDescription>
       </Alert>
+      {record.anonymisedAt ? (
+        <Alert>
+          <Eraser aria-hidden />
+          <AlertTitle>{t('anonymisedTitle')}</AlertTitle>
+          <AlertDescription>
+            <p>
+              {t('anonymised')} <When value={record.anonymisedAt} as="dateTime" />
+            </p>
+          </AlertDescription>
+        </Alert>
+      ) : null}
       {explain.data ? (
         explain.data.ok ? (
           <ExplanationCard explanation={explain.data.data} />
@@ -119,6 +131,7 @@ function RecordView({ project, id }: { project: Project; id: string }) {
             <JsonCard title={t('error')} description={t('errorDescription')} value={record.error} />
           )}
           {record.trace ? <TraceCard trace={record.trace} /> : null}
+          <ContestsCard project={project} recordId={record.id} />
         </div>
       </div>
     </div>

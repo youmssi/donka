@@ -60,7 +60,7 @@ Status: **Done** · **P1**, **P2**, **P3** (phase) · **Later** (candidate, not 
 | Two-step sign-in | Done | DNK-59 |
 | Single sign-on with the customer's identity provider | P2 | DNK-60 |
 | Secrets from files; key rotation | P1 · Done | DNK-65 · DNK-40 |
-| Rights of individuals: access, anonymisation, contest | P1 | DNK-75 |
+| Rights of individuals: access, anonymisation, contest | Done | DNK-75 |
 | Dependency and image scanning, coverage gates | P1 | DNK-49 |
 | Threat model and external penetration test | P1 | DNK-69 |
 | OWASP ASVS L2, NIST SSDF, SLSA L3, OpenSSF, CIS, PCI DSS out of scope | P1 | DNK-73 |

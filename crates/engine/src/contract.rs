@@ -2,7 +2,7 @@
 //!
 //! The engine validates every request against that schema (draft-07, which is what the engine
 //! uses), so the Runtime enforces the same definition a form is built from. Presentation hints
-//! live beside the standard keywords as `x-donka` annotations (labels, help, `pii`), which
+//! live beside the standard keywords as `x-donka` annotations (labels, help, `pii`, `identifier`), which
 //! validation ignores.
 //!
 //! This module reads the contract out of a graph, checks it is a valid schema, lists the input
@@ -70,8 +70,12 @@ pub struct Field {
     pub path: String,
     /// Required here and in every object above it: a request always carries it.
     pub required: bool,
-    /// Personal data: removed from what is sent to be explained.
+    /// Personal data: removed from what is sent to be explained, and from a record anonymised
+    /// at the person's request. An identifier is always personal data.
     pub pii: bool,
+    /// Identifies the person a decision is about (national ID, phone, customer number): their
+    /// records are found by it (DNK-75).
+    pub identifier: bool,
     /// The field's own schema (type, limits, allowed values, hints).
     pub schema: Value,
     /// An object whose properties are listed (its fields come after it).
@@ -102,13 +106,18 @@ fn collect_fields(schema: &Value, prefix: &str, parent_required: bool, out: &mut
         };
         let is_required = parent_required && required.contains(name.as_str());
         let has_properties = property.get("properties").is_some_and(Value::is_object);
+        let hint = |name: &str| {
+            property
+                .pointer(&format!("/{HINTS}/{name}"))
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+        };
+        let identifier = hint("identifier");
         out.push(Field {
             path: path.clone(),
             required: is_required,
-            pii: property
-                .pointer(&format!("/{HINTS}/pii"))
-                .and_then(Value::as_bool)
-                .unwrap_or(false),
+            pii: identifier || hint("pii"),
+            identifier,
             schema: property.clone(),
             has_properties,
         });
@@ -121,6 +130,15 @@ pub fn pii_fields(schema: &Value) -> Vec<String> {
     declared_fields(schema)
         .into_iter()
         .filter(|field| field.pii)
+        .map(|field| field.path)
+        .collect()
+}
+
+/// Paths of the fields marked `identifier`.
+pub fn identifier_fields(schema: &Value) -> Vec<String> {
+    declared_fields(schema)
+        .into_iter()
+        .filter(|field| field.identifier)
         .map(|field| field.path)
         .collect()
 }
@@ -472,7 +490,7 @@ pub enum ChangeKind {
     Narrowed,
     /// More values accepted.
     Widened,
-    /// Labels, help or the `pii` mark: what callers send is unchanged.
+    /// Labels, help or the `pii` and `identifier` marks: what callers send is unchanged.
     Presentation,
 }
 

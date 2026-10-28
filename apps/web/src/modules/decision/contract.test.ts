@@ -54,6 +54,18 @@ it('reads back the fields it wrote', () => {
   expect(schemaToFields(null)).toEqual([]);
 });
 
+it('marks an identifier as personal data too, and reads it back', () => {
+  const phone: InputField = { ...emptyField('applicant.phone'), identifier: true, pii: true };
+  const schema = fieldsToSchema([phone]);
+  expect(schema).toMatchObject({
+    properties: { applicant: { properties: { phone: { 'x-donka': { pii: true, identifier: true } } } } },
+  });
+  expect(schemaToFields(schema)).toEqual([phone]);
+  // A schema written elsewhere with only the identifier mark is personal data all the same.
+  const bare = { type: 'object', properties: { phone: { type: 'string', 'x-donka': { identifier: true } } } };
+  expect(schemaToFields(bare)?.[0]).toMatchObject({ identifier: true, pii: true });
+});
+
 it('leaves a schema it cannot show faithfully to the JSON editor', () => {
   const arrays = { type: 'object', properties: { tags: { type: 'array', items: { type: 'string' } } } };
   const pattern = { type: 'object', properties: { iban: { type: 'string', pattern: '^CM' } } };

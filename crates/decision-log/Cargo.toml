@@ -16,9 +16,12 @@ donka-identity = { workspace = true }
 donka-project = { workspace = true }
 donka-release = { workspace = true }
 donka-shared = { workspace = true }
+hmac = { workspace = true }
+krilla = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
+skrifa = { workspace = true }
 sqlx = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }

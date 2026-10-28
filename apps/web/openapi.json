@@ -142,6 +142,14 @@
           "decision_log_token.issued",
           "decision_log_token.revoked",
           "decision_record.explained",
+          "decision_log.people_indexed",
+          "person.records_searched",
+          "person.report_exported",
+          "person.records_anonymised",
+          "retention_rule.created",
+          "retention_rule.ended",
+          "decision_contest.opened",
+          "decision_contest.reviewed",
           "ci_token.issued",
           "ci_token.revoked"
         ],
@@ -160,6 +168,20 @@
         "required": [
           "email",
           "role"
+        ],
+        "type": "object"
+      },
+      "AnonymisedResponse": {
+        "properties": {
+          "records": {
+            "description": "Records anonymised by this request; those anonymised before are not counted.",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "records"
         ],
         "type": "object"
       },
@@ -497,6 +519,92 @@
           "code"
         ],
         "type": "object"
+      },
+      "ContestListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ContestResponse"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "ContestResponse": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "openedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "openedBy": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason": {
+            "description": "Why the person contests the decision.",
+            "type": "string"
+          },
+          "recordId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "review": {
+            "description": "What the review found.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reviewedAt": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reviewedBy": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revisedOutcome": {
+            "description": "The decision's new outcome, when the review revised it.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/ContestStatusName"
+          }
+        },
+        "required": [
+          "id",
+          "recordId",
+          "status",
+          "reason",
+          "openedBy",
+          "openedAt"
+        ],
+        "type": "object"
+      },
+      "ContestStatusName": {
+        "enum": [
+          "open",
+          "upheld",
+          "revised"
+        ],
+        "type": "string"
       },
       "ContractChangeKind": {
         "enum": [
@@ -1635,6 +1743,18 @@
         ],
         "type": "object"
       },
+      "NewContestRequest": {
+        "properties": {
+          "reason": {
+            "description": "Why the person contests the decision: 1 to 2000 characters.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
+      },
       "NewProjectFields": {
         "description": "The key and name of the new project.",
         "properties": {
@@ -1653,6 +1773,31 @@
         "required": [
           "key",
           "name"
+        ],
+        "type": "object"
+      },
+      "NewRetentionRuleRequest": {
+        "properties": {
+          "description": {
+            "description": "1 to 500 characters.",
+            "type": "string"
+          },
+          "legalReference": {
+            "description": "At most 200 characters.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "until": {
+            "description": "The last day it runs: today or later.",
+            "format": "date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "description",
+          "until"
         ],
         "type": "object"
       },
@@ -1819,6 +1964,40 @@
         ],
         "type": "object"
       },
+      "PersonRecordResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RecordSummaryResponse"
+          },
+          {
+            "properties": {
+              "anonymisedAt": {
+                "description": "When the person's fields were removed from it.",
+                "format": "date-time",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "PersonRecordsResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PersonRecordResponse"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "PersonRef": {
         "properties": {
           "email": {
@@ -1832,6 +2011,18 @@
         "required": [
           "id",
           "email"
+        ],
+        "type": "object"
+      },
+      "PersonRequest": {
+        "properties": {
+          "identifier": {
+            "description": "A value of a field the contract marks as an identifier (national ID, phone…). Case,\nspaces, dashes and dots do not matter. Never stored.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "identifier"
         ],
         "type": "object"
       },
@@ -1960,6 +2151,14 @@
           },
           {
             "properties": {
+              "anonymisedAt": {
+                "description": "When the person's fields were removed from the record at their request (DNK-75):\nwhat it read and answered no longer holds them.",
+                "format": "date-time",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "error": {
                 "description": "The error the caller received, when it failed."
               },
@@ -2256,6 +2455,26 @@
         ],
         "type": "object"
       },
+      "ReportRequest": {
+        "properties": {
+          "explain": {
+            "description": "Adds a plain-language explanation of each decision, when the installation explains\ndecisions (DNK-19). Personal and redacted fields are removed before anything is sent.",
+            "type": "boolean"
+          },
+          "identifier": {
+            "type": "string"
+          },
+          "language": {
+            "$ref": "#/components/schemas/ExplainLanguage",
+            "description": "The person's language."
+          }
+        },
+        "required": [
+          "identifier",
+          "language"
+        ],
+        "type": "object"
+      },
       "RequestApprovalRequest": {
         "properties": {
           "releaseId": {
@@ -2296,6 +2515,102 @@
         "required": [
           "decision",
           "version"
+        ],
+        "type": "object"
+      },
+      "RetentionRuleListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RetentionRuleResponse"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "RetentionRuleResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdBy": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "description": {
+            "description": "What requires keeping the records whole.",
+            "type": "string"
+          },
+          "endedAt": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "endedBy": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "legalReference": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "running": {
+            "description": "It blocks anonymisation: not ended, and its last day has not passed.",
+            "type": "boolean"
+          },
+          "until": {
+            "description": "The last day it runs.",
+            "format": "date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "description",
+          "until",
+          "createdBy",
+          "createdAt",
+          "running"
+        ],
+        "type": "object"
+      },
+      "ReviewContestRequest": {
+        "properties": {
+          "review": {
+            "description": "What the review found: 1 to 2000 characters.",
+            "type": "string"
+          },
+          "revisedOutcome": {
+            "description": "The new outcome, required when revised (1 to 200 characters).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/ContestStatusName",
+            "description": "`upheld` or `revised`."
+          }
+        },
+        "required": [
+          "status",
+          "review"
         ],
         "type": "object"
       },
@@ -5714,6 +6029,97 @@
         ]
       }
     },
+    "/projects/{project_id}/contests/{contest_id}/review": {
+      "post": {
+        "operationId": "review_contest",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "contest_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewContestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContestResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "No review, or a revision without its outcome (INVALID_REQUEST)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Owners only (FORBIDDEN)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND or CONTEST_NOT_FOUND"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Already reviewed (CONTEST_REVIEWED)"
+          }
+        },
+        "summary": "Records the outcome of a contest's review (owners): upheld, or revised with the new\noutcome. Audited (`decision_contest.reviewed`).",
+        "tags": [
+          "people-rights"
+        ]
+      }
+    },
     "/projects/{project_id}/decision-log": {
       "get": {
         "operationId": "search",
@@ -6020,6 +6426,146 @@
         "summary": "Opens a decision record (any member). Each opening is audited\n(`decision_record.viewed`): records may contain personal data.",
         "tags": [
           "decision-log"
+        ]
+      }
+    },
+    "/projects/{project_id}/decision-log/{record_id}/contests": {
+      "get": {
+        "operationId": "contests",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "record_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContestListResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND or RECORD_NOT_FOUND"
+          }
+        },
+        "summary": "The contests of a decision record, in the order they were recorded (any member): its history.",
+        "tags": [
+          "people-rights"
+        ]
+      },
+      "post": {
+        "operationId": "open_contest",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "record_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewContestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContestResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "No reason (INVALID_REQUEST)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Owners only (FORBIDDEN)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND or RECORD_NOT_FOUND"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A contest is under review (CONTEST_OPEN)"
+          }
+        },
+        "summary": "Records that the person contests a decision (owners); the review happens in the lender's\nown systems. A record has one open contest at a time. Audited (`decision_contest.opened`).",
+        "tags": [
+          "people-rights"
         ]
       }
     },
@@ -8007,6 +8553,228 @@
         ]
       }
     },
+    "/projects/{project_id}/people/anonymise": {
+      "post": {
+        "operationId": "anonymise",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnonymisedResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not an identifier (INVALID_REQUEST)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Owners only (FORBIDDEN)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A retention rule runs (RETENTION_RULE_RUNS)"
+          }
+        },
+        "summary": "Removes the person's fields from every record holding the identifier (owners): the\nfields the contract marks as personal data and the project's redacted fields go from what\neach record read and answered; outcome, release and time stay. Cannot be undone. Refused\nwhile a retention rule runs (`409 RETENTION_RULE_RUNS`, the rule in details). Audited\n(`person.records_anonymised`).",
+        "tags": [
+          "people-rights"
+        ]
+      }
+    },
+    "/projects/{project_id}/people/report": {
+      "post": {
+        "operationId": "report",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {}
+            },
+            "description": "The report, `access-report.pdf`"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not an identifier (INVALID_REQUEST)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Owners only (FORBIDDEN)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND"
+          }
+        },
+        "summary": "The access report of a person: every record about them with what it read, what it\nanswered, its explanation and contests, as a PDF in English or French (owners). Audited\nonce (`person.report_exported`).",
+        "tags": [
+          "people-rights"
+        ]
+      }
+    },
+    "/projects/{project_id}/people/search": {
+      "post": {
+        "operationId": "search",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonRecordsResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not an identifier (INVALID_REQUEST)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Owners only (FORBIDDEN)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND"
+          }
+        },
+        "summary": "The project's records about a person, found by an identifier, newest first (owners).\nNothing is decrypted to search. Audited (`person.records_searched`) without the identifier.",
+        "tags": [
+          "people-rights"
+        ]
+      }
+    },
     "/projects/{project_id}/releases": {
       "get": {
         "operationId": "list",
@@ -8302,6 +9070,179 @@
         "summary": "Restores an archived project (owners).",
         "tags": [
           "projects"
+        ]
+      }
+    },
+    "/projects/{project_id}/retention-rules": {
+      "get": {
+        "operationId": "rules",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionRuleListResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND"
+          }
+        },
+        "summary": "The project's retention rules, running ones first (any member).",
+        "tags": [
+          "people-rights"
+        ]
+      },
+      "post": {
+        "operationId": "create_rule",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewRetentionRuleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionRuleResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A field is not valid (INVALID_REQUEST)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Owners only (FORBIDDEN)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND"
+          }
+        },
+        "summary": "Documents a rule that requires keeping the project's records whole (owners): while it\nruns, they cannot be anonymised. Audited (`retention_rule.created`).",
+        "tags": [
+          "people-rights"
+        ]
+      }
+    },
+    "/projects/{project_id}/retention-rules/{rule_id}/end": {
+      "post": {
+        "operationId": "end_rule",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "rule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionRuleResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Owners only (FORBIDDEN)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND or RETENTION_RULE_NOT_FOUND"
+          }
+        },
+        "summary": "Ends a retention rule before its last day (owners). Audited (`retention_rule.ended`).",
+        "tags": [
+          "people-rights"
         ]
       }
     },

@@ -1,17 +1,18 @@
 'use client';
 
-import { OutcomeSettings } from '@/modules/decision-log';
+import { OutcomeSettings, RetentionRules } from '@/modules/decision-log';
 import { CopyProject } from '@/modules/pack';
 import { ProjectSettingsPage, type Project } from '@/modules/project';
 import { CiTokens, useReleaseList } from '@/modules/release';
 
-/** The project's settings with the decision log's, the CI tokens and copies, composed here so no module imports another. */
+/** The project's settings with the decision log's and its retention rules, the CI tokens and copies, composed here so no module imports another. */
 export function Settings() {
   return (
     <ProjectSettingsPage
       more={(project) => (
         <>
           <OutcomeSettings project={project} />
+          <RetentionRules project={project} />
           <CiTokens project={project} />
           <Copies project={project} />
         </>

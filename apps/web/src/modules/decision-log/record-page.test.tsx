@@ -5,7 +5,7 @@ import { getProjectByKey } from '@/modules/project/project.service';
 import { search } from '@/test/navigation-mock';
 import { renderWithProviders } from '@/test/render';
 
-import { explainRecord, getRecord, replayRecord } from './decision-log.service';
+import { explainRecord, getRecord, listContests, openContest, replayRecord } from './decision-log.service';
 import { RecordPage } from './record-page';
 import type { DecisionRecord } from './schema';
 
@@ -14,7 +14,11 @@ vi.mock('./decision-log.service', async (original) => ({
   getRecord: vi.fn(),
   replayRecord: vi.fn(),
   explainRecord: vi.fn(),
+  listContests: vi.fn(),
+  openContest: vi.fn(),
 }));
+const contestsMock = vi.mocked(listContests);
+const openContestMock = vi.mocked(openContest);
 const getMock = vi.mocked(getRecord);
 const replayMock = vi.mocked(replayRecord);
 const explainMock = vi.mocked(explainRecord);
@@ -61,7 +65,23 @@ beforeEach(() => {
     },
   });
   getMock.mockResolvedValue({ ok: true, data: record });
+  contestsMock.mockResolvedValue({ ok: true, data: [] });
 });
+
+function asOwner() {
+  vi.mocked(getProjectByKey).mockResolvedValue({
+    ok: true,
+    data: {
+      id: 'p-1',
+      key: 'retail',
+      name: 'Retail',
+      description: '',
+      createdAt: '2026-09-28T09:00:00Z',
+      archivedAt: null,
+      role: 'owner',
+    },
+  });
+}
 
 it('shows what the decision was asked and answered, and that opening it is audited', async () => {
   renderWithProviders(<RecordPage />);
@@ -139,4 +159,63 @@ it('says when no explanation could be had', async () => {
   await userEvent.setup().click(screen.getByRole('button', { name: 'Explain' }));
   expect(await screen.findByText('No explanation this time.')).toBeInTheDocument();
   expect(screen.getByText('The explanation service did not answer. Try again in a moment.')).toBeInTheDocument();
+});
+
+it('says when the person\u2019s details were removed, and shows the contests and their reviews', async () => {
+  getMock.mockResolvedValue({
+    ok: true,
+    data: { ...record, input: { input: 12 }, anonymisedAt: '2026-10-20T08:00:00Z' },
+  });
+  contestsMock.mockResolvedValue({
+    ok: true,
+    data: [
+      {
+        id: 'c-1',
+        recordId: 'r-1',
+        status: 'revised',
+        reason: 'My salary was not counted.',
+        openedBy: 'u-1',
+        openedAt: '2026-10-03T09:00:00Z',
+        review: 'Salary slips checked.',
+        revisedOutcome: 'approve',
+        reviewedBy: 'u-1',
+        reviewedAt: '2026-10-05T09:00:00Z',
+      },
+    ],
+  });
+  renderWithProviders(<RecordPage />);
+  expect(await screen.findByText('Personal details removed')).toBeInTheDocument();
+  expect(await screen.findByText('My salary was not counted.')).toBeInTheDocument();
+  expect(screen.getByText('Decision revised')).toBeInTheDocument();
+  expect(screen.getByText('Salary slips checked.')).toBeInTheDocument();
+  // Viewers read the history; they record nothing.
+  expect(screen.queryByRole('button', { name: 'Record a contest' })).not.toBeInTheDocument();
+});
+
+it('lets an owner record a contest with the person\u2019s reason', async () => {
+  asOwner();
+  openContestMock.mockResolvedValue({
+    ok: true,
+    data: {
+      id: 'c-2',
+      recordId: 'r-1',
+      status: 'open',
+      reason: 'The phone is not mine.',
+      openedBy: 'u-1',
+      openedAt: '2026-10-06T09:00:00Z',
+      review: null,
+      revisedOutcome: null,
+      reviewedBy: null,
+      reviewedAt: null,
+    },
+  });
+  renderWithProviders(<RecordPage />);
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole('button', { name: 'Record a contest' }));
+  await user.click(screen.getByRole('button', { name: 'Record the contest' }));
+  expect(await screen.findByText('This field is required.')).toBeInTheDocument();
+  expect(openContestMock).not.toHaveBeenCalled();
+  await user.type(screen.getByLabelText(/The person.s reason/), 'The phone is not mine.');
+  await user.click(screen.getByRole('button', { name: 'Record the contest' }));
+  expect(openContestMock).toHaveBeenCalledWith('p-1', 'r-1', 'The phone is not mine.');
 });

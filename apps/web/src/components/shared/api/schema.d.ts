@@ -669,6 +669,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/projects/{project_id}/contests/{contest_id}/review': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Records the outcome of a contest's review (owners): upheld, or revised with the new
+     *     outcome. Audited (`decision_contest.reviewed`).
+     */
+    post: operations['review_contest'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/projects/{project_id}/decision-log': {
     parameters: {
       query?: never;
@@ -725,6 +745,27 @@ export interface paths {
     get: operations['get'];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/decision-log/{record_id}/contests': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The contests of a decision record, in the order they were recorded (any member): its history. */
+    get: operations['contests'];
+    put?: never;
+    /**
+     * Records that the person contests a decision (owners); the review happens in the lender's
+     *     own systems. A record has one open contest at a time. Audited (`decision_contest.opened`).
+     */
+    post: operations['open_contest'];
     delete?: never;
     options?: never;
     head?: never;
@@ -1116,6 +1157,70 @@ export interface paths {
     patch: operations['change_role'];
     trace?: never;
   };
+  '/projects/{project_id}/people/anonymise': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Removes the person's fields from every record holding the identifier (owners): the
+     *     fields the contract marks as personal data and the project's redacted fields go from what
+     *     each record read and answered; outcome, release and time stay. Cannot be undone. Refused
+     *     while a retention rule runs (`409 RETENTION_RULE_RUNS`, the rule in details). Audited
+     *     (`person.records_anonymised`).
+     */
+    post: operations['anonymise'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/people/report': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * The access report of a person: every record about them with what it read, what it
+     *     answered, its explanation and contests, as a PDF in English or French (owners). Audited
+     *     once (`person.report_exported`).
+     */
+    post: operations['report'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/people/search': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * The project's records about a person, found by an identifier, newest first (owners).
+     *     Nothing is decrypted to search. Audited (`person.records_searched`) without the identifier.
+     */
+    post: operations['search'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/projects/{project_id}/releases': {
     parameters: {
       query?: never;
@@ -1179,6 +1284,44 @@ export interface paths {
     put?: never;
     /** Restores an archived project (owners). */
     post: operations['restore'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/retention-rules': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The project's retention rules, running ones first (any member). */
+    get: operations['rules'];
+    put?: never;
+    /**
+     * Documents a rule that requires keeping the project's records whole (owners): while it
+     *     runs, they cannot be anonymised. Audited (`retention_rule.created`).
+     */
+    post: operations['create_rule'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/retention-rules/{rule_id}/end': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Ends a retention rule before its last day (owners). Audited (`retention_rule.ended`). */
+    post: operations['end_rule'];
     delete?: never;
     options?: never;
     head?: never;
@@ -1509,12 +1652,27 @@ export interface components {
       | 'decision_log_token.issued'
       | 'decision_log_token.revoked'
       | 'decision_record.explained'
+      | 'decision_log.people_indexed'
+      | 'person.records_searched'
+      | 'person.report_exported'
+      | 'person.records_anonymised'
+      | 'retention_rule.created'
+      | 'retention_rule.ended'
+      | 'decision_contest.opened'
+      | 'decision_contest.reviewed'
       | 'ci_token.issued'
       | 'ci_token.revoked';
     AddMemberRequest: {
       /** @description Email of an existing Studio account. */
       email: string;
       role: components['schemas']['Role'];
+    };
+    AnonymisedResponse: {
+      /**
+       * Format: int64
+       * @description Records anonymised by this request; those anonymised before are not counted.
+       */
+      records: number;
     };
     ApprovalListResponse: {
       items: components['schemas']['ApprovalResponse'][];
@@ -1616,6 +1774,32 @@ export interface components {
       /** @description Six digits from the authenticator app, or a recovery code. */
       code: string;
     };
+    ContestListResponse: {
+      items: components['schemas']['ContestResponse'][];
+    };
+    ContestResponse: {
+      /** Format: uuid */
+      id: string;
+      /** Format: date-time */
+      openedAt: string;
+      /** Format: uuid */
+      openedBy: string;
+      /** @description Why the person contests the decision. */
+      reason: string;
+      /** Format: uuid */
+      recordId: string;
+      /** @description What the review found. */
+      review?: string | null;
+      /** Format: date-time */
+      reviewedAt?: string | null;
+      /** Format: uuid */
+      reviewedBy?: string | null;
+      /** @description The decision's new outcome, when the review revised it. */
+      revisedOutcome?: string | null;
+      status: components['schemas']['ContestStatusName'];
+    };
+    /** @enum {string} */
+    ContestStatusName: 'open' | 'upheld' | 'revised';
     /** @enum {string} */
     ContractChangeKind:
       'added' | 'removed' | 'nowRequired' | 'nowOptional' | 'typeChanged' | 'narrowed' | 'widened' | 'presentation';
@@ -2005,10 +2189,25 @@ export interface components {
       expected?: unknown;
       path: string;
     };
+    NewContestRequest: {
+      /** @description Why the person contests the decision: 1 to 2000 characters. */
+      reason: string;
+    };
     /** @description The key and name of the new project. */
     NewProjectFields: {
       key: string;
       name: string;
+    };
+    NewRetentionRuleRequest: {
+      /** @description 1 to 500 characters. */
+      description: string;
+      /** @description At most 200 characters. */
+      legalReference?: string | null;
+      /**
+       * Format: date
+       * @description The last day it runs: today or later.
+       */
+      until: string;
     };
     /**
      * @description The step that follows a correct password.
@@ -2056,10 +2255,27 @@ export interface components {
       /** @description The token from the password-setup link. */
       token: string;
     };
+    PersonRecordResponse: components['schemas']['RecordSummaryResponse'] & {
+      /**
+       * Format: date-time
+       * @description When the person's fields were removed from it.
+       */
+      anonymisedAt?: string | null;
+    };
+    PersonRecordsResponse: {
+      items: components['schemas']['PersonRecordResponse'][];
+    };
     PersonRef: {
       email: string;
       /** Format: uuid */
       id: string;
+    };
+    PersonRequest: {
+      /**
+       * @description A value of a field the contract marks as an identifier (national ID, phone…). Case,
+       *     spaces, dashes and dots do not matter. Never stored.
+       */
+      identifier: string;
     };
     ProjectListResponse: {
       items: components['schemas']['ProjectSummaryResponse'][];
@@ -2105,6 +2321,12 @@ export interface components {
       total: number;
     };
     RecordResponse: components['schemas']['RecordSummaryResponse'] & {
+      /**
+       * Format: date-time
+       * @description When the person's fields were removed from the record at their request (DNK-75):
+       *     what it read and answered no longer holds them.
+       */
+      anonymisedAt?: string | null;
       /** @description The error the caller received, when it failed. */
       error?: unknown;
       /** @description Whether this installation can explain the record (DNK-19). */
@@ -2211,6 +2433,16 @@ export interface components {
       output?: unknown;
       status: components['schemas']['RecordStatus'];
     };
+    ReportRequest: {
+      /**
+       * @description Adds a plain-language explanation of each decision, when the installation explains
+       *     decisions (DNK-19). Personal and redacted fields are removed before anything is sent.
+       */
+      explain?: boolean;
+      identifier: string;
+      /** @description The person's language. */
+      language: components['schemas']['ExplainLanguage'];
+    };
     RequestApprovalRequest: {
       /**
        * Format: uuid
@@ -2230,6 +2462,39 @@ export interface components {
       decision: components['schemas']['DecisionResponse'];
       /** @description The new version the restore created. */
       version: components['schemas']['DecisionVersionResponse'];
+    };
+    RetentionRuleListResponse: {
+      items: components['schemas']['RetentionRuleResponse'][];
+    };
+    RetentionRuleResponse: {
+      /** Format: date-time */
+      createdAt: string;
+      /** Format: uuid */
+      createdBy: string;
+      /** @description What requires keeping the records whole. */
+      description: string;
+      /** Format: date-time */
+      endedAt?: string | null;
+      /** Format: uuid */
+      endedBy?: string | null;
+      /** Format: uuid */
+      id: string;
+      legalReference?: string | null;
+      /** @description It blocks anonymisation: not ended, and its last day has not passed. */
+      running: boolean;
+      /**
+       * Format: date
+       * @description The last day it runs.
+       */
+      until: string;
+    };
+    ReviewContestRequest: {
+      /** @description What the review found: 1 to 2000 characters. */
+      review: string;
+      /** @description The new outcome, required when revised (1 to 200 characters). */
+      revisedOutcome?: string | null;
+      /** @description `upheld` or `revised`. */
+      status: components['schemas']['ContestStatusName'];
     };
     /**
      * @description What a member may do in a project. Each role includes the ones below it;
@@ -4380,6 +4645,68 @@ export interface operations {
       };
     };
   };
+  review_contest: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        contest_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ReviewContestRequest'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ContestResponse'];
+        };
+      };
+      /** @description No review, or a revision without its outcome (INVALID_REQUEST) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Owners only (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or CONTEST_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Already reviewed (CONTEST_REVIEWED) */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
   search: {
     parameters: {
       query?: {
@@ -4548,6 +4875,99 @@ export interface operations {
       };
       /** @description PROJECT_NOT_FOUND or RECORD_NOT_FOUND */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  contests: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        record_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ContestListResponse'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or RECORD_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  open_contest: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        record_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['NewContestRequest'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ContestResponse'];
+        };
+      };
+      /** @description No reason (INVALID_REQUEST) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Owners only (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or RECORD_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description A contest is under review (CONTEST_OPEN) */
+      409: {
         headers: {
           [name: string]: unknown;
         };
@@ -5882,6 +6302,172 @@ export interface operations {
       };
     };
   };
+  anonymise: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PersonRequest'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AnonymisedResponse'];
+        };
+      };
+      /** @description Not an identifier (INVALID_REQUEST) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Owners only (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description A retention rule runs (RETENTION_RULE_RUNS) */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  report: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ReportRequest'];
+      };
+    };
+    responses: {
+      /** @description The report, `access-report.pdf` */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/pdf': unknown;
+        };
+      };
+      /** @description Not an identifier (INVALID_REQUEST) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Owners only (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  search: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PersonRequest'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PersonRecordsResponse'];
+        };
+      };
+      /** @description Not an identifier (INVALID_REQUEST) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Owners only (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
   list: {
     parameters: {
       query?: {
@@ -6076,6 +6662,128 @@ export interface operations {
         };
       };
       /** @description PROJECT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  rules: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['RetentionRuleListResponse'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  create_rule: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['NewRetentionRuleRequest'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['RetentionRuleResponse'];
+        };
+      };
+      /** @description A field is not valid (INVALID_REQUEST) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Owners only (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  end_rule: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        rule_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['RetentionRuleResponse'];
+        };
+      };
+      /** @description Owners only (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or RETENTION_RULE_NOT_FOUND */
       404: {
         headers: {
           [name: string]: unknown;

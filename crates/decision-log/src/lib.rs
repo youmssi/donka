@@ -27,10 +27,17 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 mod feed;
+mod people;
+pub mod report;
 
 pub use donka_shared::cipher::{Cipher, CipherError};
 use feed::FeedRecord;
 pub use feed::{Payload, Rejection, Status, MAX_TEXT_CHARS};
+pub use people::{
+    Contest, ContestOutcome, ContestStatus, IndexProgress, NewRetentionRule, PersonKey,
+    PersonRecord, PersonReport, PersonReportEntry, RetentionRule, MAX_CONTEST_TEXT_CHARS,
+    MAX_IDENTIFIER_CHARS, MAX_LEGAL_REFERENCE_CHARS, MAX_OUTCOME_CHARS, MAX_RULE_DESCRIPTION_CHARS,
+};
 
 /// Records one batch may hold; the Runtime sends 100 by default.
 pub const MAX_BATCH_RECORDS: usize = 1000;
@@ -65,6 +72,31 @@ pub enum DecisionLogError {
     InvalidRedactedFields,
     #[error("decision record not found")]
     RecordNotFound,
+    #[error(
+        "an identifier is 1 to {MAX_IDENTIFIER_CHARS} characters, not only spaces, dashes or dots"
+    )]
+    InvalidIdentifier,
+    /// Anonymising is refused while a documented retention rule runs.
+    #[error("a retention rule keeps these records whole until {}: {}", .0.until, .0.description)]
+    RetentionRuleRuns(Box<RetentionRule>),
+    #[error(
+        "a retention rule has a description of 1 to {MAX_RULE_DESCRIPTION_CHARS} characters, \
+         a legal reference of at most {MAX_LEGAL_REFERENCE_CHARS} and an end date from today"
+    )]
+    InvalidRetentionRule,
+    #[error("retention rule not found")]
+    RetentionRuleNotFound,
+    #[error(
+        "a reason of 1 to {MAX_CONTEST_TEXT_CHARS} characters is required, and a revised \
+         decision names its new outcome (1 to {MAX_OUTCOME_CHARS} characters)"
+    )]
+    InvalidContest,
+    #[error("contest not found")]
+    ContestNotFound,
+    #[error("this decision already has a contest under review")]
+    ContestOpen,
+    #[error("this contest has already been reviewed")]
+    ContestReviewed,
     #[error("the record cannot be read: {0}")]
     Unreadable(#[from] CipherError),
     #[error("the system random number generator failed")]
@@ -181,6 +213,8 @@ pub struct Record {
     pub summary: RecordSummary,
     pub release_version: String,
     pub received_at: DateTime<Utc>,
+    /// When the person's fields were removed from it (DNK-75).
+    pub anonymised_at: Option<DateTime<Utc>>,
     pub payload: Payload,
 }
 
@@ -199,6 +233,7 @@ struct StoredRecord {
     #[sqlx(flatten)]
     summary: RecordSummary,
     received_at: DateTime<Utc>,
+    anonymised_at: Option<DateTime<Utc>>,
     key_id: String,
     nonce: Vec<u8>,
     payload: Vec<u8>,
@@ -217,6 +252,8 @@ pub struct DecisionLog {
     releases: Releases,
     runtime: Arc<dyn DecisionRuntime>,
     retention: Duration,
+    /// Hashes the identifiers people are found by (DNK-75).
+    person_key: Arc<PersonKey>,
 }
 
 impl DecisionLog {
@@ -224,6 +261,7 @@ impl DecisionLog {
         pool: PgPool,
         clock: Arc<dyn Clock>,
         cipher: Arc<Cipher>,
+        person_key: Arc<PersonKey>,
         releases: Releases,
         runtime: Arc<dyn DecisionRuntime>,
         retention: Duration,
@@ -235,6 +273,7 @@ impl DecisionLog {
             releases,
             runtime,
             retention,
+            person_key,
         }
     }
 
@@ -358,6 +397,7 @@ impl DecisionLog {
         let mut receipt = Receipt::default();
         let mut published: HashMap<(Uuid, Uuid), bool> = HashMap::new();
         let mut outcome_fields: HashMap<Uuid, Option<String>> = HashMap::new();
+        let mut identifiers = people::ContractFields::new();
         // A record evaluated beyond Studio's clock, or already past retention, is refused: it
         // would land in a month nobody keeps.
         let window = (now - self.retention)..=(now + MAX_CLOCK_AHEAD);
@@ -441,11 +481,20 @@ impl DecisionLog {
                 record.evaluated_at,
                 i64::try_from(record.duration_us).unwrap_or(i64::MAX),
             );
-            let plaintext =
-                serde_json::to_vec(&record.into_payload()).map_err(|_| CipherError::Corrupt)?;
+            let identifier_paths = self
+                .contract_fields(
+                    &mut identifiers,
+                    project_id,
+                    release_id,
+                    &decision_key,
+                    contract::identifier_fields,
+                )
+                .await?;
+            let payload = record.into_payload();
+            let plaintext = serde_json::to_vec(&payload).map_err(|_| CipherError::Corrupt)?;
             let sealed = self.cipher.seal(id, &plaintext)?;
             // A record sent twice is stored once, whatever time it carries the second time.
-            sqlx::query(
+            let inserted = sqlx::query(
                 "INSERT INTO decision_records \
                  (id, project_id, release_id, environment, decision_key, reference, status, outcome, \
                   evaluated_at, duration_us, received_at, token_id, key_id, nonce, payload) \
@@ -470,6 +519,16 @@ impl DecisionLog {
             .bind(&sealed.ciphertext)
             .execute(&mut *tx)
             .await?;
+            if inserted.rows_affected() == 1 {
+                self.index_person(
+                    &mut tx,
+                    project_id,
+                    (id, evaluated_at),
+                    &payload.input,
+                    &identifier_paths,
+                )
+                .await?;
+            }
             receipt.accepted += 1;
         }
         tx.commit().await?;
@@ -580,6 +639,7 @@ impl DecisionLog {
         Ok(Record {
             release_version: release.summary.version.to_string(),
             received_at: record.received_at,
+            anonymised_at: record.anonymised_at,
             summary: record.summary,
             payload,
         })
@@ -647,24 +707,18 @@ impl DecisionLog {
         let settings = stored_settings(&mut conn, access.project_id(), false).await?;
         drop(conn);
         let release = self.releases.get(access, record.summary.release_id).await?;
-        let contents = self
-            .releases
-            .contents(access, record.summary.release_id)
+        let fields = self
+            .removed_fields(
+                &mut people::ContractFields::new(),
+                access.project_id(),
+                &record.summary,
+                &settings.redacted_fields,
+            )
             .await?;
-        let mut fields = settings.redacted_fields;
-        if let Some(schema) = contents
-            .get(&record.summary.decision_key)
-            .and_then(|content| contract::input_schema(content).ok().flatten())
-        {
-            for field in contract::pii_fields(&schema) {
-                if !fields.contains(&field) {
-                    fields.push(field);
-                }
-            }
-        }
         Ok(Record {
             release_version: release.summary.version.to_string(),
             received_at: record.received_at,
+            anonymised_at: record.anonymised_at,
             summary: record.summary,
             payload: redact(payload, &fields),
         })
@@ -679,7 +733,7 @@ impl DecisionLog {
     ) -> Result<(StoredRecord, Payload), DecisionLogError> {
         let mut tx = self.pool.begin().await?;
         let record: StoredRecord = sqlx::query_as(sql(format!(
-            "SELECT {SUMMARY_COLUMNS}, received_at, key_id, nonce, payload \
+            "SELECT {SUMMARY_COLUMNS}, received_at, anonymised_at, key_id, nonce, payload \
              FROM decision_records WHERE project_id = $1 AND id = $2"
         )))
         .bind(access.project_id())
@@ -699,15 +753,14 @@ impl DecisionLog {
         )
         .await?;
         tx.commit().await?;
-        let plaintext = self.cipher.open(
+        let payload = self.unseal(
             id,
-            &donka_shared::cipher::Sealed {
+            donka_shared::cipher::Sealed {
                 key_id: record.key_id.clone(),
                 nonce: record.nonce.clone(),
                 ciphertext: record.payload.clone(),
             },
         )?;
-        let payload = serde_json::from_slice(&plaintext).map_err(|_| CipherError::Corrupt)?;
         Ok((record, payload))
     }
 
@@ -746,6 +799,14 @@ impl DecisionLog {
             .bind(before.to_rfc3339())
             .execute(&mut *tx)
             .await?;
+        // What belongs to the records going goes with them: their people index rows and
+        // contests (neither references the partitioned table).
+        for table in ["decision_record_people", "decision_contests"] {
+            sqlx::query(sql(format!("DELETE FROM {table} WHERE evaluated_at < $1")))
+                .bind(before)
+                .execute(&mut *tx)
+                .await?;
+        }
         let expired: Vec<(String, DateTime<Utc>)> = sqlx::query_as(
             "SELECT name, ends_at FROM decision_records_partitions WHERE ends_at <= $1 ORDER BY ends_at",
         )

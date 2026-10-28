@@ -16,6 +16,11 @@ export type Explanation = ApiSchemas['ExplainResponse'];
 export type ExplainLanguage = ApiSchemas['ExplainLanguage'];
 export type LogToken = ApiSchemas['LogTokenResponse'];
 export type IssuedLogToken = ApiSchemas['IssuedLogTokenResponse'];
+export type PersonRecord = ApiSchemas['PersonRecordResponse'];
+export type RetentionRule = ApiSchemas['RetentionRuleResponse'];
+export type NewRetentionRule = ApiSchemas['NewRetentionRuleRequest'];
+export type Contest = ApiSchemas['ContestResponse'];
+export type ContestStatus = ApiSchemas['ContestStatusName'];
 
 // Limits come from the API contract, so the forms and the server never disagree.
 export const TOKEN_NAME_MAX = openapi.components.schemas.IssueLogTokenRequest.properties.name.maxLength;
@@ -131,3 +136,78 @@ export const tokenSchema = z.object({
   name: z.string().trim().min(1, 'required').max(TOKEN_NAME_MAX, 'maxLength'),
 });
 export type TokenValues = z.infer<typeof tokenSchema>;
+
+// People's requests (DNK-75): limits as the API checks them.
+export const IDENTIFIER_MAX = 200;
+export const RULE_DESCRIPTION_MAX = 500;
+export const LEGAL_REFERENCE_MAX = 200;
+export const CONTEST_TEXT_MAX = 2000;
+export const REVISED_OUTCOME_MAX = 200;
+
+/** An identifier keeps something once case, spaces, dashes and dots are set aside. */
+const IDENTIFYING = /[^\s.-]/;
+
+export const personSchema = z.object({
+  identifier: z
+    .string()
+    .trim()
+    .min(1, 'required')
+    .max(IDENTIFIER_MAX, 'maxLength')
+    .refine((value) => IDENTIFYING.test(value), 'required'),
+});
+export type PersonValues = z.infer<typeof personSchema>;
+
+export const reportSchema = z.object({
+  language: z.enum(['en', 'fr']),
+  explain: z.boolean(),
+});
+export type ReportValues = z.infer<typeof reportSchema>;
+
+/** `YYYY-MM-DD`, today or later in the viewer's calendar. */
+export function ruleSchema(today: string) {
+  return z.object({
+    description: z.string().trim().min(1, 'required').max(RULE_DESCRIPTION_MAX, 'maxLength'),
+    legalReference: z.string().trim().max(LEGAL_REFERENCE_MAX, 'maxLength'),
+    until: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, 'required')
+      .refine((day) => day >= today, 'notPast'),
+  });
+}
+export type RuleValues = z.infer<ReturnType<typeof ruleSchema>>;
+
+export const contestSchema = z.object({
+  reason: z.string().trim().min(1, 'required').max(CONTEST_TEXT_MAX, 'maxLength'),
+});
+export type ContestValues = z.infer<typeof contestSchema>;
+
+export const reviewSchema = z
+  .object({
+    status: z.enum(['upheld', 'revised']),
+    review: z.string().trim().min(1, 'required').max(CONTEST_TEXT_MAX, 'maxLength'),
+    revisedOutcome: z.string().trim().max(REVISED_OUTCOME_MAX, 'maxLength'),
+  })
+  .refine((values) => values.status !== 'revised' || values.revisedOutcome !== '', {
+    message: 'required',
+    path: ['revisedOutcome'],
+  });
+export type ReviewValues = z.infer<typeof reviewSchema>;
+
+/** Today in the viewer's calendar, `YYYY-MM-DD`. */
+export function localToday(now: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+/** A calendar day (`YYYY-MM-DD`) as a date at its start, in the viewer's time zone. */
+export function dayDate(day: string): Date {
+  return new Date(`${day}T00:00:00`);
+}
+
+/** The retention rule a refusal to anonymise names. */
+export function blockingRule(details: unknown): Pick<RetentionRule, 'description' | 'legalReference' | 'until'> | null {
+  if (!details || typeof details !== 'object' || !('rule' in details)) return null;
+  const rule = details.rule as Partial<RetentionRule> | null;
+  if (!rule || typeof rule.description !== 'string' || typeof rule.until !== 'string') return null;
+  return { description: rule.description, legalReference: rule.legalReference ?? null, until: rule.until };
+}

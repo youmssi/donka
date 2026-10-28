@@ -127,6 +127,35 @@ it('says which table finding an owner acknowledged, and why', async () => {
   ).toBeInTheDocument();
 });
 
+it('says what an owner did for a person, never who the person is', async () => {
+  const event = (id: number, action: AuditEvent['action'], details: unknown): AuditEvent => ({
+    id,
+    occurredAt: '2026-10-28T08:00:00Z',
+    actor: ada,
+    action,
+    details,
+  });
+  listAuditMock.mockResolvedValue({
+    ok: true,
+    data: {
+      items: [
+        event(5, 'decision_contest.reviewed', { status: 'revised', revisedOutcome: 'approve' }),
+        event(4, 'person.records_anonymised', { records: 3 }),
+        event(3, 'person.report_exported', { records: 3, explained: true }),
+        event(2, 'retention_rule.created', { description: 'Loan dispute', until: '2026-12-31' }),
+        event(1, 'person.records_searched', { records: 3 }),
+      ],
+      total: 5,
+    },
+  });
+  renderWithProviders(<ProjectAuditPage />);
+  expect(await screen.findByText('Reviewed a contest: the decision is revised to approve')).toBeInTheDocument();
+  expect(screen.getByText("Removed a person's details from 3 decision records")).toBeInTheDocument();
+  expect(screen.getByText("Exported a person's access report of 3 decisions, with explanations")).toBeInTheDocument();
+  expect(screen.getByText('Documented a retention rule until 2026-12-31: “Loan dispute”')).toBeInTheDocument();
+  expect(screen.getByText("Looked up a person's decisions: 3 found")).toBeInTheDocument();
+});
+
 it('says where a project came from, and when it was copied or exported', async () => {
   const event = (id: number, action: AuditEvent['action'], details: unknown): AuditEvent => ({
     id,

@@ -12,7 +12,7 @@ it('knows where the person is from the address', () => {
   expect(placeOf('/sign-in')).toEqual({ kind: 'other' });
 });
 
-it('offers the audit log to owners only', () => {
+it("offers people's requests and the audit log to owners only", () => {
   const project = {
     id: 'p-1',
     key: 'retail',
@@ -31,6 +31,7 @@ it('offers the audit log to owners only', () => {
     'decision-log',
     'members',
     'settings',
+    'people-requests',
     'audit',
   ]);
   expect(sections('editor')).toEqual([

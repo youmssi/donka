@@ -20,7 +20,7 @@ function connectorGraph(url: string, fail: boolean) {
       applicant: {
         type: 'object',
         properties: {
-          nationalId: { type: 'string', 'x-donka': { pii: true } },
+          nationalId: { type: 'string', 'x-donka': { identifier: true } },
           name: { type: 'string' },
         },
       },

@@ -30,8 +30,10 @@ export interface InputField {
   format: StringFormat;
   label: Texts;
   help: Texts;
-  /** Personal data: never sent to be explained. */
+  /** Personal data: never sent to be explained, removed when a record is anonymised. */
   pii: boolean;
+  /** Identifies the person (national ID, phone): their records are found by it. Always personal data. */
+  identifier: boolean;
 }
 
 type Json = Record<string, unknown>;
@@ -74,6 +76,7 @@ export function emptyField(path = ''): InputField {
     label: { en: '', fr: '' },
     help: { en: '', fr: '' },
     pii: false,
+    identifier: false,
   };
 }
 
@@ -161,7 +164,8 @@ export function schemaToFields(schema: Json | null): InputField[] | null {
         format: format as StringFormat,
         label: texts(hints.label),
         help: texts(hints.help),
-        pii: hints.pii === true,
+        pii: hints.pii === true || hints.identifier === true,
+        identifier: hints.identifier === true,
       });
     }
     return true;
@@ -208,7 +212,8 @@ function leaf(field: InputField): Json {
   const hints: Json = {};
   if (field.label.en || field.label.fr) hints.label = pick(field.label);
   if (field.help.en || field.help.fr) hints.help = pick(field.help);
-  if (field.pii) hints.pii = true;
+  if (field.pii || field.identifier) hints.pii = true;
+  if (field.identifier) hints.identifier = true;
   if (Object.keys(hints).length > 0) schema[HINTS] = hints;
   return schema;
 }

@@ -57,6 +57,7 @@ DONKA_STORAGE_ACCESS_KEY_ID=donka
 DONKA_STORAGE_SECRET_ACCESS_KEY=<généré>        # openssl rand -hex 24
 DONKA_DECISION_LOG_KEY=<généré>                 # openssl rand -base64 32
 DONKA_SECOND_STEP_KEY=<généré>                  # openssl rand -base64 32
+DONKA_PERSON_INDEX_KEY=<généré>                 # openssl rand -base64 32
 DONKA_MFA_REQUIRED=privileged                   # seconde étape pour administrateurs et propriétaires
 DONKA_SMTP_URL=smtp://user:pass@mail.banque.example:587?tls=required
 DONKA_SMTP_FROM=Donka <donka@banque.example>
@@ -152,7 +153,9 @@ Gardez `.env` et `runtime.env` dans votre coffre à secrets. **Sans `DONKA_DECIS
 après un renouvellement, les clés de `DONKA_DECISION_LOG_PREVIOUS_KEYS`), le journal des
 décisions est illisible**, même depuis une sauvegarde. **Sans `DONKA_SECOND_STEP_KEY` (et ses
 clés précédentes), personne ayant une seconde étape de connexion ne peut se connecter** après une
-restauration : conservez-la aussi avec les sauvegardes.
+restauration : conservez-la aussi avec les sauvegardes. **Sans `DONKA_PERSON_INDEX_KEY`,
+personne ne peut être retrouvé par ses identifiants** dans un journal restauré, tant qu'il n'a
+pas été indexé de nouveau avec une nouvelle clé (ci-dessous).
 
 Copiez les sauvegardes hors du serveur et testez une restauration régulièrement. Pour
 restaurer, Studio arrêté :
@@ -184,6 +187,13 @@ docker compose up -d app runtime
    `DONKA_RUNTIME_SOURCE=https://github.com/youmssi/donka-runtime.git#v1.5.0` dans `.env`.
    Studio applique les migrations en attente au démarrage (`DONKA_DB_MIGRATE=true`).
 4. Vérifiez : `curl -s localhost:8080/api/v1/version`, puis le test de fumée (section 2).
+5. Si le journal de Studio indique que des enregistrements ne sont pas encore indexés (après la
+   mise à jour qui permet aux propriétaires de retrouver les décisions d'une personne, DNK-75),
+   indexez-les ; la commande tourne à côté de Studio et peut être arrêtée puis relancée :
+
+   ```bash
+   docker compose exec app donka-app decision-log index-people
+   ```
 
 ## 5. Renouveler les secrets
 
@@ -248,6 +258,20 @@ sauvegardes : la clé seule ne donne pas accès aux enregistrements.
 Chaque secret est rescellé avec la nouvelle clé à la prochaine connexion de son titulaire ; gardez
 l'ancienne clé jusqu'à ce que chacun se soit connecté une fois (ou qu'un administrateur ait
 réinitialisé la seconde étape des autres).
+
+**Clé de l'index des personnes** : les identifiants (numéro national, téléphone…) sont retrouvés
+grâce à des empreintes calculées avec `DONKA_PERSON_INDEX_KEY` ; il n'y a pas de clé précédente.
+Pour la remplacer, renseignez la nouvelle clé, videz l'index et indexez de nouveau le journal,
+Studio arrêté :
+
+```bash
+docker compose stop app
+docker compose exec postgres psql -U donka -c "TRUNCATE decision_record_people; \
+  UPDATE decision_record_people_backfill SET received_before = now(), after_evaluated_at = NULL, \
+  after_id = NULL, finished_at = NULL"
+docker compose up -d app
+docker compose exec app donka-app decision-log index-people
+```
 
 **Mots de passe des personnes** : chacun change le sien avec *Mot de passe oublié ?* sur la
 page de connexion.

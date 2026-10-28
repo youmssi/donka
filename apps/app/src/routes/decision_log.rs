@@ -393,6 +393,9 @@ pub struct RecordResponse {
     /// The release that answered, e.g. `1.4.0`.
     pub release_version: String,
     pub received_at: DateTime<Utc>,
+    /// When the person's fields were removed from the record at their request (DNK-75):
+    /// what it read and answered no longer holds them.
+    pub anonymised_at: Option<DateTime<Utc>>,
     /// What the decision was asked.
     pub input: Value,
     /// What it answered, when it succeeded.
@@ -494,6 +497,7 @@ pub async fn get(
         summary: summary(record.summary),
         release_version: record.release_version,
         received_at: record.received_at,
+        anonymised_at: record.anonymised_at,
         input,
         output,
         error,
@@ -605,7 +609,7 @@ pub async fn explain(
     }))
 }
 
-fn summary(record: RecordSummary) -> RecordSummaryResponse {
+pub(crate) fn summary(record: RecordSummary) -> RecordSummaryResponse {
     RecordSummaryResponse {
         id: record.id,
         decision_key: record.decision_key,

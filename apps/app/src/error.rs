@@ -106,6 +106,17 @@ pub enum ApiError {
     AlreadyLive,
     #[error("decision record not found")]
     RecordNotFound,
+    /// A documented retention rule keeps the records whole (the rule in details).
+    #[error("a retention rule runs")]
+    RetentionRuleRuns(Value),
+    #[error("retention rule not found")]
+    RetentionRuleNotFound,
+    #[error("contest not found")]
+    ContestNotFound,
+    #[error("a contest is open")]
+    ContestOpen,
+    #[error("contest already reviewed")]
+    ContestReviewed,
     #[error("invalid decision-log token")]
     InvalidLogToken,
     #[error("invalid CI token")]
@@ -294,6 +305,30 @@ impl From<DecisionLogError> for ApiError {
                 message: err.to_string(),
             },
             DecisionLogError::RecordNotFound => Self::RecordNotFound,
+            DecisionLogError::InvalidIdentifier => Self::InvalidField {
+                field: "identifier",
+                message: err.to_string(),
+            },
+            DecisionLogError::RetentionRuleRuns(rule) => {
+                Self::RetentionRuleRuns(serde_json::json!({ "rule": {
+                    "id": rule.id,
+                    "description": rule.description,
+                    "legalReference": rule.legal_reference,
+                    "until": rule.until,
+                }}))
+            }
+            DecisionLogError::InvalidRetentionRule => Self::InvalidField {
+                field: "description",
+                message: err.to_string(),
+            },
+            DecisionLogError::RetentionRuleNotFound => Self::RetentionRuleNotFound,
+            DecisionLogError::InvalidContest => Self::InvalidField {
+                field: "reason",
+                message: err.to_string(),
+            },
+            DecisionLogError::ContestNotFound => Self::ContestNotFound,
+            DecisionLogError::ContestOpen => Self::ContestOpen,
+            DecisionLogError::ContestReviewed => Self::ContestReviewed,
             DecisionLogError::Unreadable(err) => Self::Internal(err.to_string()),
             DecisionLogError::Random => {
                 Self::Internal("random token could not be generated".into())
@@ -612,6 +647,43 @@ impl IntoResponse for ApiError {
                 StatusCode::NOT_FOUND,
                 "RECORD_NOT_FOUND",
                 "This decision record does not exist in this project.".to_owned(),
+                None,
+                None,
+            ),
+            Self::RetentionRuleRuns(details) => (
+                StatusCode::CONFLICT,
+                "RETENTION_RULE_RUNS",
+                "A retention rule keeps this project's records whole: they cannot be anonymised \
+                 until it ends."
+                    .to_owned(),
+                None,
+                Some(details),
+            ),
+            Self::RetentionRuleNotFound => (
+                StatusCode::NOT_FOUND,
+                "RETENTION_RULE_NOT_FOUND",
+                "This project has no such retention rule.".to_owned(),
+                None,
+                None,
+            ),
+            Self::ContestNotFound => (
+                StatusCode::NOT_FOUND,
+                "CONTEST_NOT_FOUND",
+                "This project has no such contest.".to_owned(),
+                None,
+                None,
+            ),
+            Self::ContestOpen => (
+                StatusCode::CONFLICT,
+                "CONTEST_OPEN",
+                "This decision already has a contest under review.".to_owned(),
+                None,
+                None,
+            ),
+            Self::ContestReviewed => (
+                StatusCode::CONFLICT,
+                "CONTEST_REVIEWED",
+                "This contest has already been reviewed.".to_owned(),
                 None,
                 None,
             ),

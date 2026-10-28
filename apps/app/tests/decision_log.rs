@@ -1380,3 +1380,641 @@ async fn fields_the_contract_marks_as_personal_data_never_leave_studio(db: PgPoo
     assert!(!prompt.contains("nationalId"), "{prompt}");
     assert!(prompt.contains("\"input\":12"), "{prompt}");
 }
+
+// ----- Rights of the people decisions are about (DNK-75) ---------------------
+
+const NATIONAL_ID: &str = "CM-1984-0042";
+
+/// The `limit` table, its contract marking the national ID as an identifier and the phone as
+/// personal data.
+fn identifying_table() -> Value {
+    let mut content = table();
+    let schema = json!({
+        "type": "object",
+        "properties": {
+            "input": { "type": "number" },
+            "applicant": { "type": "object", "properties": {
+                "nationalId": { "type": "string", "x-donka": { "identifier": true } },
+                "phone": { "type": "string", "x-donka": { "pii": true } },
+                "segment": { "type": "string" }
+            }}
+        }
+    });
+    for node in content["nodes"].as_array_mut().unwrap() {
+        if node["type"] == "inputNode" {
+            node["content"] = json!({ "schema": schema.to_string() });
+        }
+    }
+    content
+}
+
+/// A record about the applicant with this national ID.
+fn about(project: &str, release: &str, at: DateTime<Utc>, national_id: &str) -> Value {
+    let applicant =
+        json!({ "nationalId": national_id, "phone": "+237 650 00 00 00", "segment": "sme" });
+    record(
+        project,
+        release,
+        at,
+        json!({
+            "input": { "input": 12, "applicant": applicant },
+            "trace": { "node": { "input": { "applicant": applicant }, "output": { "output": 10 } } }
+        }),
+    )
+}
+
+async fn person(app: &TestApp, session: &str, p: &str, action: &str, identifier: &str) -> Reply {
+    call(
+        app,
+        "POST",
+        &format!("/projects/{p}/people/{action}"),
+        Some(json!({ "identifier": identifier })),
+        session,
+    )
+    .await
+}
+
+fn ids(reply: &Reply) -> Vec<Value> {
+    reply.body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r["id"].clone())
+        .collect()
+}
+
+async fn index_rows(db: &PgPool) -> i64 {
+    sqlx::query_scalar("SELECT count(*) FROM decision_record_people")
+        .fetch_one(db)
+        .await
+        .unwrap()
+}
+
+async fn audit_of(app: &TestApp, admin: &str, p: &str, action: &str) -> Value {
+    call(
+        app,
+        "GET",
+        &format!("/projects/{p}/audit?action={action}"),
+        None,
+        admin,
+    )
+    .await
+    .body
+}
+
+/// A viewer of the project, signed in.
+async fn viewer(app: &TestApp, admin: &str, p: &str) -> String {
+    let vera = signed_in_user(app, VIEWER, false).await;
+    let added = call(
+        app,
+        "POST",
+        &format!("/projects/{p}/members"),
+        Some(json!({ "email": VIEWER, "role": "viewer" })),
+        admin,
+    )
+    .await;
+    assert_eq!(added.status, StatusCode::CREATED, "{}", added.body);
+    vera
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn an_owner_finds_a_persons_records_across_months_without_decrypting_the_log(db: PgPool) {
+    let app = with_database(db.clone());
+    let (admin, p, rid) = released_with(&app, identifying_table()).await;
+    let token = staging_token(&app, &admin).await;
+    // The clock reads 2026-09-28 09:00: August and September are two partitions.
+    let records = [
+        about(&p, &rid, day(2026, 8, 30, 10), NATIONAL_ID),
+        about(&p, &rid, day(2026, 9, 20, 10), "cm 1984.0042"),
+        about(&p, &rid, day(2026, 9, 21, 10), "CM-2001-0007"),
+        record(
+            &p,
+            &rid,
+            day(2026, 9, 22, 10),
+            json!({ "input": { "input": 12 } }),
+        ),
+    ];
+    let sent = feed(&app, Some(&token), json!(records)).await;
+    assert_eq!(sent.body["accepted"], 4, "{}", sent.body);
+
+    // Written another way, the same identifier finds both of the person's records, newest
+    // first, across the two months; not the other applicant's, not the record without one.
+    let found = person(&app, &admin, &p, "search", "cm19840042").await;
+    assert_eq!(found.status, StatusCode::OK, "{}", found.body);
+    assert_eq!(
+        ids(&found),
+        [&records[1]["id"], &records[0]["id"]].map(Clone::clone)
+    );
+    assert_eq!(found.body["items"][0]["anonymisedAt"], Value::Null);
+    assert_eq!(found.body["items"][0]["decisionKey"], "limit");
+    assert_eq!(
+        person(&app, &admin, &p, "search", "CM-1999-0000")
+            .await
+            .body["items"],
+        json!([])
+    );
+
+    // The index holds keyed hashes only: one per identifier, none of them the value.
+    assert_eq!(index_rows(&db).await, 3);
+    let in_clear: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM decision_record_people \
+         WHERE position(convert_to('1984', 'UTF8') IN hash) > 0 OR length(hash) <> 32",
+    )
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!(in_clear, 0);
+
+    // Each search is audited without the identifier; only owners search.
+    let audit = audit_of(&app, &admin, &p, "person.records_searched").await;
+    assert_eq!(audit["total"], 2, "{audit}");
+    assert_eq!(audit["items"][1]["details"], json!({ "records": 2 }));
+    assert!(!audit.to_string().contains("1984"), "{audit}");
+    let vera = viewer(&app, &admin, &p).await;
+    assert_error(
+        &person(&app, &vera, &p, "search", NATIONAL_ID).await,
+        StatusCode::FORBIDDEN,
+        "FORBIDDEN",
+    );
+    assert_error(
+        &person(&app, &admin, &p, "search", " -. ").await,
+        StatusCode::BAD_REQUEST,
+        "INVALID_REQUEST",
+    );
+
+    // The purge takes the index rows of the records it removes.
+    app.clock.advance(Duration::days(5));
+    let admin = session_from(&sign_in(&app, ADMIN_EMAIL, ADMIN_PASSWORD).await);
+    assert_eq!(app.decision_log.purge().await.unwrap(), 1);
+    assert_eq!(index_rows(&db).await, 2);
+    let found = person(&app, &admin, &p, "search", NATIONAL_ID).await;
+    assert_eq!(ids(&found), [records[1]["id"].clone()]);
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn records_stored_before_are_indexed_by_a_resumable_audited_job(db: PgPool) {
+    let app = with_database(db.clone());
+    let (admin, p, rid) = released_with(&app, identifying_table()).await;
+    let token = staging_token(&app, &admin).await;
+    let records: Vec<Value> = [
+        day(2026, 8, 30, 10),
+        day(2026, 9, 1, 10),
+        day(2026, 9, 20, 10),
+    ]
+    .iter()
+    .map(|at| about(&p, &rid, *at, NATIONAL_ID))
+    .collect();
+    feed(&app, Some(&token), json!(records)).await;
+    // As if they had arrived before the index existed: they were received before the
+    // migration's cut-off (the test clock is behind the database's).
+    sqlx::query("DELETE FROM decision_record_people")
+        .execute(&db)
+        .await
+        .unwrap();
+    assert_eq!(
+        person(&app, &admin, &p, "search", NATIONAL_ID).await.body["items"],
+        json!([])
+    );
+    assert!(!app.decision_log.people_index_finished().await.unwrap());
+
+    // A batch stops where it got to; the command carries on from there.
+    let first = app.decision_log.index_people_batch(2).await.unwrap();
+    assert_eq!((first.records, first.finished), (2, false));
+    assert_eq!(index_rows(&db).await, 2);
+    let mut out = Vec::new();
+    let done = donka_app::index_people::run(&app.decision_log, &mut out)
+        .await
+        .unwrap();
+    assert_eq!(done, 1);
+    assert!(String::from_utf8(out)
+        .unwrap()
+        .contains("Done: 1 records indexed."));
+    assert!(app.decision_log.people_index_finished().await.unwrap());
+    let found = person(&app, &admin, &p, "search", NATIONAL_ID).await;
+    assert_eq!(found.body["items"].as_array().unwrap().len(), 3);
+
+    // Done is done: running it again reads nothing.
+    let mut out = Vec::new();
+    assert_eq!(
+        donka_app::index_people::run(&app.decision_log, &mut out)
+            .await
+            .unwrap(),
+        0
+    );
+    assert!(String::from_utf8(out).unwrap().contains("already indexed"));
+
+    // Each batch is audited per project, by no one: an operator runs the command.
+    let audit = audit_of(&app, &admin, &p, "decision_log.people_indexed").await;
+    assert_eq!(audit["total"], 2, "{audit}");
+    assert_eq!(audit["items"][0]["actor"], Value::Null);
+    assert_eq!(
+        audit["items"][1]["details"],
+        json!({ "records": 2, "withIdentifiers": 2 })
+    );
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn anonymising_removes_the_persons_fields_unless_a_retention_rule_runs(db: PgPool) {
+    let app = with_database(db.clone());
+    let (admin, p, rid) = released_with(&app, identifying_table()).await;
+    let token = staging_token(&app, &admin).await;
+    let records = [
+        about(&p, &rid, day(2026, 8, 30, 10), NATIONAL_ID),
+        about(&p, &rid, day(2026, 9, 20, 10), NATIONAL_ID),
+        about(&p, &rid, day(2026, 9, 21, 10), "CM-2001-0007"),
+    ];
+    feed(&app, Some(&token), json!(records)).await;
+    let id = records[1]["id"].as_str().unwrap();
+    let before = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/decision-log/{id}"),
+        None,
+        &admin,
+    )
+    .await;
+
+    // A rule documented until tomorrow blocks anonymisation, and says why.
+    let rule = call(
+        &app,
+        "POST",
+        &format!("/projects/{p}/retention-rules"),
+        Some(json!({
+            "description": "Loan dispute with the applicant",
+            "legalReference": "Court case 2026/118",
+            "until": "2026-09-29"
+        })),
+        &admin,
+    )
+    .await;
+    assert_eq!(rule.status, StatusCode::CREATED, "{}", rule.body);
+    assert_eq!(rule.body["running"], true);
+    let refused = person(&app, &admin, &p, "anonymise", NATIONAL_ID).await;
+    assert_error(&refused, StatusCode::CONFLICT, "RETENTION_RULE_RUNS");
+    assert_eq!(
+        refused.body["details"]["rule"]["description"],
+        "Loan dispute with the applicant"
+    );
+    assert_eq!(refused.body["details"]["rule"]["until"], "2026-09-29");
+
+    // A rule cannot end in the past; viewers neither document nor anonymise.
+    let past = call(
+        &app,
+        "POST",
+        &format!("/projects/{p}/retention-rules"),
+        Some(json!({ "description": "Old file", "until": "2026-09-27" })),
+        &admin,
+    )
+    .await;
+    assert_error(&past, StatusCode::BAD_REQUEST, "INVALID_REQUEST");
+    let vera = viewer(&app, &admin, &p).await;
+    assert_error(
+        &person(&app, &vera, &p, "anonymise", NATIONAL_ID).await,
+        StatusCode::FORBIDDEN,
+        "FORBIDDEN",
+    );
+    let rules = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/retention-rules"),
+        None,
+        &vera,
+    )
+    .await;
+    assert_eq!(rules.body["items"].as_array().unwrap().len(), 1);
+
+    // An owner ends a rule early; one past its last day no longer runs either.
+    let rule_id = rule.body["id"].as_str().unwrap();
+    let second = call(
+        &app,
+        "POST",
+        &format!("/projects/{p}/retention-rules"),
+        Some(json!({ "description": "Anti-money-laundering file", "until": "2026-09-28" })),
+        &admin,
+    )
+    .await;
+    let ended = call(
+        &app,
+        "POST",
+        &format!("/projects/{p}/retention-rules/{rule_id}/end"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(ended.status, StatusCode::OK, "{}", ended.body);
+    assert_eq!(ended.body["running"], false);
+    assert_error(
+        &person(&app, &admin, &p, "anonymise", NATIONAL_ID).await,
+        StatusCode::CONFLICT,
+        "RETENTION_RULE_RUNS",
+    );
+    app.clock.advance(Duration::days(1));
+    let admin = session_from(&sign_in(&app, ADMIN_EMAIL, ADMIN_PASSWORD).await);
+    let rules = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/retention-rules"),
+        None,
+        &admin,
+    )
+    .await;
+    assert!(rules.body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|r| r["running"] == false));
+    assert_eq!(second.body["running"], true);
+
+    // The person's fields leave input, output and trace of both months' records; the rest stays.
+    let done = person(&app, &admin, &p, "anonymise", "cm19840042").await;
+    assert_eq!(done.status, StatusCode::OK, "{}", done.body);
+    assert_eq!(done.body["records"], 2);
+    let after = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/decision-log/{id}"),
+        None,
+        &admin,
+    )
+    .await;
+    let text = after.body.to_string();
+    assert!(!text.contains("1984") && !text.contains("650 00"), "{text}");
+    assert_eq!(
+        after.body["input"],
+        json!({ "input": 12, "applicant": { "segment": "sme" } })
+    );
+    assert_eq!(
+        after.body["trace"]["node"]["input"],
+        json!({ "applicant": { "segment": "sme" } })
+    );
+    for key in [
+        "outcome",
+        "output",
+        "status",
+        "evaluatedAt",
+        "releaseId",
+        "releaseVersion",
+        "decisionKey",
+    ] {
+        assert_eq!(after.body[key], before.body[key], "{key}");
+    }
+    assert!(after.body["anonymisedAt"].is_string());
+    let other = records[2]["id"].as_str().unwrap();
+    let untouched = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/decision-log/{other}"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(
+        untouched.body["input"]["applicant"]["nationalId"],
+        "CM-2001-0007"
+    );
+    assert_eq!(untouched.body["anonymisedAt"], Value::Null);
+
+    // They leave the index: nothing is found, and anonymising again changes nothing.
+    assert_eq!(
+        person(&app, &admin, &p, "search", NATIONAL_ID).await.body["items"],
+        json!([])
+    );
+    assert_eq!(
+        person(&app, &admin, &p, "anonymise", NATIONAL_ID)
+            .await
+            .body["records"],
+        0
+    );
+
+    // It cannot be undone, even by a transaction allowed to anonymise.
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('donka.anonymise', 'on', true)")
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let err = sqlx::query("UPDATE decision_records SET anonymised_at = NULL WHERE id = $1")
+        .bind(Uuid::parse_str(id).unwrap())
+        .execute(&mut *tx)
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("append-only"), "{err}");
+    drop(tx);
+
+    let audit = audit_of(&app, &admin, &p, "person.records_anonymised").await;
+    assert_eq!(audit["total"], 2, "{audit}");
+    assert_eq!(audit["items"][1]["details"]["records"], 2);
+    for action in ["retention_rule.created", "retention_rule.ended"] {
+        assert!(
+            audit_of(&app, &admin, &p, action).await["total"]
+                .as_i64()
+                .unwrap()
+                >= 1,
+            "{action}"
+        );
+    }
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn a_contest_and_its_review_are_recorded_on_the_decision(db: PgPool) {
+    let app = with_database(db.clone());
+    let (admin, p, rid) = released_with(&app, identifying_table()).await;
+    let token = staging_token(&app, &admin).await;
+    let logged = about(&p, &rid, day(2026, 8, 30, 10), NATIONAL_ID);
+    feed(&app, Some(&token), json!([logged])).await;
+    let id = logged["id"].as_str().unwrap();
+    let path = format!("/projects/{p}/decision-log/{id}/contests");
+
+    let open = |reason: &str| json!({ "reason": reason });
+    let first = call(
+        &app,
+        "POST",
+        &path,
+        Some(open("My income was not counted.")),
+        &admin,
+    )
+    .await;
+    assert_eq!(first.status, StatusCode::CREATED, "{}", first.body);
+    assert_eq!(first.body["status"], "open");
+    // One contest under review at a time; a reason is required.
+    assert_error(
+        &call(&app, "POST", &path, Some(open("Again")), &admin).await,
+        StatusCode::CONFLICT,
+        "CONTEST_OPEN",
+    );
+    assert_error(
+        &call(
+            &app,
+            "POST",
+            &format!("/projects/{p}/decision-log/{}/contests", Uuid::new_v4()),
+            Some(open("Why")),
+            &admin,
+        )
+        .await,
+        StatusCode::NOT_FOUND,
+        "RECORD_NOT_FOUND",
+    );
+
+    // The review revises the decision with its new outcome, once.
+    let contest = first.body["id"].as_str().unwrap();
+    let review = format!("/projects/{p}/contests/{contest}/review");
+    assert_error(
+        &call(
+            &app,
+            "POST",
+            &review,
+            Some(json!({ "status": "revised", "review": "Income checked" })),
+            &admin,
+        )
+        .await,
+        StatusCode::BAD_REQUEST,
+        "INVALID_REQUEST",
+    );
+    let revised = call(
+        &app,
+        "POST",
+        &review,
+        Some(json!({ "status": "revised", "review": "Income checked: salary slips", "revisedOutcome": "approve" })),
+        &admin,
+    )
+    .await;
+    assert_eq!(revised.status, StatusCode::OK, "{}", revised.body);
+    assert_eq!(revised.body["status"], "revised");
+    assert_eq!(revised.body["revisedOutcome"], "approve");
+    assert_error(
+        &call(
+            &app,
+            "POST",
+            &review,
+            Some(json!({ "status": "upheld", "review": "No" })),
+            &admin,
+        )
+        .await,
+        StatusCode::CONFLICT,
+        "CONTEST_REVIEWED",
+    );
+
+    // A second contest is upheld; viewers read the history but neither open nor review.
+    let second = call(
+        &app,
+        "POST",
+        &path,
+        Some(open("The phone is not mine.")),
+        &admin,
+    )
+    .await;
+    let upheld = call(
+        &app,
+        "POST",
+        &format!(
+            "/projects/{p}/contests/{}/review",
+            second.body["id"].as_str().unwrap()
+        ),
+        Some(json!({ "status": "upheld", "review": "The phone was verified." })),
+        &admin,
+    )
+    .await;
+    assert_eq!(upheld.body["status"], "upheld");
+    assert_eq!(upheld.body["revisedOutcome"], Value::Null);
+    let vera = viewer(&app, &admin, &p).await;
+    let history = call(&app, "GET", &path, None, &vera).await;
+    let statuses: Vec<&Value> = history.body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| &c["status"])
+        .collect();
+    assert_eq!(statuses, [&json!("revised"), &json!("upheld")]);
+    assert_error(
+        &call(&app, "POST", &path, Some(open("Me too")), &vera).await,
+        StatusCode::FORBIDDEN,
+        "FORBIDDEN",
+    );
+
+    assert_eq!(
+        audit_of(&app, &admin, &p, "decision_contest.opened").await["total"],
+        2
+    );
+    let reviewed = audit_of(&app, &admin, &p, "decision_contest.reviewed").await;
+    assert_eq!(reviewed["total"], 2);
+    assert_eq!(reviewed["items"][1]["details"]["status"], "revised");
+
+    // The purge removes a record's contests with it.
+    app.clock.advance(Duration::days(5));
+    assert_eq!(app.decision_log.purge().await.unwrap(), 1);
+    let left: i64 = sqlx::query_scalar("SELECT count(*) FROM decision_contests")
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(left, 0);
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn the_access_report_holds_every_record_in_the_persons_language(db: PgPool) {
+    let (app, llm) = explaining_app(db).await;
+    let (admin, p, rid) = released_with(&app, identifying_table()).await;
+    let token = staging_token(&app, &admin).await;
+    let records = [
+        about(&p, &rid, day(2026, 8, 30, 10), NATIONAL_ID),
+        about(&p, &rid, day(2026, 9, 20, 10), NATIONAL_ID),
+    ];
+    feed(&app, Some(&token), json!(records)).await;
+    let (status, body) = answering("Le montant dépasse le seuil de la table.");
+    llm.answer(status, body);
+
+    let report = |language: &str, explain: bool| json!({ "identifier": NATIONAL_ID, "language": language, "explain": explain });
+    let pdf = call(
+        &app,
+        "POST",
+        &format!("/projects/{p}/people/report"),
+        Some(report("fr", true)),
+        &admin,
+    )
+    .await;
+    assert_eq!(pdf.status, StatusCode::OK);
+    assert!(pdf.body.as_str().unwrap().starts_with("%PDF"));
+    // Each record was explained without the person's fields.
+    let sent = llm.sent.lock().unwrap().clone();
+    assert_eq!(sent.len(), 2);
+    for request in &sent {
+        let prompt = request["messages"][0]["content"].as_str().unwrap();
+        assert!(
+            !prompt.contains("1984") && !prompt.contains("650 00"),
+            "{prompt}"
+        );
+    }
+
+    let plain = call(
+        &app,
+        "POST",
+        &format!("/projects/{p}/people/report"),
+        Some(report("en", false)),
+        &admin,
+    )
+    .await;
+    assert_eq!(plain.status, StatusCode::OK);
+    assert_eq!(llm.sent.lock().unwrap().len(), 2, "no explanation asked");
+
+    let audit = audit_of(&app, &admin, &p, "person.report_exported").await;
+    assert_eq!(audit["total"], 2);
+    assert_eq!(
+        audit["items"][0]["details"],
+        json!({ "records": 2, "explained": false })
+    );
+    assert_eq!(
+        audit["items"][1]["details"],
+        json!({ "records": 2, "explained": true })
+    );
+    let vera = viewer(&app, &admin, &p).await;
+    assert_error(
+        &call(
+            &app,
+            "POST",
+            &format!("/projects/{p}/people/report"),
+            Some(report("en", false)),
+            &vera,
+        )
+        .await,
+        StatusCode::FORBIDDEN,
+        "FORBIDDEN",
+    );
+}

@@ -941,6 +941,27 @@ impl Releases {
         Ok(published)
     }
 
+    /// One decision `release` of `project` froze, as the Runtime evaluates it. Asked for
+    /// records a Runtime sends, so no member access is involved.
+    pub async fn decision_content(
+        &self,
+        project: Uuid,
+        release: Uuid,
+        key: &str,
+    ) -> Result<Option<serde_json::Value>, ReleaseError> {
+        let content = sqlx::query_scalar(
+            "SELECT d.content FROM release_decisions d \
+             JOIN releases r ON r.id = d.release_id \
+             WHERE r.project_id = $1 AND r.id = $2 AND d.key = $3",
+        )
+        .bind(project)
+        .bind(release)
+        .bind(key)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(content)
+    }
+
     /// Every decision a release froze, by key, as the Runtime evaluates them (any member).
     pub async fn contents(
         &self,
