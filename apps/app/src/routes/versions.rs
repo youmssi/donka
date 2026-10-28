@@ -1,6 +1,7 @@
 use crate::error::{ApiError, ErrorBody};
 use crate::extract::{ApiJson, DecisionId, ProjectAccess, VersionNumber};
 use crate::routes::decisions::{conflict_or, full, graph_schema, DecisionResponse};
+use crate::routes::findings::{self, TableFindingResponse};
 use crate::routes::people::{emails, PersonRef};
 use crate::routes::scenarios::TestSummaryResponse;
 use crate::AppState;
@@ -41,6 +42,9 @@ pub struct SavedVersionResponse {
     /// Fields rules read but the input contract does not declare (`undeclared`), and required
     /// fields no rule reads (`unread`). Empty when the decision has no contract.
     pub warnings: Vec<ContractWarningResponse>,
+    /// What the table checks find in the version: gaps, overlapping rows, conditions that never
+    /// match (DNK-76). They warn and never block the save.
+    pub findings: Vec<TableFindingResponse>,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -191,6 +195,7 @@ pub async fn save(
         Json(SavedVersionResponse {
             version: response(&emails, saved.summary),
             warnings: saved.warnings.into_iter().map(Into::into).collect(),
+            findings: findings::responses(&state, saved.findings).await?,
         }),
     ))
 }

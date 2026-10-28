@@ -63,6 +63,8 @@ pub enum ApiError {
     VersionUnchanged(i32),
     #[error("scenario not found")]
     ScenarioNotFound,
+    #[error("finding not found")]
+    FindingMissing,
     #[error("scenario name already used")]
     ScenarioNameTaken,
     #[error("release not found")]
@@ -201,6 +203,11 @@ impl From<DecisionError> for ApiError {
             },
             DecisionError::Unchanged(version) => Self::VersionUnchanged(version),
             DecisionError::ScenarioNotFound => Self::ScenarioNotFound,
+            DecisionError::FindingNotFound => Self::FindingMissing,
+            DecisionError::InvalidReason => Self::InvalidField {
+                field: "reason",
+                message: err.to_string(),
+            },
             DecisionError::ScenarioNameTaken => Self::ScenarioNameTaken,
             DecisionError::InvalidContract(reason) => Self::InvalidContract(reason),
             DecisionError::InvalidScenario(field) => Self::InvalidField {
@@ -457,6 +464,13 @@ impl IntoResponse for ApiError {
                 StatusCode::NOT_FOUND,
                 "SCENARIO_NOT_FOUND",
                 "This project has no such test scenario.".to_owned(),
+                None,
+                None,
+            ),
+            Self::FindingMissing => (
+                StatusCode::NOT_FOUND,
+                "FINDING_NOT_FOUND",
+                "The decision's draft no longer has this finding.".to_owned(),
                 None,
                 None,
             ),

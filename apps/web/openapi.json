@@ -60,6 +60,40 @@
         ],
         "type": "object"
       },
+      "AcknowledgeRequest": {
+        "properties": {
+          "reason": {
+            "description": "Why the finding is intended, 1 to 1000 characters.",
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
+      },
+      "AcknowledgementResponse": {
+        "properties": {
+          "acknowledgedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "acknowledgedBy": {
+            "$ref": "#/components/schemas/PersonRef"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "acknowledgedBy",
+          "acknowledgedAt"
+        ],
+        "type": "object"
+      },
       "Action": {
         "description": "Every kind of state change. The stored text is part of the audit record:\nnever rename a value, only add new ones.",
         "enum": [
@@ -86,6 +120,7 @@
           "decision.created",
           "decision.deleted",
           "decision.version_saved",
+          "decision.finding_acknowledged",
           "decision.version_restored",
           "scenario.created",
           "scenario.updated",
@@ -636,6 +671,13 @@
             "format": "uuid",
             "type": "string"
           },
+          "findings": {
+            "description": "What the table checks find in the version the release brings, with acknowledgements.",
+            "items": {
+              "$ref": "#/components/schemas/TableFindingResponse"
+            },
+            "type": "array"
+          },
           "fromVersion": {
             "description": "The version production runs, if any.",
             "format": "int32",
@@ -671,7 +713,8 @@
           "key",
           "decisionId",
           "change",
-          "contract"
+          "contract",
+          "findings"
         ],
         "type": "object"
       },
@@ -1258,6 +1301,43 @@
         "required": [
           "id",
           "code"
+        ],
+        "type": "object"
+      },
+      "GapCaseResponse": {
+        "properties": {
+          "conditions": {
+            "items": {
+              "$ref": "#/components/schemas/GapConditionResponse"
+            },
+            "type": "array"
+          },
+          "example": {
+            "description": "An input that falls in the gap.",
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "conditions"
+        ],
+        "type": "object"
+      },
+      "GapConditionResponse": {
+        "properties": {
+          "column": {
+            "$ref": "#/components/schemas/TableColumnResponse"
+          },
+          "condition": {
+            "description": "The condition, in the table's expression language (`> 60`).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "column",
+          "condition"
         ],
         "type": "object"
       },
@@ -2308,6 +2388,13 @@
           },
           {
             "properties": {
+              "findings": {
+                "description": "What the table checks find in the version: gaps, overlapping rows, conditions that never\nmatch (DNK-76). They warn and never block the save.",
+                "items": {
+                  "$ref": "#/components/schemas/TableFindingResponse"
+                },
+                "type": "array"
+              },
               "warnings": {
                 "description": "Fields rules read but the input contract does not declare (`undeclared`), and required\nfields no rule reads (`unread`). Empty when the decision has no contract.",
                 "items": {
@@ -2317,7 +2404,8 @@
               }
             },
             "required": [
-              "warnings"
+              "warnings",
+              "findings"
             ],
             "type": "object"
           }
@@ -2814,6 +2902,155 @@
         "required": [
           "target",
           "action"
+        ],
+        "type": "object"
+      },
+      "TableColumnResponse": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "description": "The name the editor shows: the column's name, else its field.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "TableFindingKind": {
+        "enum": [
+          "gap",
+          "overlap",
+          "neverMatches",
+          "incomplete"
+        ],
+        "type": "string"
+      },
+      "TableFindingListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TableFindingResponse"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "TableFindingResponse": {
+        "properties": {
+          "acknowledgement": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AcknowledgementResponse",
+                "description": "Present when an owner acknowledged the finding as intended."
+              }
+            ]
+          },
+          "also": {
+            "description": "Overlap: other rows further down that never fire for the same reason.",
+            "items": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "caseCount": {
+            "format": "int32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "cases": {
+            "description": "Gap: the first uncovered inputs, out of `caseCount`.",
+            "items": {
+              "$ref": "#/components/schemas/GapCaseResponse"
+            },
+            "type": "array"
+          },
+          "column": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TableColumnResponse",
+                "description": "The column at fault (never matches)."
+              }
+            ]
+          },
+          "coveredBy": {
+            "description": "Overlap: the earlier rows that already match all the row matches.",
+            "items": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "example": {
+            "description": "Overlap: an input the row matches but never gets to answer.",
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "fingerprint": {
+            "description": "Stays the same while the finding does; acknowledge the finding with it.",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TableFindingKind"
+          },
+          "row": {
+            "description": "The row at fault, numbered from 1 as in the editor (overlap, never matches).",
+            "format": "int32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "rowId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sameResult": {
+            "description": "Overlap: the covering row gives the same result, so removing the row changes nothing.",
+            "type": "boolean"
+          },
+          "tableId": {
+            "description": "The decision table node.",
+            "type": "string"
+          },
+          "tableName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "fingerprint",
+          "kind",
+          "tableId",
+          "tableName",
+          "coveredBy",
+          "also",
+          "sameResult",
+          "cases"
         ],
         "type": "object"
       },
@@ -6245,6 +6482,157 @@
           }
         },
         "summary": "Saves the draft (editors and owners). Send the revision the draft was loaded\nat: when someone saved since, the answer is `409 DECISION_CONFLICT` with who\nand when in `details`, and nothing is overwritten.",
+        "tags": [
+          "decisions"
+        ]
+      }
+    },
+    "/projects/{project_id}/decisions/{decision_id}/findings": {
+      "get": {
+        "operationId": "list",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "decision_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TableFindingListResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND or DECISION_NOT_FOUND"
+          }
+        },
+        "summary": "What the table checks find in the decision's draft (any member).",
+        "tags": [
+          "decisions"
+        ]
+      }
+    },
+    "/projects/{project_id}/decisions/{decision_id}/findings/{fingerprint}/acknowledgement": {
+      "put": {
+        "operationId": "acknowledge",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "decision_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The finding's fingerprint",
+            "in": "path",
+            "name": "fingerprint",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcknowledgeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TableFindingResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Missing or too long reason (INVALID_REQUEST)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Only owners acknowledge findings (FORBIDDEN)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND, DECISION_NOT_FOUND, or FINDING_NOT_FOUND (the draft no longer has it)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_ARCHIVED"
+          }
+        },
+        "summary": "Acknowledges a finding of the draft as intended, with why (owners). The acknowledgement holds\non later versions while the same finding comes back; acknowledging again replaces the reason.",
         "tags": [
           "decisions"
         ]

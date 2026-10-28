@@ -13,6 +13,7 @@
 //! The Runtime runs the same handler for real.
 
 pub mod contract;
+pub mod tables;
 
 use async_trait::async_trait;
 use donka_connectors::{recorded_outputs, ConnectorAdapter};

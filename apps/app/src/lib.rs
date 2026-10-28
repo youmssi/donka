@@ -134,6 +134,8 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
         .routes(routes!(routes::decisions::simulate))
         .routes(routes!(routes::versions::list, routes::versions::save))
         .routes(routes!(routes::versions::get))
+        .routes(routes!(routes::findings::list))
+        .routes(routes!(routes::findings::acknowledge))
         .routes(routes!(routes::versions::restore))
         .routes(routes!(routes::scenarios::test_results))
         .routes(routes!(routes::releases::list, routes::releases::create))

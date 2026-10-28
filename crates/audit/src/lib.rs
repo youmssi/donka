@@ -101,6 +101,9 @@ pub enum Action {
     #[serde(rename = "decision.version_saved")]
     #[sqlx(rename = "decision.version_saved")]
     DecisionVersionSaved,
+    #[serde(rename = "decision.finding_acknowledged")]
+    #[sqlx(rename = "decision.finding_acknowledged")]
+    DecisionFindingAcknowledged,
     #[serde(rename = "decision.version_restored")]
     #[sqlx(rename = "decision.version_restored")]
     DecisionVersionRestored,
@@ -206,6 +209,7 @@ impl Action {
             Self::DecisionDeleted => "decision.deleted",
             Self::DecisionVersionSaved => "decision.version_saved",
             Self::DecisionVersionRestored => "decision.version_restored",
+            Self::DecisionFindingAcknowledged => "decision.finding_acknowledged",
             Self::ScenarioCreated => "scenario.created",
             Self::ScenarioUpdated => "scenario.updated",
             Self::ScenarioDeleted => "scenario.deleted",
@@ -406,6 +410,7 @@ mod tests {
             Action::DecisionDeleted,
             Action::DecisionVersionSaved,
             Action::DecisionVersionRestored,
+            Action::DecisionFindingAcknowledged,
             Action::ScenarioCreated,
             Action::ScenarioUpdated,
             Action::ScenarioDeleted,
