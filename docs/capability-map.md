@@ -75,7 +75,7 @@ Status: **Done** · **P1**, **P2**, **P3** (phase) · **Later** (candidate, not 
 | Signed images, offline bundle, five-minute demo | P1 | DNK-64 |
 | Guided setup with chosen modules; `donka-admin` doctor and support bundle | P1 | DNK-74 |
 | Assisted, reversible upgrade, never unattended in production | P1 | DNK-64 |
-| Partitioned decision log for long retention | P1 | DNK-68 |
+| Partitioned decision log for long retention | Done | DNK-68 |
 | Measured performance with published targets | P1 | DNK-67 |
 | Backup, restore, RPO/RTO, Runtime availability | P1 | DNK-50 |
 | Signed licence file; the Runtime never blocked | P1 | DNK-77 |

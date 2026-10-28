@@ -4,8 +4,9 @@ mod support;
 
 use axum::body::Body;
 use axum::http::{header, Request, StatusCode};
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Duration, TimeZone, Utc};
 use donka_db::PgPool;
+use donka_decision_log::Cipher;
 use serde_json::{json, Value};
 use support::*;
 use uuid::Uuid;
@@ -363,7 +364,8 @@ async fn a_runtime_sends_records_that_members_search_open_and_replay(db: PgPool)
 async fn the_feed_needs_a_live_token_for_its_environment(db: PgPool) {
     let app = with_database(db);
     let (admin, p, rid) = released(&app).await;
-    let one = || json!([record(&p, &rid, Utc::now(), json!({}))]);
+    let at = now(&app);
+    let one = || json!([record(&p, &rid, at, json!({}))]);
 
     assert_error(
         &feed(&app, None, one()).await,
@@ -627,36 +629,79 @@ async fn the_outcome_field_is_a_dotted_path_set_by_owners(db: PgPool) {
     );
 }
 
+/// The test clock's day, at `hour`: the clock starts on 2026-09-28.
+fn day(year: i32, month: u32, day: u32, hour: u32) -> DateTime<Utc> {
+    Utc.with_ymd_and_hms(year, month, day, hour, 0, 0).unwrap()
+}
+
+async fn partitions(db: &PgPool) -> Vec<String> {
+    sqlx::query_scalar("SELECT name FROM decision_records_partitions ORDER BY name")
+        .fetch_all(db)
+        .await
+        .unwrap()
+}
+
 #[sqlx::test(migrator = "donka_db::MIGRATOR")]
 async fn records_past_retention_are_purged_and_each_purge_is_audited(db: PgPool) {
     let app = with_database(db.clone());
     let (admin, p, rid) = released(&app).await;
     let token = staging_token(&app, &admin).await;
-    let at = now(&app);
-    let old = record(&p, &rid, at - Duration::days(RETENTION_DAYS + 1), json!({}));
-    let recent = record(&p, &rid, at - Duration::days(RETENTION_DAYS - 1), json!({}));
-    feed(&app, Some(&token), json!([old, recent])).await;
+    // The clock reads 2026-09-28 09:00; records are kept 30 days.
+    let august = [day(2026, 8, 30, 10), day(2026, 8, 31, 10)];
+    let early_september = day(2026, 9, 2, 10);
+    let kept = [day(2026, 9, 20, 10), day(2026, 9, 28, 8)];
+    let records: Vec<Value> = august
+        .iter()
+        .chain([&early_september])
+        .chain(kept.iter())
+        .map(|at| record(&p, &rid, *at, json!({})))
+        .collect();
+    let sent = feed(&app, Some(&token), json!(records)).await;
+    assert_eq!(sent.body["accepted"], 5, "{}", sent.body);
+    // Each month has its partition; the coming months are made ahead.
+    app.decision_log.ensure_partitions().await.unwrap();
+    assert_eq!(
+        partitions(&db).await,
+        ["2026_08", "2026_09", "2026_10", "2026_11", "2026_12"]
+            .map(|m| format!("decision_records_{m}"))
+    );
 
-    // Records cannot be changed or deleted outside the purge.
+    // Records cannot be changed or deleted outside the purge, nor a partition dropped.
     for statement in [
         "UPDATE decision_records SET outcome = 'approve'",
         "DELETE FROM decision_records",
         "TRUNCATE decision_records",
+        "TRUNCATE decision_records_2026_08",
+        "UPDATE decision_records_2026_08 SET outcome = 'approve'",
+        "SELECT donka_drop_decision_records_partition('decision_records_2026_08')",
     ] {
         let err = sqlx::query(statement).execute(&db).await.unwrap_err();
         assert!(
-            err.to_string().contains("append-only")
-                || err.to_string().contains("permission denied"),
+            [
+                "append-only",
+                "permission denied",
+                "not past the retention period"
+            ]
+            .iter()
+            .any(|reason| err.to_string().contains(reason)),
             "{statement}: {err}"
         );
     }
 
-    assert_eq!(app.decision_log.purge().await.unwrap(), 1);
+    // Five days on, records before 2026-09-03 09:00 are past retention: August goes as a
+    // whole partition, early September record by record.
+    app.clock.advance(Duration::days(5));
+    // Signed in again: the session did not outlive those days.
+    let admin = session_from(&sign_in(&app, ADMIN_EMAIL, ADMIN_PASSWORD).await);
+    assert_eq!(app.decision_log.purge().await.unwrap(), 3);
     assert_eq!(
         app.decision_log.purge().await.unwrap(),
         0,
         "nothing left to purge"
     );
+    assert!(!partitions(&db)
+        .await
+        .contains(&"decision_records_2026_08".to_owned()));
     let list = call(
         &app,
         "GET",
@@ -665,10 +710,16 @@ async fn records_past_retention_are_purged_and_each_purge_is_audited(db: PgPool)
         &admin,
     )
     .await;
-    assert_eq!(list.body["total"], 1);
-    assert_eq!(list.body["items"][0]["id"], recent["id"]);
+    assert_eq!(list.body["total"], 2);
+    let ids: Vec<&Value> = list.body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| &r["id"])
+        .collect();
+    assert_eq!(ids, [&records[4]["id"], &records[3]["id"]]);
 
-    // One audit event for the purge that deleted something, none for the empty one.
+    // One audit event for the purge that removed something, none for the empty one.
     let audit = call(
         &app,
         "GET",
@@ -680,8 +731,118 @@ async fn records_past_retention_are_purged_and_each_purge_is_audited(db: PgPool)
     assert_eq!(audit.body["total"], 1, "{}", audit.body);
     let event = &audit.body["items"][0];
     assert_eq!(event["actor"], Value::Null);
-    assert_eq!(event["details"]["records"], 1);
+    assert_eq!(event["details"]["records"], 3);
     assert_eq!(event["details"]["retentionDays"], RETENTION_DAYS);
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn a_record_is_kept_once_and_only_when_its_month_can_be_kept(db: PgPool) {
+    let app = with_database(db.clone());
+    let (admin, p, rid) = released(&app).await;
+    let token = staging_token(&app, &admin).await;
+    let at = now(&app);
+    let first = record(&p, &rid, at, json!({}));
+    // The Runtime sends a record again, here with another time: it is stored once.
+    let mut again = first.clone();
+    again["evaluatedAt"] = json!(at - Duration::hours(2));
+    let too_old = record(&p, &rid, at - Duration::days(RETENTION_DAYS + 1), json!({}));
+    let ahead = record(&p, &rid, at + Duration::days(2), json!({}));
+    let sent = feed(&app, Some(&token), json!([first, again, too_old, ahead])).await;
+    assert_eq!(sent.status, StatusCode::OK, "{}", sent.body);
+    let stored: i64 = sqlx::query_scalar("SELECT count(*) FROM decision_records")
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(stored, 1);
+    let rejected: Vec<&Value> = sent.body["rejected"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| &r["id"])
+        .collect();
+    assert_eq!(rejected, [&too_old["id"], &ahead["id"]], "{}", sent.body);
+    assert!(sent.body["rejected"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|r| r["code"] == "invalid"));
+}
+
+/// The migration that partitions the log moves the records already kept as they are: same
+/// sealed bytes, each in its month, and they still open.
+#[sqlx::test(migrations = false)]
+async fn partitioning_moves_existing_records_without_re_encrypting_them(db: PgPool) {
+    const PARTITIONED: i64 = 20261028000002;
+    donka_db::MIGRATOR
+        .run_to(PARTITIONED - 1, &db)
+        .await
+        .unwrap();
+    let app = with_database(db.clone());
+    let (admin, p, rid) = released(&app).await;
+    staging_token(&app, &admin).await;
+    let token: Uuid = sqlx::query_scalar("SELECT id FROM decision_log_tokens")
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let cipher = Cipher::from_base64(DECISION_LOG_KEY).unwrap();
+    let mut before = Vec::new();
+    for (n, at) in [
+        day(2026, 8, 30, 10),
+        day(2026, 9, 20, 10),
+        day(2026, 9, 28, 8),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let id = Uuid::new_v4();
+        let payload = json!({ "input": { "applicant": n }, "output": { "output": 10 } });
+        let sealed = cipher.seal(id, payload.to_string().as_bytes()).unwrap();
+        sqlx::query(
+            "INSERT INTO decision_records (id, project_id, release_id, environment, decision_key, \
+             status, evaluated_at, duration_us, received_at, token_id, key_id, nonce, payload) \
+             VALUES ($1, $2::uuid, $3::uuid, 'staging', 'limit', 'succeeded', $4, 420, $4, $5, $6, $7, $8)",
+        )
+        .bind(id)
+        .bind(&p)
+        .bind(&rid)
+        .bind(at)
+        .bind(token)
+        .bind(&sealed.key_id)
+        .bind(&sealed.nonce)
+        .bind(&sealed.ciphertext)
+        .execute(&db)
+        .await
+        .unwrap();
+        before.push((id, sealed.nonce, sealed.ciphertext, n));
+    }
+
+    donka_db::MIGRATOR.run(&db).await.unwrap();
+    for (id, nonce, payload, n) in before {
+        let (partition, now_nonce, now_payload): (String, Vec<u8>, Vec<u8>) = sqlx::query_as(
+            "SELECT tableoid::regclass::text, nonce, payload FROM decision_records WHERE id = $1",
+        )
+        .bind(id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+        assert_eq!(
+            (now_nonce, now_payload),
+            (nonce, payload),
+            "the sealed bytes moved as they were"
+        );
+        let month = if n == 0 { "2026_08" } else { "2026_09" };
+        assert_eq!(partition, format!("decision_records_{month}"));
+        let opened = call(
+            &app,
+            "GET",
+            &format!("/projects/{p}/decision-log/{id}"),
+            None,
+            &admin,
+        )
+        .await;
+        assert_eq!(opened.status, StatusCode::OK, "{}", opened.body);
+        assert_eq!(opened.body["input"]["applicant"], n);
+    }
 }
 
 // ----- Key rotation (DNK-40) -------------------------------------------------

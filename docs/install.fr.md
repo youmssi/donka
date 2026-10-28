@@ -138,7 +138,8 @@ Sauvegardez trois choses, ensemble : la base de données, le bucket des versions
 mkdir -p backups
 stamp=$(date +%Y%m%d-%H%M)
 
-# La base : projets, décisions, versions, approbations, audit et journal des décisions.
+# La base : projets, décisions, versions, approbations, audit et journal des décisions
+# (ses partitions mensuelles comprises).
 docker compose exec -T postgres pg_dump -U donka -Fc donka > "backups/donka-$stamp.dump"
 
 # Le bucket des versions : ce que servent les Runtimes.
