@@ -142,6 +142,22 @@ Les paramètres de chaque méthode, et la façon dont les échecs sont signalés
 [guide des connecteurs](https://github.com/youmssi/donka-runtime/blob/develop/docs/connectors.md)
 du Runtime. Redémarrez le Runtime après avoir remplacé un certificat.
 
+### Images publiées
+
+Chaque version publie des images signées sur GitHub Container Registry, avec un SBOM et une
+attestation de provenance : `ghcr.io/youmssi/donka-studio` (privée : Donka remet à chaque client
+un jeton de lecture) et `ghcr.io/youmssi/donka-runtime` (publique). `edge` suit le développement,
+pour la préproduction et les démonstrations seulement. Vérifiez une image avant de la lancer, avec
+[cosign](https://docs.sigstore.dev/cosign/system_config/installation/) et la clé publique
+`cosign.pub` de ce dépôt ; aucun accès réseau à un journal de transparence n'est nécessaire :
+
+```bash
+echo "$DONKA_REGISTRY_TOKEN" | docker login ghcr.io -u <votre utilisateur GitHub> --password-stdin
+cosign verify --key cosign.pub --insecure-ignore-tlog ghcr.io/youmssi/donka-studio:1.5.0
+cosign verify --key cosign.pub --insecure-ignore-tlog ghcr.io/youmssi/donka-runtime:1.5.0
+docker buildx imagetools inspect ghcr.io/youmssi/donka-studio:1.5.0 --format '{{ json .SBOM }}'
+```
+
 ## 2. Test de fumée après chaque déploiement
 
 `scripts/smoke.sh` vérifie que Studio répond et joint sa base de données, que le moteur de
