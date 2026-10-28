@@ -63,6 +63,31 @@ DONKA_SMTP_URL=smtp://user:pass@mail.banque.example:587?tls=required
 DONKA_SMTP_FROM=Donka <donka@banque.example>
 ```
 
+**Secrets sous forme de fichiers.** Chaque paramètre secret `X` (URL de la base, URL de
+messagerie, clés du stockage, clés du journal des décisions, de l'index des personnes et de la
+seconde étape et leurs clés précédentes, clé du LLM) peut être donné à la place par `X_FILE`, le
+chemin d'un fichier qui contient la valeur, comme les fournissent les secrets Docker et
+Kubernetes et les agents de coffre-fort (OpenBao, Vault, Infisical). Les sauts de ligne finaux
+sont retirés. Définir les deux formes, ou un fichier que Studio ne peut pas lire, arrête Studio
+au démarrage en nommant le paramètre. Avec les secrets Docker, par exemple :
+
+```yaml
+# docker-compose.override.yml
+services:
+  app:
+    environment:
+      DONKA_DECISION_LOG_KEY: ""                # le fichier compose a une valeur par défaut : videz-la
+      DONKA_DECISION_LOG_KEY_FILE: /run/secrets/decision_log_key
+    secrets: [decision_log_key]
+secrets:
+  decision_log_key:
+    file: ./secrets/decision_log_key           # openssl rand -base64 32 > secrets/decision_log_key
+```
+
+Sur Kubernetes, montez le secret en volume et faites pointer `X_FILE` vers le fichier. Le Runtime
+accepte la même forme pour ses secrets
+([guide de configuration](https://github.com/youmssi/donka-runtime/blob/develop/docs/configuration.md)).
+
 Derrière un proxy inverse, définissez aussi `DONKA_TRUSTED_PROXIES` avec son adresse (ou le
 réseau Docker, par exemple `172.16.0.0/12`) : la connexion et la réinitialisation du mot de passe
 sont limitées par adresse cliente, et sans ce paramètre tous les clients partagent celle du proxy.

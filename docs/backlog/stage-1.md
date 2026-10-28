@@ -1314,10 +1314,10 @@ content is the value; setting both fails at start. Donka integrates with no vaul
 OpenBao, Vault, Infisical and Kubernetes all write files through their own agents.
 
 #### Acceptance criteria
-- [ ] Every secret setting of Studio and the Runtime accepts the `_FILE` form; trailing newlines are trimmed; an unreadable file fails at start and names the setting
-- [ ] Setting both forms fails at start
-- [ ] `.env.example`, the install guides (EN/FR) and the Runtime configuration guide list the file form with a Docker secrets example
-- [ ] Tests cover each rule above
+- [x] Every secret setting of Studio and the Runtime accepts the `_FILE` form; trailing newlines are trimmed; an unreadable file fails at start and names the setting
+- [x] Setting both forms fails at start
+- [x] `.env.example`, the install guides (EN/FR) and the Runtime configuration guide list the file form with a Docker secrets example
+- [x] Tests cover each rule above
 
 #### Out of scope
 A direct vault client; dynamic secrets; automatic rotation.
