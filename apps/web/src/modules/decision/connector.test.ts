@@ -75,3 +75,63 @@ it('shows a URL by its host', () => {
   expect(urlHost('https://api.bureau.example/v2/score')).toBe('api.bureau.example');
   expect(urlHost('not a url')).toBe('not a url');
 });
+
+it('stores OAuth2 client credentials and a client certificate by name, and reads them back', () => {
+  const values = valid({
+    authType: 'oauth2',
+    tokenUrl: 'https://login.bank.example/oauth2/token',
+    clientId: 'donka-runtime',
+    secret: 'CBS_CLIENT_SECRET',
+    scopes: ' accounts.read  scores.read ',
+    tls: true,
+    certificate: 'CBS_CLIENT_CERT',
+    key: 'CBS_CLIENT_KEY',
+    ca: '',
+  });
+  expect(errorsOf(values)).toEqual({});
+  const config = connectorConfig(values);
+  expect(config.auth).toEqual({
+    type: 'oauth2',
+    tokenUrl: 'https://login.bank.example/oauth2/token',
+    clientId: 'donka-runtime',
+    secret: 'CBS_CLIENT_SECRET',
+    scopes: ['accounts.read', 'scores.read'],
+  });
+  expect(config.tls).toEqual({ certificate: 'CBS_CLIENT_CERT', key: 'CBS_CLIENT_KEY' });
+  const read = connectorValues(config);
+  expect(read).toMatchObject({
+    authType: 'oauth2',
+    clientId: 'donka-runtime',
+    scopes: 'accounts.read scores.read',
+    tls: true,
+    certificate: 'CBS_CLIENT_CERT',
+    ca: '',
+  });
+  // Without a client certificate, nothing about one is stored.
+  expect(connectorConfig({ ...values, tls: false }).tls).toBeUndefined();
+});
+
+it('checks OAuth2 and certificate settings as the Runtime does', () => {
+  const oauth = (overrides: Partial<ConnectorValues>) =>
+    errorsOf(
+      valid({
+        authType: 'oauth2',
+        tokenUrl: 'https://login.bank.example/token',
+        clientId: 'donka-runtime',
+        secret: 'CBS_CLIENT_SECRET',
+        ...overrides,
+      }),
+    );
+  expect(oauth({})).toEqual({});
+  expect(oauth({ tokenUrl: 'ldap://login' })).toEqual({ tokenUrl: 'connectorUrl' });
+  expect(oauth({ clientId: '' })).toEqual({ clientId: 'clientId' });
+  expect(oauth({ scopes: 'accounts."read"' })).toEqual({ scopes: 'scopes' });
+  expect(oauth({ scopes: Array.from({ length: 21 }, (_, i) => `s${i}`).join(' ') })).toEqual({ scopes: 'scopes' });
+  expect(errorsOf(valid({ tls: true, certificate: 'cert', key: '', ca: 'ca' }))).toEqual({
+    certificate: 'secretName',
+    key: 'secretName',
+    ca: 'secretName',
+  });
+  // Fields of a method not chosen are not checked.
+  expect(errorsOf(valid({ tokenUrl: 'nope', certificate: 'nope' }))).toEqual({});
+});

@@ -120,7 +120,9 @@
     "number": "Enter a number, or leave it empty.",
     "minAboveMax": "The maximum is below the minimum.",
     "allowedValues": "Separate values with commas; for a number field, numbers only.",
-    "notPast": "Choose today or a later day."
+    "notPast": "Choose today or a later day.",
+    "clientId": "Use 1 to {max} characters.",
+    "scopes": "Separate scopes with spaces; no quotes or backslashes, at most 20."
   },
   "signIn": {
     "title": "Sign in",
@@ -871,11 +873,27 @@
     "auth": {
       "none": "None",
       "bearer": "Bearer token",
-      "header": "API key header"
+      "header": "API key header",
+      "oauth2": "OAuth2 client credentials"
     },
     "header": "Header",
     "secret": "Secret name",
     "secretHint": "Only the name is stored. The Runtime reads the value from {variable}.",
+    "tokenUrl": "Token address",
+    "tokenUrlHint": "The OAuth2 token endpoint the Runtime asks for a token, with the client credentials grant.",
+    "clientId": "Client id",
+    "scopes": "Scopes",
+    "scopesHint": "Separated by spaces, e.g. accounts.read. Empty: none asked for.",
+    "clientSecret": "Client secret name",
+    "secretFileHint": "Only the name is stored. The Runtime reads the PEM from {variable}, or from the file named by {variable}_FILE.",
+    "tlsLegend": "Client certificate",
+    "tls": "Present a client certificate (mutual TLS)",
+    "tlsHint": "For services that require one, such as a core banking system. Also used for the token address.",
+    "tlsSecret": {
+      "certificate": "Certificate name",
+      "key": "Private key name",
+      "ca": "CA bundle name (optional)"
+    },
     "requestResponse": "Request and response",
     "body": "Request body",
     "bodyHint": "JSON. Text values may use the decision's input, e.g. {example}.",

@@ -51,7 +51,7 @@ zen-engine = { version = "=2.1.6", features = ["arbitrary_precision"] }
 # store, so an endpoint behind a bank's internal CA is honoured.
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-native-roots"] }
 # Connector nodes, the same handler the Runtime runs; Studio uses its mock mode only (no `live`).
-donka-connectors = { git = "https://github.com/youmssi/donka-runtime", rev = "3a2d5a2c094e8dac9819a085cf17a16d7d4d2a31" }
+donka-connectors = { git = "https://github.com/youmssi/donka-runtime", rev = "1a1cd08de633d22f3052889f014669fab82f3c1a" }
 
 donka-engine = { path = "crates/engine" }
 donka-db = { path = "crates/db" }

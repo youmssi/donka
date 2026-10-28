@@ -130,7 +130,8 @@ answer to the node's output under `outputKey`; Studio answers with `mock` instea
 |---|---|
 | `preset` | `http` or `bureau-score`; informational. |
 | `url` | `http://` or `https://`. |
-| `auth` | `{ "type": "none" }`, `{ "type": "bearer", "secret" }` or `{ "type": "header", "header", "secret" }`. `secret` is a **name** (capital letters, digits, `_`, at most 64); the Runtime reads the value from `DONKA_SECRET_<NAME>`. |
+| `auth` | `{ "type": "none" }`, `{ "type": "bearer", "secret" }`, `{ "type": "header", "header", "secret" }` or `{ "type": "oauth2", "tokenUrl", "clientId", "secret", "scopes" }` (OAuth2 client credentials, DNK-63). `secret` is a **name** (capital letters, digits, `_`, at most 64); the Runtime reads the value from `DONKA_SECRET_<NAME>` or the file `DONKA_SECRET_<NAME>_FILE` names. |
+| `tls` | Optional, mutual TLS (DNK-63): `{ "certificate", "key", "ca" }`, the **names** of the secrets holding the client certificate, its key and an optional CA bundle (PEM). |
 | `body` | Any JSON; string values may be templates over the node's input. |
 | `outputKey` | Letters, digits and `_`. |
 | `timeoutMs`, `retries` | Optional; capped by the Runtime (`CONNECTORS__*`). |

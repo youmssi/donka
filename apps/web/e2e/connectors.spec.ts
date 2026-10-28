@@ -222,3 +222,57 @@ test('connector settings persist; Studio uses mocks while Runtime maps authentic
     await expect(await admin.delete(`${path}/environments/staging/tokens/${token.id}`)).toBeOK();
   }
 });
+
+test('a connector set up with OAuth2 and a client certificate stores names only and simulates from its mock', async ({
+  context,
+  admin,
+  messages: m,
+  appLocale,
+}) => {
+  await expect(await admin.put('/api/v1/me/tours/editor')).toBeOK();
+  const { path, key } = await ruleProject(admin, 'core-banking');
+  const added = await admin.post(`${path}/decisions`, {
+    data: { key: 'accounts', content: connectorGraph({ preset: 'http' }) },
+  });
+  await expect(added).toBeOK();
+  const decision: ApiSchemas['DecisionResponse'] = await added.json();
+  const decisionPath = `${path}/decisions/${decision.id}`;
+  const page = await openPage(context, `/${appLocale}/projects/decision?p=${key}&d=accounts`);
+  await page.getByRole('button', { name: m.connector.settings, exact: true }).click();
+  const sheet = page.getByRole('dialog', { name: m.connector.title, exact: true });
+  await sheet.getByLabel(m.connector.url, { exact: true }).fill('https://cbs.bank.example/accounts');
+  await sheet.getByRole('combobox', { name: m.connector.authType }).click();
+  await page.getByRole('option', { name: m.connector.auth.oauth2, exact: true }).click();
+  await sheet.getByLabel(m.connector.tokenUrl, { exact: true }).fill('https://login.bank.example/oauth2/token');
+  await sheet.getByLabel(m.connector.clientId, { exact: true }).fill('donka-runtime');
+  await sheet.getByLabel(m.connector.scopes, { exact: true }).fill('accounts.read');
+  await sheet.getByLabel(m.connector.clientSecret, { exact: true }).fill('CBS_CLIENT_SECRET');
+  await sheet.getByLabel(m.connector.tls, { exact: true }).check();
+  await sheet.getByLabel(m.connector.tlsSecret.certificate, { exact: true }).fill('cbs cert');
+  await sheet.getByLabel(m.connector.tlsSecret.key, { exact: true }).fill('CBS_CLIENT_KEY');
+  await sheet.getByLabel(m.connector.mock, { exact: true }).fill('{"balance":1200}');
+  await sheet.getByRole('button', { name: m.connector.apply, exact: true }).click();
+  await expect(sheet.getByText(m.validation.secretName, { exact: true })).toBeVisible();
+  await sheet.getByLabel(m.connector.tlsSecret.certificate, { exact: true }).fill('CBS_CLIENT_CERT');
+  await sheet.getByRole('button', { name: m.connector.apply, exact: true }).click();
+  await expect(sheet).toBeHidden();
+  let config: Record<string, unknown> = {};
+  await expect
+    .poll(async () => {
+      const body = await (await admin.get(decisionPath)).json();
+      config = body.content.nodes.find((node: { id: string }) => node.id === 'bureau').content.config;
+      return config.auth;
+    })
+    .toEqual({
+      type: 'oauth2',
+      tokenUrl: 'https://login.bank.example/oauth2/token',
+      clientId: 'donka-runtime',
+      secret: 'CBS_CLIENT_SECRET',
+      scopes: ['accounts.read'],
+    });
+  expect(config.tls).toEqual({ certificate: 'CBS_CLIENT_CERT', key: 'CBS_CLIENT_KEY' });
+  // Simulation answers from the mock: neither address is called (they do not exist).
+  const simulated = await admin.post(`${decisionPath}/simulate`, { data: { context: {} } });
+  await expect(simulated).toBeOK();
+  expect(await simulated.json()).toMatchObject({ result: { response: { balance: 1200 } } });
+});

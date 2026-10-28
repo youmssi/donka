@@ -19,6 +19,7 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 
 import {
   AUTH_TYPES,
+  CLIENT_ID_MAX,
   CONNECTOR_KIND,
   connectorConfig,
   connectorSchema,
@@ -147,6 +148,7 @@ function ConnectorSheet({
               <FieldGroup className="gap-6">
                 <ServiceSection form={form} disabled={disabled} onPreset={applyPreset} />
                 <AuthenticationSection form={form} disabled={disabled} />
+                <MutualTlsSection form={form} disabled={disabled} />
                 <RequestSection form={form} disabled={disabled} />
                 <ReliabilitySection form={form} disabled={disabled} />
                 <SimulationSection form={form} disabled={disabled} />
@@ -216,6 +218,7 @@ const AuthenticationSection = withForm({
   props: { disabled: false },
   render: function Render({ form, disabled }) {
     const t = useTranslations('connector');
+    const secretHint = useSecretHint();
     return (
       <FieldSet className="gap-1">
         <FieldLegend>{t('authentication')}</FieldLegend>
@@ -245,14 +248,51 @@ const AuthenticationSection = withForm({
                     )}
                   </form.AppField>
                 ) : null}
+                {authType === 'oauth2' ? (
+                  <>
+                    <form.AppField name="tokenUrl">
+                      {(field) => (
+                        <field.TextField
+                          label={t('tokenUrl')}
+                          hint={t('tokenUrlHint')}
+                          placeholder="https://"
+                          inputMode="url"
+                          className="font-mono"
+                          disabled={disabled}
+                        />
+                      )}
+                    </form.AppField>
+                    <form.AppField name="clientId">
+                      {(field) => (
+                        <field.TextField
+                          label={t('clientId')}
+                          className="font-mono"
+                          autoComplete="off"
+                          spellCheck={false}
+                          messageValues={{ max: CLIENT_ID_MAX }}
+                          disabled={disabled}
+                        />
+                      )}
+                    </form.AppField>
+                    <form.AppField name="scopes">
+                      {(field) => (
+                        <field.TextField
+                          label={t('scopes')}
+                          hint={t('scopesHint')}
+                          className="font-mono"
+                          spellCheck={false}
+                          disabled={disabled}
+                        />
+                      )}
+                    </form.AppField>
+                  </>
+                ) : null}
                 <form.AppField name="secret">
                   {(field) => (
                     <field.TextField
-                      label={t('secret')}
-                      hint={t('secretHint', {
-                        variable: `${SECRET_ENV_PREFIX}${validSecretName(String(field.state.value)) ? String(field.state.value) : 'NAME'}`,
-                      })}
-                      placeholder="SERVICE_API_KEY"
+                      label={authType === 'oauth2' ? t('clientSecret') : t('secret')}
+                      hint={secretHint(String(field.state.value))}
+                      placeholder={authType === 'oauth2' ? 'SERVICE_CLIENT_SECRET' : 'SERVICE_API_KEY'}
                       className="font-mono"
                       autoComplete="off"
                       spellCheck={false}
@@ -268,6 +308,58 @@ const AuthenticationSection = withForm({
     );
   },
 });
+
+const PLACEHOLDERS = { certificate: 'SERVICE_CLIENT_CERT', key: 'SERVICE_CLIENT_KEY', ca: 'SERVICE_CA' };
+
+/** Mutual TLS: the client certificate the Runtime presents, and the CA it trusts. */
+const MutualTlsSection = withForm({
+  ...connectorForm,
+  props: { disabled: false },
+  render: function Render({ form, disabled }) {
+    const t = useTranslations('connector');
+    const secretHint = useSecretHint();
+    return (
+      <FieldSet className="gap-1">
+        <FieldLegend>{t('tlsLegend')}</FieldLegend>
+        <form.AppField name="tls">
+          {(field) => <field.CheckboxField label={t('tls')} hint={t('tlsHint')} disabled={disabled} />}
+        </form.AppField>
+        <form.Subscribe selector={(state) => state.values.tls}>
+          {(tls) =>
+            tls ? (
+              <div className="grid gap-1 pt-3">
+                {(['certificate', 'key', 'ca'] as const).map((name) => (
+                  <form.AppField key={name} name={name}>
+                    {(field) => (
+                      <field.TextField
+                        label={t(`tlsSecret.${name}`)}
+                        hint={secretHint(String(field.state.value), true)}
+                        placeholder={PLACEHOLDERS[name]}
+                        className="font-mono"
+                        autoComplete="off"
+                        spellCheck={false}
+                        disabled={disabled}
+                      />
+                    )}
+                  </form.AppField>
+                ))}
+              </div>
+            ) : null
+          }
+        </form.Subscribe>
+      </FieldSet>
+    );
+  },
+});
+
+/** Where the Runtime reads a secret's value; certificates are usually files. */
+function useSecretHint() {
+  const t = useTranslations('connector');
+  return (name: string, file = false) => {
+    const variable = `${SECRET_ENV_PREFIX}${validSecretName(name) ? name : 'NAME'}`;
+    return file ? t('secretFileHint', { variable }) : t('secretHint', { variable });
+  };
+}
 
 const RequestSection = withForm({
   ...connectorForm,

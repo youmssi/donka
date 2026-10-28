@@ -84,6 +84,32 @@ Its settings are documented in the Runtime's
 [configuration guide](https://github.com/youmssi/donka-runtime/blob/develop/docs/configuration.md).
 For a production Runtime, run a second one with `PROVIDER__PREFIX: production/`.
 
+**Connector secrets.** A decision's connector nodes name their secrets; the Runtime reads each
+value from `DONKA_SECRET_<NAME>`, or from the file `DONKA_SECRET_<NAME>_FILE` names. A service
+that wants an OAuth2 token needs its client secret; one that requires mutual TLS needs a client
+certificate, its key and, for a private CA, the CA bundle, best given as files:
+
+```bash
+# runtime.env
+DONKA_SECRET_BUREAU_API_KEY=...                                  # an API key in a header
+DONKA_SECRET_CBS_CLIENT_SECRET=...                               # OAuth2 client credentials
+DONKA_SECRET_CBS_CLIENT_CERT_FILE=/run/secrets/cbs-client.crt    # mutual TLS, PEM
+DONKA_SECRET_CBS_CLIENT_KEY_FILE=/run/secrets/cbs-client.key
+DONKA_SECRET_CBS_CA_FILE=/run/secrets/cbs-ca.pem
+```
+
+```yaml
+# docker-compose.override.yml: the certificate files, read-only
+services:
+  runtime:
+    volumes:
+      - ./secrets:/run/secrets:ro
+```
+
+The settings each method takes, and how failures are reported, are in the Runtime's
+[connectors guide](https://github.com/youmssi/donka-runtime/blob/develop/docs/connectors.md).
+Restart the Runtime after replacing a certificate.
+
 ## 2. Smoke test after each deploy
 
 `scripts/smoke.sh` checks that Studio answers and reaches its database, that the decision
