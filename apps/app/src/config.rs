@@ -59,6 +59,9 @@ pub struct Config {
     /// records until `donka-app decision-log reseal` re-seals them, and never
     /// seal. Secrets, like the current key.
     pub decision_log_previous_keys: Vec<String>,
+    /// Base64 of the 32-byte key the identifiers people are found by are hashed
+    /// with (DNK-75). A secret; changing it means indexing the log again.
+    pub person_index_key: String,
     /// Base64 of the 32-byte key second-step secrets are sealed with (DNK-59). A
     /// secret: without it, nobody with a second step can sign in.
     pub second_step_key: String,
@@ -188,6 +191,13 @@ impl Config {
         donka_shared::cipher::Cipher::from_base64(&decision_log_key)
             .map_err(|err| invalid("DONKA_DECISION_LOG_KEY", &err.to_string()))?;
         let decision_log_previous_keys = previous_keys(&get, "DONKA_DECISION_LOG_PREVIOUS_KEYS")?;
+        let person_index_key = required(
+            &get,
+            "DONKA_PERSON_INDEX_KEY",
+            "is required: 32 random bytes in base64 (e.g. `openssl rand -base64 32`)",
+        )?;
+        donka_decision_log::PersonKey::from_base64(&person_index_key)
+            .map_err(|err| invalid("DONKA_PERSON_INDEX_KEY", &err.to_string()))?;
 
         let second_step_key = required(
             &get,
@@ -243,6 +253,7 @@ impl Config {
             publish_max_attempts: positive(&get, "DONKA_PUBLISH_MAX_ATTEMPTS")?.unwrap_or(10),
             decision_log_key,
             decision_log_previous_keys,
+            person_index_key,
             second_step_key,
             second_step_previous_keys,
             mfa_required,
@@ -425,7 +436,7 @@ mod tests {
     use super::*;
     use std::collections::HashMap;
 
-    const REQUIRED: [(&str, &str); 6] = [
+    const REQUIRED: [(&str, &str); 7] = [
         ("DATABASE_URL", "postgres://donka@localhost/donka"),
         ("DONKA_SMTP_URL", "smtp://localhost:1025"),
         ("DONKA_SMTP_FROM", "donka@bank.example"),
@@ -437,6 +448,10 @@ mod tests {
         (
             "DONKA_SECOND_STEP_KEY",
             "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8=",
+        ),
+        (
+            "DONKA_PERSON_INDEX_KEY",
+            "QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl8=",
         ),
     ];
 
@@ -490,6 +505,17 @@ mod tests {
         );
         let config = load(&[("DONKA_DECISION_LOG_RETENTION_DAYS", "365")]).unwrap();
         assert_eq!(config.decision_log_retention_days, 365);
+    }
+
+    #[test]
+    fn the_person_index_key_is_required_and_checked() {
+        for bad in ["", "too-short", "AAECAwQFBgcICQoLDA0ODw=="] {
+            assert_eq!(
+                load(&[("DONKA_PERSON_INDEX_KEY", bad)]).unwrap_err().var,
+                "DONKA_PERSON_INDEX_KEY",
+                "{bad}"
+            );
+        }
     }
 
     #[test]

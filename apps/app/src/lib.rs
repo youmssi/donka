@@ -8,6 +8,7 @@ pub mod config;
 pub mod email_worker;
 pub mod error;
 pub mod extract;
+pub mod index_people;
 pub mod publish_worker;
 pub mod purge_worker;
 pub mod rate_limit;
@@ -189,6 +190,16 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
         .routes(routes!(routes::decision_log::get))
         .routes(routes!(routes::decision_log::replay))
         .routes(routes!(routes::decision_log::explain))
+        .routes(routes!(routes::rights::search))
+        .routes(routes!(routes::rights::report))
+        .routes(routes!(routes::rights::anonymise))
+        .routes(routes!(routes::rights::rules, routes::rights::create_rule))
+        .routes(routes!(routes::rights::end_rule))
+        .routes(routes!(
+            routes::rights::contests,
+            routes::rights::open_contest
+        ))
+        .routes(routes!(routes::rights::review_contest))
         .routes(routes!(
             routes::rules_sync::ci_tokens,
             routes::rules_sync::issue_ci_token

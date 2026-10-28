@@ -4,7 +4,7 @@ use donka_app::{config::Config, router, AppState};
 use donka_audit::AuditLog;
 use donka_db::DbOptions;
 use donka_decision::Decisions;
-use donka_decision_log::{Cipher, DecisionLog};
+use donka_decision_log::{Cipher, DecisionLog, PersonKey};
 use donka_engine::{DecisionRuntime, ZenRuntime};
 use donka_identity::{Identity, Policy};
 use donka_mail::SmtpMailer;
@@ -18,14 +18,20 @@ use std::sync::Arc;
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // No argument runs Studio; `decision-log reseal` re-seals the decision log
-    // after a key rotation and exits.
+    // after a key rotation, `decision-log index-people` indexes the records stored
+    // before people could be found by their identifiers; both exit when done.
     let command: Vec<String> = std::env::args().skip(1).collect();
-    let reseal = match command.as_slice() {
-        [] => false,
-        [group, action] if group == "decision-log" && action == "reseal" => true,
+    let task = match command.as_slice() {
+        [] => None,
+        [group, action] if group == "decision-log" && action == "reseal" => Some(Task::Reseal),
+        [group, action] if group == "decision-log" && action == "index-people" => {
+            Some(Task::IndexPeople)
+        }
         _ => exit_with(&format!(
             "unknown command `{}`. Commands: decision-log reseal (re-seal decision records \
-             with the current key after a rotation); none to run Studio.",
+             with the current key after a rotation); decision-log index-people (index the \
+             records stored before people could be found by their identifiers); none to run \
+             Studio.",
             command.join(" ")
         )),
     };
@@ -103,22 +109,39 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|err| exit_with(&format!("DONKA_DECISION_LOG_KEY {err}")))
         .with_previous(config.decision_log_previous_keys.iter().map(String::as_str))
         .unwrap_or_else(|err| exit_with(&format!("DONKA_DECISION_LOG_PREVIOUS_KEYS {err}")));
+    let person_key = PersonKey::from_base64(&config.person_index_key)
+        .unwrap_or_else(|err| exit_with(&format!("DONKA_PERSON_INDEX_KEY {err}")));
     let decision_log = DecisionLog::new(
         db.clone(),
         clock.clone(),
         Arc::new(cipher),
+        Arc::new(person_key),
         releases.clone(),
         runtime.clone(),
         Duration::days(config.decision_log_retention_days.into()),
     );
 
-    if reseal {
-        match donka_app::reseal::run(&decision_log, &mut std::io::stderr()).await {
+    if let Some(task) = task {
+        let done = match task {
+            Task::Reseal => donka_app::reseal::run(&decision_log, &mut std::io::stderr()).await,
+            Task::IndexPeople => {
+                donka_app::index_people::run(&decision_log, &mut std::io::stderr()).await
+            }
+        };
+        match done {
             Ok(_) => return Ok(()),
             Err(err) => exit_with(&err),
         }
     }
     warn_about_previous_keys(&decision_log).await;
+    match decision_log.people_index_finished().await {
+        Ok(true) => {}
+        Ok(false) => tracing::warn!(
+            "decision records stored before people could be found by their identifiers are not \
+             indexed yet: run `donka-app decision-log index-people`"
+        ),
+        Err(err) => tracing::warn!(%err, "cannot check whether the people index is complete"),
+    }
 
     if let Some(email) = &config.bootstrap_admin_email {
         match identity.bootstrap_admin(email, config.default_locale).await {
@@ -235,6 +258,12 @@ async fn shutdown_signal() {
         () = ctrl_c => {},
         () = terminate => {},
     }
+}
+
+/// A maintenance command run instead of Studio.
+enum Task {
+    Reseal,
+    IndexPeople,
 }
 
 /// Startup failures an operator must fix (configuration, database): one line, no backtrace.

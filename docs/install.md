@@ -53,6 +53,7 @@ DONKA_STORAGE_ACCESS_KEY_ID=donka
 DONKA_STORAGE_SECRET_ACCESS_KEY=<generated>     # openssl rand -hex 24
 DONKA_DECISION_LOG_KEY=<generated>              # openssl rand -base64 32
 DONKA_SECOND_STEP_KEY=<generated>               # openssl rand -base64 32
+DONKA_PERSON_INDEX_KEY=<generated>              # openssl rand -base64 32
 DONKA_MFA_REQUIRED=privileged                   # second sign-in step for admins and owners
 DONKA_SMTP_URL=smtp://user:pass@mail.bank.example:587?tls=required
 DONKA_SMTP_FROM=Donka <donka@bank.example>
@@ -145,6 +146,8 @@ Keep `.env` and `runtime.env` in your secret store. **Without `DONKA_DECISION_LO
 after a rotation, the keys in `DONKA_DECISION_LOG_PREVIOUS_KEYS`) the decision log cannot be
 read**, even from a backup. **Without `DONKA_SECOND_STEP_KEY` (and its previous keys) nobody
 with a second sign-in step can sign in** after a restore: keep it with the backups too.
+**Without `DONKA_PERSON_INDEX_KEY` nobody can be found by their identifiers** in a restored
+decision log until it is indexed again with a new key (below).
 
 Copy the backups off the server and test a restore regularly. To restore, onto a stopped Studio:
 
@@ -173,6 +176,13 @@ docker compose up -d app runtime
    `DONKA_RUNTIME_SOURCE=https://github.com/youmssi/donka-runtime.git#v1.5.0` in `.env`.
    Studio applies pending migrations when it starts (`DONKA_DB_MIGRATE=true`).
 4. Check it: `curl -s localhost:8080/api/v1/version`, then the smoke test (section 2).
+5. If Studio's log says decision records are not indexed yet (after the upgrade that lets
+   owners find a person's records, DNK-75), index them; it runs alongside Studio, and can be
+   stopped and run again:
+
+   ```bash
+   docker compose exec app donka-app decision-log index-people
+   ```
 
 ## 5. Rotate secrets
 
@@ -231,6 +241,19 @@ it, move the current value to `DONKA_SECOND_STEP_PREVIOUS_KEYS`, set the new key
 `docker compose up -d app`. Each secret is re-sealed with the new key the next time its owner
 signs in; keep the previous key until everyone with a second step has signed in once (or an
 administrator has reset the steps of those who have not).
+
+**Person index key**: identifiers (national ID, phone…) are found through hashes made with
+`DONKA_PERSON_INDEX_KEY`; there is no previous key. To replace it, set the new key, empty the
+index and index the log again, Studio stopped:
+
+```bash
+docker compose stop app
+docker compose exec postgres psql -U donka -c "TRUNCATE decision_record_people; \
+  UPDATE decision_record_people_backfill SET received_before = now(), after_evaluated_at = NULL, \
+  after_id = NULL, finished_at = NULL"
+docker compose up -d app
+docker compose exec app donka-app decision-log index-people
+```
 
 **User passwords**: people change theirs with *Forgot your password?* on the sign-in page.
 

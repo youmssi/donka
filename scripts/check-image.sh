@@ -28,6 +28,7 @@ docker run -d --name "$name" --network host \
   -e DONKA_STORAGE_URL=file:///tmp/releases \
   -e DONKA_DECISION_LOG_KEY="$(openssl rand -base64 32)" \
   -e DONKA_SECOND_STEP_KEY="$(openssl rand -base64 32)" \
+  -e DONKA_PERSON_INDEX_KEY="$(openssl rand -base64 32)" \
   "$image" >/dev/null
 
 for _ in $(seq 1 60); do

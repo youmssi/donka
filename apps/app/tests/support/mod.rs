@@ -33,6 +33,8 @@ pub const ADMIN_PASSWORD: &str = "correct horse battery staple";
 pub const PUBLIC_URL: &str = "https://studio.bank.example";
 /// The decision-log key in tests (32 bytes, base64).
 pub const DECISION_LOG_KEY: &str = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=";
+/// The key identifiers are hashed with in tests (DNK-75).
+pub const PERSON_INDEX_KEY: &str = "QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl8=";
 /// The second-step key in tests (32 bytes, base64).
 pub const SECOND_STEP_KEY: &str = "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8=";
 /// How long decision records are kept, in tests.
@@ -207,6 +209,7 @@ fn assemble_with_cipher(
         db.clone(),
         clock.clone(),
         Arc::new(cipher),
+        Arc::new(donka_decision_log::PersonKey::from_base64(PERSON_INDEX_KEY).unwrap()),
         releases.clone(),
         runtime.clone(),
         chrono::Duration::days(RETENTION_DAYS),

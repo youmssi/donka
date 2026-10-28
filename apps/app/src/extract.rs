@@ -126,6 +126,34 @@ impl FromRequestParts<AppState> for RecordId {
     }
 }
 
+/// The retention rule in the `{rule_id}` path segment; a malformed id is `404 RETENTION_RULE_NOT_FOUND`.
+pub struct RuleId(pub Uuid);
+
+impl FromRequestParts<AppState> for RuleId {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, ApiError> {
+        path_id(parts, state, "rule_id")
+            .await
+            .map(Self)
+            .ok_or(ApiError::RetentionRuleNotFound)
+    }
+}
+
+/// The contest in the `{contest_id}` path segment; a malformed id is `404 CONTEST_NOT_FOUND`.
+pub struct ContestId(pub Uuid);
+
+impl FromRequestParts<AppState> for ContestId {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, ApiError> {
+        path_id(parts, state, "contest_id")
+            .await
+            .map(Self)
+            .ok_or(ApiError::ContestNotFound)
+    }
+}
+
 /// The deployment in the `{deployment_id}` path segment; a malformed id is `404 DEPLOYMENT_NOT_FOUND`.
 pub struct DeploymentId(pub Uuid);
 

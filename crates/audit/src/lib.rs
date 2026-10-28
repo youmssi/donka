@@ -172,6 +172,36 @@ pub enum Action {
     #[serde(rename = "decision_record.explained")]
     #[sqlx(rename = "decision_record.explained")]
     DecisionRecordExplained,
+    /// Records stored before DNK-75 were indexed by the identifiers they hold; no actor:
+    /// an operator runs the command.
+    #[serde(rename = "decision_log.people_indexed")]
+    #[sqlx(rename = "decision_log.people_indexed")]
+    DecisionLogPeopleIndexed,
+    /// An owner looked up the records about a person (DNK-75); never the identifier.
+    #[serde(rename = "person.records_searched")]
+    #[sqlx(rename = "person.records_searched")]
+    PersonRecordsSearched,
+    #[serde(rename = "person.report_exported")]
+    #[sqlx(rename = "person.report_exported")]
+    PersonReportExported,
+    /// The person's fields were removed from their records, at their request.
+    #[serde(rename = "person.records_anonymised")]
+    #[sqlx(rename = "person.records_anonymised")]
+    PersonRecordsAnonymised,
+    /// A documented reason to keep records whole, which blocks anonymising them.
+    #[serde(rename = "retention_rule.created")]
+    #[sqlx(rename = "retention_rule.created")]
+    RetentionRuleCreated,
+    #[serde(rename = "retention_rule.ended")]
+    #[sqlx(rename = "retention_rule.ended")]
+    RetentionRuleEnded,
+    /// A person contests a decision; the review happens in the lender's systems.
+    #[serde(rename = "decision_contest.opened")]
+    #[sqlx(rename = "decision_contest.opened")]
+    DecisionContestOpened,
+    #[serde(rename = "decision_contest.reviewed")]
+    #[sqlx(rename = "decision_contest.reviewed")]
+    DecisionContestReviewed,
     /// A project's CI token (DNK-20).
     #[serde(rename = "ci_token.issued")]
     #[sqlx(rename = "ci_token.issued")]
@@ -230,6 +260,14 @@ impl Action {
             Self::DecisionLogTokenIssued => "decision_log_token.issued",
             Self::DecisionLogTokenRevoked => "decision_log_token.revoked",
             Self::DecisionRecordExplained => "decision_record.explained",
+            Self::DecisionLogPeopleIndexed => "decision_log.people_indexed",
+            Self::PersonRecordsSearched => "person.records_searched",
+            Self::PersonReportExported => "person.report_exported",
+            Self::PersonRecordsAnonymised => "person.records_anonymised",
+            Self::RetentionRuleCreated => "retention_rule.created",
+            Self::RetentionRuleEnded => "retention_rule.ended",
+            Self::DecisionContestOpened => "decision_contest.opened",
+            Self::DecisionContestReviewed => "decision_contest.reviewed",
             Self::CiTokenIssued => "ci_token.issued",
             Self::CiTokenRevoked => "ci_token.revoked",
         }
@@ -426,6 +464,14 @@ mod tests {
             Action::DecisionRecordExplained,
             Action::DecisionLogPurged,
             Action::DecisionLogResealed,
+            Action::DecisionLogPeopleIndexed,
+            Action::PersonRecordsSearched,
+            Action::PersonReportExported,
+            Action::PersonRecordsAnonymised,
+            Action::RetentionRuleCreated,
+            Action::RetentionRuleEnded,
+            Action::DecisionContestOpened,
+            Action::DecisionContestReviewed,
             Action::CiTokenIssued,
             Action::CiTokenRevoked,
         ] {
