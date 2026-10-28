@@ -58,12 +58,44 @@ const review = (overrides: Partial<ApprovalReview> = {}): ApprovalReview => ({
         { path: 'applicant.income', kind: 'nowRequired', breaking: true },
         { path: 'applicant.city', kind: 'added', breaking: false },
       ],
+      findings: [
+        {
+          fingerprint: 'f-1',
+          kind: 'overlap',
+          tableId: 'dt',
+          tableName: 'Rate table',
+          row: 3,
+          rowId: 'r3',
+          coveredBy: [1],
+          also: [],
+          sameResult: false,
+          cases: [],
+          example: { applicant: { age: 9 } },
+        },
+        {
+          fingerprint: 'f-2',
+          kind: 'gap',
+          tableId: 'reasons',
+          tableName: 'Reason codes',
+          coveredBy: [],
+          also: [],
+          sameResult: false,
+          cases: [{ conditions: [{ column: { id: 'i0', name: 'History points' }, condition: '> 15' }] }],
+          caseCount: 1,
+          acknowledgement: {
+            reason: 'Strong files get no reason code',
+            acknowledgedBy: { id: 'u-3', email: 'alan@bank.example' },
+            acknowledgedAt: '2026-10-01T08:00:00Z',
+          },
+        },
+      ],
     },
     {
       key: 'bureau/normalize',
       decisionId: 'd-1',
       change: 'unchanged',
       contract: [],
+      findings: [],
       fromVersion: 1,
       toVersion: 1,
       tests: { passed: 2, failed: 0, errors: 0 },
@@ -98,6 +130,16 @@ it('shows what changes in production, the tests and the notes', async () => {
   expect(screen.getByText('now required')).toBeInTheDocument();
   expect(screen.getByText('Breaking')).toBeInTheDocument();
   expect(screen.getByText('Compatible')).toBeInTheDocument();
+  // What the table checks found: one open, one acknowledged with its reason.
+  expect(screen.getByText('Table checks · 1 finding to look at')).toBeInTheDocument();
+  expect(
+    screen.getByText('Rate table, row 3: never used, because row 1 already matches every input it matches'),
+  ).toBeInTheDocument();
+  expect(screen.getByText('Reason codes: no row matches 1 kind of input')).toBeInTheDocument();
+  expect(screen.getByText('History points > 15')).toBeInTheDocument();
+  expect(screen.getByText('alan@bank.example: “Strong files get no reason code”')).toBeInTheDocument();
+  // Findings are acknowledged in the editor, not from the review.
+  expect(screen.queryByRole('button', { name: 'Acknowledge' })).not.toBeInTheDocument();
 });
 
 it('lets an owner who did not make the release approve it', async () => {

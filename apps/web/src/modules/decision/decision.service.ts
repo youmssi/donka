@@ -10,6 +10,7 @@ import type {
   Scenario,
   ScenarioList,
   SimulationResult,
+  TableFinding,
   TestResultList,
   VersionDetail,
   VersionList,
@@ -166,5 +167,31 @@ export function getTestResults(projectId: string, id: string, number: number): P
   return attempt(async () => {
     const response = await http.get(`${one(projectId, id)}/versions/${number}/test-results`);
     return response.ok ? success(await response.json<TestResultList>()) : failure(response);
+  });
+}
+
+/** What the table checks find in the draft: gaps, overlapping rows, conditions that never match. */
+export function listFindings(projectId: string, id: string): Promise<ActionResult<TableFinding[]>> {
+  return attempt(async () => {
+    const response = await http.get(`${one(projectId, id)}/findings`);
+    return response.ok ? success((await response.json<{ items: TableFinding[] }>()).items) : failure(response);
+  });
+}
+
+/** Acknowledges a finding of the draft as intended (owners). */
+export function acknowledgeFinding(
+  projectId: string,
+  id: string,
+  fingerprint: string,
+  reason: string,
+): Promise<ActionResult<TableFinding>> {
+  return attempt(async () => {
+    const response = await http.put(
+      `${one(projectId, id)}/findings/${encodeURIComponent(fingerprint)}/acknowledgement`,
+      {
+        json: { reason },
+      },
+    );
+    return response.ok ? success(await response.json<TableFinding>()) : failure(response);
   });
 }

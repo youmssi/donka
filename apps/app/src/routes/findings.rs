@@ -12,6 +12,8 @@ use donka_engine::tables::{self, FindingKind};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
+use utoipa::openapi::schema::{AdditionalProperties, ObjectBuilder, SchemaType, Type};
+use utoipa::openapi::{RefOr, Schema};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
@@ -46,8 +48,16 @@ pub struct GapConditionResponse {
 pub struct GapCaseResponse {
     pub conditions: Vec<GapConditionResponse>,
     /// An input that falls in the gap.
-    #[schema(value_type = Option<Object>)]
+    #[schema(schema_with = example_schema)]
     pub example: Option<Value>,
+}
+
+/// A request context, as a caller would send it.
+fn example_schema() -> impl Into<RefOr<Schema>> {
+    ObjectBuilder::new()
+        .schema_type(SchemaType::from_iter([Type::Object, Type::Null]))
+        .additional_properties(Some(AdditionalProperties::FreeForm(true)))
+        .description(Some("An input, as a request's context would carry it."))
 }
 
 #[derive(Serialize, ToSchema)]
@@ -82,7 +92,7 @@ pub struct TableFindingResponse {
     pub cases: Vec<GapCaseResponse>,
     pub case_count: Option<u32>,
     /// Overlap: an input the row matches but never gets to answer.
-    #[schema(value_type = Option<Object>)]
+    #[schema(schema_with = example_schema)]
     pub example: Option<Value>,
     /// Present when an owner acknowledged the finding as intended.
     pub acknowledgement: Option<AcknowledgementResponse>,

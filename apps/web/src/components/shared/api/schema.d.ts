@@ -1908,8 +1908,10 @@ export interface components {
     };
     GapCaseResponse: {
       conditions: components['schemas']['GapConditionResponse'][];
-      /** @description An input that falls in the gap. */
-      example?: Record<string, never> | null;
+      /** @description An input, as a request's context would carry it. */
+      example?: {
+        [key: string]: unknown;
+      } | null;
     };
     GapConditionResponse: {
       column: components['schemas']['TableColumnResponse'];
@@ -2462,8 +2464,10 @@ export interface components {
       column?: null | components['schemas']['TableColumnResponse'];
       /** @description Overlap: the earlier rows that already match all the row matches. */
       coveredBy: number[];
-      /** @description Overlap: an input the row matches but never gets to answer. */
-      example?: Record<string, never> | null;
+      /** @description An input, as a request's context would carry it. */
+      example?: {
+        [key: string]: unknown;
+      } | null;
       /** @description Stays the same while the finding does; acknowledge the finding with it. */
       fingerprint: string;
       kind: components['schemas']['TableFindingKind'];

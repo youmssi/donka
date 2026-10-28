@@ -1313,7 +1313,8 @@
             "type": "array"
           },
           "example": {
-            "description": "An input that falls in the gap.",
+            "additionalProperties": true,
+            "description": "An input, as a request's context would carry it.",
             "type": [
               "object",
               "null"
@@ -3002,7 +3003,8 @@
             "type": "array"
           },
           "example": {
-            "description": "Overlap: an input the row matches but never gets to answer.",
+            "additionalProperties": true,
+            "description": "An input, as a request's context would carry it.",
             "type": [
               "object",
               "null"

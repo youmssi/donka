@@ -1,6 +1,6 @@
 'use client';
 
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
   createDecision,
@@ -9,6 +9,7 @@ import {
   getTestResults,
   getVersion,
   listDecisions,
+  listFindings,
   listScenarios,
   listVersions,
   VERSIONS_PAGE_SIZE,
@@ -24,7 +25,26 @@ const keys = {
   testResults: (projectId: string, id: string, number: number) =>
     ['project', projectId, 'decisions', id, 'versions', number, 'tests'] as const,
   scenarios: (projectId: string) => ['project', projectId, 'scenarios'] as const,
+  findings: (projectId: string, id: string) => ['project', projectId, 'decisions', id, 'findings'] as const,
 };
+
+/**
+ * What the table checks find in the draft. `savedAt` is when the draft was last saved: each save
+ * reads the findings again, and the previous ones stay on screen meanwhile.
+ */
+export function useFindings(projectId: string, id: string, savedAt: string | null) {
+  return useQuery({
+    queryKey: [...keys.findings(projectId, id), savedAt],
+    queryFn: () => listFindings(projectId, id),
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** After a finding is acknowledged, the draft's findings show it. */
+export function useFindingsChanged(projectId: string, id: string) {
+  const queryClient = useQueryClient();
+  return () => void queryClient.invalidateQueries({ queryKey: keys.findings(projectId, id) });
+}
 
 /** The project's scenarios, a page at a time. */
 export function useScenarioList(projectId: string, offset: number) {

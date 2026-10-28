@@ -30,7 +30,8 @@ import { projectHome, ProjectFrame, type Project } from '@/modules/project';
 import { canEditDecisions } from './decisions-page';
 import { simulateDecision } from './decision.service';
 import { InputFieldsSheet } from './input-fields';
-import { splitKey, type ContractWarning, type Decision } from './schema';
+import { splitKey, type ContractWarning, type Decision, type SavedVersion, type TableFinding } from './schema';
+import { openFindings, TableChecksSheet } from './table-findings';
 import { useDecision, useDecisionList, useDecisionSaved } from './useDecisions';
 import { useDraft, type DraftStatus } from './useDraft';
 import type { SimulatorRun } from './jdm-graph';
@@ -128,6 +129,18 @@ function Editor({ project, decision, others }: { project: Project; decision: Dec
   // The input fields panel, and what the last saved version's contract and rules disagree on.
   const [fieldsOpen, setFieldsOpen] = useState(false);
   const [warnings, setWarnings] = useState<{ number: number; items: ContractWarning[] } | null>(null);
+  // The table checks panel, read again after each save of the draft, and what the last saved
+  // version's tables still have open (DNK-76).
+  const [checksOpen, setChecksOpen] = useState(false);
+  const [findings, setFindings] = useState<{ number: number; items: TableFinding[] } | null>(null);
+  const statusAt = draft.status.kind === 'saved' ? draft.status.at : null;
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+  if (statusAt && statusAt !== savedAt) setSavedAt(statusAt);
+  const onVersionSaved = useCallback((saved: SavedVersion) => {
+    setWarnings(saved.warnings.length > 0 ? { number: saved.number, items: saved.warnings } : null);
+    const open = openFindings(saved.findings);
+    setFindings(open.length > 0 ? { number: saved.number, items: open } : null);
+  }, []);
 
   const [graphReady, setGraphReady] = useState(false);
   const onGraphReady = useCallback(() => setGraphReady(true), []);
@@ -159,6 +172,15 @@ function Editor({ project, decision, others }: { project: Project; decision: Dec
               onOpenChange={setFieldsOpen}
             />
           </span>
+          <span className="inline-flex">
+            <TableChecksSheet
+              project={project}
+              decisionId={decision.id}
+              savedAt={savedAt}
+              open={checksOpen}
+              onOpenChange={setChecksOpen}
+            />
+          </span>
           <span data-tour="editor-history" className="inline-flex">
             <HistorySheet
               projectId={project.id}
@@ -171,12 +193,7 @@ function Editor({ project, decision, others }: { project: Project; decision: Dec
           </span>
           {editable ? (
             <span data-tour="editor-save" className="inline-flex">
-              <SaveVersionDialog
-                projectId={project.id}
-                decision={decision}
-                draft={draft}
-                onWarnings={(number, items) => setWarnings(items.length > 0 ? { number, items } : null)}
-              />
+              <SaveVersionDialog projectId={project.id} decision={decision} draft={draft} onSaved={onVersionSaved} />
             </span>
           ) : null}
         </div>
@@ -187,6 +204,14 @@ function Editor({ project, decision, others }: { project: Project; decision: Dec
           warnings={warnings.items}
           onReview={() => setFieldsOpen(true)}
           onDismiss={() => setWarnings(null)}
+        />
+      ) : null}
+      {findings ? (
+        <FindingsAlert
+          number={findings.number}
+          count={findings.items.length}
+          onReview={() => setChecksOpen(true)}
+          onDismiss={() => setFindings(null)}
         />
       ) : null}
       <div data-tour="editor-graph" className={`${EDITOR_HEIGHT} min-h-96 overflow-hidden rounded-lg border`}>
@@ -247,6 +272,38 @@ function ContractWarnings({
             <li key={`${warning.kind}-${warning.path}`}>{t(warning.kind, { path: warning.path })}</li>
           ))}
         </ul>
+        <div className="mt-2 flex gap-2">
+          <Button size="sm" variant="outline" onClick={onReview}>
+            {t('review')}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={onDismiss}>
+            {t('dismiss')}
+          </Button>
+        </div>
+      </AlertDescription>
+    </Alert>
+  );
+}
+
+/** What saving a version found in its tables; it never stopped the save. */
+function FindingsAlert({
+  number,
+  count,
+  onReview,
+  onDismiss,
+}: {
+  number: number;
+  count: number;
+  onReview: () => void;
+  onDismiss: () => void;
+}) {
+  const t = useTranslations('tableChecks');
+  return (
+    <Alert role="status">
+      <CircleAlert aria-hidden />
+      <AlertTitle>{t('savedTitle', { number, count })}</AlertTitle>
+      <AlertDescription>
+        <p>{t('savedDescription')}</p>
         <div className="mt-2 flex gap-2">
           <Button size="sm" variant="outline" onClick={onReview}>
             {t('review')}
