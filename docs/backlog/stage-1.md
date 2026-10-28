@@ -1467,11 +1467,11 @@ evaluation time; partitions are created ahead by Studio; retention drops whole p
 (records of a partially expired month are deleted individually until the month expires).
 
 #### Acceptance criteria
-- [ ] A forward migration moves existing records into monthly partitions without losing or re-encrypting any
-- [ ] Studio creates upcoming partitions ahead of time; a record never fails for a missing partition
-- [ ] Retention purge drops expired partitions, deletes the expired rows of the boundary month, and stays audited
-- [ ] Search, opening, replay, explanation and key rotation (DNK-40) behave as before; their tests pass unchanged
-- [ ] Backup and restore (DNK-50) cover the partitions
+- [x] A forward migration moves existing records into monthly partitions without losing or re-encrypting any
+- [x] Studio creates upcoming partitions ahead of time; a record never fails for a missing partition
+- [x] Retention purge drops expired partitions, deletes the expired rows of the boundary month, and stays audited
+- [x] Search, opening, replay, explanation and key rotation (DNK-40) behave as before; their tests pass unchanged
+- [x] Backup and restore (DNK-50) cover the partitions
 
 #### Out of scope
 Archiving to cold storage; partitioning other tables.

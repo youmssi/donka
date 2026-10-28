@@ -131,7 +131,8 @@ Back up three things, together: the database, the release bucket and the secrets
 mkdir -p backups
 stamp=$(date +%Y%m%d-%H%M)
 
-# The database: projects, decisions, releases, approvals, audit and decision log.
+# The database: projects, decisions, releases, approvals, audit and decision log (its
+# monthly partitions included).
 docker compose exec -T postgres pg_dump -U donka -Fc donka > "backups/donka-$stamp.dump"
 
 # The release bucket: what the Runtimes serve.

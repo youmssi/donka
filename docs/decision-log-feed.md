@@ -48,7 +48,7 @@ Each record:
 
 | Code | Why a record is not stored |
 |---|---|
-| `invalid` | Not a record in this format (a missing field, an empty key, `succeeded` without `output`…). |
+| `invalid` | Not a record in this format (a missing field, an empty key, `succeeded` without `output`…), or evaluated more than a day ahead of Studio's clock or before the retention period. |
 | `wrong_environment` | Its environment is not the one the token was issued for. |
 | `unknown_release` | Studio never published that release to that environment of that project. |
 
@@ -73,6 +73,10 @@ Records without a readable `id` are skipped and logged by Studio. Other answers:
 - Records cannot be changed, except to re-seal them with the current key after a rotation. They
   are deleted only by the retention purge (`DONKA_DECISION_LOG_RETENTION_DAYS`, five years by
   default), which records one audit event per project it purges.
+- Records are kept in monthly partitions of their evaluation time (UTC), created three months
+  ahead and for any month a record arrives in. The purge drops the months wholly past the
+  retention period and deletes the expired records of the month it falls in, so it stays quick
+  however many years are kept. A record sent twice is stored once.
 - Any project member can search the log; opening or replaying a record is audited. Replay
   evaluates the record's input with its release, connector nodes answering with their output
   in the record's trace, so no outside service is called.

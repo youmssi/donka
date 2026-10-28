@@ -11,7 +11,7 @@
 //! connector nodes answering with what they answered at the time. Records
 //! older than the retention period are purged, and each purge is audited.
 
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Datelike, Duration, Utc};
 use donka_audit::{Action, Event};
 use donka_db::PgPool;
 use donka_engine::{contract, Bundle, DecisionRuntime, EvaluateOptions, RuntimeError};
@@ -34,6 +34,10 @@ pub use feed::{Payload, Rejection, Status, MAX_TEXT_CHARS};
 
 /// Records one batch may hold; the Runtime sends 100 by default.
 pub const MAX_BATCH_RECORDS: usize = 1000;
+/// How far ahead of Studio's clock a record may be evaluated: Runtime clocks drift a little.
+pub const MAX_CLOCK_AHEAD: Duration = Duration::days(1);
+/// Months of partitions kept ready beyond the current one (DNK-68).
+pub const PARTITIONS_AHEAD: u32 = 3;
 pub const MAX_TOKEN_NAME_CHARS: usize = 100;
 /// Fields a project may list as never leaving Studio in an explanation.
 pub const MAX_REDACTED_FIELDS: usize = 50;
@@ -354,15 +358,38 @@ impl DecisionLog {
         let mut receipt = Receipt::default();
         let mut published: HashMap<(Uuid, Uuid), bool> = HashMap::new();
         let mut outcome_fields: HashMap<Uuid, Option<String>> = HashMap::new();
+        // A record evaluated beyond Studio's clock, or already past retention, is refused: it
+        // would land in a month nobody keeps.
+        let window = (now - self.retention)..=(now + MAX_CLOCK_AHEAD);
+        // Rejections are listed in the order the records came.
+        let parsed: Vec<Result<FeedRecord, Option<Uuid>>> = records
+            .into_iter()
+            .map(|value| match FeedRecord::parse(value) {
+                Ok(record) if window.contains(&record.evaluated_at) => Ok(record),
+                Ok(record) => Err(Some(record.id)),
+                Err(id) => Err(id),
+            })
+            .collect();
+        // Each record's month has its partition before the batch is stored; creating one locks
+        // the table, so it happens outside the batch's transaction.
+        let months: BTreeSet<DateTime<Utc>> = parsed
+            .iter()
+            .flatten()
+            .map(|record| month_start(record.evaluated_at))
+            .collect();
+        for month in months {
+            self.ensure_partition(month).await?;
+        }
         let mut tx = self.pool.begin().await?;
-        for value in records {
-            let record = match FeedRecord::parse(value) {
+        for record in parsed {
+            let record = match record {
                 Ok(record) => record,
-                Err(id) => {
-                    match id {
-                        Some(id) => receipt.rejected.push((id, Rejection::Invalid)),
-                        None => tracing::warn!("a decision record without an id was refused"),
-                    }
+                Err(Some(id)) => {
+                    receipt.rejected.push((id, Rejection::Invalid));
+                    continue;
+                }
+                Err(None) => {
+                    tracing::warn!("a decision record without an id was refused");
                     continue;
                 }
             };
@@ -417,12 +444,14 @@ impl DecisionLog {
             let plaintext =
                 serde_json::to_vec(&record.into_payload()).map_err(|_| CipherError::Corrupt)?;
             let sealed = self.cipher.seal(id, &plaintext)?;
+            // A record sent twice is stored once, whatever time it carries the second time.
             sqlx::query(
                 "INSERT INTO decision_records \
                  (id, project_id, release_id, environment, decision_key, reference, status, outcome, \
                   evaluated_at, duration_us, received_at, token_id, key_id, nonce, payload) \
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) \
-                 ON CONFLICT (id) DO NOTHING",
+                 SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15 \
+                 WHERE NOT EXISTS (SELECT 1 FROM decision_records WHERE id = $1) \
+                 ON CONFLICT (id, evaluated_at) DO NOTHING",
             )
             .bind(id)
             .bind(project_id)
@@ -684,51 +713,107 @@ impl DecisionLog {
 
     // ----- Retention --------------------------------------------------------
 
-    /// Deletes the records evaluated before the retention period, project by
-    /// project, each purge with its audit event. Returns how many went.
+    /// The partition holding records evaluated at `at`, created when missing.
+    async fn ensure_partition(&self, at: DateTime<Utc>) -> Result<(), DecisionLogError> {
+        sqlx::query("SELECT donka_decision_records_partition($1)")
+            .bind(at)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    /// Creates the partitions of the current month and the [`PARTITIONS_AHEAD`] next ones, so
+    /// records never wait for one. Run at start and with every purge.
+    pub async fn ensure_partitions(&self) -> Result<(), DecisionLogError> {
+        let mut month = month_start(self.clock.now());
+        for _ in 0..=PARTITIONS_AHEAD {
+            self.ensure_partition(month).await?;
+            month = next_month(month);
+        }
+        Ok(())
+    }
+
+    /// Removes the records evaluated before the retention period, in one
+    /// transaction: months wholly past it go as whole partitions, the rest of
+    /// the boundary month record by record. Each project's purge is audited
+    /// with how many of its records went. Returns how many went.
     pub async fn purge(&self) -> Result<u64, DecisionLogError> {
         let before = self.clock.now() - self.retention;
-        let projects: Vec<(Uuid,)> = sqlx::query_as(
-            "SELECT DISTINCT project_id FROM decision_records WHERE evaluated_at < $1",
+        let mut tx = self.pool.begin().await?;
+        // The guards let this transaction, and only it, remove records
+        // evaluated before `before`, and drop partitions that end by then.
+        sqlx::query("SELECT set_config('donka.purge_before', $1, true)")
+            .bind(before.to_rfc3339())
+            .execute(&mut *tx)
+            .await?;
+        let expired: Vec<(String, DateTime<Utc>)> = sqlx::query_as(
+            "SELECT name, ends_at FROM decision_records_partitions WHERE ends_at <= $1 ORDER BY ends_at",
         )
         .bind(before)
-        .fetch_all(&self.pool)
+        .fetch_all(&mut *tx)
         .await?;
-        let mut purged = 0;
-        for (project,) in projects {
-            let mut tx = self.pool.begin().await?;
-            // The guard on decision_records lets this transaction, and only it,
-            // delete records evaluated before `before`.
-            sqlx::query("SELECT set_config('donka.purge_before', $1, true)")
-                .bind(before.to_rfc3339())
+        let mut removed: BTreeMap<Uuid, u64> = BTreeMap::new();
+        if let Some((_, last_end)) = expired.last() {
+            // Counted through the table: only the expired months' partitions are read.
+            let counts: Vec<(Uuid, i64)> = sqlx::query_as(
+                "SELECT project_id, count(*) FROM decision_records WHERE evaluated_at < $1 \
+                 GROUP BY project_id",
+            )
+            .bind(last_end)
+            .fetch_all(&mut *tx)
+            .await?;
+            for (project, records) in counts {
+                *removed.entry(project).or_default() += u64::try_from(records).unwrap_or(0);
+            }
+        }
+        for (partition, _) in &expired {
+            sqlx::query("SELECT donka_drop_decision_records_partition($1)")
+                .bind(partition)
                 .execute(&mut *tx)
                 .await?;
-            let deleted = sqlx::query(
-                "DELETE FROM decision_records WHERE project_id = $1 AND evaluated_at < $2",
-            )
-            .bind(project)
-            .bind(before)
-            .execute(&mut *tx)
-            .await?
-            .rows_affected();
-            if deleted > 0 {
-                donka_audit::record(
-                    &mut tx,
-                    Event::new(self.clock.now(), None, Action::DecisionLogPurged)
-                        .in_project(project)
-                        .with_details(json!({
-                            "before": before,
-                            "records": deleted,
-                            "retentionDays": self.retention.num_days(),
-                        })),
-                )
-                .await?;
-            }
-            tx.commit().await?;
-            purged += deleted;
         }
+        // What is left of the boundary month, record by record.
+        let deleted: Vec<(Uuid, i64)> = sqlx::query_as(
+            "WITH gone AS (DELETE FROM decision_records WHERE evaluated_at < $1 RETURNING project_id) \
+             SELECT project_id, count(*) FROM gone GROUP BY project_id",
+        )
+        .bind(before)
+        .fetch_all(&mut *tx)
+        .await?;
+        for (project, records) in deleted {
+            *removed.entry(project).or_default() += u64::try_from(records).unwrap_or(0);
+        }
+        let mut purged = 0;
+        for (project, records) in removed {
+            donka_audit::record(
+                &mut tx,
+                Event::new(self.clock.now(), None, Action::DecisionLogPurged)
+                    .in_project(project)
+                    .with_details(json!({
+                        "before": before,
+                        "records": records,
+                        "retentionDays": self.retention.num_days(),
+                    })),
+            )
+            .await?;
+            purged += records;
+        }
+        tx.commit().await?;
         Ok(purged)
     }
+}
+
+/// The first instant of `at`'s month, in UTC: partitions are UTC months.
+fn month_start(at: DateTime<Utc>) -> DateTime<Utc> {
+    let date = at.date_naive();
+    date.with_day(1)
+        .and_then(|first| first.and_hms_opt(0, 0, 0))
+        .map_or(at, |midnight| midnight.and_utc())
+}
+
+/// The first instant of the month after `month`'s.
+fn next_month(month: DateTime<Utc>) -> DateTime<Utc> {
+    month_start(month_start(month) + Duration::days(32))
 }
 
 // ----- Key rotation (DNK-40) -----------------------------------------------
@@ -746,6 +831,7 @@ pub struct KeyUsage {
 #[derive(sqlx::FromRow)]
 struct SealedRow {
     id: Uuid,
+    evaluated_at: DateTime<Utc>,
     project_id: Uuid,
     key_id: String,
     nonce: Vec<u8>,
@@ -819,7 +905,7 @@ impl DecisionLog {
         let rows: Vec<SealedRow> = sqlx::query_as(
             // Through the (key_id, id) index: each batch reads only records
             // still to re-seal, however many came before.
-            "SELECT id, project_id, key_id, nonce, payload FROM decision_records \
+            "SELECT id, evaluated_at, project_id, key_id, nonce, payload FROM decision_records \
              WHERE key_id = ANY($1) ORDER BY key_id, id LIMIT $2 FOR UPDATE SKIP LOCKED",
         )
         .bind(self.cipher.previous_key_ids())
@@ -840,9 +926,12 @@ impl DecisionLog {
             )?;
             let sealed = self.cipher.seal(id, &plaintext)?;
             sqlx::query(
-                "UPDATE decision_records SET key_id = $2, nonce = $3, payload = $4 WHERE id = $1",
+                // The evaluation time names the record's partition.
+                "UPDATE decision_records SET key_id = $3, nonce = $4, payload = $5 \
+                 WHERE id = $1 AND evaluated_at = $2",
             )
             .bind(id)
+            .bind(row.evaluated_at)
             .bind(&sealed.key_id)
             .bind(&sealed.nonce)
             .bind(&sealed.ciphertext)
