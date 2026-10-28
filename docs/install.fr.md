@@ -90,6 +90,33 @@ Ses paramètres sont décrits dans le
 [guide de configuration](https://github.com/youmssi/donka-runtime/blob/develop/docs/configuration.md)
 du Runtime. Pour la production, faites tourner un second Runtime avec `PROVIDER__PREFIX: production/`.
 
+**Secrets des connecteurs.** Les nœuds connecteurs d'une décision nomment leurs secrets ; le
+Runtime lit chaque valeur dans `DONKA_SECRET_<NOM>`, ou dans le fichier désigné par
+`DONKA_SECRET_<NOM>_FILE`. Un service qui demande un jeton OAuth2 a besoin de son secret client ;
+un service qui exige le TLS mutuel a besoin d'un certificat client, de sa clé et, pour une AC
+privée, du bundle de l'AC, de préférence sous forme de fichiers :
+
+```bash
+# runtime.env
+DONKA_SECRET_BUREAU_API_KEY=...                                  # une clé d'API dans un en-tête
+DONKA_SECRET_CBS_CLIENT_SECRET=...                               # identifiants client OAuth2
+DONKA_SECRET_CBS_CLIENT_CERT_FILE=/run/secrets/cbs-client.crt    # TLS mutuel, PEM
+DONKA_SECRET_CBS_CLIENT_KEY_FILE=/run/secrets/cbs-client.key
+DONKA_SECRET_CBS_CA_FILE=/run/secrets/cbs-ca.pem
+```
+
+```yaml
+# docker-compose.override.yml : les fichiers de certificats, en lecture seule
+services:
+  runtime:
+    volumes:
+      - ./secrets:/run/secrets:ro
+```
+
+Les paramètres de chaque méthode, et la façon dont les échecs sont signalés, sont dans le
+[guide des connecteurs](https://github.com/youmssi/donka-runtime/blob/develop/docs/connectors.md)
+du Runtime. Redémarrez le Runtime après avoir remplacé un certificat.
+
 ## 2. Test de fumée après chaque déploiement
 
 `scripts/smoke.sh` vérifie que Studio répond et joint sa base de données, que le moteur de

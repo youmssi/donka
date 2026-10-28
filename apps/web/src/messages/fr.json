@@ -120,7 +120,9 @@
     "number": "Saisissez un nombre, ou laissez vide.",
     "minAboveMax": "Le maximum est inférieur au minimum.",
     "allowedValues": "Séparez les valeurs par des virgules ; pour un champ numérique, uniquement des nombres.",
-    "notPast": "Choisissez aujourd'hui ou un jour suivant."
+    "notPast": "Choisissez aujourd'hui ou un jour suivant.",
+    "clientId": "Utilisez 1 à {max} caractères.",
+    "scopes": "Séparez les portées par des espaces ; sans guillemets ni barres obliques inverses, 20 au plus."
   },
   "signIn": {
     "title": "Connexion",
@@ -871,11 +873,27 @@
     "auth": {
       "none": "Aucune",
       "bearer": "Jeton Bearer",
-      "header": "En-tête de clé d'API"
+      "header": "En-tête de clé d'API",
+      "oauth2": "OAuth2 identifiants client"
     },
     "header": "En-tête",
     "secret": "Nom du secret",
     "secretHint": "Seul le nom est enregistré. Le Runtime lit la valeur dans {variable}.",
+    "tokenUrl": "Adresse du jeton",
+    "tokenUrlHint": "Le point d'accès OAuth2 auquel le Runtime demande un jeton, avec l'octroi par identifiants client.",
+    "clientId": "Identifiant client",
+    "scopes": "Portées",
+    "scopesHint": "Séparées par des espaces, par exemple accounts.read. Vide : aucune demandée.",
+    "clientSecret": "Nom du secret client",
+    "secretFileHint": "Seul le nom est enregistré. Le Runtime lit le PEM dans {variable}, ou dans le fichier désigné par {variable}_FILE.",
+    "tlsLegend": "Certificat client",
+    "tls": "Présenter un certificat client (TLS mutuel)",
+    "tlsHint": "Pour les services qui l'exigent, comme un système bancaire central. Aussi utilisé pour l'adresse du jeton.",
+    "tlsSecret": {
+      "certificate": "Nom du certificat",
+      "key": "Nom de la clé privée",
+      "ca": "Nom du bundle d'AC (facultatif)"
+    },
     "requestResponse": "Requête et réponse",
     "body": "Corps de la requête",
     "bodyHint": "JSON. Les textes peuvent utiliser l'entrée de la décision, par ex. {example}.",

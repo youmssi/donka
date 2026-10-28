@@ -39,7 +39,7 @@ Status: **Done** · **P1**, **P2**, **P3** (phase) · **Later** (candidate, not 
 |---|---|---|
 | Expert scorecards: points, bands, decisions, reason codes | Done | Packs (DNK-24, DNK-43) |
 | Bureau, KYC and AML calls with timeouts, retries, circuit breaker | Done | DNK-17 |
-| Core banking authentication: OAuth2 client credentials, mutual TLS | P1 | DNK-63 |
+| Core banking authentication: OAuth2 client credentials, mutual TLS | Done | DNK-63 |
 | Every decision logged, encrypted, searchable, replayable | Done | DNK-18, DNK-40 |
 | Plain-language explanation, customer-chosen model | Done | DNK-19 |
 | Statistical scorecards (binning, WoE, scaling) proven equal in Studio | P2 | DNK-61 (`donka-scorecard`) |

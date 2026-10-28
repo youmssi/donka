@@ -1073,7 +1073,7 @@ dependencies = [
 [[package]]
 name = "donka-connectors"
 version = "0.1.0"
-source = "git+https://github.com/youmssi/donka-runtime?rev=3a2d5a2c094e8dac9819a085cf17a16d7d4d2a31#3a2d5a2c094e8dac9819a085cf17a16d7d4d2a31"
+source = "git+https://github.com/youmssi/donka-runtime?rev=9220ab7ac8fa1cf7cab1668e16287abbb5216883#9220ab7ac8fa1cf7cab1668e16287abbb5216883"
 dependencies = [
  "serde",
  "serde_json",

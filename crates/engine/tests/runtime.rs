@@ -111,6 +111,11 @@ fn invalid_content_names_the_decision() {
 
 /// A graph whose connector node calls `url`, with or without a mock response.
 fn connector_bundle(url: &str, mock: Option<Value>) -> Bundle {
+    connector_bundle_with(url, mock, json!({}))
+}
+
+/// [`connector_bundle`], with `extra` settings on the connector node.
+fn connector_bundle_with(url: &str, mock: Option<Value>, extra: Value) -> Bundle {
     let mut config = json!({
         "preset": "bureau-score",
         "url": url,
@@ -120,6 +125,9 @@ fn connector_bundle(url: &str, mock: Option<Value>) -> Bundle {
     });
     if let Some(mock) = mock {
         config["mock"] = mock;
+    }
+    for (key, value) in extra.as_object().into_iter().flatten() {
+        config[key] = value.clone();
     }
     let graph = json!({
         "nodes": [
@@ -171,6 +179,40 @@ async fn connectors_answer_with_their_mock_and_call_nothing() {
         service.accept().map_err(|e| e.kind()).err(),
         Some(std::io::ErrorKind::WouldBlock),
         "simulation never calls the service"
+    );
+}
+
+#[tokio::test]
+async fn connectors_with_oauth2_and_a_client_certificate_are_simulated_from_their_mock() {
+    // Neither the service nor its token endpoint may be called.
+    let service = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    service.set_nonblocking(true).unwrap();
+    let base = format!("https://{}", service.local_addr().unwrap());
+    let bundle = connector_bundle_with(
+        &format!("{base}/accounts"),
+        Some(json!({ "balance": 1200 })),
+        json!({
+            "auth": {
+                "type": "oauth2",
+                "tokenUrl": format!("{base}/token"),
+                "clientId": "donka-runtime",
+                "secret": "CBS_CLIENT_SECRET",
+                "scopes": ["accounts.read"]
+            },
+            "tls": { "certificate": "CBS_CLIENT_CERT", "key": "CBS_CLIENT_KEY", "ca": "CBS_CA" }
+        }),
+    );
+
+    let out = ZenRuntime::new(1)
+        .evaluate(&bundle, "score", json!({}), EvaluateOptions::default())
+        .await
+        .unwrap();
+
+    assert_eq!(out.result["bureau"], json!({ "balance": 1200 }));
+    assert_eq!(
+        service.accept().map_err(|e| e.kind()).err(),
+        Some(std::io::ErrorKind::WouldBlock),
+        "simulation never calls the service or its token endpoint"
     );
 }
 

@@ -1287,11 +1287,11 @@ the existing connector settings; graphs keep secret **names** only:
   the [integration questionnaire](../pilot-questionnaire.md).
 
 #### Acceptance criteria
-- [ ] A connector authenticates with OAuth2 client credentials; the token is reused until expiry, refreshed once on `401`, and a token endpoint failure counts towards the retry policy and the circuit breaker
-- [ ] A connector authenticates with a client certificate and trusts a configured CA; a wrong certificate fails with a clear error naming the connector, never the secret
-- [ ] Studio's editor configures both methods; simulation still answers from mocks and makes no call
-- [ ] No token, key or certificate appears in artifacts, logs, traces or the decision log
-- [ ] Tests run against a local OAuth2 server and an mTLS server in CI; docs (EN/FR) show both setups
+- [x] A connector authenticates with OAuth2 client credentials; the token is reused until expiry, refreshed once on `401`, and a token endpoint failure counts towards the retry policy and the circuit breaker
+- [x] A connector authenticates with a client certificate and trusts a configured CA; a wrong certificate fails with a clear error naming the connector, never the secret
+- [x] Studio's editor configures both methods; simulation still answers from mocks and makes no call
+- [x] No token, key or certificate appears in artifacts, logs, traces or the decision log
+- [x] Tests run against a local OAuth2 server and an mTLS server in CI; docs (EN/FR) show both setups
 - [ ] When the pilot's answers to the questionnaire arrive, its flow is checked against these tests and any gap becomes its own story
 
 #### Out of scope
