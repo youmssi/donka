@@ -15,6 +15,7 @@ use donka_decision::Decisions;
 use donka_decision_log::{Cipher, DecisionLog};
 use donka_engine::{DecisionRuntime, ZenRuntime};
 use donka_identity::{Identity, Locale, Policy};
+use donka_licence::{Licence, Module, SigningKeyPair};
 use donka_mail::testing::RecordingMailer;
 use donka_mail::Email;
 use donka_project::Projects;
@@ -51,6 +52,42 @@ pub struct TestApp {
     pub releases: Releases,
     /// Runs the retention purge on demand.
     pub decision_log: DecisionLog,
+    /// The installation's licence (DNK-77): reload it after rewriting the file.
+    pub licensing: donka_app::licence::Licensing,
+    /// The licence file; `None` in evaluation.
+    pub licence_file: Option<std::path::PathBuf>,
+    /// Signs licences the test app trusts.
+    pub licence_signer: Arc<SigningKeyPair>,
+}
+
+/// The key the test app trusts, standing for Donka's.
+pub const LICENCE_SEED: [u8; 32] = [7; 32];
+
+/// A licence for "Bank of Example" valid from `from` to `until` (YYYY-MM-DD) with `modules`.
+pub fn licence(modules: &[Module], from: &str, until: &str) -> Licence {
+    Licence {
+        id: uuid::Uuid::new_v4(),
+        customer: "Bank of Example".into(),
+        issued_at: Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap(),
+        valid_from: from.parse().unwrap(),
+        valid_until: until.parse().unwrap(),
+        modules: modules.iter().copied().collect(),
+    }
+}
+
+/// Replaces the licence file's content and reloads it, as `SIGHUP` would.
+pub fn install_licence(app: &TestApp, text: &str) {
+    let file = app
+        .licence_file
+        .as_ref()
+        .expect("this app runs in evaluation");
+    std::fs::write(file, text).unwrap();
+    app.licensing.reload();
+}
+
+/// Signs `licence` with the trusted key and installs it.
+pub fn install_signed(app: &TestApp, licence: &Licence) {
+    install_licence(app, &app.licence_signer.issue(licence).unwrap());
 }
 
 /// Failed writes before a deployment is given up, in tests.
@@ -71,6 +108,21 @@ pub fn build_with_web(
     web_dir: Option<&std::path::Path>,
 ) -> TestApp {
     assemble(db, runtime, base, web_dir, None, generous_limits())
+}
+
+/// An app without a licence file (evaluation): nothing reaches production (DNK-77).
+pub fn in_evaluation(db: PgPool) -> TestApp {
+    assemble_with_cipher(
+        db,
+        Arc::new(ZenRuntime::new(1)),
+        BASE,
+        None,
+        None,
+        generous_limits(),
+        Cipher::from_base64(DECISION_LOG_KEY).unwrap(),
+        SecondStep::default(),
+        false,
+    )
 }
 
 /// Limits no ordinary test reaches: every request in tests comes from the same address.
@@ -114,6 +166,7 @@ fn assemble(
         auth_limits,
         cipher,
         SecondStep::default(),
+        true,
     )
 }
 
@@ -147,6 +200,7 @@ pub fn with_second_step(db: PgPool, required: MfaRequired, keys: &[&str]) -> Tes
         generous_limits(),
         Cipher::from_base64(DECISION_LOG_KEY).unwrap(),
         SecondStep { required, keys },
+        true,
     )
 }
 
@@ -166,6 +220,7 @@ pub fn with_decision_log_keys(db: PgPool, current: &str, previous: &[&str]) -> T
         generous_limits(),
         cipher,
         SecondStep::default(),
+        true,
     )
 }
 
@@ -179,10 +234,25 @@ fn assemble_with_cipher(
     auth_limits: AuthLimits,
     cipher: Cipher,
     second_step: SecondStep,
+    licensed: bool,
 ) -> TestApp {
     let clock = Arc::new(ManualClock::new(
         Utc.with_ymd_and_hms(2026, 9, 28, 9, 0, 0).unwrap(),
     ));
+    // Unless a test says otherwise, a licence with every module, valid around the test clock.
+    let licence_signer = Arc::new(SigningKeyPair::from_seed(LICENCE_SEED));
+    let licence_file = licensed.then(|| {
+        let file =
+            std::env::temp_dir().join(format!("donka-licence-{}.json", uuid::Uuid::new_v4()));
+        let all = licence(&Module::ALL, "2026-01-01", "2027-12-31");
+        std::fs::write(&file, licence_signer.issue(&all).unwrap()).unwrap();
+        file
+    });
+    let licensing = donka_app::licence::Licensing::new(
+        licence_file.clone(),
+        licence_signer.public_key(),
+        clock.clone(),
+    );
     let identity = Identity::new(
         db.clone(),
         clock.clone(),
@@ -241,6 +311,7 @@ fn assemble_with_cipher(
             },
             auth_limits,
             mfa_required: second_step.required,
+            licensing: licensing.clone(),
         },
         base,
         web_dir,
@@ -253,6 +324,9 @@ fn assemble_with_cipher(
         store,
         releases,
         decision_log,
+        licensing,
+        licence_file,
+        licence_signer,
     }
 }
 

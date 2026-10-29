@@ -30,6 +30,21 @@ use zen_engine::{DecisionEngine, EvaluationSerializedOptions, EvaluationTraceKin
 /// Graph nesting limit, the same default the engine uses.
 const MAX_DEPTH: u8 = 10;
 
+/// Whether a decision graph has a connector node, the part of Studio a licence may leave out
+/// (DNK-77).
+pub fn uses_connectors(content: &Value) -> bool {
+    content
+        .get("nodes")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .any(|node| {
+            node.get("type").and_then(Value::as_str) == Some("customNode")
+                && node.pointer("/content/kind").and_then(Value::as_str)
+                    == Some(donka_connectors::KIND)
+        })
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum RuntimeError {
     /// A decision in the bundle is not valid JDM; `key` names which one.

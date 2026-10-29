@@ -172,7 +172,7 @@ pub async fn inspect(body: Bytes) -> Result<Json<PackResponse>, ApiError> {
     responses(
         (status = 201, body = ImportedResponse),
         (status = 400, description = "Invalid key or name (INVALID_REQUEST)", body = ErrorBody),
-        (status = 403, description = "Not an administrator (FORBIDDEN)", body = ErrorBody),
+        (status = 403, description = "Not an administrator (FORBIDDEN); the licence is not valid (LICENCE_INACTIVE)", body = ErrorBody),
         (status = 404, description = "No pack with this key (PACK_NOT_FOUND)", body = ErrorBody),
         (status = 409, description = "Key already used (PROJECT_KEY_TAKEN)", body = ErrorBody),
     )
@@ -184,6 +184,7 @@ pub async fn import(
     ApiJson(req): ApiJson<NewProjectFields>,
 ) -> Result<(StatusCode, Json<ImportedResponse>), ApiError> {
     let pack = state.catalogue.get(&key)?;
+    importable(&state, pack)?;
     let imported = state
         .packs
         .import(&current.user, pack, &req.key, &req.name)
@@ -202,7 +203,7 @@ pub async fn import(
     responses(
         (status = 201, body = ImportedResponse),
         (status = 400, description = "Invalid key or name (INVALID_REQUEST)", body = ErrorBody),
-        (status = 403, description = "Not an administrator (FORBIDDEN)", body = ErrorBody),
+        (status = 403, description = "Not an administrator (FORBIDDEN); the licence is not valid (LICENCE_INACTIVE); the pack has a connector node and the licence leaves connectors out (MODULE_NOT_LICENSED)", body = ErrorBody),
         (status = 409, description = "Key already used (PROJECT_KEY_TAKEN)", body = ErrorBody),
         (status = 413, description = "Larger than 5 MB (PACK_TOO_LARGE)", body = ErrorBody),
         (status = 422, description = "Not a usable pack; why in details.reason (INVALID_PACK)", body = ErrorBody),
@@ -218,6 +219,7 @@ pub async fn import_file(
         return Err(ApiError::Forbidden);
     }
     let pack = Pack::from_zip(&body)?;
+    importable(&state, &pack)?;
     let imported = state
         .packs
         .import(&current.user, &pack, &fields.key, &fields.name)
@@ -236,7 +238,7 @@ pub async fn import_file(
     responses(
         (status = 201, body = ImportedResponse),
         (status = 400, description = "Invalid key or name (INVALID_REQUEST)", body = ErrorBody),
-        (status = 403, description = "Not an administrator (FORBIDDEN)", body = ErrorBody),
+        (status = 403, description = "Not an administrator (FORBIDDEN); the licence is not valid (LICENCE_INACTIVE)", body = ErrorBody),
         (status = 404, description = "PROJECT_NOT_FOUND or RELEASE_NOT_FOUND", body = ErrorBody),
         (status = 409, description = "Key already used (PROJECT_KEY_TAKEN)", body = ErrorBody),
         (status = 422, description = "Nothing to copy (INVALID_PACK)", body = ErrorBody),
@@ -248,6 +250,8 @@ pub async fn duplicate(
     ProjectAccess(access): ProjectAccess,
     ApiJson(req): ApiJson<DuplicateProjectRequest>,
 ) -> Result<(StatusCode, Json<ImportedResponse>), ApiError> {
+    // The copy's decisions get a version of their own.
+    state.licensing.require_changes()?;
     let imported = state
         .packs
         .duplicate(
@@ -296,4 +300,14 @@ pub async fn export(
         zip,
     )
         .into_response())
+}
+
+/// An import gives each decision a first version: it needs a valid licence (or evaluation),
+/// and the connectors module when a decision has a connector node (DNK-77).
+fn importable(state: &AppState, pack: &Pack) -> Result<(), ApiError> {
+    state.licensing.require_changes()?;
+    if pack.decisions.values().any(donka_engine::uses_connectors) {
+        state.licensing.require(donka_licence::Module::Connectors)?;
+    }
+    Ok(())
 }

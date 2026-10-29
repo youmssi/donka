@@ -127,6 +127,13 @@ pub enum ApiError {
     ExplainDeclined,
     #[error("explanation service: {0}")]
     ExplainUnavailable(String),
+    /// The licence is not valid (expired, not yet valid or refused): its status.
+    #[error("the licence is {0}")]
+    LicenceInactive(&'static str),
+    #[error("production needs a licence")]
+    ProductionNeedsLicence,
+    #[error("module {0} not licensed")]
+    ModuleNotLicensed(donka_licence::Module),
     #[error("database unavailable")]
     DatabaseUnavailable,
     #[error("no such endpoint")]
@@ -710,6 +717,31 @@ impl IntoResponse for ApiError {
                 ),
                 None,
                 None,
+            ),
+            Self::LicenceInactive(status) => (
+                StatusCode::FORBIDDEN,
+                "LICENCE_INACTIVE",
+                "This installation's licence is not valid: Studio stays readable and \
+                 exportable, but new versions and releases wait for a valid licence."
+                    .to_owned(),
+                None,
+                Some(serde_json::json!({ "status": status })),
+            ),
+            Self::ProductionNeedsLicence => (
+                StatusCode::FORBIDDEN,
+                "PRODUCTION_NEEDS_LICENCE",
+                "Studio runs in evaluation, without a licence file: releases cannot reach \
+                 production."
+                    .to_owned(),
+                None,
+                None,
+            ),
+            Self::ModuleNotLicensed(module) => (
+                StatusCode::FORBIDDEN,
+                "MODULE_NOT_LICENSED",
+                format!("The {module} module is not part of this installation's licence."),
+                None,
+                Some(serde_json::json!({ "module": module.as_str() })),
             ),
             Self::ExplainDeclined => (
                 StatusCode::UNPROCESSABLE_ENTITY,

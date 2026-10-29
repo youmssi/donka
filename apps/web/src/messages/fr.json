@@ -81,6 +81,9 @@
     "RECORD_NOT_FOUND": "Cette décision enregistrée n'existe pas dans ce projet.",
     "EXPLAIN_DECLINED": "Le service d'explication a refusé d'expliquer cette décision.",
     "EXPLAIN_UNAVAILABLE": "Le service d'explication n'a pas répondu. Réessayez dans un instant.",
+    "LICENCE_INACTIVE": "La licence de cette installation n’est pas valide : la lecture et l’export restent possibles, mais les nouvelles versions et releases attendent une licence valide.",
+    "PRODUCTION_NEEDS_LICENCE": "Studio fonctionne en évaluation, sans licence : les releases vont en staging, pas en production. Adressez-vous à un administrateur.",
+    "MODULE_NOT_LICENSED": "Ce module ne fait pas partie de la licence de cette installation.",
     "RATE_LIMITED": "Trop de tentatives depuis votre réseau. Réessayez dans {seconds, plural, one {# seconde} other {# secondes}}.",
     "INVALID_CONTRACT": "Les champs d'entrée ne sont pas utilisables en l'état. Corrigez-les dans Champs d'entrée, puis enregistrez de nouveau la version.",
     "INVALID_PACK": "Ce pack n'est pas utilisable.",
@@ -1360,5 +1363,22 @@
     "reviewSubmit": "Enregistrer l'examen",
     "reviewed": "Examen enregistré.",
     "saving": "Enregistrement…"
+  },
+  "licence": {
+    "evaluationTitle": "Évaluation, sans licence",
+    "evaluation": "Tout fonctionne, mais les releases ne peuvent pas aller en production. Demandez un fichier de licence à Donka et renseignez DONKA_LICENCE_FILE.",
+    "expiringTitle": "La licence prend fin le {date}",
+    "expiring": "{days, plural, one {# jour restant.} other {# jours restants.}} Demandez la licence suivante à Donka, remplacez le fichier et rechargez Studio ; rien n’est perdu.",
+    "lastDay": "C’est son dernier jour. Demandez la licence suivante à Donka, remplacez le fichier et rechargez Studio ; rien n’est perdu.",
+    "notYetValidTitle": "La licence commence le {date}",
+    "expiredTitle": "La licence a pris fin le {date}",
+    "refusedTitle": "Le fichier de licence a été refusé",
+    "waiting": "Les nouvelles versions et releases attendent une licence valide. La lecture et l’export fonctionnent toujours, et les règles publiées restent servies.",
+    "renew": "Demandez une nouvelle licence à Donka, remplacez le fichier et rechargez Studio : aucun redémarrage n’est nécessaire.",
+    "refusal": {
+      "unreadable": "Studio ne peut pas le lire comme une licence : vérifiez le fichier qu’indique DONKA_LICENCE_FILE.",
+      "foreign": "Il a été émis pour une autre installation, ou pas par Donka.",
+      "tampered": "Il a été modifié après sa signature par Donka. Remettez le fichier envoyé par Donka."
+    }
   }
 }

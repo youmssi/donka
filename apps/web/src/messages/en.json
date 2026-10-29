@@ -81,6 +81,9 @@
     "RECORD_NOT_FOUND": "This decision record does not exist in this project.",
     "EXPLAIN_DECLINED": "The explanation service declined to explain this decision.",
     "EXPLAIN_UNAVAILABLE": "The explanation service did not answer. Try again in a moment.",
+    "LICENCE_INACTIVE": "This installation’s licence is not valid: you can read and export, but new versions and releases wait for a valid licence.",
+    "PRODUCTION_NEEDS_LICENCE": "Studio runs in evaluation, without a licence: releases can go to staging, not to production. Ask an administrator.",
+    "MODULE_NOT_LICENSED": "This module is not part of this installation’s licence.",
     "RATE_LIMITED": "Too many attempts from your network. Try again in {seconds, plural, one {# second} other {# seconds}}.",
     "INVALID_CONTRACT": "The input fields cannot be used as they are. Fix them in Input fields, then save the version again.",
     "INVALID_PACK": "This pack cannot be used.",
@@ -1360,5 +1363,22 @@
     "reviewSubmit": "Record the review",
     "reviewed": "Review recorded.",
     "saving": "Saving…"
+  },
+  "licence": {
+    "evaluationTitle": "Evaluation, without a licence",
+    "evaluation": "Everything works, but releases cannot reach production. Ask Donka for a licence file and set DONKA_LICENCE_FILE.",
+    "expiringTitle": "The licence ends on {date}",
+    "expiring": "{days, plural, one {# day left.} other {# days left.}} Ask Donka for the next licence, replace the file and reload Studio; nothing is lost.",
+    "lastDay": "Today is its last day. Ask Donka for the next licence, replace the file and reload Studio; nothing is lost.",
+    "notYetValidTitle": "The licence starts on {date}",
+    "expiredTitle": "The licence ended on {date}",
+    "refusedTitle": "The licence file was refused",
+    "waiting": "New versions and releases wait for a valid licence. Reading and exporting still work, and released rules keep being served.",
+    "renew": "Ask Donka for a new licence, replace the file and reload Studio: no restart is needed.",
+    "refusal": {
+      "unreadable": "Studio cannot read it as a licence: check the file DONKA_LICENCE_FILE names.",
+      "foreign": "It was issued for another installation, or not by Donka.",
+      "tampered": "It was changed after Donka signed it. Put back the file Donka sent."
+    }
   }
 }

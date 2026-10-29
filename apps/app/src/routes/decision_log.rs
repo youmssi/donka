@@ -16,6 +16,7 @@ use donka_decision_log::{
     Filter, LogToken, Payload, RecordSummary, Settings, SettingsChange, Status, MAX_TEXT_CHARS,
 };
 use donka_explain::{Language, Question};
+use donka_licence::Module;
 use donka_release::Environment;
 use donka_shared::page::PageRequest;
 use serde::{Deserialize, Serialize};
@@ -255,7 +256,7 @@ fn settings_response(state: &AppState, settings: Settings) -> DecisionLogSetting
     DecisionLogSettingsResponse {
         outcome_field: settings.outcome_field,
         redacted_fields: settings.redacted_fields,
-        explain_enabled: state.explainer.is_some(),
+        explain_enabled: explains(state),
     }
 }
 
@@ -502,7 +503,7 @@ pub async fn get(
         output,
         error,
         trace,
-        explainable: state.explainer.is_some(),
+        explainable: explains(&state),
     }))
 }
 
@@ -569,6 +570,7 @@ pub struct ExplainResponse {
     request_body = ExplainRequest,
     responses(
         (status = 200, body = ExplainResponse),
+        (status = 403, description = "The licence leaves explanations out (MODULE_NOT_LICENSED)", body = ErrorBody),
         (status = 404, description = "NOT_FOUND (explanations are off), PROJECT_NOT_FOUND or RECORD_NOT_FOUND", body = ErrorBody),
         (status = 422, description = "The service declined to explain it (EXPLAIN_DECLINED)", body = ErrorBody),
         (status = 502, description = "The service failed or did not answer (EXPLAIN_UNAVAILABLE)", body = ErrorBody),
@@ -580,6 +582,7 @@ pub async fn explain(
     RecordId(id): RecordId,
     ApiJson(req): ApiJson<ExplainRequest>,
 ) -> Result<Json<ExplainResponse>, ApiError> {
+    state.licensing.require(Module::Explain)?;
     let explainer = state.explainer.as_ref().ok_or(ApiError::RouteNotFound)?;
     let record = state.decision_log.explain_source(&access, id).await?;
     let Payload {
@@ -621,4 +624,10 @@ pub(crate) fn summary(record: RecordSummary) -> RecordSummaryResponse {
         evaluated_at: record.evaluated_at,
         duration_us: record.duration_us,
     }
+}
+
+/// The installation explains decisions: an endpoint is configured and the licence includes
+/// explanations (DNK-77).
+fn explains(state: &AppState) -> bool {
+    state.explainer.is_some() && state.licensing.includes(Module::Explain)
 }

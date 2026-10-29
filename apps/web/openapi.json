@@ -1593,6 +1593,124 @@
           }
         ]
       },
+      "LicenceRefusal": {
+        "description": "Why a licence file was refused.",
+        "enum": [
+          "unreadable",
+          "foreign",
+          "tampered"
+        ],
+        "type": "string"
+      },
+      "LicenceResponse": {
+        "properties": {
+          "allowsChanges": {
+            "description": "New versions and releases can be made.",
+            "type": "boolean"
+          },
+          "allowsProduction": {
+            "description": "Releases can reach production (anything but evaluation).",
+            "type": "boolean"
+          },
+          "customer": {
+            "description": "Who the licence was issued to; absent in evaluation and when refused.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "daysLeft": {
+            "description": "Valid days left after today, while active.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "expiring": {
+            "description": "The licence ends within the notice period: administrators should renew it.",
+            "type": "boolean"
+          },
+          "modules": {
+            "description": "Optional modules this installation offers.",
+            "items": {
+              "$ref": "#/components/schemas/LicensedModule"
+            },
+            "type": "array"
+          },
+          "noticeDays": {
+            "description": "Days before the end at which `expiring` turns on.",
+            "example": 30,
+            "format": "int64",
+            "type": "integer"
+          },
+          "reason": {
+            "description": "The same, in words (English), as Studio's log says it.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "refusal": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/LicenceRefusal",
+                "description": "Why a licence file was refused, for the web app to say in the reader's language."
+              }
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/LicenceStatus"
+          },
+          "validFrom": {
+            "description": "First and last valid days (UTC, both included).",
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "validUntil": {
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "expiring",
+          "noticeDays",
+          "modules",
+          "allowsChanges",
+          "allowsProduction"
+        ],
+        "type": "object"
+      },
+      "LicenceStatus": {
+        "description": "Where the installation stands.",
+        "enum": [
+          "evaluation",
+          "active",
+          "notYetValid",
+          "expired",
+          "refused"
+        ],
+        "type": "string"
+      },
+      "LicensedModule": {
+        "description": "An optional part of Studio a licence includes or not.",
+        "enum": [
+          "explain",
+          "connectors",
+          "analysis"
+        ],
+        "type": "string"
+      },
       "Locale": {
         "description": "Language of a user's emails and screens.",
         "enum": [
@@ -4472,6 +4590,27 @@
         ]
       }
     },
+    "/licence": {
+      "get": {
+        "operationId": "get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LicenceResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "What the installation's licence allows (any signed-in user).",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
     "/me/tours": {
       "get": {
         "operationId": "tours",
@@ -4666,7 +4805,7 @@
                 }
               }
             },
-            "description": "Not an administrator (FORBIDDEN)"
+            "description": "Not an administrator (FORBIDDEN); the licence is not valid (LICENCE_INACTIVE); the pack has a connector node and the licence leaves connectors out (MODULE_NOT_LICENSED)"
           },
           "409": {
             "content": {
@@ -4805,7 +4944,7 @@
                 }
               }
             },
-            "description": "Not an administrator (FORBIDDEN)"
+            "description": "Not an administrator (FORBIDDEN); the licence is not valid (LICENCE_INACTIVE)"
           },
           "404": {
             "content": {
@@ -5224,7 +5363,7 @@
                 }
               }
             },
-            "description": "Viewers cannot ask (FORBIDDEN)"
+            "description": "Viewers cannot ask (FORBIDDEN); evaluation, without a licence, stops at staging (PRODUCTION_NEEDS_LICENCE)"
           },
           "404": {
             "content": {
@@ -5356,7 +5495,7 @@
                 }
               }
             },
-            "description": "Only owners decide (FORBIDDEN)"
+            "description": "Only owners decide (FORBIDDEN); evaluation, without a licence, stops at staging (PRODUCTION_NEEDS_LICENCE)"
           },
           "404": {
             "content": {
@@ -6613,6 +6752,16 @@
             },
             "description": ""
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The licence leaves explanations out (MODULE_NOT_LICENSED)"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -7389,7 +7538,7 @@
                 }
               }
             },
-            "description": "Viewers cannot save versions (FORBIDDEN)"
+            "description": "Viewers cannot save versions (FORBIDDEN); the licence is not valid (LICENCE_INACTIVE); the draft has a connector node and the licence leaves connectors out (MODULE_NOT_LICENSED)"
           },
           "404": {
             "content": {
@@ -7549,7 +7698,7 @@
                 }
               }
             },
-            "description": "Viewers cannot restore (FORBIDDEN)"
+            "description": "Viewers cannot restore (FORBIDDEN); the licence is not valid (LICENCE_INACTIVE); the version has a connector node and the licence leaves connectors out (MODULE_NOT_LICENSED)"
           },
           "404": {
             "content": {
@@ -7691,7 +7840,7 @@
                 }
               }
             },
-            "description": "Not an administrator (FORBIDDEN)"
+            "description": "Not an administrator (FORBIDDEN); the licence is not valid (LICENCE_INACTIVE)"
           },
           "404": {
             "content": {
@@ -8889,7 +9038,7 @@
                 }
               }
             },
-            "description": "Viewers cannot release (FORBIDDEN)"
+            "description": "Viewers cannot release (FORBIDDEN); the licence is not valid (LICENCE_INACTIVE)"
           },
           "404": {
             "content": {
@@ -9341,7 +9490,7 @@
                 }
               }
             },
-            "description": "Only owners roll back (FORBIDDEN)"
+            "description": "Only owners roll back (FORBIDDEN); evaluation, without a licence, stops at staging (PRODUCTION_NEEDS_LICENCE)"
           },
           "404": {
             "content": {

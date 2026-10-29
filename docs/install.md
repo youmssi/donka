@@ -90,6 +90,39 @@ Administrators start projects from the packs in [packs/](../packs/README.md), wh
 ships in `/srv/packs`. To offer your own, mount a folder of packs and point `DONKA_PACKS_DIR` at
 it; Studio does not start if one of them is invalid, and names it.
 
+**Licence.** Donka sends each installation a licence file naming the organisation, the days it
+is valid and the modules it includes (explanations, connectors, analysis). Studio verifies it
+without network access, at start and every day. Mount it read-only and point
+`DONKA_LICENCE_FILE` at it:
+
+```yaml
+# docker-compose.override.yml
+services:
+  app:
+    environment:
+      DONKA_LICENCE_FILE: /etc/donka/licence.json
+    volumes:
+      - ./licence.json:/etc/donka/licence.json:ro
+```
+
+- **Without a licence file**, Studio runs in evaluation: everything works, but releases cannot
+  reach production.
+- **From thirty days before the end**, administrators see a notice.
+- **After the last day**, or if the file was changed or was issued for another installation,
+  Studio stays readable and exportable but refuses new versions and releases, and says why.
+  The log names the file and the reason.
+- **Decisions are never affected:** the Runtime does not read licences and keeps serving
+  released rules.
+
+To install a new licence, replace the file and reload it without a restart:
+
+```bash
+docker compose kill -s HUP app
+```
+
+A module the licence leaves out is hidden in Studio, and its actions are refused with a message
+that names it.
+
 Set these before the first start: PostgreSQL and MinIO take their passwords when their data
 is first created (section 5 explains how to change them later). Every other Studio setting in
 [.env.example](../.env.example) can be added to the same file.
@@ -322,4 +355,5 @@ recovery codes; if they have none left, another administrator resets their secon
 | A deployment stays *pending* | `docker compose logs app`: the publisher retries until the bucket answers |
 | The Runtime answers 404 for a project | It serves one environment (`PROVIDER__PREFIX`); check the release is live there |
 | Studio stops with `DONKA_PACKS_DIR` | A pack in that folder is invalid: the message names the pack and why |
+| "The licence file was refused" | `docker compose logs app \| grep licence` gives the reason: the file was changed, was issued for another installation, or cannot be read at `DONKA_LICENCE_FILE` |
 | No emails | Mailpit (http://localhost:8025) until `DONKA_SMTP_URL` points to your mail server |

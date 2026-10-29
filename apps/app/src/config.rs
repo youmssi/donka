@@ -78,6 +78,9 @@ pub struct Config {
     /// Folder of the packs offered when a project is created (DNK-43), one folder per
     /// pack; none are offered when unset. Projects can still be made from a pack file.
     pub packs_dir: Option<PathBuf>,
+    /// The licence file Donka issued for this installation (DNK-77). Unset: evaluation, where
+    /// everything works but nothing reaches production.
+    pub licence_file: Option<PathBuf>,
 }
 
 /// Who must sign in with a second step (DNK-59). Anyone may turn one on.
@@ -292,6 +295,9 @@ impl Config {
                 .unwrap_or(1825),
             explain,
             packs_dir: get("DONKA_PACKS_DIR")
+                .filter(|v| !v.trim().is_empty())
+                .map(PathBuf::from),
+            licence_file: get("DONKA_LICENCE_FILE")
                 .filter(|v| !v.trim().is_empty())
                 .map(PathBuf::from),
         })
@@ -714,6 +720,17 @@ mod tests {
                 .unwrap()
                 .packs_dir,
             Some(PathBuf::from("/srv/packs"))
+        );
+    }
+
+    #[test]
+    fn the_licence_file_is_optional() {
+        assert_eq!(load(&[]).unwrap().licence_file, None);
+        assert_eq!(
+            load(&[("DONKA_LICENCE_FILE", "/etc/donka/licence.json")])
+                .unwrap()
+                .licence_file,
+            Some(PathBuf::from("/etc/donka/licence.json"))
         );
     }
 

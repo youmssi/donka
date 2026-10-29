@@ -319,7 +319,7 @@ pub async fn preview(
     responses(
         (status = 201, body = ReleaseResponse),
         (status = 400, description = "Missing or too long notes (INVALID_REQUEST)", body = ErrorBody),
-        (status = 403, description = "Viewers cannot release (FORBIDDEN)", body = ErrorBody),
+        (status = 403, description = "Viewers cannot release (FORBIDDEN); the licence is not valid (LICENCE_INACTIVE)", body = ErrorBody),
         (status = 404, description = "PROJECT_NOT_FOUND", body = ErrorBody),
         (status = 409, description = "RELEASE_CONFLICT (someone released at the same moment) or PROJECT_ARCHIVED", body = ErrorBody),
         (status = 422, description = "UNVERSIONED_DECISIONS (details: keys) or NOTHING_TO_RELEASE", body = ErrorBody),
@@ -330,6 +330,7 @@ pub async fn create(
     ProjectAccess(access): ProjectAccess,
     ApiJson(req): ApiJson<CreateReleaseRequest>,
 ) -> Result<(StatusCode, Json<ReleaseResponse>), ApiError> {
+    state.licensing.require_changes()?;
     let bump = match req.bump {
         BumpRequest::Major => Bump::Major,
         BumpRequest::Minor => Bump::Minor,

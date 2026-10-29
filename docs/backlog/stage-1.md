@@ -1675,9 +1675,9 @@ rules. Without a valid licence Studio stays readable and exportable but refuses 
 and releases, and says why.
 
 #### Acceptance criteria
-- [ ] Studio verifies the licence file at start and daily, without network access
-- [ ] Modules outside the licence are hidden and their routes refused with a clear error
-- [ ] Thirty days before expiry, administrators see a notice; after expiry Studio refuses new versions and releases, while reading, exporting and the Runtime keep working
-- [ ] A tampered or foreign licence is refused and named in the log; replacing the file needs no restart beyond a reload
-- [ ] A tool kept outside the customer installation issues licences; its signing key never ships
+- [x] Studio verifies the licence file at start and daily, without network access
+- [x] Modules outside the licence are hidden and their routes refused with a clear error
+- [x] Thirty days before expiry, administrators see a notice; after expiry Studio refuses new versions and releases, while reading, exporting and the Runtime keep working
+- [x] A tampered or foreign licence is refused and named in the log; replacing the file needs no restart beyond a reload
+- [x] A tool kept outside the customer installation issues licences; its signing key never ships
 

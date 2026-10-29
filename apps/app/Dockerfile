@@ -24,14 +24,18 @@ COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS builder
+# Empty for a delivered Studio. CI passes `development-licence-key` so test licences verify
+# (DNK-77); scripts/check-image.sh refuses a delivered image built that way.
+ARG CARGO_FEATURES=""
 COPY --from=planner /src/recipe.json recipe.json
-RUN cargo chef cook --release --locked --package donka-app --recipe-path recipe.json
+RUN cargo chef cook --release --locked --package donka-app --features "$CARGO_FEATURES" \
+    --recipe-path recipe.json
 COPY . .
 # Release version reported by GET /api/v1/version; compiled into the binary. Declared after the
 # dependency layer so a new version does not rebuild the dependencies.
 ARG SERVICE_VERSION=unknown
 ENV SERVICE_VERSION=$SERVICE_VERSION
-RUN cargo build --release --locked --package donka-app
+RUN cargo build --release --locked --package donka-app --features "$CARGO_FEATURES"
 
 # No shell, no package manager; runs as the unprivileged `nonroot` user (uid 65532). Same Debian
 # release as the build stage (13), so the binary finds the glibc it was linked against.

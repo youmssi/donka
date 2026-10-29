@@ -20,6 +20,7 @@ donka-explain = { workspace = true }
 donka-db = { workspace = true }
 donka-engine = { workspace = true }
 donka-identity = { workspace = true, features = ["openapi"] }
+donka-licence = { workspace = true }
 donka-mail = { workspace = true }
 donka-pack = { workspace = true }
 donka-project = { workspace = true, features = ["openapi"] }
@@ -44,8 +45,14 @@ utoipa-axum = { workspace = true }
 uuid = { workspace = true }
 thiserror = { workspace = true }
 
+[features]
+# Trust the development licence key instead of Donka's (DNK-77): local development and CI only.
+development-licence-key = ["donka-licence/development-key"]
+
 [dev-dependencies]
 uuid = { workspace = true }
+base64 = { workspace = true }
+donka-licence = { workspace = true }
 sqlx = { workspace = true }
 async-trait = { workspace = true }
 donka-mail = { workspace = true, features = ["testing"] }

@@ -51,6 +51,9 @@ jobs:
           ref: develop
           path: donka-runtime
       - run: scripts/check-engine-version.sh donka-runtime
+      # Releases are cut from main: Studio must trust Donka's licence key by then (DNK-77).
+      - if: github.ref == 'refs/heads/main'
+        run: scripts/check-licence-key.sh
 
   web:
     runs-on: ubuntu-latest
@@ -138,6 +141,7 @@ jobs:
           targets: app,runtime
           load: true
           set: |
+            app.args.CARGO_FEATURES=development-licence-key
             app.cache-from=type=gha
             runtime.cache-from=type=gha,scope=runtime
             runtime.cache-to=type=gha,mode=max,scope=runtime
@@ -146,6 +150,8 @@ jobs:
       - name: Isolated browser-test configuration
         run: |
           printf '%s\n' 'DONKA_SIGN_IN_RATE_LIMIT=100' 'DONKA_PASSWORD_RESET_RATE_LIMIT=100' > .env
+      # Every module, valid a year, signed with the development key the CI build trusts.
+      - run: scripts/dev-licence.sh .feature-licence.json
       - run: docker compose --profile full up -d
       - name: First administrator
         run: |

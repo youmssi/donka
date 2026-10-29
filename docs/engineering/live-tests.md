@@ -29,7 +29,15 @@ In that test installation's `.env`, set `DONKA_SIGN_IN_RATE_LIMIT=100` and
 authentication. Production defaults are unchanged; default rate-limit behavior retains its
 own PostgreSQL integration tests. The separate security suite below runs with small limits so
 it can check actual throttling without exhausting the main journey suite's shared address.
-Then start the disposable stack with:
+The journeys deploy to production, which needs a licence (DNK-77). The override builds Studio
+with the `development-licence-key` feature and mounts `.feature-licence.json`; issue it with
+the committed development key, all modules, valid a year:
+
+```bash
+scripts/dev-licence.sh .feature-licence.json
+```
+
+A delivered Studio never trusts that key. Then start the disposable stack with:
 
 ```bash
 docker compose -f docker-compose.yml -f scripts/feature-services.compose.yml --profile full up -d --build
