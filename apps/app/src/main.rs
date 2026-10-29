@@ -159,6 +159,26 @@ async fn main() -> anyhow::Result<()> {
             Err(err) => exit_with(&format!("cannot create the first administrator: {err}")),
         }
     }
+    if let Some(file) = &config.runtime_log_token_file {
+        let wired = donka_app::wiring::runtime_log_token(
+            &identity,
+            &decision_log,
+            file,
+            config.bootstrap_admin_email.as_deref(),
+        )
+        .await;
+        match wired {
+            Ok(donka_app::wiring::Wired::Issued) => tracing::info!(
+                file = %file.display(),
+                "the staging Runtime's decision-log token is issued and written"
+            ),
+            Ok(donka_app::wiring::Wired::Already) => {}
+            Err(err) => tracing::error!(
+                %err,
+                "cannot wire the staging Runtime to the decision log (DONKA_RUNTIME_LOG_TOKEN_FILE)"
+            ),
+        }
+    }
 
     let mailer = SmtpMailer::new(&config.smtp_url, &config.smtp_from)
         .unwrap_or_else(|err| exit_with(&format!("DONKA_SMTP_URL / DONKA_SMTP_FROM: {err}")));

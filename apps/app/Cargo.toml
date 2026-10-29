@@ -10,6 +10,10 @@ publish = false
 name = "donka-app"
 path = "src/main.rs"
 
+[[bin]]
+name = "donka-admin"
+path = "src/admin.rs"
+
 [dependencies]
 anyhow = { workspace = true }
 axum = { workspace = true }
@@ -28,6 +32,8 @@ donka-release = { workspace = true }
 donka-shared = { workspace = true }
 donka-storage = { workspace = true }
 chrono = { workspace = true }
+base64 = { workspace = true }
+getrandom = { workspace = true }
 ipnet = "2.12"
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -51,7 +57,6 @@ development-licence-key = ["donka-licence/development-key"]
 
 [dev-dependencies]
 uuid = { workspace = true }
-base64 = { workspace = true }
 donka-licence = { workspace = true }
 sqlx = { workspace = true }
 async-trait = { workspace = true }

@@ -36,11 +36,16 @@ COPY . .
 ARG SERVICE_VERSION=unknown
 ENV SERVICE_VERSION=$SERVICE_VERSION
 RUN cargo build --release --locked --package donka-app --features "$CARGO_FEATURES"
+# Mount points of the installation's volumes (apps/app/install/docker-compose.yml). A new named
+# volume takes their owner, so Studio can write releases and the staging Runtime's token.
+RUN mkdir -p /out/var/lib/donka/releases /out/var/lib/donka/wiring
 
 # No shell, no package manager; runs as the unprivileged `nonroot` user (uid 65532). Same Debian
 # release as the build stage (13), so the binary finds the glibc it was linked against.
 FROM gcr.io/distroless/cc-debian13:nonroot
 COPY --from=builder /src/target/release/donka-app /usr/local/bin/donka-app
+COPY --from=builder /src/target/release/donka-admin /usr/local/bin/donka-admin
+COPY --from=builder --chown=nonroot:nonroot /out/var/lib/donka /var/lib/donka
 COPY --from=web /src/apps/web/out /srv/web
 COPY packs /srv/packs
 USER nonroot:nonroot

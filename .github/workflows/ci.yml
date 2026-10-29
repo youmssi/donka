@@ -124,6 +124,18 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - run: scripts/check-image.sh donka-studio:ci ${{ github.sha }}
+      # The installation from the images (DNK-64): donka-admin init, docker compose up, a
+      # release the staging Runtime serves from the shared volume, its decision in Studio's log.
+      - uses: docker/build-push-action@v6
+        with:
+          context: https://github.com/youmssi/donka-runtime.git#develop
+          tags: ghcr.io/youmssi/donka-runtime:ci
+          load: true
+          push: false
+          cache-from: type=gha,scope=runtime
+      - run: |
+          docker tag donka-studio:ci ghcr.io/youmssi/donka-studio:ci
+          scripts/check-install.sh ci ci
 
   # The one-command install: `docker compose --profile full up` with its defaults, then the
   # post-deploy smoke test against it. Images come from the same compose file (bake), cached.

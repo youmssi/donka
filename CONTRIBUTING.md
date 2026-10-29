@@ -117,3 +117,19 @@ footer marks a breaking change.
 - [ ] Docs updated (story, ADR, README, `.env.example`) when behaviour changed
 - [ ] Screenshots for visual changes
 - [ ] Squash-merged into `develop`, branch deleted
+
+## 9. Run Donka from source
+
+Installations use the published images (`docs/install.md`). To run your checkout instead, with
+Studio and the Runtime built from source (15 to 30 minutes the first time), PostgreSQL, SILO as
+the release store and Mailpit:
+
+```bash
+docker compose --profile full up -d                # docker-compose.yml at the repository root
+docker compose logs app | grep setup-password       # the first administrator's one-time link
+docker compose up -d postgres minio minio-init mailpit   # backing services only, for cargo run
+```
+
+Its defaults, keys included, are public: never use this file for an installation with real
+data. `DONKA_RUNTIME_SOURCE=../donka-runtime` builds your Runtime checkout. The live test stack
+adds `scripts/feature-services.compose.yml` (`docs/engineering/live-tests.md`).

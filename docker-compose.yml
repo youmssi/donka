@@ -1,11 +1,11 @@
-# Single-server installs and local development.
+# Local development and the live tests, built from source. Installations use the published
+# images instead: `donka-admin init` writes their compose file (docs/install.md).
 #
 #   docker compose --profile full up -d                # Studio, Runtime, PostgreSQL, MinIO, Mailpit
 #   docker compose up -d postgres minio minio-init mailpit   # backing services only, for development
 #
-# Every setting has a working default for a first look on one machine. Before real use, put
-# your own values in a `.env` file next to this one (see docs/install.md): the database and
-# storage passwords, the decision-log key, the public URL and the mail server.
+# Every setting has a working default, keys included, and they are public: never use this file
+# for an installation with real data (CONTRIBUTING.md §9).
 name: donka
 
 x-storage-credentials: &storage-credentials

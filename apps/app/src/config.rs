@@ -81,6 +81,9 @@ pub struct Config {
     /// The licence file Donka issued for this installation (DNK-77). Unset: evaluation, where
     /// everything works but nothing reaches production.
     pub licence_file: Option<PathBuf>,
+    /// Where Studio writes, at first start, the decision-log token of the staging Runtime it
+    /// is installed with (DNK-64). Unset: Runtimes get their token from an administrator.
+    pub runtime_log_token_file: Option<PathBuf>,
 }
 
 /// Who must sign in with a second step (DNK-59). Anyone may turn one on.
@@ -298,6 +301,9 @@ impl Config {
                 .filter(|v| !v.trim().is_empty())
                 .map(PathBuf::from),
             licence_file: get("DONKA_LICENCE_FILE")
+                .filter(|v| !v.trim().is_empty())
+                .map(PathBuf::from),
+            runtime_log_token_file: get("DONKA_RUNTIME_LOG_TOKEN_FILE")
                 .filter(|v| !v.trim().is_empty())
                 .map(PathBuf::from),
         })
@@ -731,6 +737,18 @@ mod tests {
                 .unwrap()
                 .licence_file,
             Some(PathBuf::from("/etc/donka/licence.json"))
+        );
+    }
+
+    #[test]
+    fn the_runtime_log_token_file_is_optional() {
+        assert_eq!(load(&[]).unwrap().runtime_log_token_file, None);
+        let file = "/var/lib/donka/wiring/staging-decision-log-token";
+        assert_eq!(
+            load(&[("DONKA_RUNTIME_LOG_TOKEN_FILE", file)])
+                .unwrap()
+                .runtime_log_token_file,
+            Some(PathBuf::from(file))
         );
     }
 
