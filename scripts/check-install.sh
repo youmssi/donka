@@ -136,5 +136,16 @@ if [ -n "$demo" ]; then
   echo "check-install: the demo project calls the fake bureau through the Runtime"
 fi
 took=$(( $(date +%s) - started ))
+
+# The doctor, with Studio's own settings and network: everything works; with the mail server
+# stopped, it says so and fails.
+docker compose run --rm --no-deps -T app donka-admin doctor \
+  || fail "the doctor found a problem on a working installation"
+docker compose stop mailpit >/dev/null 2>&1
+report=$(docker compose run --rm --no-deps -T app donka-admin doctor) \
+  && fail "the doctor passed without a mail server"
+grep -q 'FAIL  mail' <<<"$report" || fail "the doctor did not name the mail server: $report"
+docker compose start mailpit >/dev/null 2>&1
+echo "check-install: the doctor checks the installation and names what fails"
 echo "check-install: installed from the images and a decision recorded in $took s"
 [ -z "$budget" ] || [ "$took" -le "$budget" ] || fail "took $took s, over the budget of $budget s"

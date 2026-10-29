@@ -45,6 +45,32 @@ pub fn uses_connectors(content: &Value) -> bool {
         })
 }
 
+/// The addresses a decision graph's connector nodes call: each service, and the token endpoint
+/// of those that use OAuth2. Nodes whose settings are invalid are left out (validation reports
+/// them).
+pub fn connector_endpoints(content: &Value) -> Vec<String> {
+    content
+        .get("nodes")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|node| {
+            node.get("type").and_then(Value::as_str) == Some("customNode")
+                && node.pointer("/content/kind").and_then(Value::as_str)
+                    == Some(donka_connectors::KIND)
+        })
+        .filter_map(|node| node.pointer("/content/config"))
+        .filter_map(|config| donka_connectors::parse(config).ok())
+        .flat_map(|config| {
+            let token = match config.auth {
+                donka_connectors::Auth::OAuth2 { token_url, .. } => Some(token_url),
+                _ => None,
+            };
+            std::iter::once(config.url).chain(token)
+        })
+        .collect()
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum RuntimeError {
     /// A decision in the bundle is not valid JDM; `key` names which one.

@@ -55,6 +55,24 @@ pub async fn migrate(pool: &PgPool) -> Result<(), DbError> {
     MIGRATOR.run(pool).await.map_err(DbError::Migrate)
 }
 
+/// How many of Studio's migrations the database has not applied yet.
+pub async fn pending_migrations(pool: &PgPool) -> Result<usize, sqlx::Error> {
+    let exists: bool = sqlx::query_scalar("SELECT to_regclass('_sqlx_migrations') IS NOT NULL")
+        .fetch_one(pool)
+        .await?;
+    let applied: Vec<i64> = if exists {
+        sqlx::query_scalar("SELECT version FROM _sqlx_migrations WHERE success")
+            .fetch_all(pool)
+            .await?
+    } else {
+        Vec::new()
+    };
+    Ok(MIGRATOR
+        .iter()
+        .filter(|migration| !applied.contains(&migration.version))
+        .count())
+}
+
 /// True when the database answers within `timeout`.
 pub async fn is_ready(pool: &PgPool, timeout: Duration) -> bool {
     matches!(

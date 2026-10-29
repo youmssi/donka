@@ -237,3 +237,34 @@ fn settings_are_checked_and_the_key_never_printed() {
     assert_eq!("openai".parse(), Ok(Protocol::OpenAi));
     assert!("gpt".parse::<Protocol>().is_err());
 }
+
+#[tokio::test]
+async fn the_check_asks_for_one_word_and_sends_no_decision() {
+    let (url, seen) = serve(
+        StatusCode::OK,
+        json!({ "model": "the-model", "content": [{ "type": "text", "text": "OK" }] }),
+    )
+    .await;
+    let answer = explainer(&url, Protocol::Anthropic, false)
+        .check()
+        .await
+        .unwrap();
+    assert_eq!(answer.text, "OK");
+    let (_, body) = seen.lock().unwrap().pop().unwrap();
+    assert_eq!(body["max_tokens"], CHECK_MAX_TOKENS);
+    assert!(!user_text(&body, Protocol::Anthropic).contains("<decision>"));
+
+    let (url, seen) = serve(
+        StatusCode::OK,
+        json!({ "choices": [{ "message": { "content": "OK" } }] }),
+    )
+    .await;
+    let openai = explainer(&url, Protocol::OpenAi, false);
+    openai.check().await.unwrap();
+    let (_, body) = seen.lock().unwrap().pop().unwrap();
+    assert_eq!(body["max_tokens"], CHECK_MAX_TOKENS);
+    // An explanation leaves the limit to the endpoint, as before.
+    openai.explain(&question(Language::English)).await.unwrap();
+    let (_, body) = seen.lock().unwrap().pop().unwrap();
+    assert!(body.get("max_tokens").is_none());
+}

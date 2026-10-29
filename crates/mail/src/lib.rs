@@ -70,6 +70,17 @@ impl SmtpMailer {
             .map_err(|err| MailError::InvalidSettings(format!("sender address: {err}")))?;
         Ok(Self { transport, from })
     }
+
+    /// Connects, signs in when the URL holds credentials, and leaves, without sending
+    /// anything (`donka-admin doctor`).
+    pub async fn check(&self) -> Result<(), MailError> {
+        match self.transport.test_connection().await {
+            Ok(true) => Ok(()),
+            Ok(false) => Err(MailError::Send("the server closed the connection".into())),
+            Err(err) if err.is_permanent() => Err(MailError::Rejected(err.to_string())),
+            Err(err) => Err(MailError::Send(err.to_string())),
+        }
+    }
 }
 
 #[async_trait]

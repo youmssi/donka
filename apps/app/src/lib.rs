@@ -6,6 +6,7 @@
 pub mod auth;
 pub mod config;
 pub mod demo;
+pub mod doctor;
 pub mod email_worker;
 pub mod error;
 pub mod extract;
