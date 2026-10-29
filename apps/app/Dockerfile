@@ -48,6 +48,10 @@ COPY --from=builder /src/target/release/donka-admin /usr/local/bin/donka-admin
 COPY --from=builder --chown=nonroot:nonroot /out/var/lib/donka /var/lib/donka
 COPY --from=web /src/apps/web/out /srv/web
 COPY packs /srv/packs
+# What `donka-admin upgrade` reads from a new release's image: the versions it upgrades from
+# and the compose file it installs.
+COPY apps/app/upgrade.json /etc/donka/upgrade.json
+COPY apps/app/install/docker-compose.yml /etc/donka/docker-compose.yml
 USER nonroot:nonroot
 EXPOSE 8080
 ENV DONKA_LISTEN=0.0.0.0:8080

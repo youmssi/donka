@@ -30,7 +30,7 @@ services:
     restart: unless-stopped
 
   app:
-    image: ghcr.io/youmssi/donka-studio:${DONKA_VERSION:?run donka-admin init first}
+    image: ${DONKA_REGISTRY:-ghcr.io/youmssi}/donka-studio:${DONKA_VERSION:?run donka-admin init first}
     env_file: [.env]
     environment:
       DATABASE_URL: postgres://donka:${DONKA_POSTGRES_PASSWORD}@postgres:5432/donka
@@ -49,7 +49,7 @@ services:
 
   # The staging Runtime. It restarts until Studio has written its decision-log token.
   runtime:
-    image: ghcr.io/youmssi/donka-runtime:${DONKA_RUNTIME_VERSION:?run donka-admin init first}
+    image: ${DONKA_REGISTRY:-ghcr.io/youmssi}/donka-runtime:${DONKA_RUNTIME_VERSION:?run donka-admin init first}
     environment:
       PROVIDER__TYPE: Zip
       PROVIDER__ROOT_DIR: /var/lib/donka/releases/staging
@@ -72,12 +72,18 @@ services:
   # the demo project's connector calls. Its key is in runtime.env, shared with the Runtime.
   demo-bureau:
     profiles: [demo]
-    image: ghcr.io/youmssi/donka-studio:${DONKA_VERSION:?run donka-admin init first}
+    image: ${DONKA_REGISTRY:-ghcr.io/youmssi}/donka-studio:${DONKA_VERSION:?run donka-admin init first}
     command: [donka-admin, demo-bureau]
     env_file:
       - path: runtime.env
         required: false
     restart: unless-stopped
+
+  # Never started: the image `donka-admin upgrade` runs `docker compose` from. Listed here so
+  # that it is pulled, and bundled offline, with the others.
+  upgrade-tools:
+    profiles: [tools]
+    image: docker:28.5-cli
 
 volumes:
   postgres:

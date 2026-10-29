@@ -1362,6 +1362,13 @@ Confirmed 2026-10-25, before DNK-50:
   first and then Studio, runs the smoke test and restores everything if a check fails. It
   writes a timestamped report for the bank's change record. Unattended upgrades exist only for
   staging and demo installations, off by default; production never upgrades by itself.
+- **How the upgrade runs** (confirmed 2026-10-29): `donka-admin` drives Docker through its socket,
+  so the server needs nothing beyond Docker; the **installed** version runs it, so only images it
+  verifies with the installation's `cosign.pub` are used. Each release image carries
+  `/etc/donka/upgrade.json` (the Studio versions it upgrades from, the Runtime it needs), covered
+  by its signature and readable offline. Studio learns of a newer release from the GitHub
+  Releases API once a day, never when the installation is offline (`DONKA_UPDATE_CHECK=false`).
+  Unattended upgrades follow the assisted upgrade in their own change.
 
 #### Acceptance criteria
 - [ ] From an empty server with Docker, pulling the images, preparing the installation and starting it reaches a Runtime decision recorded in Studio in five minutes or less on the documented reference machine; CI measures it

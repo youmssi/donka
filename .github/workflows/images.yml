@@ -106,6 +106,8 @@ jobs:
 
       - uses: sigstore/cosign-installer@v3
         if: steps.key.outputs.present == 'true'
+        with:
+          cosign-release: v2.5.2
 
       - name: Sign
         if: steps.key.outputs.present == 'true'
@@ -194,6 +196,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ github.token }}
       - uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: v2.5.2
       - name: Check the images' signatures
         run: |
           runtime=$(gh release view --repo youmssi/donka-runtime --json tagName -q .tagName)

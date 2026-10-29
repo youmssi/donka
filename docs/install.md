@@ -49,7 +49,9 @@ docker compose up -d
 3. Open Studio (port 8080), choose the password, then run the smoke test (section 2).
 
 Without the options, init sets up a first look on this machine: http://localhost:8080 and
-`admin@donka.local`. `--studio-version` and `--runtime-version` pin other image tags.
+`admin@donka.local`. `--studio-version` and `--runtime-version` pin other image tags;
+`--registry` takes the images from your own mirror of `ghcr.io/youmssi` (`DONKA_REGISTRY` in
+`.env`).
 
 **The demo.** `donka-admin init --demo` prepares the same installation with a project ready to
 call. At the first start, Studio imports the *Retail credit* pack, releases it and deploys it to
@@ -306,8 +308,40 @@ docker compose up -d app runtime
 
 ## 4. Upgrade
 
-1. Read the release notes ([releases](https://github.com/youmssi/donka/releases)). When a release changes the artifact
-   format or the Runtime's API, upgrade the Runtime first.
+Read the release notes ([releases](https://github.com/youmssi/donka/releases)) first, then let
+`donka-admin upgrade` do the rest. Run it with the image of the version **installed now**, in the
+installation folder, which must hold Donka's public key as `cosign.pub`:
+
+```bash
+docker run --rm -u "$(id -u):$(id -g)" --group-add "$(stat -c %g /var/run/docker.sock)" \
+  -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/install" -w /install \
+  -e DONKA_REGISTRY_USER -e DONKA_REGISTRY_TOKEN \
+  ghcr.io/youmssi/donka-studio:1.5.0 donka-admin upgrade 1.6.0 --runtime-version 1.4.0
+```
+
+1. **Verify.** The new images' signatures are checked with `cosign.pub` before anything is
+   pulled for use; an image that does not verify is refused. `DONKA_REGISTRY_USER` and
+   `DONKA_REGISTRY_TOKEN` hold the read token Donka gives you for Studio's image.
+2. **Check compatibility.** Each release states which installed versions it upgrades from and
+   which Runtime it needs, in a file its image carries. An installation it refuses stays as it
+   is: upgrade through the release the notes name first, or add `--runtime-version`.
+3. **Back up** to `backups/<time>/`: the database (`donka.dump`), the release and wiring volumes
+   (`volumes.tar.gz`), `.env`, `runtime.env` and `docker-compose.yml`.
+4. **Upgrade the Runtime, then Studio**, installing the new release's `docker-compose.yml`
+   (keep your own changes in `docker-compose.override.yml`). After each, the smoke test: Studio
+   ready (database reachable, migrations applied), both services running the verified images,
+   the Runtime healthy.
+5. **If a check fails**, the previous versions, the database, the volumes and the files come
+   back from the backup, and are checked the same way.
+
+Every run writes a report to `upgrades/<time>-<from>-to-<to>.txt` (and `.json`), for your change
+record: versions, image digests, each step and what failed. The exit status says the outcome:
+0 upgraded, 3 refused (nothing changed), 4 rolled back, 5 the restore failed too (the report and
+the backup say where things stand). Then run the full smoke test (section 2).
+
+**By hand.** Without `donka-admin upgrade`:
+
+1. When a release changes the artifact format or the Runtime's API, upgrade the Runtime first.
 2. Back up (section 3). Database migrations only go forward: the way back is the backup.
 3. Set the new versions in `.env` (`DONKA_VERSION`, and `DONKA_RUNTIME_VERSION` when the
    release notes name one), verify the images (*Published images*), then pull and restart:

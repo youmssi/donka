@@ -19,6 +19,8 @@ pub struct Options {
     /// Image tags.
     pub studio_version: String,
     pub runtime_version: String,
+    /// Where the images come from, when not GitHub Container Registry: a mirror.
+    pub registry: Option<String>,
     /// The demo: the retail-credit pack released to staging at the first start, its bureau
     /// connector answered by a bundled fake bureau.
     pub demo: bool,
@@ -37,6 +39,7 @@ impl Options {
             admin_email: "admin@donka.local".to_owned(),
             studio_version: if released { version } else { "edge" }.to_owned(),
             runtime_version: if released { "latest" } else { "edge" }.to_owned(),
+            registry: None,
             demo: false,
         }
     }
@@ -113,8 +116,15 @@ fn env_file(
         admin_email,
         studio_version,
         runtime_version,
+        registry,
         demo,
     } = options;
+    let registry = match registry {
+        Some(registry) => format!("DONKA_REGISTRY={registry}"),
+        None => "# A mirror of the images, if not GitHub Container Registry\n\
+                 # DONKA_REGISTRY=ghcr.io/youmssi"
+            .to_owned(),
+    };
     let demo = if *demo {
         "\n# The demo (donka-admin init --demo): the retail-credit pack released to staging at the\n\
          # first start, and the fake bureau its connector calls\n\
@@ -131,6 +141,7 @@ fn env_file(
          # Images\n\
          DONKA_VERSION={studio_version}\n\
          DONKA_RUNTIME_VERSION={runtime_version}\n\
+         {registry}\n\
          \n\
          # Where people reach Studio; behind HTTPS, also set DONKA_COOKIE_SECURE=true\n\
          DONKA_PUBLIC_URL={public_url}\n\
@@ -307,6 +318,7 @@ mod tests {
         let demo = dir("demo");
         let options = Options {
             demo: true,
+            registry: Some("registry.bank.example/donka".into()),
             ..Options::for_version("1.4.0")
         };
         let outcome = init(&demo, &options, system_random).unwrap();
@@ -314,6 +326,10 @@ mod tests {
         let env = std::fs::read_to_string(demo.join(".env")).unwrap();
         assert_eq!(env_value(&env, "COMPOSE_PROFILES"), "demo");
         assert_eq!(env_value(&env, "DONKA_DEMO"), "true");
+        assert_eq!(
+            env_value(&env, "DONKA_REGISTRY"),
+            "registry.bank.example/donka"
+        );
         let runtime = std::fs::read_to_string(demo.join("runtime.env")).unwrap();
         assert_eq!(env_value(&runtime, "DONKA_SECRET_BUREAU_API_KEY").len(), 48);
         #[cfg(unix)]

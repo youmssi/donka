@@ -19,6 +19,7 @@ pub mod request_id;
 pub mod reseal;
 pub mod routes;
 pub mod telemetry;
+pub mod upgrade;
 pub mod web;
 pub mod wiring;
 
