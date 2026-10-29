@@ -6,8 +6,9 @@
 # Runtime.
 #
 # Needs a running Studio (fresh database, DONKA_BOOTSTRAP_ADMIN_EMAIL and DONKA_PACKS_DIR set,
-# its console output in STUDIO_LOG) and scripts/fake-bureau.py at BUREAU_URL with
-# FAKE_BUREAU_KEY set. The script starts the Runtime itself (RUNTIME_BIN, output in
+# its console output in STUDIO_LOG), scripts/fake-bureau.py at BUREAU_URL with
+# FAKE_BUREAU_KEY set, and `donka-admin demo-bureau` reachable at http://demo-bureau:8080 with
+# the same key in DONKA_SECRET_BUREAU_API_KEY: the retail-credit pack's connector calls it. The script starts the Runtime itself (RUNTIME_BIN, output in
 # RUNTIME_LOG) once it has a decision-log token for it; the Runtime reads the rest of its
 # settings from this environment: the same bucket with PROVIDER__PREFIX=staging/, and
 # DONKA_SECRET_BUREAU_API_KEY. BUREAU_SECRET is that key's value: the test checks it never
