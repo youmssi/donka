@@ -1369,6 +1369,11 @@ Confirmed 2026-10-25, before DNK-50:
   by its signature and readable offline. Studio learns of a newer release from the GitHub
   Releases API once a day, never when the installation is offline (`DONKA_UPDATE_CHECK=false`).
   Unattended upgrades follow the assisted upgrade in their own change.
+- **Unattended upgrades** (confirmed 2026-10-29): an installation declares its role
+  (`DONKA_INSTALLATION_ROLE`: production by default, demo with `--demo`, staging), and only
+  staging and demo upgrade by themselves; in a weekly window (`DONKA_AUTO_UPGRADE_WINDOW`, e.g.
+  `Sun 02:00-04:00`, the server's time); to the latest release of the same major version, a new
+  major version being announced and upgraded by hand.
 
 #### Acceptance criteria
 - [ ] From an empty server with Docker, pulling the images, preparing the installation and starting it reaches a Runtime decision recorded in Studio in five minutes or less on the documented reference machine; CI measures it

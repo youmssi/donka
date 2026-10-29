@@ -81,6 +81,21 @@ impl Registry {
         })
     }
 
+    /// The tags of `image`'s repository.
+    pub async fn tags(&self, image: &ImageRef) -> Result<Vec<String>, String> {
+        #[derive(serde::Deserialize)]
+        struct Tags {
+            #[serde(default)]
+            tags: Option<Vec<String>>,
+        }
+        let body = self
+            .get(image, "tags/list?n=10000", "application/json")
+            .await?;
+        let list: Tags = serde_json::from_slice(&body)
+            .map_err(|err| format!("the tag list of {} is not valid: {err}", image.name()))?;
+        Ok(list.tags.unwrap_or_default())
+    }
+
     /// The digest `image`'s tag points to now, computed from the manifest's own bytes.
     pub async fn digest(&self, image: &ImageRef) -> Result<String, String> {
         let manifest = self

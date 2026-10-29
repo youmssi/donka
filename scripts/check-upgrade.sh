@@ -6,10 +6,14 @@
 #
 # The two images are published as every test release (each a distinct image, with a label); the
 # releases are:
-#   2.2.0  unsigned                                   -> refused, nothing changed
+#   1.2.0  unsigned                                   -> refused, nothing changed
 #   9.0.0  its upgrade.json only upgrades from 8.x    -> refused, nothing changed
-#   2.1.0  a Studio that never becomes ready          -> rolled back, data and versions as before
+#   1.1.0  a Studio that never becomes ready          -> rolled back, data and versions as before
 #   2.0.0  Studio and Runtime                         -> upgraded, data kept, decisions still logged
+#
+# then unattended upgrades (`donka-admin auto-upgrade`), from 2.0.0:
+#   refused while the installation is production; in its window, to 2.0.1 rather than the next
+#   major version 3.0.0; then the auto-upgrade service itself moves to 2.0.2 and restarts on it.
 #
 # Needs Docker treating registry.test:5000 as an insecure registry, `127.0.0.1 registry.test` in
 # /etc/hosts, cosign, curl and jq.
@@ -34,6 +38,8 @@ fail() {
 cleanup() {
   (cd "$dir" && docker compose down -v >/dev/null 2>&1) || true
   docker rm -f donka-test-registry >/dev/null 2>&1 || true
+  # The auto-upgrade service runs as root: its backups and reports are root's.
+  docker run --rm -v "$work:/work" postgres:16-alpine rm -rf /work/install >/dev/null 2>&1 || true
   rm -rf "$work"
 }
 trap cleanup EXIT
@@ -55,15 +61,20 @@ publish donka-studio:1.0.0 "$studio_image"
 publish donka-runtime:1.0.0 "$runtime_image"
 publish donka-studio:2.0.0 "$studio_image"
 publish donka-runtime:2.0.0 "$runtime_image"
-publish donka-studio:2.1.0 "$studio_image" 'CMD ["donka-admin", "no-such-command"]'
-publish donka-studio:2.2.0 "$studio_image"
+publish donka-studio:1.1.0 "$studio_image" 'CMD ["donka-admin", "no-such-command"]'
+publish donka-studio:1.2.0 "$studio_image"
 publish donka-studio:9.0.0 "$studio_image" 'COPY upgrade-9.json /etc/donka/upgrade.json'
+publish donka-studio:2.0.1 "$studio_image"
+publish donka-studio:3.0.0 "$studio_image"
 
 (cd "$work" && COSIGN_PASSWORD=test cosign generate-key-pair >/dev/null 2>&1)
-for image in donka-studio:2.0.0 donka-runtime:2.0.0 donka-studio:2.1.0 donka-studio:9.0.0; do
+sign() {
   COSIGN_PASSWORD=test cosign sign --yes --key "$work/cosign.key" --tlog-upload=false \
-    --allow-insecure-registry --allow-http-registry "$R/$image" >/dev/null 2>&1 \
-    || fail "cannot sign $image"
+    --allow-insecure-registry --allow-http-registry "$R/$1" >/dev/null 2>&1 || fail "cannot sign $1"
+}
+for image in donka-studio:2.0.0 donka-runtime:2.0.0 donka-studio:1.1.0 donka-studio:9.0.0 \
+  donka-studio:2.0.1 donka-studio:3.0.0; do
+  sign "$image"
 done
 
 mkdir -p "$dir"
@@ -93,6 +104,15 @@ expect() {
   [ "$status" = "$1" ] || fail "upgrade ${*:2} exited with $status, not $1"
   last_report=$(ls -t "$dir"/upgrades/*.txt | head -1)
 }
+# unattended <exit status>: one look by the installed version's `auto-upgrade --once`
+unattended() {
+  local status=0
+  docker run --rm -u "$(id -u):$(id -g)" --group-add "$(stat -c %g /var/run/docker.sock)" \
+    -v /var/run/docker.sock:/var/run/docker.sock -v "$dir:/install" -w /install \
+    "$R/donka-studio:$(version DONKA_VERSION)" donka-admin auto-upgrade --once || status=$?
+  [ "$status" = "$1" ] || fail "auto-upgrade --once exited with $status, not $1"
+}
+set_env() { sed -i "/^$1=/d" "$dir/.env" && echo "$1=$2" >> "$dir/.env"; }
 unchanged() {
   [ "$(version DONKA_VERSION)" = 1.0.0 ] || fail "$1: .env names Studio $(version DONKA_VERSION)"
   [ "$(running app)" = "$(image_id donka-studio:1.0.0)" ] || fail "$1: Studio is not 1.0.0"
@@ -102,8 +122,8 @@ unchanged() {
 before=$(recorded)
 [ "$before" -ge 1 ] || fail "no decision recorded before the upgrades"
 
-expect 3 2.2.0
-grep -q "has no cosign signature" "$last_report" || fail "2.2.0 was not refused for its signature"
+expect 3 1.2.0
+grep -q "has no cosign signature" "$last_report" || fail "1.2.0 was not refused for its signature"
 [ ! -e "$dir/backups" ] || fail "a refused upgrade took a backup"
 unchanged "unsigned"
 echo "check-upgrade: an unsigned release is refused"
@@ -113,9 +133,9 @@ grep -q "upgrades Studio >=8.0.0, not 1.0.0" "$last_report" || fail "9.0.0 was n
 unchanged "incompatible"
 echo "check-upgrade: an incompatible release is refused"
 
-expect 4 2.1.0
-grep -q "FAIL upgrade Studio" "$last_report" || fail "2.1.0 did not fail its smoke test"
-grep -q "ok   restore the previous versions" "$last_report" || fail "2.1.0 was not restored"
+expect 4 1.1.0
+grep -q "FAIL upgrade Studio" "$last_report" || fail "1.1.0 did not fail its smoke test"
+grep -q "ok   restore the previous versions" "$last_report" || fail "1.1.0 was not restored"
 unchanged "rolled back"
 [ "$(recorded)" = "$before" ] || fail "the rollback lost decision records"
 echo "check-upgrade: a release that fails its smoke test is rolled back, data kept"
@@ -135,3 +155,40 @@ STUDIO_URL=http://localhost:8080 RUNTIME_URL=http://localhost:8090 \
 for _ in $(seq 1 60); do [ "$(recorded)" -gt "$before" ] && break; sleep 1; done
 [ "$(recorded)" -gt "$before" ] || fail "the upgraded Runtime's decisions do not reach Studio"
 echo "check-upgrade: Studio and the Runtime upgraded to 2.0.0, data kept, decisions still recorded"
+
+reports=$(ls "$dir"/upgrades/*.txt | wc -l)
+unattended 3
+[ "$(version DONKA_VERSION)" = 2.0.0 ] || fail "a production installation upgraded by itself"
+[ "$(ls "$dir"/upgrades/*.txt | wc -l)" = "$reports" ] || fail "a production installation tried an upgrade"
+echo "check-upgrade: a production installation never upgrades by itself"
+
+# A window that opened a minute ago, on today's day (the runner's and the containers' UTC).
+set_env DONKA_INSTALLATION_ROLE staging
+set_env DONKA_AUTO_UPGRADE_WINDOW "$(date -u -d '-1 minute' '+%a %H:%M')-$(date -u -d '+30 minutes' '+%H:%M')"
+unattended 0
+[ "$(version DONKA_VERSION)" = 2.0.1 ] || fail "the unattended upgrade went to $(version DONKA_VERSION), not 2.0.1"
+[ "$(running app)" = "$(image_id donka-studio:2.0.1)" ] || fail "Studio does not run 2.0.1"
+[ "$(version DONKA_RUNTIME_VERSION)" = 2.0.0 ] || fail "the Runtime moved without a later release"
+echo "check-upgrade: in its window, a staging installation upgrades to 2.0.1, not the major 3.0.0"
+
+set_env DONKA_AUTO_UPGRADE_WINDOW "$(date -u -d '+1 day' '+%a') 02:00-04:00"
+unattended 0
+[ "$(version DONKA_VERSION)" = 2.0.1 ] || fail "an upgrade ran outside the window"
+echo "check-upgrade: outside its window, nothing happens"
+
+# The service itself: it looks at once, upgrades, then is recreated on the release it installed.
+publish donka-studio:2.0.2 "$studio_image"
+sign donka-studio:2.0.2
+set_env DONKA_AUTO_UPGRADE_WINDOW "$(date -u -d '-1 minute' '+%a %H:%M')-$(date -u -d '+30 minutes' '+%H:%M')"
+set_env COMPOSE_PROFILES auto-upgrade
+(cd "$dir" && docker compose up -d auto-upgrade >/dev/null)
+for _ in $(seq 1 120); do
+  [ "$(version DONKA_VERSION)" = 2.0.2 ] && [ "$(running auto-upgrade 2>/dev/null)" = "$(image_id donka-studio:2.0.2)" ] && break
+  sleep 5
+done
+[ "$(version DONKA_VERSION)" = 2.0.2 ] || fail "the auto-upgrade service did not upgrade to 2.0.2"
+[ "$(running app)" = "$(image_id donka-studio:2.0.2)" ] || fail "Studio does not run 2.0.2"
+[ "$(running auto-upgrade)" = "$(image_id donka-studio:2.0.2)" ] \
+  || fail "the auto-upgrade service still runs the previous release"
+[ "$(recorded)" -gt "$before" ] || fail "the unattended upgrades lost decision records"
+echo "check-upgrade: the auto-upgrade service upgraded to 2.0.2 and restarted on it"

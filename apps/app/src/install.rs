@@ -2,6 +2,8 @@
 //! nothing but Docker on the server. It writes `docker-compose.yml` and `.env` with random
 //! secrets into a folder, and never overwrites either: a second run keeps what is there.
 
+use crate::upgrade::auto::{Role, Window};
+use crate::upgrade::UPGRADER;
 use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine as _;
 use std::io::Write as _;
@@ -23,6 +25,10 @@ pub struct Options {
     pub registry: Option<String>,
     /// No internet access: Studio never checks for new releases.
     pub offline: bool,
+    /// What the installation is; production unless said otherwise (the demo is a demo).
+    pub role: Option<Role>,
+    /// The weekly window of unattended upgrades, which turns them on (staging and demo only).
+    pub auto_upgrade: Option<Window>,
     /// The demo: the retail-credit pack released to staging at the first start, its bureau
     /// connector answered by a bundled fake bureau.
     pub demo: bool,
@@ -43,6 +49,8 @@ impl Options {
             runtime_version: if released { "latest" } else { "edge" }.to_owned(),
             registry: None,
             offline: false,
+            role: None,
+            auto_upgrade: None,
             demo: false,
         }
     }
@@ -121,8 +129,38 @@ fn env_file(
         runtime_version,
         registry,
         offline,
+        role,
+        auto_upgrade,
         demo,
     } = options;
+    let role = role.unwrap_or(if *demo { Role::Demo } else { Role::Production });
+    if auto_upgrade.is_some() && !role.upgrades_unattended() {
+        return Err(
+            "unattended upgrades never run in production: add --role staging (or demo)".to_owned(),
+        );
+    }
+    let role = role.as_str();
+    let profiles: Vec<&str> = [(*demo, "demo"), (auto_upgrade.is_some(), UPGRADER)]
+        .into_iter()
+        .filter_map(|(on, profile)| on.then_some(profile))
+        .collect();
+    let profiles = if profiles.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "\n# Optional services\nCOMPOSE_PROFILES={}\n",
+            profiles.join(",")
+        )
+    };
+    let auto_upgrade = match auto_upgrade {
+        Some(window) => format!(
+            "\n# Unattended upgrades (donka-admin init --auto-upgrade): to the latest release of the\n\
+             # same major version, in this weekly window (the server's time), verified with\n\
+             # cosign.pub in this folder and reported in upgrades/\n\
+             DONKA_AUTO_UPGRADE_WINDOW={window}\n"
+        ),
+        None => String::new(),
+    };
     let offline = if *offline {
         "\n# No internet access (donka-admin init --offline): Studio never checks for new releases\n\
          DONKA_UPDATE_CHECK=false\n"
@@ -137,8 +175,7 @@ fn env_file(
     };
     let demo = if *demo {
         "\n# The demo (donka-admin init --demo): the retail-credit pack released to staging at the\n\
-         # first start, and the fake bureau its connector calls\n\
-         COMPOSE_PROFILES=demo\n\
+         # first start, and the fake bureau its connector calls (the demo profile)\n\
          DONKA_DEMO=true\n"
     } else {
         ""
@@ -152,6 +189,9 @@ fn env_file(
          DONKA_VERSION={studio_version}\n\
          DONKA_RUNTIME_VERSION={runtime_version}\n\
          {registry}\n\
+         \n\
+         # What this installation is: production, staging or demo. Production never upgrades by itself.\n\
+         DONKA_INSTALLATION_ROLE={role}\n\
          \n\
          # Where people reach Studio; behind HTTPS, also set DONKA_COOKIE_SECURE=true\n\
          DONKA_PUBLIC_URL={public_url}\n\
@@ -170,7 +210,7 @@ fn env_file(
          # Mail: Mailpit (http://localhost:8025) catches every email until these point at your server\n\
          # DONKA_SMTP_URL=smtp://user:pass@mail.example:587?tls=required\n\
          # DONKA_SMTP_FROM=Donka <donka@example>\n\
-         {offline}{demo}"
+         {offline}{profiles}{demo}{auto_upgrade}"
     ))
 }
 
@@ -390,5 +430,46 @@ mod tests {
         let token = "/var/lib/donka/wiring/staging-decision-log-token";
         assert!(COMPOSE.contains(&format!("DONKA_RUNTIME_LOG_TOKEN_FILE: {token}")));
         assert!(COMPOSE.contains(&format!("DECISION_LOG__TOKEN_FILE: {token}")));
+    }
+
+    #[test]
+    fn the_role_and_unattended_upgrades_are_written_for_staging_only() {
+        let plain = dir("role-plain");
+        init(&plain, &Options::for_version("1.4.0"), system_random).unwrap();
+        let env = std::fs::read_to_string(plain.join(".env")).unwrap();
+        assert_eq!(env_value(&env, "DONKA_INSTALLATION_ROLE"), "production");
+        assert!(!env.contains("COMPOSE_PROFILES") && !env.contains("DONKA_AUTO_UPGRADE_WINDOW"));
+
+        let window = Window::parse("Sun 02:00-04:00").unwrap();
+        let production = Options {
+            auto_upgrade: Some(window),
+            ..Options::for_version("1.4.0")
+        };
+        let refused = init(&dir("role-production"), &production, system_random).unwrap_err();
+        assert!(refused.contains("never run in production"), "{refused}");
+
+        let staging = dir("role-staging");
+        let options = Options {
+            role: Some(Role::Staging),
+            ..production.clone()
+        };
+        init(&staging, &options, system_random).unwrap();
+        let env = std::fs::read_to_string(staging.join(".env")).unwrap();
+        assert_eq!(env_value(&env, "DONKA_INSTALLATION_ROLE"), "staging");
+        assert_eq!(env_value(&env, "COMPOSE_PROFILES"), "auto-upgrade");
+        assert_eq!(
+            env_value(&env, "DONKA_AUTO_UPGRADE_WINDOW"),
+            "Sun 02:00-04:00"
+        );
+
+        let demo = dir("role-demo");
+        let options = Options {
+            demo: true,
+            ..production
+        };
+        init(&demo, &options, system_random).unwrap();
+        let env = std::fs::read_to_string(demo.join(".env")).unwrap();
+        assert_eq!(env_value(&env, "DONKA_INSTALLATION_ROLE"), "demo");
+        assert_eq!(env_value(&env, "COMPOSE_PROFILES"), "demo,auto-upgrade");
     }
 }

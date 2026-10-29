@@ -286,6 +286,37 @@ impl Engine {
         }
     }
 
+    /// Starts a helper container and leaves it: Docker removes it when it ends. For the last
+    /// step of an unattended upgrade, which recreates the upgrade's own container.
+    pub async fn start_detached(&self, helper: Helper) -> Result<(), String> {
+        let created = self
+            .docker
+            .create_container(
+                None::<bollard::query_parameters::CreateContainerOptions>,
+                ContainerCreateBody {
+                    image: Some(helper.image.clone()),
+                    cmd: Some(helper.cmd),
+                    user: helper.user,
+                    working_dir: helper.working_dir,
+                    host_config: Some(HostConfig {
+                        binds: Some(helper.binds),
+                        auto_remove: Some(true),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                },
+            )
+            .await
+            .map_err(|err| format!("cannot create a {} container: {err}", helper.image))?;
+        self.docker
+            .start_container(
+                &created.id,
+                None::<bollard::query_parameters::StartContainerOptions>,
+            )
+            .await
+            .map_err(|err| err.to_string())
+    }
+
     async fn wait(&self, id: &str) -> Result<i64, String> {
         self.docker
             .start_container(id, None::<bollard::query_parameters::StartContainerOptions>)
