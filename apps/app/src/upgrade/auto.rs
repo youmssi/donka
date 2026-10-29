@@ -69,6 +69,8 @@ pub async fn tick(
     );
     let prefix = env_value(&env, "DONKA_REGISTRY").unwrap_or_else(|| DEFAULT_REGISTRY.to_owned());
     let engine = Engine::connect().await?;
+    // As the upgrade itself does: a registry or mirror may only be reachable from there.
+    engine.join_network().await?;
     let registry = Registry::new(
         settings.credentials.clone(),
         engine.insecure_registries().await?,
