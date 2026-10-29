@@ -100,7 +100,8 @@ fn env_file(
          DONKA_COOKIE_SECURE=false\n\
          # Created on the empty database; its one-time setup link is in the logs\n\
          DONKA_BOOTSTRAP_ADMIN_EMAIL={admin_email}\n\
-         DONKA_MFA_REQUIRED=privileged\n\
+         # A second sign-in step for administrators and owners (an account running the smoke test\n\
+         # then needs one too): DONKA_MFA_REQUIRED=privileged\n\
          \n\
          # Generated secrets\n\
          DONKA_POSTGRES_PASSWORD={password}\n\
@@ -186,6 +187,14 @@ mod tests {
             assert_eq!(B64.decode(env_value(&env, key)).unwrap().len(), 32, "{key}");
         }
         assert_eq!(env_value(&env, "DONKA_POSTGRES_PASSWORD").len(), 48);
+        // Every line is a comment or KEY=value, with nothing after the value.
+        for line in env.lines().filter(|l| !l.is_empty() && !l.starts_with('#')) {
+            assert!(
+                line.split_once('=')
+                    .is_some_and(|(k, _)| k.starts_with("DONKA_")),
+                "{line}"
+            );
+        }
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt as _;
