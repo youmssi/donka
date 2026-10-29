@@ -32,36 +32,53 @@ serveur.
 ```bash
 echo "$DONKA_REGISTRY_TOKEN" | docker login ghcr.io -u <votre utilisateur GitHub> --password-stdin
 mkdir donka && cd donka
-docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/install" -w /install \
-  ghcr.io/youmssi/donka-studio:latest donka-admin init \
-  --public-url https://donka.banque.example --admin-email vous@banque.example
+docker run --rm -it -u "$(id -u):$(id -g)" -v "$PWD:/install" -w /install \
+  ghcr.io/youmssi/donka-studio:latest donka-admin init
 docker compose up -d
 ```
 
-1. `donka-admin init` écrit `docker-compose.yml` et `.env` dans le dossier. `.env` contient les
-   secrets de l'installation (mot de passe de la base, clés du journal des décisions, de la
-   seconde étape et de l'index des personnes), tirés au hasard et lisibles par vous seul.
-   Relancer init n'écrase jamais ces fichiers. Gardez `.env` hors du contrôle de version et
-   sauvegardez-le (section 3).
-2. Récupérez le lien à usage unique pour choisir le mot de passe du premier administrateur ;
+1. `donka-admin init` pose ses questions, en français ou en anglais, chacune avec une valeur par
+   défaut : la langue, l'adresse où l'on joint Studio, le premier administrateur, ce qu'est
+   l'installation (production, staging ou démo), qui se connecte avec une seconde étape, où
+   sont stockées les versions (le disque de ce serveur ou un stockage S3), le serveur de
+   messagerie, le modèle de langage qui explique les décisions, le fichier de licence, l'accès
+   à internet et, en staging et en démo, les mises à jour automatiques. Il montre un résumé
+   avant d'écrire quoi que ce soit. Chaque réponse peut aussi être donnée en option
+   (`--public-url`, `--admin-email`, `--role`…, voir `donka-admin --help`) ; avec `--yes`, ou
+   sans terminal (sans `-it`), init ne pose aucune question et prend les valeurs par défaut.
+2. Il écrit, dans le dossier :
+
+   | Fichier | Contenu |
+   | --- | --- |
+   | `donka.yaml` | Vos réponses. Aucun secret : il peut aller dans le contrôle de version |
+   | `secrets/` | Un fichier par secret, monté en lecture seule sur `/run/secrets` dans les conteneurs |
+   | `.env`, `runtime.env` | Les paramètres de Studio et du Runtime de staging, écrits depuis `donka.yaml` ; ils nomment les fichiers secrets (`*_FILE`), jamais une valeur |
+   | `docker-compose.yml` | Les services |
+
+   Init tire au hasard le mot de passe de la base et les clés du journal des décisions, de la
+   seconde étape et de l'index des personnes. Les secrets que vous détenez (l'URL du serveur de
+   messagerie, les clés du stockage, la clé du modèle de langage, la licence) sont demandés une
+   fois et écrits dans `secrets/` sans être affichés. Le dossier n'est lisible que par vous.
+   Relancer init ne change rien tant que `donka.yaml` existe, et un fichier secret n'est
+   jamais écrasé. Sauvegardez `donka.yaml` et `secrets/` ensemble (section 3).
+3. Récupérez le lien à usage unique pour choisir le mot de passe du premier administrateur ;
    c'est le seul secret jamais affiché :
 
    ```bash
    docker compose logs app | grep setup-password
    ```
 
-3. Ouvrez Studio (port 8080), choisissez le mot de passe, puis lancez le test de fumée
+4. Ouvrez Studio (port 8080), choisissez le mot de passe, puis lancez le test de fumée
    (section 2).
 
-Sans options, init prépare un premier essai sur cette machine : http://localhost:8080 et
+Les valeurs par défaut préparent un premier essai sur cette machine : http://localhost:8080 et
 `admin@donka.local`. `--studio-version` et `--runtime-version` fixent d'autres versions
-d'images ; `--registry` prend les images dans votre propre miroir de `ghcr.io/youmssi`
-(`DONKA_REGISTRY` dans `.env`).
+d'images ; `--registry` prend les images dans votre propre miroir de `ghcr.io/youmssi`.
 
 **La démo.** `donka-admin init --demo` prépare la même installation avec un projet prêt à être
 appelé. Au premier démarrage, Studio importe le pack *Crédit aux particuliers*, le publie et le
 déploie en staging, et un faux bureau de crédit répond à son connecteur (service `demo-bureau`,
-clé dans `runtime.env`). Une fois le mot de passe du premier administrateur choisi, la liste
+clé dans `secrets/connector_bureau_api_key`). Une fois le mot de passe du premier administrateur choisi, la liste
 *Pour commencer* montre les étapes déjà faites ; créez un jeton Runtime dans **Environnements**
 et appelez la décision :
 
@@ -78,41 +95,57 @@ plupart sont sans incident, `7` et `8` ont des retards et `9` des retards graves
 décision apparaît dans le journal des décisions de Studio. Une démo sert à un premier essai :
 réinstallez sans `--demo` pour un usage réel.
 
-Pour changer un paramètre ensuite, modifiez `.env` puis lancez `docker compose up -d`. **Avant
-un usage réel**, définissez au moins l'adresse où l'on joint Studio et votre serveur de
-messagerie :
+**Changer un paramètre ensuite** se fait dans `donka.yaml`, puis on réécrit les fichiers et on
+redémarre :
 
-```bash
-# .env
-DONKA_PUBLIC_URL=https://donka.banque.example   # l'adresse où l'on joint Studio
-DONKA_COOKIE_SECURE=true                        # Studio est servi en HTTPS
-DONKA_SMTP_URL=smtp://user:pass@mail.banque.example:587?tls=required
-DONKA_SMTP_FROM=Donka <donka@banque.example>
+```yaml
+# donka.yaml (extrait)
+public_url: https://donka.banque.example # en HTTPS, les sessions utilisent des cookies sécurisés
+administrator: vous@banque.example
+role: production
+second_step: privileged                  # none, privileged ou all
+storage:
+  kind: disk                             # ou s3, avec bucket, region et endpoint
+mail:
+  kind: smtp                             # mailpit retient tous les e-mails à la place
+  from: Donka <donka@banque.example>     # l'URL, avec le mot de passe, dans secrets/smtp_url
 ```
 
-**Secrets sous forme de fichiers.** Chaque paramètre secret `X` (URL de la base, URL de
-messagerie, clés du stockage, clés du journal des décisions, de l'index des personnes et de la
-seconde étape et leurs clés précédentes, clé du LLM) peut être donné à la place par `X_FILE`, le
-chemin d'un fichier qui contient la valeur, comme les fournissent les secrets Docker et
-Kubernetes et les agents de coffre-fort (OpenBao, Vault, Infisical). Les sauts de ligne finaux
-sont retirés. Définir les deux formes, ou un fichier que Studio ne peut pas lire, arrête Studio
-au démarrage en nommant le paramètre. Avec les secrets Docker, par exemple :
+```bash
+docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/install" -w /install \
+  ghcr.io/youmssi/donka-studio:<version installée> donka-admin init --config donka.yaml
+docker compose up -d
+```
+
+`init --config` ne pose aucune question. Quand une réponse demande un secret absent de
+`secrets/`, il s'arrête et nomme le fichier à écrire, par exemple `./secrets/smtp_url is
+missing: write the SMTP URL there`. Écrivez-le (`printf '%s'
+'smtp://user:pass@mail.banque.example:587?tls=required' > secrets/smtp_url`), puis relancez.
+**Avant un usage réel**, définissez au moins l'adresse où l'on joint Studio et votre serveur de
+messagerie.
+
+Ne modifiez pas `.env` ni `runtime.env` : init les réécrit. Un paramètre que `donka.yaml` ne
+contient pas (ceux de [.env.example](../.env.example), ou ceux du Runtime) va dans
+`docker-compose.override.yml`, que Compose lit après `docker-compose.yml` et qu'init ne touche
+jamais :
 
 ```yaml
 # docker-compose.override.yml
 services:
   app:
     environment:
-      DONKA_DECISION_LOG_KEY: ""                # le fichier compose a une valeur par défaut : videz-la
-      DONKA_DECISION_LOG_KEY_FILE: /run/secrets/decision_log_key
-    secrets: [decision_log_key]
-secrets:
-  decision_log_key:
-    file: ./secrets/decision_log_key           # openssl rand -base64 32 > secrets/decision_log_key
+      DONKA_TRUSTED_PROXIES: 172.16.0.0/12
 ```
 
-Sur Kubernetes, montez le secret en volume et faites pointer `X_FILE` vers le fichier. Le Runtime
-accepte la même forme pour ses secrets
+**Secrets sous forme de fichiers.** Chaque paramètre secret `X` (URL de la base, URL de
+messagerie, clés du stockage, clés du journal des décisions, de l'index des personnes et de la
+seconde étape et leurs clés précédentes, clé du LLM) est donné par `X_FILE`, le chemin d'un
+fichier qui contient la valeur : init les fait pointer vers `/run/secrets/`. Les sauts de ligne
+finaux sont retirés. Définir les deux formes, ou un fichier que Studio ne peut pas lire, arrête
+Studio au démarrage en nommant le paramètre. Les agents de coffre-fort (OpenBao, Vault,
+Infisical) peuvent écrire les fichiers de `secrets/` à votre place. Sur Kubernetes, montez le
+secret en volume et faites pointer `X_FILE` vers le fichier. Le Runtime accepte la même forme
+pour ses secrets
 ([guide de configuration](https://github.com/youmssi/donka-runtime/blob/develop/docs/configuration.md)).
 
 Derrière un proxy inverse, définissez aussi `DONKA_TRUSTED_PROXIES` avec son adresse (ou le
@@ -125,18 +158,9 @@ indiquez-le dans `DONKA_PACKS_DIR` ; Studio ne démarre pas si l'un d'eux est in
 
 **Licence.** Donka envoie à chaque installation un fichier de licence qui nomme l'organisation,
 les jours de validité et les modules inclus (explications, connecteurs, analyse). Studio le
-vérifie sans accès réseau, au démarrage puis chaque jour. Montez-le en lecture seule et indiquez
-son chemin dans `DONKA_LICENCE_FILE` :
-
-```yaml
-# docker-compose.override.yml
-services:
-  app:
-    environment:
-      DONKA_LICENCE_FILE: /etc/donka/licence.json
-    volumes:
-      - ./licence.json:/etc/donka/licence.json:ro
-```
+vérifie sans accès réseau, au démarrage puis chaque jour. Donnez son chemin quand init le
+demande, ou copiez-le dans `secrets/licence.json`, mettez `licence: true` dans `donka.yaml` et
+lancez `init --config donka.yaml`.
 
 - **Sans fichier de licence**, Studio fonctionne en évaluation : tout marche, mais les releases
   ne peuvent pas aller en production.
@@ -147,7 +171,7 @@ services:
 - **Les décisions ne sont jamais touchées :** le Runtime ne lit pas les licences et continue de
   servir les règles publiées.
 
-Pour installer une nouvelle licence, remplacez le fichier et rechargez-le sans redémarrage :
+Pour installer une nouvelle licence, remplacez `secrets/licence.json` et rechargez-le sans redémarrage :
 
 ```bash
 docker compose kill -s HUP app
@@ -156,9 +180,8 @@ docker compose kill -s HUP app
 Un module que la licence n'inclut pas est masqué dans Studio, et ses actions sont refusées avec
 un message qui le nomme.
 
-PostgreSQL prend son mot de passe à la création de ses données (la section 5 explique comment
-le changer ensuite). Tous les autres paramètres de Studio, listés dans
-[.env.example](../.env.example), peuvent aller dans le même fichier.
+PostgreSQL prend son mot de passe, `secrets/postgres_password`, à la création de ses données
+(la section 5 explique comment le changer ensuite).
 
 Le Runtime de staging envoie ses décisions au journal des décisions de Studio avec un jeton que
 Studio crée à son premier démarrage, listé comme *Staging Runtime (installed)* parmi les jetons
@@ -170,34 +193,28 @@ docker run --rm -v donka_wiring:/wiring alpine rm /wiring/staging-decision-log-t
 docker compose restart app runtime
 ```
 
-Le Runtime lit des paramètres supplémentaires dans un fichier facultatif `runtime.env` à côté
-de `docker-compose.yml` ; ils sont décrits dans son
+Le Runtime de staging lit ses paramètres dans `runtime.env`, qu'init écrit ; ajoutez-en d'autres
+dans `docker-compose.override.yml` (sous `runtime:`). Ils sont décrits dans son
 [guide de configuration](https://github.com/youmssi/donka-runtime/blob/develop/docs/configuration.md).
 Un Runtime de production tourne en général sur une autre machine : Studio et ses Runtimes
 partagent alors un stockage S3 (le vôtre, ou [SILO](https://github.com/pgsty/silo)) au lieu du
 volume `releases`.
 
 **Secrets des connecteurs.** Les nœuds connecteurs d'une décision nomment leurs secrets ; le
-Runtime lit chaque valeur dans `DONKA_SECRET_<NOM>`, ou dans le fichier désigné par
-`DONKA_SECRET_<NOM>_FILE`. Un service qui demande un jeton OAuth2 a besoin de son secret client ;
-un service qui exige le TLS mutuel a besoin d'un certificat client, de sa clé et, pour une AC
-privée, du bundle de l'AC, de préférence sous forme de fichiers :
-
-```bash
-# runtime.env
-DONKA_SECRET_BUREAU_API_KEY=...                                  # une clé d'API dans un en-tête
-DONKA_SECRET_CBS_CLIENT_SECRET=...                               # identifiants client OAuth2
-DONKA_SECRET_CBS_CLIENT_CERT_FILE=/run/secrets/cbs-client.crt    # TLS mutuel, PEM
-DONKA_SECRET_CBS_CLIENT_KEY_FILE=/run/secrets/cbs-client.key
-DONKA_SECRET_CBS_CA_FILE=/run/secrets/cbs-ca.pem
-```
+Runtime lit chaque valeur dans le fichier désigné par `DONKA_SECRET_<NOM>_FILE` (ou dans
+`DONKA_SECRET_<NOM>`). Un service qui demande un jeton OAuth2 a besoin de son secret client ; un
+service qui exige le TLS mutuel a besoin d'un certificat client, de sa clé et, pour une AC
+privée, du bundle de l'AC. Listez les noms dans `donka.yaml`, écrivez chaque valeur dans
+`secrets/connector_<nom>` (en minuscules), puis lancez `init --config donka.yaml` :
 
 ```yaml
-# docker-compose.override.yml : les fichiers de certificats, en lecture seule
-services:
-  runtime:
-    volumes:
-      - ./secrets:/run/secrets:ro
+# donka.yaml
+connector_secrets:
+  - BUREAU_API_KEY          # secrets/connector_bureau_api_key : une clé d'API dans un en-tête
+  - CBS_CLIENT_SECRET       # identifiants client OAuth2
+  - CBS_CLIENT_CERT         # TLS mutuel, PEM
+  - CBS_CLIENT_KEY
+  - CBS_CA
 ```
 
 Les paramètres de chaque méthode, et la façon dont les échecs sont signalés, sont dans le
@@ -289,7 +306,8 @@ de test dans Studio.
 
 ## 3. Sauvegarder
 
-Sauvegardez trois choses, ensemble : la base de données, le volume des versions et les secrets.
+Sauvegardez trois choses, ensemble : la base de données, le volume des versions et le dossier
+de l'installation (`donka.yaml` et `secrets/`).
 
 ```bash
 mkdir -p backups
@@ -304,11 +322,11 @@ docker run --rm -v donka_releases:/releases:ro -v "$PWD/backups:/backups" alpine
   tar -czf "/backups/releases-$stamp.tar.gz" -C /releases .
 ```
 
-Gardez `.env` et `runtime.env` dans votre coffre à secrets. **Sans `DONKA_DECISION_LOG_KEY` (et,
-après un renouvellement, les clés de `DONKA_DECISION_LOG_PREVIOUS_KEYS`), le journal des
-décisions est illisible**, même depuis une sauvegarde. **Sans `DONKA_SECOND_STEP_KEY` (et ses
-clés précédentes), personne ayant une seconde étape de connexion ne peut se connecter** après une
-restauration : conservez-la aussi avec les sauvegardes. **Sans `DONKA_PERSON_INDEX_KEY`,
+Gardez une copie de `secrets/` dans votre coffre à secrets. **Sans la clé du journal des
+décisions (`secrets/decision_log_key` et, après un renouvellement, ses clés précédentes), le
+journal des décisions est illisible**, même depuis une sauvegarde. **Sans la clé de la seconde
+étape (et ses clés précédentes), personne ayant une seconde étape de connexion ne peut se connecter** après une
+restauration : conservez-la aussi avec les sauvegardes. **Sans la clé de l'index des personnes,
 personne ne peut être retrouvé par ses identifiants** dans un journal restauré, tant qu'il n'a
 pas été indexé de nouveau avec une nouvelle clé (ci-dessous).
 
@@ -348,9 +366,11 @@ docker run --rm -u "$(id -u):$(id -g)" --group-add "$(stat -c %g /var/run/docker
    installation qu'elle refuse reste telle quelle : passez d'abord par la version que nomment les
    notes, ou ajoutez `--runtime-version`.
 3. **Sauvegarder** dans `backups/<heure>/` : la base (`donka.dump`), les volumes des versions
-   publiées et du raccordement (`volumes.tar.gz`), `.env`, `runtime.env` et `docker-compose.yml`.
-4. **Mettre à jour le Runtime, puis Studio**, en installant le `docker-compose.yml` de la
-   nouvelle version (gardez vos propres changements dans `docker-compose.override.yml`). Après
+   publiées et du raccordement (`volumes.tar.gz`), `donka.yaml`, `secrets/`, `.env`,
+   `runtime.env` et `docker-compose.yml`.
+4. **Mettre à jour le Runtime, puis Studio** : les nouvelles versions vont dans `donka.yaml`,
+   et les fichiers sont réécrits à partir de lui avec le `docker-compose.yml` de la nouvelle
+   version (gardez vos propres changements dans `docker-compose.override.yml`). Après
    chacun, le test de fumée : Studio prêt (base joignable, migrations appliquées), les deux
    services sur les images vérifiées, le Runtime en bonne santé.
 5. **Si un contrôle échoue**, les versions précédentes, la base, les volumes et les fichiers
@@ -368,8 +388,9 @@ choses). Lancez ensuite le test de fumée complet (section 2).
    Runtime à jour.
 2. Sauvegardez (section 3). Les migrations de la base ne vont que vers l'avant : le retour
    arrière, c'est la sauvegarde.
-3. Indiquez les nouvelles versions dans `.env` (`DONKA_VERSION`, et `DONKA_RUNTIME_VERSION`
-   quand les notes de version en nomment une), vérifiez les images (*Images publiées*), puis
+3. Indiquez les nouvelles versions dans `donka.yaml` (`images.studio`, et `images.runtime`
+   quand les notes de version en nomment une), lancez `donka-admin init --config donka.yaml`
+   avec l'image de la **nouvelle** version, vérifiez les images (*Images publiées*), puis
    récupérez-les et redémarrez :
 
    ```bash
@@ -390,12 +411,14 @@ choses). Lancez ensuite le test de fumée complet (section 2).
 seulement, désactivées par défaut). Préparez l'installation avec son rôle et une fenêtre
 hebdomadaire, à l'heure du serveur :
 
-```bash
-donka-admin init --role staging --auto-upgrade "Sun 02:00-04:00" …
+```yaml
+# donka.yaml, puis : donka-admin init --config donka.yaml
+role: staging
+auto_upgrade: Sun 02:00-04:00
 ```
 
-Cela écrit `DONKA_INSTALLATION_ROLE=staging`, `DONKA_AUTO_UPGRADE_WINDOW` et le profil
-`auto-upgrade` dans `.env` ; sur une installation existante, ajoutez ces trois lignes à la main.
+L'assistant demande aussi la fenêtre (en options : `--role staging --auto-upgrade "Sun
+02:00-04:00"`) ; elle active le service `auto-upgrade`.
 Gardez le `cosign.pub` de Donka dans le dossier. Le service `auto-upgrade` regarde alors toutes
 les cinq minutes. Une fois par fenêtre, il met à jour vers la dernière version de la même version
 majeure, exactement comme `donka-admin upgrade` : vérifiée, sauvegardée, contrôlée, ramenée en
@@ -412,35 +435,51 @@ Prévoyez une courte fenêtre de maintenance pour les mots de passe : les servic
 **Mot de passe de la base**
 
 ```bash
-docker compose exec postgres psql -U donka -c "ALTER USER donka PASSWORD 'nouveau-mot-de-passe'"
-# mettez DONKA_POSTGRES_PASSWORD=nouveau-mot-de-passe dans .env, puis :
-docker compose up -d app
+new=$(openssl rand -hex 24)
+docker compose exec postgres psql -U donka -c "ALTER USER donka PASSWORD '$new'"
+printf '%s' "$new" > secrets/postgres_password
+printf 'postgres://donka:%s@postgres:5432/donka' "$new" > secrets/database_url
+docker compose up -d --force-recreate app
 ```
 
 **Clés du stockage**, quand les versions vont dans un stockage S3 : changez la clé dans le
-stockage, mettez les nouvelles valeurs de `DONKA_STORAGE_ACCESS_KEY_ID` et
-`DONKA_STORAGE_SECRET_ACCESS_KEY` pour Studio et les clés `AWS_*` des Runtimes, puis
-redémarrez-les. Le volume `releases` n'a pas de clés.
+stockage, écrivez les nouvelles valeurs dans `secrets/storage_access_key_id` et
+`secrets/storage_secret_access_key` (le Runtime de staging lit les mêmes fichiers ; changez les
+clés `AWS_*` des autres Runtimes), puis redémarrez-les. Le volume `releases` n'a pas de clés.
 
-**Identifiants du serveur de messagerie** : changez `DONKA_SMTP_URL` dans `.env`, puis
-`docker compose up -d app`.
+**Identifiants du serveur de messagerie** : écrivez la nouvelle URL dans `secrets/smtp_url`,
+puis `docker compose restart app`.
 
 **Jetons Runtime, CI et journal des décisions** : ils se créent dans Studio. Créez un nouveau
 jeton, donnez-le au système qui l'utilise, vérifiez que ce système fonctionne, puis révoquez
 l'ancien. Chaque étape est dans le journal d'audit.
 
-**Clé du journal des décisions** : les enregistrements sont chiffrés avec
-`DONKA_DECISION_LOG_KEY`. Remplacez-la si elle a pu fuiter, si une personne qui la connaissait
+Studio lit ses clés dans `secrets/` ; leurs clés précédentes vont aussi dans des fichiers de ce
+dossier. Avant le premier renouvellement, créez-les vides (`touch
+secrets/decision_log_previous_keys secrets/second_step_previous_keys`) et nommez-les dans
+`docker-compose.override.yml` :
+
+```yaml
+# docker-compose.override.yml
+services:
+  app:
+    environment:
+      DONKA_DECISION_LOG_PREVIOUS_KEYS_FILE: /run/secrets/decision_log_previous_keys
+      DONKA_SECOND_STEP_PREVIOUS_KEYS_FILE: /run/secrets/second_step_previous_keys
+```
+
+**Clé du journal des décisions** : les enregistrements sont chiffrés avec la clé de
+`secrets/decision_log_key`. Remplacez-la si elle a pu fuiter, si une personne qui la connaissait
 part, ou si vous avez démarré avec une clé publique par défaut (le `docker-compose.yml` de la
 construction depuis les sources en contient). Chaque
 enregistrement indique la clé qui l'a chiffré, donc rien n'est perdu :
 
 1. Générez une nouvelle clé : `openssl rand -base64 32`.
-2. Dans `.env`, déplacez la valeur actuelle dans `DONKA_DECISION_LOG_PREVIOUS_KEYS` (plusieurs
-   clés sont séparées par des virgules) et mettez la nouvelle clé dans `DONKA_DECISION_LOG_KEY`.
+2. Déplacez la valeur actuelle dans `secrets/decision_log_previous_keys` (plusieurs clés sont
+   séparées par des virgules) et écrivez la nouvelle clé dans `secrets/decision_log_key`.
    Ne supprimez pas l'ancienne valeur : les enregistrements chiffrés avec elle ne seraient plus
    lisibles.
-3. `docker compose up -d app`. Studio chiffre les nouveaux enregistrements avec la nouvelle clé
+3. `docker compose up -d --force-recreate app`. Studio chiffre les nouveaux enregistrements avec la nouvelle clé
    et lit toujours les anciens avec la précédente ; son journal liste les clés encore utilisées.
 4. Rechiffrez les anciens enregistrements avec la nouvelle clé :
 
@@ -451,9 +490,9 @@ enregistrement indique la clé qui l'a chiffré, donc rien n'est perdu :
    La commande avance par lots de 500, chacun inscrit au journal d'audit du projet
    (*Décisions enregistrées rechiffrées*). Elle peut être arrêtée puis relancée : elle reprend
    avec les enregistrements restants. Si elle nomme une clé manquante, ajoutez d'abord cette clé
-   à `DONKA_DECISION_LOG_PREVIOUS_KEYS`.
+   à `secrets/decision_log_previous_keys`.
 5. Quand elle indique qu'aucun enregistrement n'utilise plus l'ancienne clé, retirez-la de
-   `DONKA_DECISION_LOG_PREVIOUS_KEYS` et relancez `docker compose up -d app`.
+   `secrets/decision_log_previous_keys` et redémarrez de nouveau Studio.
 
 Les sauvegardes faites avant le rechiffrement contiennent encore des enregistrements chiffrés
 avec l'ancienne clé : gardez l'ancienne clé avec ces sauvegardes, dans votre coffre à secrets,
@@ -461,15 +500,16 @@ jusqu'à leur expiration. Si la clé a fuité, restreignez aussi l'accès à la 
 sauvegardes : la clé seule ne donne pas accès aux enregistrements.
 
 **Clé de la seconde étape** : les secrets des applications d'authentification sont scellés avec
-`DONKA_SECOND_STEP_KEY`. Pour la remplacer, déplacez la valeur actuelle dans
-`DONKA_SECOND_STEP_PREVIOUS_KEYS`, renseignez la nouvelle clé et lancez `docker compose up -d app`.
+`secrets/second_step_key`. Pour la remplacer, déplacez la valeur actuelle dans
+`secrets/second_step_previous_keys`, écrivez la nouvelle clé et lancez
+`docker compose up -d --force-recreate app`.
 Chaque secret est rescellé avec la nouvelle clé à la prochaine connexion de son titulaire ; gardez
 l'ancienne clé jusqu'à ce que chacun se soit connecté une fois (ou qu'un administrateur ait
 réinitialisé la seconde étape des autres).
 
 **Clé de l'index des personnes** : les identifiants (numéro national, téléphone…) sont retrouvés
-grâce à des empreintes calculées avec `DONKA_PERSON_INDEX_KEY` ; il n'y a pas de clé précédente.
-Pour la remplacer, renseignez la nouvelle clé, videz l'index et indexez de nouveau le journal,
+grâce à des empreintes calculées avec `secrets/person_index_key` ; il n'y a pas de clé
+précédente. Pour la remplacer, écrivez la nouvelle clé, videz l'index et indexez de nouveau le journal,
 Studio arrêté :
 
 ```bash

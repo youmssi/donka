@@ -134,7 +134,8 @@ pub async fn watch(settings: Settings) {
 }
 
 /// What an installation is (`DONKA_INSTALLATION_ROLE`); production unless it says otherwise.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Role {
     #[default]
     Production,
@@ -207,6 +208,19 @@ impl Window {
             };
             (start <= now && now < end).then_some(start)
         })
+    }
+}
+
+impl serde::Serialize for Window {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(self)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Window {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let text = String::deserialize(deserializer)?;
+        Self::parse(&text).map_err(serde::de::Error::custom)
     }
 }
 

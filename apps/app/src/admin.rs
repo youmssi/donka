@@ -6,26 +6,33 @@
 //!   ghcr.io/youmssi/donka-studio:<version> donka-admin init [--demo]
 //! ```
 
-use donka_app::install::{self, Options, Outcome};
+use donka_app::install::{self, assistant, Installation, Outcome, Provided};
 use donka_app::upgrade;
 use donka_app::upgrade::auto::{self, Role, Window};
+use std::io::IsTerminal as _;
 use std::path::PathBuf;
 
 const USAGE: &str = "usage:
   donka-admin init [--dir <dir>] [--public-url <url>] [--admin-email <email>]
                    [--studio-version <tag>] [--runtime-version <tag>] [--registry <host/path>]
                    [--demo] [--offline] [--role production|staging|demo]
-                   [--auto-upgrade \"<day> <HH:MM>-<HH:MM>\"]
-      Prepares an installation in <dir> (the current folder by default): docker-compose.yml
-      and .env with random secrets. Existing files are kept, never overwritten.
+                   [--auto-upgrade \"<day> <HH:MM>-<HH:MM>\"] [--yes]
+      Prepares an installation in <dir> (the current folder by default). On a terminal it asks
+      its questions, in English or French, each with a default (the options set them); --yes,
+      or no terminal, takes the defaults. It writes donka.yaml (the answers, no secret), the
+      secrets as files in secrets/, and from them .env, runtime.env and docker-compose.yml.
+      An existing donka.yaml is kept and nothing changes.
       --demo also releases the retail-credit pack to staging at the first start, its bureau
-      connector answered by a fake bureau (its key in runtime.env).
+      connector answered by a fake bureau (its key in secrets/connector_bureau_api_key).
       --registry names a mirror of the images (ghcr.io/youmssi by default).
       --offline: the server has no internet access, Studio never checks for new releases.
       --role says what the installation is (production by default, demo with --demo);
       --auto-upgrade \"Sun 02:00-04:00\" turns on unattended upgrades in that weekly window,
       staging and demo only.
       Then: docker compose up -d
+  donka-admin init --config donka.yaml
+      Writes .env, runtime.env and docker-compose.yml again from donka.yaml, without
+      questions, after a change to it. Secrets in secrets/ are kept, never overwritten.
   donka-admin upgrade <studio version> [--runtime-version <tag>] [--key <file>]
       Moves the installation to another release. Run it with the INSTALLED version's image, in
       the installation folder, with Docker's socket:
@@ -63,17 +70,27 @@ fn main() {
 }
 
 fn init(args: &[String]) -> Result<(), String> {
-    let mut options = Options::for_version(donka_app::VERSION);
+    let mut installation = Installation::for_version(donka_app::VERSION);
     let mut dir = PathBuf::from(".");
+    let mut config = None;
+    let mut ask = std::io::stdin().is_terminal();
     let mut rest = args.iter();
     while let Some(flag) = rest.next() {
-        if flag == "--demo" {
-            options.demo = true;
-            continue;
-        }
-        if flag == "--offline" {
-            options.offline = true;
-            continue;
+        match flag.as_str() {
+            "--demo" => {
+                installation.demo = true;
+                installation.role = Role::Demo;
+                continue;
+            }
+            "--offline" => {
+                installation.offline = true;
+                continue;
+            }
+            "--yes" => {
+                ask = false;
+                continue;
+            }
+            _ => {}
         }
         let value = rest
             .next()
@@ -81,31 +98,62 @@ fn init(args: &[String]) -> Result<(), String> {
             .clone();
         match flag.as_str() {
             "--dir" => dir = PathBuf::from(value),
-            "--public-url" => options.public_url = value,
-            "--admin-email" => options.admin_email = value,
-            "--studio-version" => options.studio_version = value,
-            "--runtime-version" => options.runtime_version = value,
-            "--registry" => options.registry = Some(value),
-            "--role" => options.role = Some(Role::parse(&value)?),
-            "--auto-upgrade" => options.auto_upgrade = Some(Window::parse(&value)?),
+            "--config" => config = Some(PathBuf::from(value)),
+            "--public-url" => installation.public_url = value,
+            "--admin-email" => installation.administrator = value,
+            "--studio-version" => installation.images.studio = value,
+            "--runtime-version" => installation.images.runtime = value,
+            "--registry" => installation.images.registry = Some(value),
+            "--role" => installation.role = Role::parse(&value)?,
+            "--auto-upgrade" => installation.auto_upgrade = Some(Window::parse(&value)?),
             _ => return Err(format!("unknown option `{flag}`\n\n{USAGE}")),
         }
     }
-    let outcomes = install::init(&dir, &options, |buf| {
+    let random = |buf: &mut [u8]| {
         getrandom::fill(buf).map_err(|err| format!("no secure random source: {err}"))
-    })?;
+    };
+    let outcomes = if let Some(config) = config {
+        // A replay: the answers are the file's, the secrets those already in secrets/.
+        if config.file_name().and_then(|name| name.to_str()) != Some(install::CONFIG) {
+            return Err(format!(
+                "--config takes the installation's {}",
+                install::CONFIG
+            ));
+        }
+        dir = config
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .map_or_else(|| PathBuf::from("."), PathBuf::from);
+        installation = Installation::read(&dir)?;
+        install::apply(&dir, &installation, &Provided::default(), random)?
+    } else if dir.join(install::CONFIG).exists() {
+        println!(
+            "kept     {} (it exists; nothing changed)\n\
+             To apply a change to it: donka-admin init --config {}",
+            dir.join(install::CONFIG).display(),
+            install::CONFIG
+        );
+        return Ok(());
+    } else {
+        let provided = if ask {
+            let (answers, provided) = assistant::run(&mut assistant::Terminal, &installation)?;
+            installation = answers;
+            provided
+        } else {
+            Provided::default()
+        };
+        install::init(&dir, &installation, &provided, random)?
+    };
     for outcome in &outcomes {
         match outcome {
             Outcome::Written(path) => println!("written  {}", path.display()),
-            Outcome::Kept(path) => {
-                println!("kept     {} (it exists; nothing changed)", path.display())
-            }
+            Outcome::Kept(path) => println!("kept     {}", path.display()),
         }
     }
     println!(
         "\nNext:\n  docker compose up -d\n  docker compose logs app | grep setup-password\n\
          Then open {} and choose {}'s password with that link.",
-        options.public_url, options.admin_email
+        installation.public_url, installation.administrator
     );
     Ok(())
 }
@@ -199,10 +247,16 @@ fn exit_code(outcome: &upgrade::Outcome) -> i32 {
 
 /// Serves the demo's fake bureau until the container stops.
 fn demo_bureau() -> Result<(), String> {
-    let key = std::env::var("DONKA_SECRET_BUREAU_API_KEY")
-        .ok()
-        .filter(|key| !key.trim().is_empty())
-        .ok_or("DONKA_SECRET_BUREAU_API_KEY is not set: run donka-admin init --demo")?;
+    // As the Runtime reads it: the value, or the file that holds it (secrets/ in an installation).
+    let key = match std::env::var("DONKA_SECRET_BUREAU_API_KEY_FILE") {
+        Ok(file) => install::read_secret(std::path::Path::new(&file))?,
+        Err(_) => std::env::var("DONKA_SECRET_BUREAU_API_KEY").unwrap_or_default(),
+    };
+    if key.trim().is_empty() {
+        return Err(
+            "DONKA_SECRET_BUREAU_API_KEY(_FILE) is not set: run donka-admin init --demo".to_owned(),
+        );
+    }
     let runtime = tokio::runtime::Runtime::new().map_err(|err| err.to_string())?;
     runtime.block_on(async move {
         let listener = tokio::net::TcpListener::bind("0.0.0.0:8080")

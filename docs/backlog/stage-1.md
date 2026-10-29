@@ -1598,8 +1598,8 @@ Confirmed 2026-10-25:
 - A desktop installer is not built: installations run on headless servers.
 
 #### Acceptance criteria
-- [ ] The assistant runs from the published image with only Docker installed, in English and French, and every question has a default
-- [ ] Running again with `donka.yaml` produces the same installation without questions; secrets are never printed nor overwritten
+- [x] The assistant runs from the published image with only Docker installed, in English and French, and every question has a default
+- [x] Running again with `donka.yaml` produces the same installation without questions; secrets are never printed nor overwritten
 - [ ] `donka-admin doctor` reports each dependency as working or not, with the reason and the setting to change
 - [ ] The browser assistant appears only until the first administrator exists, enrols their second step, and imports the selected packs
 - [ ] Enabling or disabling a module keeps data, is audited and takes effect after a restart
