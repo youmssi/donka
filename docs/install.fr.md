@@ -386,6 +386,25 @@ choses). Lancez ensuite le test de fumée complet (section 2).
    docker compose exec app donka-app decision-log index-people
    ```
 
+**Mises à jour sans surveillance** (installations de préproduction et de démonstration
+seulement, désactivées par défaut). Préparez l'installation avec son rôle et une fenêtre
+hebdomadaire, à l'heure du serveur :
+
+```bash
+donka-admin init --role staging --auto-upgrade "Sun 02:00-04:00" …
+```
+
+Cela écrit `DONKA_INSTALLATION_ROLE=staging`, `DONKA_AUTO_UPGRADE_WINDOW` et le profil
+`auto-upgrade` dans `.env` ; sur une installation existante, ajoutez ces trois lignes à la main.
+Gardez le `cosign.pub` de Donka dans le dossier. Le service `auto-upgrade` regarde alors toutes
+les cinq minutes. Une fois par fenêtre, il met à jour vers la dernière version de la même version
+majeure, exactement comme `donka-admin upgrade` : vérifiée, sauvegardée, contrôlée, ramenée en
+arrière en cas d'échec, consignée dans `upgrades/`. Une nouvelle version majeure est seulement
+annoncée ; mettez-la à jour à la main. Une installation de production (le rôle par défaut) ne se
+met jamais à jour seule : init refuse la fenêtre, et le service ne fait rien. `donka-admin
+auto-upgrade --once` regarde une fois, maintenant. Le service pilote Docker, il tourne donc en
+root, et ses sauvegardes et rapports appartiennent à root.
+
 ## 5. Renouveler les secrets
 
 Prévoyez une courte fenêtre de maintenance pour les mots de passe : les services redémarrent.

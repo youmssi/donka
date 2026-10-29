@@ -363,6 +363,23 @@ the backup say where things stand). Then run the full smoke test (section 2).
    docker compose exec app donka-app decision-log index-people
    ```
 
+**Unattended upgrades** (staging and demo installations only, off by default). Prepare the
+installation with its role and a weekly window, in the server's time:
+
+```bash
+donka-admin init --role staging --auto-upgrade "Sun 02:00-04:00" …
+```
+
+This writes `DONKA_INSTALLATION_ROLE=staging`, `DONKA_AUTO_UPGRADE_WINDOW` and the
+`auto-upgrade` profile to `.env`; on an existing installation, add the same three lines by hand.
+Keep Donka's `cosign.pub` in the folder. The `auto-upgrade` service then looks every five
+minutes. Once per window it upgrades to the latest release of the same major version, exactly
+as `donka-admin upgrade` does: verified, backed up, checked, rolled back on failure, reported in
+`upgrades/`. A new major version is only announced; upgrade it by hand. A production
+installation (the default role) never upgrades by itself: init refuses the window, and the
+service does nothing. `donka-admin auto-upgrade --once` looks once, now. The service drives
+Docker, so it runs as root, and its backups and reports belong to root.
+
 ## 5. Rotate secrets
 
 Plan a short maintenance window for the passwords: the services restart.

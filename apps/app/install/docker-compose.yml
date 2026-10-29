@@ -79,6 +79,26 @@ services:
         required: false
     restart: unless-stopped
 
+  # Only with `donka-admin init --auto-upgrade` (the auto-upgrade profile), staging and demo
+  # installations only: unattended upgrades in the weekly window DONKA_AUTO_UPGRADE_WINDOW (the
+  # server's time), to the latest release of the same major version. Each is `donka-admin
+  # upgrade`: verified with cosign.pub in this folder, backed up, rolled back on failure and
+  # reported in upgrades/. It drives Docker, so it runs as root.
+  auto-upgrade:
+    profiles: [auto-upgrade]
+    image: ${DONKA_REGISTRY:-ghcr.io/youmssi}/donka-studio:${DONKA_VERSION:?run donka-admin init first}
+    command: [donka-admin, auto-upgrade]
+    user: "0:0"
+    working_dir: /install
+    environment:
+      DONKA_REGISTRY_USER: ${DONKA_REGISTRY_USER:-}
+      DONKA_REGISTRY_TOKEN: ${DONKA_REGISTRY_TOKEN:-}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/install
+      - /etc/localtime:/etc/localtime:ro
+    restart: unless-stopped
+
   # Never started: the image `donka-admin upgrade` runs `docker compose` from. Listed here so
   # that it is pulled, and bundled offline, with the others.
   upgrade-tools:

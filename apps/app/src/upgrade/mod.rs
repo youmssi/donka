@@ -9,6 +9,7 @@
 //!
 //! Every run writes a report under `upgrades/`; refusals change nothing.
 
+pub mod auto;
 pub mod compat;
 pub mod docker;
 pub mod registry;
@@ -25,9 +26,11 @@ use std::time::Duration;
 /// The image with `docker compose` the upgrade runs it from; the compose file's `tools`
 /// profile names the same one, so pulls and the offline bundle include it.
 pub const COMPOSE_CLI: &str = "docker:28.5-cli";
+/// The compose service that runs unattended upgrades (`upgrade::auto`).
+pub const UPGRADER: &str = "auto-upgrade";
 /// Where Studio's image carries its compose file (the one `donka-admin init` writes).
 pub const COMPOSE_PATH: &str = "/etc/donka/docker-compose.yml";
-const DEFAULT_REGISTRY: &str = "ghcr.io/youmssi";
+pub(crate) const DEFAULT_REGISTRY: &str = "ghcr.io/youmssi";
 const ENV_FILES: [&str; 3] = [".env", "runtime.env", "docker-compose.yml"];
 /// How long a service has to answer after it is recreated.
 const START_TIMEOUT: Duration = Duration::from_secs(180);
@@ -297,7 +300,7 @@ async fn upgrade(
     let upgraded = if report.step("upgrade the Runtime", changed).is_ok() {
         let studio_done = async {
             set_env(&options.dir.join(".env"), "DONKA_VERSION", &target.studio)?;
-            tools.compose(&["up", "-d"]).await?;
+            tools.start_all().await?;
             let image = engine.image_id(&new_studio).await?;
             smoke_studio(&engine, &base_path, image.as_deref()).await?;
             smoke_runtime(&engine, None).await?;
@@ -350,25 +353,21 @@ impl Tools<'_> {
         format!("{}:{INSTALL}", self.engine.host_dir)
     }
 
-    /// `docker compose <args>` in the installation folder, at its host path so that relative
-    /// paths in the compose file mean the same thing.
+    /// `docker compose <args>` in the installation folder.
     async fn compose(&self, args: &[&str]) -> Result<(), String> {
-        let host = &self.engine.host_dir;
         let mut cmd = vec!["docker".to_owned(), "compose".to_owned()];
         cmd.extend(args.iter().map(|arg| (*arg).to_owned()));
-        self.engine
-            .run(Helper {
-                image: COMPOSE_CLI.to_owned(),
-                cmd,
-                binds: vec![
-                    "/var/run/docker.sock:/var/run/docker.sock".to_owned(),
-                    format!("{host}:{host}"),
-                ],
-                working_dir: Some(host.clone()),
-                user: Some("0".to_owned()),
-                ..Default::default()
-            })
-            .await
+        self.engine.run(compose_helper(self.engine, cmd)).await
+    }
+
+    /// Starts every service but the unattended upgrader, which may be the one running this
+    /// upgrade: it is recreated last, once the upgrade has reported.
+    async fn start_all(&self) -> Result<(), String> {
+        let script = format!(
+            "docker compose up -d $(docker compose config --services | grep -vx {UPGRADER})"
+        );
+        let cmd = vec!["sh".to_owned(), "-ec".to_owned(), script];
+        self.engine.run(compose_helper(self.engine, cmd)).await
     }
 
     async fn postgres_shell(&self, script: String) -> Result<(), String> {
@@ -449,7 +448,33 @@ impl Tools<'_> {
              tar -C /volumes -xzf {INSTALL}/{backup}/volumes.tar.gz"
         ))
         .await?;
-        self.compose(&["up", "-d"]).await
+        self.start_all().await
+    }
+}
+
+/// Recreates the `auto-upgrade` service with the release `.env` now names. The helper outlives
+/// the service it replaces, which may be the caller.
+pub async fn restart_upgrader(engine: &Engine) -> Result<(), String> {
+    let cmd = ["docker", "compose", "up", "-d", UPGRADER]
+        .map(String::from)
+        .to_vec();
+    engine.start_detached(compose_helper(engine, cmd)).await
+}
+
+/// A helper running `cmd` with `docker compose` in the installation folder, at its host path so
+/// that relative paths in the compose file mean the same thing.
+fn compose_helper(engine: &Engine, cmd: Vec<String>) -> Helper {
+    let host = &engine.host_dir;
+    Helper {
+        image: COMPOSE_CLI.to_owned(),
+        cmd,
+        binds: vec![
+            "/var/run/docker.sock:/var/run/docker.sock".to_owned(),
+            format!("{host}:{host}"),
+        ],
+        working_dir: Some(host.clone()),
+        user: Some("0".to_owned()),
+        ..Default::default()
     }
 }
 
