@@ -198,10 +198,13 @@ test('graph authoring, simulation, versions and scenarios persist through the li
   await expect(updated).toBeOK();
   const scenarios: ApiSchemas['ScenarioListResponse'] = await updated.json();
   expect(scenarios.items[0]).toMatchObject({ match: 'exact', expected: { output: 999 } });
-  await page
-    .getByRole('button', { name: m.scenarios.actionsFor.replace('{name}', 'Double input'), exact: true })
-    .click();
-  await page.getByRole('menuitem', { name: m.scenarios.delete, exact: true }).click();
+  // The list refreshes after the edit and remounts the row, which closes a menu opened meanwhile.
+  await expect(async () => {
+    await page
+      .getByRole('button', { name: m.scenarios.actionsFor.replace('{name}', 'Double input'), exact: true })
+      .click({ timeout: 2_000 });
+    await page.getByRole('menuitem', { name: m.scenarios.delete, exact: true }).click({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
   await page.getByRole('alertdialog').getByRole('button', { name: m.scenarios.delete, exact: true }).click();
   await expect(page.getByText(m.scenarios.emptyTitle, { exact: true })).toBeVisible();
   // Later scenario changes/deletion cannot rewrite version 2's captured input or result.
