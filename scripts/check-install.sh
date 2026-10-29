@@ -11,8 +11,12 @@
 # bureau through the Runtime (a national identifier ending in 9 has serious arrears there).
 #
 # The images must exist locally as ghcr.io/youmssi/donka-studio:<tag> and
-# ghcr.io/youmssi/donka-runtime:<tag>. Needs Docker with Compose, curl and jq. Prints how long
-# it took from init to the recorded decision.
+# ghcr.io/youmssi/donka-runtime:<tag>, as do postgres and mailpit: nothing is pulled, so the same
+# check proves an installation from the offline bundle. Needs Docker with Compose, curl and jq.
+#
+# It prints how long it took to reach the recorded decision, from init or from
+# DONKA_INSTALL_STARTED (seconds since the epoch, when the images were pulled or loaded), and
+# fails above DONKA_INSTALL_BUDGET seconds when that is set: the five minutes the story promises.
 set -euo pipefail
 
 studio_tag="${1:?usage: scripts/check-install.sh <studio image tag> <runtime image tag> [demo]}"
@@ -45,7 +49,8 @@ wait_for() {
   fail "no answer on $1"
 }
 
-started=$(date +%s)
+started="${DONKA_INSTALL_STARTED:-$(date +%s)}"
+budget="${DONKA_INSTALL_BUDGET:-}"
 docker run --rm -u "$(id -u):$(id -g)" -v "$dir:/install" -w /install \
   "ghcr.io/youmssi/donka-studio:$studio_tag" \
   donka-admin init --studio-version "$studio_tag" --runtime-version "$runtime_tag" ${demo:+--demo}
@@ -58,7 +63,7 @@ docker run --rm -u "$(id -u):$(id -g)" -v "$dir:/install" -w /install \
 [ "$(sha256sum "$dir/.env")" = "$before" ] || fail "a second init changed .env"
 
 cd "$dir"
-docker compose up -d
+docker compose up -d --pull never
 wait_for "$API/health"
 wait_for "$RUNTIME_URL/api/health"
 
@@ -109,4 +114,6 @@ if [ -n "$demo" ]; then
     || fail "the fake bureau's arrears did not decline CM-109: $answer"
   echo "check-install: the demo project calls the fake bureau through the Runtime"
 fi
-echo "check-install: installed from the images and a decision recorded in $(( $(date +%s) - started )) s"
+took=$(( $(date +%s) - started ))
+echo "check-install: installed from the images and a decision recorded in $took s"
+[ -z "$budget" ] || [ "$took" -le "$budget" ] || fail "took $took s, over the budget of $budget s"

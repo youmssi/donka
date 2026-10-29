@@ -171,7 +171,7 @@ crates/<module>/     one crate per business module
 migrations/          PostgreSQL migrations (sqlx), forward-only; <UTC timestamp>_<what>.sql
 packs/               starter packs: decisions, test scenarios and guides (EN/FR), offered by Studio (DONKA_PACKS_DIR)
 tools/licence-issuer/ `donka-licence`: issues licence files at Donka; never built into the image
-scripts/             repo scripts (engine version drift check, end-to-end release test, image check, post-deploy smoke test, pack import)
+scripts/             repo scripts (engine version drift check, end-to-end release test, image and install checks, offline bundle, post-deploy smoke test, pack import)
 docs/adr/            architecture decision records
 docs/brand/          logo family: marks, lockups, usage rules
 docs/backlog/        stories with acceptance criteria

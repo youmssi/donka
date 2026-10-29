@@ -8,7 +8,8 @@ name: Release
 #    Cargo.lock is refreshed on that PR so `--locked` builds keep passing.
 # 3. Merging the release PR tags vX.Y.Z and creates the GitHub release; this workflow
 #    then opens a back-merge PR main -> develop (merge commit) so the bump reaches develop.
-# 4. The release's image is then published and signed (images.yml, DNK-64).
+# 4. The release's image is then published and signed, and its offline bundle attached to the
+#    release (images.yml, DNK-64).
 #
 # With GITHUB_TOKEN, CI does not run on the PRs this workflow opens; set a RELEASE_PLEASE_TOKEN
 # secret (fine-grained PAT: contents + pull requests, write) to have CI run on them.
@@ -77,5 +78,6 @@ jobs:
       version: ${{ needs.release-please.outputs.version }}
     secrets: inherit
     permissions:
-      contents: read
+      # write: the offline bundle is attached to the release.
+      contents: write
       packages: write

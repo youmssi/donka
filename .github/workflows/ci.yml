@@ -135,8 +135,30 @@ jobs:
           cache-from: type=gha,scope=runtime
       - run: |
           docker tag donka-studio:ci ghcr.io/youmssi/donka-studio:ci
+          scripts/install-images.sh ci ci | grep -v '^ghcr.io/youmssi/' | xargs -n1 docker pull -q
           scripts/check-install.sh ci ci
-          scripts/check-install.sh ci ci demo
+      # The offline bundle: signed with a throwaway key, every image removed, then checked with
+      # the commands its README gives, loaded and installed without pulling anything.
+      - uses: sigstore/cosign-installer@v3
+      - name: Offline bundle
+        run: |
+          work=$(mktemp -d)
+          bundle=$(scripts/bundle.sh ci ci "$work")
+          (cd "$work" && COSIGN_PASSWORD=ci cosign generate-key-pair >/dev/null)
+          COSIGN_PASSWORD=ci cosign sign-blob --yes --key "$work/cosign.key" --tlog-upload=false \
+            --output-signature "$bundle/SHA256SUMS.sig" "$bundle/SHA256SUMS"
+          docker image rm -f $(cut -d' ' -f1 "$bundle/images.txt") donka-studio:ci
+          cd "$bundle"
+          cosign verify-blob --key "$work/cosign.pub" --insecure-ignore-tlog \
+            --signature SHA256SUMS.sig SHA256SUMS
+          openssl dgst -sha256 -verify "$work/cosign.pub" -signature <(base64 -d SHA256SUMS.sig) SHA256SUMS
+          sha256sum -c SHA256SUMS
+          echo "DONKA_INSTALL_STARTED=$(date +%s)" >> "$GITHUB_ENV"
+          docker load -q -i images.tar.gz
+          du -h images.tar.gz
+      - run: scripts/check-install.sh ci ci demo
+        env:
+          DONKA_INSTALL_BUDGET: 300
 
   # The one-command install: `docker compose --profile full up` with its defaults, then the
   # post-deploy smoke test against it. Images come from the same compose file (bake), cached.

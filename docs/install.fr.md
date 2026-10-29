@@ -219,6 +219,31 @@ cosign verify --key cosign.pub --insecure-ignore-tlog ghcr.io/youmssi/donka-runt
 docker buildx imagetools inspect ghcr.io/youmssi/donka-studio:1.5.0 --format '{{ json .SBOM }}'
 ```
 
+### Sans accès à Internet
+
+Chaque version est aussi livrée en paquet hors ligne, `donka-<version>-offline.tar`, joint à la
+version : Studio, la dernière version du Runtime et toutes les autres images que l'installation
+lance (celles de la démonstration comprises), pour des serveurs linux/amd64. Son `SHA256SUMS` est
+signé avec la même clé que les images. Copiez le paquet sur le serveur, puis vérifiez-le avec un
+`cosign.pub` obtenu auprès de Donka, jamais celui du paquet ; `openssl` remplace cosign :
+
+```bash
+tar -xf donka-1.5.0-offline.tar && cd donka-1.5.0-offline
+openssl dgst -sha256 -verify cosign.pub -signature <(base64 -d SHA256SUMS.sig) SHA256SUMS
+sha256sum -c SHA256SUMS
+docker load -i images.tar.gz
+```
+
+Installez ensuite comme à la section 1, sans connexion au registre, avec les versions qu'indique
+le `README.txt` du paquet et `docker compose up -d --pull never`. `images.txt` donne chaque image
+avec le condensat du registre que couvre sa propre signature. La CI installe depuis un paquet,
+toutes les images supprimées au préalable, à chaque changement.
+
+**Cinq minutes.** Sur le runner `ubuntu-latest` de GitHub (4 vCPU, 16 Go), la machine de
+référence, le téléchargement des images, `donka-admin init --demo` et `docker compose up`
+mènent à une décision du Runtime enregistrée dans Studio en moins de cinq minutes. La CI le
+mesure après chaque image publiée et échoue au-delà.
+
 ## 2. Test de fumée après chaque déploiement
 
 `scripts/smoke.sh` vérifie que Studio répond et joint sa base de données, que le moteur de
