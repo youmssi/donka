@@ -151,7 +151,9 @@
           "decision_contest.opened",
           "decision_contest.reviewed",
           "ci_token.issued",
-          "ci_token.revoked"
+          "ci_token.revoked",
+          "installation.set_up",
+          "installation.organisation_renamed"
         ],
         "type": "string"
       },
@@ -1466,6 +1468,25 @@
         ],
         "type": "object"
       },
+      "InstallationResponse": {
+        "properties": {
+          "firstRun": {
+            "description": "The first-run assistant is still to be finished by an administrator.",
+            "type": "boolean"
+          },
+          "organisation": {
+            "description": "The organisation the installation serves; absent until an administrator names it.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "firstRun"
+        ],
+        "type": "object"
+      },
       "InvitationRequest": {
         "properties": {
           "email": {
@@ -1975,6 +1996,19 @@
         "required": [
           "steps",
           "complete"
+        ],
+        "type": "object"
+      },
+      "OrganisationRequest": {
+        "properties": {
+          "organisation": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "organisation"
         ],
         "type": "object"
       },
@@ -4642,6 +4676,169 @@
         ]
       }
     },
+    "/installation": {
+      "get": {
+        "operationId": "get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallationResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Whether the installation is set up, and its organisation (anyone, signed in or not: the\nsign-in page names the organisation).",
+        "tags": [
+          "installation"
+        ]
+      }
+    },
+    "/installation/first-run": {
+      "post": {
+        "operationId": "finish_first_run",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrganisationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallationResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not a name of 1 to 100 characters on one line (INVALID_REQUEST)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not signed in (UNAUTHENTICATED)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not an administrator (FORBIDDEN)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Already set up (ALREADY_SET_UP); no second sign-in step yet (SECOND_STEP_REQUIRED)"
+          }
+        },
+        "summary": "Finishes the first-run assistant with the organisation's name (an administrator with a\nsecond sign-in step). The packs were imported before, one by one.",
+        "tags": [
+          "installation"
+        ]
+      }
+    },
+    "/installation/organisation": {
+      "put": {
+        "operationId": "rename",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrganisationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallationResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not a name of 1 to 100 characters on one line (INVALID_REQUEST)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not signed in (UNAUTHENTICATED)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not an administrator (FORBIDDEN)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The first-run assistant is not finished (NOT_SET_UP)"
+          }
+        },
+        "summary": "Renames the organisation (administrators), once the installation is set up.",
+        "tags": [
+          "installation"
+        ]
+      }
+    },
     "/licence": {
       "get": {
         "operationId": "get",
@@ -6015,7 +6212,7 @@
                 }
               }
             },
-            "description": "CSV: occurred_at, actor, action, target, details"
+            "description": "CSV: occurred_at, actor, action, target, details, organisation (the installation's, on every row; empty until named)"
           },
           "403": {
             "content": {

@@ -409,6 +409,12 @@ async fn only_owners_read_the_audit_log(db: PgPool) {
 
 #[sqlx::test(migrator = "donka_db::MIGRATOR")]
 async fn the_export_is_csv_with_the_same_filters(db: PgPool) {
+    sqlx::query(
+        "INSERT INTO installation (organisation, set_up_at) VALUES ('Microfinance SA', now())",
+    )
+    .execute(&db)
+    .await
+    .unwrap();
     let app = with_database(db);
     let admin = signed_in_admin(&app).await;
     signed_in_user(&app, GRACE, false).await;
@@ -463,8 +469,12 @@ async fn the_export_is_csv_with_the_same_filters(db: PgPool) {
         .to_bytes();
     let csv = String::from_utf8(body.to_vec()).unwrap();
     let lines: Vec<&str> = csv.trim_end().split("\r\n").collect();
-    assert_eq!(lines[0], "occurred_at,actor,action,target,details");
+    assert_eq!(
+        lines[0],
+        "occurred_at,actor,action,target,details,organisation"
+    );
     assert_eq!(lines.len(), 3, "{csv}");
+    assert!(lines[1].ends_with(",\"Microfinance SA\""), "{csv}");
     assert!(lines[1].contains("\"member.added\"") && lines[1].contains(GRACE));
     assert!(lines[2].contains("\"project.created\""));
     // The JSON details start with '{', so the name inside them is inert; the cell is quoted.

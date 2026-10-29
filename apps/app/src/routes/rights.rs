@@ -180,6 +180,7 @@ pub async fn report(
         });
     }
     let pdf = report::render(&AccessReport {
+        organisation: state.installation.organisation().await?,
         project: project.name,
         generated_at: report.generated_at,
         locale,

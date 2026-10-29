@@ -33,6 +33,7 @@ fn text_of(pdf: &[u8]) -> String {
 #[test]
 fn a_report_is_a_pdf_with_a_page_per_screenful_of_records() {
     let report = AccessReport {
+        organisation: None,
         project: "Crédit PME".to_owned(),
         generated_at: Utc.with_ymd_and_hms(2026, 10, 28, 12, 0, 0).unwrap(),
         locale: Locale::Fr,
@@ -47,12 +48,31 @@ fn a_report_is_a_pdf_with_a_page_per_screenful_of_records() {
 #[test]
 fn an_empty_report_says_nothing_is_held() {
     let report = AccessReport {
+        organisation: Some("Microfinance SA".to_owned()),
         project: "Retail".to_owned(),
         generated_at: Utc.with_ymd_and_hms(2026, 10, 28, 12, 0, 0).unwrap(),
         locale: Locale::En,
         records: vec![],
     };
     assert!(render(&report).unwrap().starts_with(b"%PDF-"));
+}
+
+#[test]
+fn the_report_names_the_organisation_that_holds_the_records() {
+    let mut report = AccessReport {
+        organisation: Some("Microfinance SA".to_owned()),
+        project: "Retail".to_owned(),
+        generated_at: Utc.with_ymd_and_hms(2026, 10, 28, 12, 0, 0).unwrap(),
+        locale: Locale::En,
+        records: vec![],
+    };
+    let named = subtitle(&report, "generated on");
+    assert!(
+        named.starts_with("Microfinance SA · Retail — generated on "),
+        "{named}"
+    );
+    report.organisation = None;
+    assert!(subtitle(&report, "generated on").starts_with("Retail — "));
 }
 
 #[test]

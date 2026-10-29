@@ -123,7 +123,7 @@ pub async fn list(
     tag = "audit",
     params(("project_id" = Uuid, Path), AuditQuery),
     responses(
-        (status = 200, description = "CSV: occurred_at, actor, action, target, details", content_type = "text/csv", body = String),
+        (status = 200, description = "CSV: occurred_at, actor, action, target, details, organisation (the installation's, on every row; empty until named)", content_type = "text/csv", body = String),
         (status = 403, description = "Not an owner (FORBIDDEN)", body = ErrorBody),
         (status = 404, description = "PROJECT_NOT_FOUND", body = ErrorBody),
     )
@@ -152,7 +152,9 @@ pub async fn export(
             .unwrap_or_default()
     };
 
-    let mut csv = String::from("occurred_at,actor,action,target,details\r\n");
+    // The organisation is the last column, so readers of the earlier columns are unaffected.
+    let organisation = state.installation.organisation().await?.unwrap_or_default();
+    let mut csv = String::from("occurred_at,actor,action,target,details,organisation\r\n");
     for entry in &entries {
         let row = [
             entry.occurred_at.to_rfc3339(),
@@ -160,6 +162,7 @@ pub async fn export(
             entry.action.as_str().to_owned(),
             email(entry.target_user_id),
             entry.details.to_string(),
+            organisation.clone(),
         ];
         let cells: Vec<String> = row.iter().map(|cell| csv_cell(cell)).collect();
         csv.push_str(&cells.join(","));

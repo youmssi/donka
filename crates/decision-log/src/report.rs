@@ -25,6 +25,8 @@ const BODY: f32 = 10.0;
 /// What the report says, gathered by the caller.
 #[derive(Debug, Clone)]
 pub struct AccessReport {
+    /// The organisation the installation serves (DNK-74), when it is named.
+    pub organisation: Option<String>,
     pub project: String,
     pub generated_at: DateTime<Utc>,
     pub locale: Locale,
@@ -127,6 +129,18 @@ const FR: Words = Words {
 #[error("the access report could not be written: {0}")]
 pub struct ReportError(String);
 
+/// Who holds the records, and when the report was made.
+fn subtitle(report: &AccessReport, generated: &str) -> String {
+    let holder = match &report.organisation {
+        Some(organisation) => format!("{organisation} · {}", report.project),
+        None => report.project.clone(),
+    };
+    format!(
+        "{holder} — {generated} {}",
+        date(report.generated_at, report.locale)
+    )
+}
+
 /// The report as a PDF document.
 pub fn render(report: &AccessReport) -> Result<Vec<u8>, ReportError> {
     let words = match report.locale {
@@ -135,15 +149,7 @@ pub fn render(report: &AccessReport) -> Result<Vec<u8>, ReportError> {
     };
     let mut pdf = Pdf::new(words.page)?;
     pdf.text(Style::Title, words.title);
-    pdf.text(
-        Style::Muted,
-        &format!(
-            "{} — {} {}",
-            report.project,
-            words.generated,
-            date(report.generated_at, report.locale)
-        ),
-    );
+    pdf.text(Style::Muted, &subtitle(report, words.generated));
     pdf.gap(6.0);
     pdf.text(Style::Body, words.intro);
     if report.records.is_empty() {

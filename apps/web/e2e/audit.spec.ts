@@ -50,7 +50,7 @@ test('owners filter and export real record audit actions; viewers read records b
     const file = await exported.path();
     if (!file) throw new Error('The audit CSV was not downloaded');
     const csv = await readFile(file, 'utf8');
-    expect(csv).toContain('occurred_at,actor,action,target,details');
+    expect(csv).toContain('occurred_at,actor,action,target,details,organisation');
     expect(csv).toContain('decision_record.viewed');
     expect(csv).toContain(record.reference);
     expect(csv).not.toContain('decision_record.replayed');

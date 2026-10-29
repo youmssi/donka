@@ -307,6 +307,63 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/installation': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Whether the installation is set up, and its organisation (anyone, signed in or not: the
+     *     sign-in page names the organisation).
+     */
+    get: operations['get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/installation/first-run': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Finishes the first-run assistant with the organisation's name (an administrator with a
+     *     second sign-in step). The packs were imported before, one by one.
+     */
+    post: operations['finish_first_run'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/installation/organisation': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Renames the organisation (administrators), once the installation is set up. */
+    put: operations['rename'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/licence': {
     parameters: {
       query?: never;
@@ -1695,7 +1752,9 @@ export interface components {
       | 'decision_contest.opened'
       | 'decision_contest.reviewed'
       | 'ci_token.issued'
-      | 'ci_token.revoked';
+      | 'ci_token.revoked'
+      | 'installation.set_up'
+      | 'installation.organisation_renamed';
     AddMemberRequest: {
       /** @description Email of an existing Studio account. */
       email: string;
@@ -2141,6 +2200,12 @@ export interface components {
       /** @description How the scenarios went on the new project's first versions. */
       tests: components['schemas']['TestSummaryResponse'];
     };
+    InstallationResponse: {
+      /** @description The first-run assistant is still to be finished by an administrator. */
+      firstRun: boolean;
+      /** @description The organisation the installation serves; absent until an administrator names it. */
+      organisation?: string | null;
+    };
     InvitationRequest: {
       email: string;
       isAdmin?: boolean;
@@ -2309,6 +2374,9 @@ export interface components {
       project?: null | components['schemas']['ChecklistProject'];
       /** @description Every step, in order. */
       steps: components['schemas']['StepResponse'][];
+    };
+    OrganisationRequest: {
+      organisation: string;
     };
     PackListResponse: {
       items: components['schemas']['PackResponse'][];
@@ -3667,6 +3735,143 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
+          'application/json': components['schemas']['InstallationResponse'];
+        };
+      };
+    };
+  };
+  finish_first_run: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['OrganisationRequest'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['InstallationResponse'];
+        };
+      };
+      /** @description Not a name of 1 to 100 characters on one line (INVALID_REQUEST) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Not signed in (UNAUTHENTICATED) */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Not an administrator (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Already set up (ALREADY_SET_UP); no second sign-in step yet (SECOND_STEP_REQUIRED) */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  rename: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['OrganisationRequest'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['InstallationResponse'];
+        };
+      };
+      /** @description Not a name of 1 to 100 characters on one line (INVALID_REQUEST) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Not signed in (UNAUTHENTICATED) */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Not an administrator (FORBIDDEN) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description The first-run assistant is not finished (NOT_SET_UP) */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
           'application/json': components['schemas']['LicenceResponse'];
         };
       };
@@ -4603,7 +4808,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description CSV: occurred_at, actor, action, target, details */
+      /** @description CSV: occurred_at, actor, action, target, details, organisation (the installation's, on every row; empty until named) */
       200: {
         headers: {
           [name: string]: unknown;

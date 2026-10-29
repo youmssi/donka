@@ -209,6 +209,14 @@ pub enum Action {
     #[serde(rename = "ci_token.revoked")]
     #[sqlx(rename = "ci_token.revoked")]
     CiTokenRevoked,
+    /// The first-run assistant was finished (DNK-74); `details.organisation` names it.
+    #[serde(rename = "installation.set_up")]
+    #[sqlx(rename = "installation.set_up")]
+    InstallationSetUp,
+    /// `details.from` and `details.to`.
+    #[serde(rename = "installation.organisation_renamed")]
+    #[sqlx(rename = "installation.organisation_renamed")]
+    InstallationOrganisationRenamed,
 }
 
 impl Action {
@@ -270,6 +278,8 @@ impl Action {
             Self::DecisionContestReviewed => "decision_contest.reviewed",
             Self::CiTokenIssued => "ci_token.issued",
             Self::CiTokenRevoked => "ci_token.revoked",
+            Self::InstallationSetUp => "installation.set_up",
+            Self::InstallationOrganisationRenamed => "installation.organisation_renamed",
         }
     }
 }

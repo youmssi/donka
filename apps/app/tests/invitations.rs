@@ -331,7 +331,7 @@ async fn an_immediate_recipient_waits_for_the_email_transaction_to_commit(db: Pg
         received: tokio::sync::Mutex::new(Some(sent)),
         finish: tokio::sync::Notify::new(),
     };
-    let delivery = app.identity.deliver_due_emails(&mailer, PUBLIC_URL);
+    let delivery = app.identity.deliver_due_emails(&mailer, PUBLIC_URL, None);
     tokio::pin!(delivery);
     // SMTP has exposed the link, but the worker has not yet acknowledged or committed it.
     let email = tokio::select! {

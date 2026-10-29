@@ -450,6 +450,7 @@ impl Identity {
         &self,
         mailer: &dyn Mailer,
         public_url: &str,
+        organisation: Option<&str>,
     ) -> Result<usize, IdentityError> {
         let mut sent = 0;
         for _ in 0..EMAIL_BATCH {
@@ -489,7 +490,8 @@ impl Identity {
                 to: due.email,
                 subject: content.subject,
                 text: content.text,
-            };
+            }
+            .signed(organisation);
             let attempts = due.attempts.saturating_add(1);
             match mailer.send(&email).await {
                 Ok(()) => {

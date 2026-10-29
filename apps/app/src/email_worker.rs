@@ -2,6 +2,7 @@
 //! emails) and the release module (approval requests).
 
 use donka_identity::Identity;
+use donka_installation::Installation;
 use donka_mail::Mailer;
 use donka_release::Releases;
 use std::sync::Arc;
@@ -15,17 +16,27 @@ const POLL_INTERVAL: Duration = Duration::from_secs(10);
 pub async fn run(
     identity: Identity,
     releases: Releases,
+    installation: Installation,
     mailer: Arc<dyn Mailer>,
     public_url: String,
 ) {
     loop {
+        // Read each pass: administrators may rename the organisation at any time.
+        let organisation = installation.organisation().await.unwrap_or_else(|err| {
+            tracing::warn!(%err, "cannot read the organisation's name; emails go unsigned");
+            None
+        });
+        let organisation = organisation.as_deref();
         if let Err(err) = identity
-            .deliver_due_emails(mailer.as_ref(), &public_url)
+            .deliver_due_emails(mailer.as_ref(), &public_url, organisation)
             .await
         {
             tracing::warn!(%err, "account email delivery pass failed");
         }
-        if let Err(err) = releases.deliver_due_emails(mailer.as_ref()).await {
+        if let Err(err) = releases
+            .deliver_due_emails(mailer.as_ref(), organisation)
+            .await
+        {
             tracing::warn!(%err, "approval email delivery pass failed");
         }
         tokio::select! {
