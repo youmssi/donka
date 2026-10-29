@@ -125,25 +125,6 @@ impl Mailer for SmtpMailer {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::Email;
-
-    #[test]
-    fn emails_are_signed_with_the_organisation_when_there_is_one() {
-        let email = Email {
-            to: "ada@bank.example".into(),
-            subject: "Hello".into(),
-            text: "Body.\n\n".into(),
-        };
-        assert_eq!(email.clone().signed(None), email);
-        assert_eq!(
-            email.signed(Some("Microfinance SA")).text,
-            "Body.\n— Donka Studio · Microfinance SA\n"
-        );
-    }
-}
-
 #[cfg(any(test, feature = "testing"))]
 pub mod testing {
     use super::{async_trait, Email, MailError, Mailer};
@@ -203,6 +184,20 @@ pub mod testing {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn emails_are_signed_with_the_organisation_when_there_is_one() {
+        let email = Email {
+            to: "ada@bank.example".into(),
+            subject: "Hello".into(),
+            text: "Body.\n\n".into(),
+        };
+        assert_eq!(email.clone().signed(None), email);
+        assert_eq!(
+            email.signed(Some("Microfinance SA")).text,
+            "Body.\n— Donka Studio · Microfinance SA\n"
+        );
+    }
 
     #[tokio::test]
     async fn accepts_the_three_connection_styles() {
