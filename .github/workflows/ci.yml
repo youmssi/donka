@@ -139,7 +139,10 @@ jobs:
           scripts/check-install.sh ci ci
       # The offline bundle: signed with a throwaway key, every image removed, then checked with
       # the commands its README gives, loaded and installed without pulling anything.
+      # The signature format donka-admin upgrade reads (classic .sig tags) is cosign 2's.
       - uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: v2.5.2
       - name: Offline bundle
         run: |
           work=$(mktemp -d)
@@ -159,6 +162,46 @@ jobs:
       - run: scripts/check-install.sh ci ci demo
         env:
           DONKA_INSTALL_BUDGET: 300
+
+  # donka-admin upgrade (DNK-64) against a test registry: unsigned and incompatible releases
+  # refused, a broken one rolled back with its data, a good one carried out. Its own job: the
+  # registry needs Docker restarted with it as an insecure (HTTP) registry.
+  upgrade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: A test registry Docker reaches over HTTP
+        run: |
+          echo '127.0.0.1 registry.test' | sudo tee -a /etc/hosts
+          config=/etc/docker/daemon.json
+          { sudo cat "$config" 2>/dev/null || echo '{}'; } \
+            | jq '. + {"insecure-registries": ["registry.test:5000"]}' > "$RUNNER_TEMP/daemon.json"
+          sudo cp "$RUNNER_TEMP/daemon.json" "$config"
+          sudo systemctl restart docker
+          docker info --format '{{json .RegistryConfig.IndexConfigs}}' | jq -e '."registry.test:5000".Secure == false'
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/app/Dockerfile
+          build-args: SERVICE_VERSION=${{ github.sha }}
+          tags: donka-studio:ci
+          load: true
+          push: false
+          cache-from: type=gha
+      - uses: docker/build-push-action@v6
+        with:
+          context: https://github.com/youmssi/donka-runtime.git#develop
+          tags: donka-runtime:ci
+          load: true
+          push: false
+          cache-from: type=gha,scope=runtime
+      - uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: v2.5.2
+      - run: scripts/install-images.sh ci ci | grep -v '/donka-' | xargs -n1 docker pull -q
+      - run: scripts/check-upgrade.sh donka-studio:ci donka-runtime:ci
 
   # The one-command install: `docker compose --profile full up` with its defaults, then the
   # post-deploy smoke test against it. Images come from the same compose file (bake), cached.

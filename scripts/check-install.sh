@@ -11,8 +11,10 @@
 # bureau through the Runtime (a national identifier ending in 9 has serious arrears there).
 #
 # The images must exist locally as ghcr.io/youmssi/donka-studio:<tag> and
-# ghcr.io/youmssi/donka-runtime:<tag>, as do postgres and mailpit: nothing is pulled, so the same
-# check proves an installation from the offline bundle. Needs Docker with Compose, curl and jq.
+# ghcr.io/youmssi/donka-runtime:<tag> (or under DONKA_REGISTRY, which init then writes to .env),
+# as do postgres and mailpit: nothing is pulled, so the same check proves an installation from the
+# offline bundle. Needs Docker with Compose, curl and jq. With DONKA_INSTALL_DIR, the installation
+# is made in that empty folder and left running, for the upgrade check.
 #
 # It prints how long it took to reach the recorded decision, from init or from
 # DONKA_INSTALL_STARTED (seconds since the epoch, when the images were pulled or loaded), and
@@ -23,7 +25,8 @@ studio_tag="${1:?usage: scripts/check-install.sh <studio image tag> <runtime ima
 runtime_tag="${2:?usage: scripts/check-install.sh <studio image tag> <runtime image tag> [demo]}"
 demo="${3:-}"
 root="$(cd "$(dirname "$0")/.." && pwd)"
-dir="$(mktemp -d)"
+registry="${DONKA_REGISTRY:-ghcr.io/youmssi}"
+dir="${DONKA_INSTALL_DIR:-$(mktemp -d)}"
 STUDIO_URL=http://localhost:8080
 RUNTIME_URL=http://localhost:8090
 API="$STUDIO_URL/api/v1"
@@ -36,8 +39,11 @@ fail() {
   exit 1
 }
 cleanup() {
-  (cd "$dir" && docker compose down -v >/dev/null 2>&1) || true
-  rm -rf "$dir" "$JAR"
+  if [ -z "${DONKA_INSTALL_DIR:-}" ]; then
+    (cd "$dir" && docker compose down -v >/dev/null 2>&1) || true
+    rm -rf "$dir"
+  fi
+  rm -f "$JAR"
 }
 trap cleanup EXIT
 studio() {
@@ -52,14 +58,15 @@ wait_for() {
 started="${DONKA_INSTALL_STARTED:-$(date +%s)}"
 budget="${DONKA_INSTALL_BUDGET:-}"
 docker run --rm -u "$(id -u):$(id -g)" -v "$dir:/install" -w /install \
-  "ghcr.io/youmssi/donka-studio:$studio_tag" \
-  donka-admin init --studio-version "$studio_tag" --runtime-version "$runtime_tag" ${demo:+--demo}
+  "$registry/donka-studio:$studio_tag" \
+  donka-admin init --studio-version "$studio_tag" --runtime-version "$runtime_tag" \
+  ${DONKA_REGISTRY:+--registry "$DONKA_REGISTRY"} ${demo:+--demo}
 [ "$(stat -c %a "$dir/.env")" = 600 ] || fail ".env is not readable by its owner only"
 
 # A second run keeps the secrets.
 before=$(sha256sum "$dir/.env")
 docker run --rm -u "$(id -u):$(id -g)" -v "$dir:/install" -w /install \
-  "ghcr.io/youmssi/donka-studio:$studio_tag" donka-admin init >/dev/null
+  "$registry/donka-studio:$studio_tag" donka-admin init >/dev/null
 [ "$(sha256sum "$dir/.env")" = "$before" ] || fail "a second init changed .env"
 
 cd "$dir"

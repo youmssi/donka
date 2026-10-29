@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Every image an installation runs, the demo's included, as install/docker-compose.yml names them
+# Every image an installation runs, the demo's and the upgrade's tools included, as install/docker-compose.yml names them
 # for these tags (DNK-64): what to pull, measure or bundle.
 #
 #   scripts/install-images.sh <studio image tag> <runtime image tag>
@@ -15,4 +15,4 @@ cp "$root/apps/app/install/docker-compose.yml" "$project/"
 touch "$project/.env"
 DONKA_VERSION="$studio_tag" DONKA_RUNTIME_VERSION="$runtime_tag" DONKA_POSTGRES_PASSWORD=unused \
   docker compose --project-directory "$project" -f "$project/docker-compose.yml" --profile demo \
-  config --images | sort -u
+  --profile tools config --images | sort -u
