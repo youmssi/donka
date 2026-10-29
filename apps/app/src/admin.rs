@@ -3,7 +3,7 @@
 //!
 //! ```text
 //! docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/install" -w /install \
-//!   ghcr.io/youmssi/donka-studio:<version> donka-admin init
+//!   ghcr.io/youmssi/donka-studio:<version> donka-admin init [--demo]
 //! ```
 
 use donka_app::install::{self, Options, Outcome};
@@ -11,15 +11,20 @@ use std::path::PathBuf;
 
 const USAGE: &str = "usage:
   donka-admin init [--dir <dir>] [--public-url <url>] [--admin-email <email>]
-                   [--studio-version <tag>] [--runtime-version <tag>]
+                   [--studio-version <tag>] [--runtime-version <tag>] [--demo]
       Prepares an installation in <dir> (the current folder by default): docker-compose.yml
       and .env with random secrets. Existing files are kept, never overwritten.
-      Then: docker compose up -d";
+      --demo also releases the retail-credit pack to staging at the first start, its bureau
+      connector answered by a fake bureau (its key in runtime.env).
+      Then: docker compose up -d
+  donka-admin demo-bureau
+      The demo's fake credit bureau, on port 8080 (the demo-bureau service runs it).";
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let done = match args.first().map(String::as_str) {
         Some("init") => init(&args[1..]),
+        Some("demo-bureau") if args.len() == 1 => demo_bureau(),
         _ => Err(USAGE.to_owned()),
     };
     if let Err(err) = done {
@@ -33,6 +38,10 @@ fn init(args: &[String]) -> Result<(), String> {
     let mut dir = PathBuf::from(".");
     let mut rest = args.iter();
     while let Some(flag) = rest.next() {
+        if flag == "--demo" {
+            options.demo = true;
+            continue;
+        }
         let value = rest
             .next()
             .ok_or_else(|| format!("{flag} needs a value\n\n{USAGE}"))?
@@ -63,4 +72,22 @@ fn init(args: &[String]) -> Result<(), String> {
         options.public_url, options.admin_email
     );
     Ok(())
+}
+
+/// Serves the demo's fake bureau until the container stops.
+fn demo_bureau() -> Result<(), String> {
+    let key = std::env::var("DONKA_SECRET_BUREAU_API_KEY")
+        .ok()
+        .filter(|key| !key.trim().is_empty())
+        .ok_or("DONKA_SECRET_BUREAU_API_KEY is not set: run donka-admin init --demo")?;
+    let runtime = tokio::runtime::Runtime::new().map_err(|err| err.to_string())?;
+    runtime.block_on(async move {
+        let listener = tokio::net::TcpListener::bind("0.0.0.0:8080")
+            .await
+            .map_err(|err| format!("cannot listen on port 8080: {err}"))?;
+        println!("demo bureau listening on port 8080");
+        axum::serve(listener, donka_app::demo::bureau::router(key))
+            .await
+            .map_err(|err| err.to_string())
+    })
 }

@@ -306,5 +306,31 @@
       ]
     },
     "match": "partial"
+  },
+  {
+    "decision": "credit-application",
+    "name": "Civil servant, the bureau consulted",
+    "input": {
+      "applicant": {
+        "age": 38,
+        "employment": "public",
+        "monthsInJob": 96,
+        "monthlyIncome": 450000,
+        "monthlyDebtPayments": 40000,
+        "salaryDomiciled": true,
+        "nationalId": "CM-100"
+      },
+      "loan": {
+        "amount": 2500000,
+        "termMonths": 36
+      }
+    },
+    "expected": {
+      "decision": "approve",
+      "band": "A",
+      "score": 143,
+      "reasons": []
+    },
+    "match": "partial"
   }
 ]

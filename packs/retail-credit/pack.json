@@ -10,6 +10,6 @@
   "market": "CM",
   "currency": "XAF",
   "entry": "scorecard",
-  "decisions": ["affordability", "scorecard"],
+  "decisions": ["affordability", "scorecard", "credit-application"],
   "decisionLog": { "outcomeField": "decision", "redactedFields": [] }
 }

@@ -136,6 +136,7 @@ jobs:
       - run: |
           docker tag donka-studio:ci ghcr.io/youmssi/donka-studio:ci
           scripts/check-install.sh ci ci
+          scripts/check-install.sh ci ci demo
 
   # The one-command install: `docker compose --profile full up` with its defaults, then the
   # post-deploy smoke test against it. Images come from the same compose file (bake), cached.
@@ -342,6 +343,10 @@ jobs:
       - name: Studio and a fake bureau
         run: |
           FAKE_BUREAU_KEY=e2e-bureau-secret nohup scripts/fake-bureau.py 127.0.0.1 8099 > bureau.log 2>&1 &
+          # The demo's bureau, which the retail-credit pack's connector calls (DNK-64).
+          echo "127.0.0.1 demo-bureau" | sudo tee -a /etc/hosts
+          DONKA_SECRET_BUREAU_API_KEY=e2e-bureau-secret nohup target/debug/donka-admin demo-bureau \
+            > demo-bureau.log 2>&1 &
           DATABASE_URL=postgres://donka:donka@localhost:5432/donka DONKA_LISTEN=127.0.0.1:8181 \
           DONKA_PUBLIC_URL=http://localhost:8181 DONKA_COOKIE_SECURE=false \
           DONKA_BOOTSTRAP_ADMIN_EMAIL=ada@bank.example DONKA_PACKS_DIR=packs \
@@ -380,4 +385,4 @@ jobs:
           DONKA_SECRET_BUREAU_API_KEY: e2e-bureau-secret
       - name: Logs
         if: failure()
-        run: tail -n 100 studio.log runtime.log bureau.log
+        run: tail -n 100 studio.log runtime.log bureau.log demo-bureau.log

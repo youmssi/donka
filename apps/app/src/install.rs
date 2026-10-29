@@ -19,6 +19,9 @@ pub struct Options {
     /// Image tags.
     pub studio_version: String,
     pub runtime_version: String,
+    /// The demo: the retail-credit pack released to staging at the first start, its bureau
+    /// connector answered by a bundled fake bureau.
+    pub demo: bool,
 }
 
 impl Options {
@@ -34,6 +37,7 @@ impl Options {
             admin_email: "admin@donka.local".to_owned(),
             studio_version: if released { version } else { "edge" }.to_owned(),
             runtime_version: if released { "latest" } else { "edge" }.to_owned(),
+            demo: false,
         }
     }
 }
@@ -51,8 +55,8 @@ pub enum Outcome {
 pub fn init(
     dir: &Path,
     options: &Options,
-    random: impl FnMut(&mut [u8]) -> Result<(), String>,
-) -> Result<[Outcome; 2], String> {
+    mut random: impl FnMut(&mut [u8]) -> Result<(), String>,
+) -> Result<Vec<Outcome>, String> {
     std::fs::create_dir_all(dir)
         .map_err(|err| format!("cannot create {}: {err}", dir.display()))?;
     let compose = write_once(
@@ -60,14 +64,38 @@ pub fn init(
         || Ok(COMPOSE.to_owned()),
         false,
     )?;
-    let env = write_once(&dir.join(".env"), || env_file(options, random), true)?;
-    Ok([compose, env])
+    let env = write_once(&dir.join(".env"), || env_file(options, &mut random), true)?;
+    let mut outcomes = vec![compose, env];
+    if options.demo {
+        let runtime = write_once(
+            &dir.join("runtime.env"),
+            || demo_runtime_env(&mut random),
+            true,
+        )?;
+        outcomes.push(runtime);
+    }
+    Ok(outcomes)
+}
+
+/// The demo's `runtime.env`: the key the Runtime sends to the fake bureau, which reads the same
+/// file. A real bureau's key replaces it there.
+fn demo_runtime_env(
+    random: &mut impl FnMut(&mut [u8]) -> Result<(), String>,
+) -> Result<String, String> {
+    let mut key = [0u8; 24];
+    random(&mut key)?;
+    let key: String = key.iter().map(|b| format!("{b:02x}")).collect();
+    Ok(format!(
+        "# Written once by `donka-admin init --demo`: the Runtime's settings and connector secrets.\n\
+         # The key of the demo's fake credit bureau; replace it with your bureau's.\n\
+         DONKA_SECRET_BUREAU_API_KEY={key}\n"
+    ))
 }
 
 /// The `.env` file: the installation's settings and its generated secrets.
 fn env_file(
     options: &Options,
-    mut random: impl FnMut(&mut [u8]) -> Result<(), String>,
+    random: &mut impl FnMut(&mut [u8]) -> Result<(), String>,
 ) -> Result<String, String> {
     let mut key = || -> Result<String, String> {
         let mut bytes = [0u8; 32];
@@ -85,7 +113,16 @@ fn env_file(
         admin_email,
         studio_version,
         runtime_version,
+        demo,
     } = options;
+    let demo = if *demo {
+        "\n# The demo (donka-admin init --demo): the retail-credit pack released to staging at the\n\
+         # first start, and the fake bureau its connector calls\n\
+         COMPOSE_PROFILES=demo\n\
+         DONKA_DEMO=true\n"
+    } else {
+        ""
+    };
     Ok(format!(
         "# Written once by `donka-admin init`. It holds this installation's secrets: keep it out of\n\
          # version control, back it up with the database, and never run init to replace it.\n\
@@ -111,7 +148,8 @@ fn env_file(
          \n\
          # Mail: Mailpit (http://localhost:8025) catches every email until these point at your server\n\
          # DONKA_SMTP_URL=smtp://user:pass@mail.example:587?tls=required\n\
-         # DONKA_SMTP_FROM=Donka <donka@example>\n"
+         # DONKA_SMTP_FROM=Donka <donka@example>\n\
+         {demo}"
     ))
 }
 
@@ -169,7 +207,7 @@ mod tests {
         let dir = dir("fresh");
         let outcome = init(&dir, &Options::for_version("1.4.0"), system_random).unwrap();
         assert!(matches!(
-            outcome,
+            outcome[..],
             [Outcome::Written(_), Outcome::Written(_)]
         ));
         assert_eq!(
@@ -238,7 +276,7 @@ mod tests {
         let before = std::fs::read_to_string(dir.join(".env")).unwrap();
         std::fs::write(dir.join("docker-compose.yml"), "# edited\n").unwrap();
         let outcome = init(&dir, &Options::for_version("2.0.0"), system_random).unwrap();
-        assert!(matches!(outcome, [Outcome::Kept(_), Outcome::Kept(_)]));
+        assert!(matches!(outcome[..], [Outcome::Kept(_), Outcome::Kept(_)]));
         assert_eq!(std::fs::read_to_string(dir.join(".env")).unwrap(), before);
         assert_eq!(
             std::fs::read_to_string(dir.join("docker-compose.yml")).unwrap(),
@@ -256,6 +294,47 @@ mod tests {
         assert_eq!(failed.unwrap_err(), "no entropy");
         assert!(!dir.join(".env").exists());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_demo_turns_on_its_profile_and_writes_the_bureau_key_once() {
+        let plain = dir("plain");
+        init(&plain, &Options::for_version("1.4.0"), system_random).unwrap();
+        let env = std::fs::read_to_string(plain.join(".env")).unwrap();
+        assert!(!env.contains("DONKA_DEMO") && !env.contains("COMPOSE_PROFILES"));
+        assert!(!plain.join("runtime.env").exists());
+
+        let demo = dir("demo");
+        let options = Options {
+            demo: true,
+            ..Options::for_version("1.4.0")
+        };
+        let outcome = init(&demo, &options, system_random).unwrap();
+        assert_eq!(outcome.len(), 3);
+        let env = std::fs::read_to_string(demo.join(".env")).unwrap();
+        assert_eq!(env_value(&env, "COMPOSE_PROFILES"), "demo");
+        assert_eq!(env_value(&env, "DONKA_DEMO"), "true");
+        let runtime = std::fs::read_to_string(demo.join("runtime.env")).unwrap();
+        assert_eq!(env_value(&runtime, "DONKA_SECRET_BUREAU_API_KEY").len(), 48);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            let mode = std::fs::metadata(demo.join("runtime.env"))
+                .unwrap()
+                .permissions()
+                .mode();
+            assert_eq!(mode & 0o777, 0o600);
+        }
+        init(&demo, &options, system_random).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(demo.join("runtime.env")).unwrap(),
+            runtime
+        );
+        assert!(COMPOSE.contains("command: [donka-admin, demo-bureau]"));
+        let _ = (
+            std::fs::remove_dir_all(&plain),
+            std::fs::remove_dir_all(&demo),
+        );
     }
 
     #[test]

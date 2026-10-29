@@ -51,6 +51,24 @@ docker compose up -d
 Without the options, init sets up a first look on this machine: http://localhost:8080 and
 `admin@donka.local`. `--studio-version` and `--runtime-version` pin other image tags.
 
+**The demo.** `donka-admin init --demo` prepares the same installation with a project ready to
+call. At the first start, Studio imports the *Retail credit* pack, releases it and deploys it to
+staging, and a fake credit bureau answers its connector (`demo-bureau` service, key in
+`runtime.env`). Once the first administrator has a password, the Get started checklist shows the
+steps already done; create a Runtime token under **Environments** and call the decision:
+
+```bash
+curl -X POST http://localhost:8090/api/projects/retail-credit/evaluate/credit-application \
+  -H 'content-type: application/json' -H "X-Access-Token: $TOKEN" \
+  -d '{"context": {"applicant": {"nationalId": "CM-109", "age": 38, "employment": "public",
+       "monthsInJob": 96, "monthlyIncome": 450000, "monthlyDebtPayments": 40000,
+       "salaryDomiciled": true}, "loan": {"amount": 2500000, "termMonths": 36}}}'
+```
+
+The fake bureau's answers are synthetic and depend on the last digit of `nationalId`: most are
+clean, `7` and `8` have arrears and `9` serious ones (a decline). The decision appears in
+Studio's decision log. A demo is for a first look: install again without `--demo` for real use.
+
 To change a setting later, edit `.env` and run `docker compose up -d`. **Before real use**, set
 at least the address people reach Studio at and your mail server:
 
