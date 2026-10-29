@@ -51,9 +51,11 @@ Donka Studio $studio_tag with Donka Runtime $runtime_tag, for a server without i
 
      docker load -i images.tar.gz
 
-3. Prepare and start the installation, in an empty folder:
+3. Prepare and start the installation, in an empty folder. init asks its questions (the
+   options below answer some); it writes donka.yaml, the secrets in secrets/, and the files
+   Docker Compose reads:
 
-     docker run --rm -u "\$(id -u):\$(id -g)" -v "\$PWD:/install" -w /install \\
+     docker run --rm -it -u "\$(id -u):\$(id -g)" -v "\$PWD:/install" -w /install \\
        ghcr.io/youmssi/donka-studio:$studio_tag donka-admin init \\
        --studio-version $studio_tag --runtime-version $runtime_tag --offline \\
        --public-url https://donka.bank.example --admin-email you@bank.example

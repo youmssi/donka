@@ -61,13 +61,26 @@ docker run --rm -u "$(id -u):$(id -g)" -v "$dir:/install" -w /install \
   "$registry/donka-studio:$studio_tag" \
   donka-admin init --studio-version "$studio_tag" --runtime-version "$runtime_tag" \
   ${DONKA_REGISTRY:+--registry "$DONKA_REGISTRY"} ${demo:+--demo}
-[ "$(stat -c %a "$dir/.env")" = 600 ] || fail ".env is not readable by its owner only"
+# The secrets are files: only the installation's owner enters its folder, and no other file
+# holds a secret's value.
+[ "$(stat -c %a "$dir")" = 700 ] || fail "the installation folder is open to others"
+[ "$(stat -c %a "$dir/secrets")" = 711 ] || fail "secrets/ can be listed"
+for secret in "$dir"/secrets/*; do
+  value=$(cat "$secret")
+  for file in donka.yaml .env runtime.env; do
+    if grep -qF "$value" "$dir/$file"; then fail "$file holds the secret $(basename "$secret")"; fi
+  done
+done
 
-# A second run keeps the secrets.
-before=$(sha256sum "$dir/.env")
+# A second run keeps everything; a replay from donka.yaml writes the same files and keeps the
+# secrets.
+before=$(cd "$dir" && sha256sum donka.yaml .env runtime.env secrets/*)
 docker run --rm -u "$(id -u):$(id -g)" -v "$dir:/install" -w /install \
   "$registry/donka-studio:$studio_tag" donka-admin init >/dev/null
-[ "$(sha256sum "$dir/.env")" = "$before" ] || fail "a second init changed .env"
+docker run --rm -u "$(id -u):$(id -g)" -v "$dir:/install" -w /install \
+  "$registry/donka-studio:$studio_tag" donka-admin init --config donka.yaml >/dev/null
+[ "$(cd "$dir" && sha256sum donka.yaml .env runtime.env secrets/*)" = "$before" ] \
+  || fail "a second init or a replay changed the installation"
 
 cd "$dir"
 docker compose up -d --pull never
@@ -77,10 +90,11 @@ wait_for "$RUNTIME_URL/api/health"
 link=$(docker compose logs app | grep -o 'setup-password/?token=[A-Za-z0-9_-]*' | head -1)
 [ -n "$link" ] || fail "no password-setup link in Studio's logs"
 studio POST /auth/password-setup "{\"token\": \"${link#*token=}\", \"password\": \"$PASSWORD\"}" >/dev/null
-# Nothing but that link is printed: no generated secret reaches the logs.
-for key in DONKA_POSTGRES_PASSWORD DONKA_DECISION_LOG_KEY DONKA_SECOND_STEP_KEY DONKA_PERSON_INDEX_KEY; do
-  value=$(sed -n "s/^$key=//p" .env)
-  if docker compose logs 2>&1 | grep -qF "$value"; then fail "$key appears in the logs"; fi
+# Nothing but that link is printed: no secret reaches the logs.
+for secret in secrets/*; do
+  if docker compose logs 2>&1 | grep -qF "$(cat "$secret")"; then
+    fail "$(basename "$secret") appears in the logs"
+  fi
 done
 
 STUDIO_URL="$STUDIO_URL" RUNTIME_URL="$RUNTIME_URL" \

@@ -112,7 +112,12 @@ unattended() {
     "$R/donka-studio:$(version DONKA_VERSION)" donka-admin auto-upgrade --once || status=$?
   [ "$status" = "$1" ] || fail "auto-upgrade --once exited with $status, not $1"
 }
-set_env() { sed -i "/^$1=/d" "$dir/.env" && echo "$1=$2" >> "$dir/.env"; }
+# configure <answer> <value>: changes an answer in donka.yaml and applies it, as an operator does
+configure() {
+  sed -i "/^$1:/d" "$dir/donka.yaml" && echo "$1: '$2'" >> "$dir/donka.yaml"
+  docker run --rm -u "$(id -u):$(id -g)" -v "$dir:/install" -w /install \
+    "$R/donka-studio:$(version DONKA_VERSION)" donka-admin init --config donka.yaml >/dev/null
+}
 unchanged() {
   [ "$(version DONKA_VERSION)" = 1.0.0 ] || fail "$1: .env names Studio $(version DONKA_VERSION)"
   [ "$(running app)" = "$(image_id donka-studio:1.0.0)" ] || fail "$1: Studio is not 1.0.0"
@@ -163,15 +168,15 @@ unattended 3
 echo "check-upgrade: a production installation never upgrades by itself"
 
 # A window that opened a minute ago, on today's day (the runner's and the containers' UTC).
-set_env DONKA_INSTALLATION_ROLE staging
-set_env DONKA_AUTO_UPGRADE_WINDOW "$(date -u -d '-1 minute' '+%a %H:%M')-$(date -u -d '+30 minutes' '+%H:%M')"
+configure role staging
+configure auto_upgrade "$(date -u -d '-1 minute' '+%a %H:%M')-$(date -u -d '+30 minutes' '+%H:%M')"
 unattended 0
 [ "$(version DONKA_VERSION)" = 2.0.1 ] || fail "the unattended upgrade went to $(version DONKA_VERSION), not 2.0.1"
 [ "$(running app)" = "$(image_id donka-studio:2.0.1)" ] || fail "Studio does not run 2.0.1"
 [ "$(version DONKA_RUNTIME_VERSION)" = 2.0.0 ] || fail "the Runtime moved without a later release"
 echo "check-upgrade: in its window, a staging installation upgrades to 2.0.1, not the major 3.0.0"
 
-set_env DONKA_AUTO_UPGRADE_WINDOW "$(date -u -d '+1 day' '+%a') 02:00-04:00"
+configure auto_upgrade "$(date -u -d '+1 day' '+%a') 02:00-04:00"
 unattended 0
 [ "$(version DONKA_VERSION)" = 2.0.1 ] || fail "an upgrade ran outside the window"
 echo "check-upgrade: outside its window, nothing happens"
@@ -179,8 +184,7 @@ echo "check-upgrade: outside its window, nothing happens"
 # The service itself: it looks at once, upgrades, then is recreated on the release it installed.
 publish donka-studio:2.0.2 "$studio_image"
 sign donka-studio:2.0.2
-set_env DONKA_AUTO_UPGRADE_WINDOW "$(date -u -d '-1 minute' '+%a %H:%M')-$(date -u -d '+30 minutes' '+%H:%M')"
-set_env COMPOSE_PROFILES auto-upgrade
+configure auto_upgrade "$(date -u -d '-1 minute' '+%a %H:%M')-$(date -u -d '+30 minutes' '+%H:%M')"
 (cd "$dir" && docker compose up -d auto-upgrade >/dev/null)
 for _ in $(seq 1 120); do
   [ "$(version DONKA_VERSION)" = 2.0.2 ] && [ "$(running auto-upgrade 2>/dev/null)" = "$(image_id donka-studio:2.0.2)" ] && break

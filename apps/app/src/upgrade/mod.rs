@@ -31,7 +31,12 @@ pub const UPGRADER: &str = "auto-upgrade";
 /// Where Studio's image carries its compose file (the one `donka-admin init` writes).
 pub const COMPOSE_PATH: &str = "/etc/donka/docker-compose.yml";
 pub(crate) const DEFAULT_REGISTRY: &str = "ghcr.io/youmssi";
-const ENV_FILES: [&str; 3] = [".env", "runtime.env", "docker-compose.yml"];
+const ENV_FILES: [&str; 4] = [
+    crate::install::CONFIG,
+    ".env",
+    "runtime.env",
+    "docker-compose.yml",
+];
 /// How long a service has to answer after it is recreated.
 const START_TIMEOUT: Duration = Duration::from_secs(180);
 
@@ -268,7 +273,18 @@ async fn upgrade(
         engine: &engine,
         dir: &options.dir,
         postgres: &postgres,
-        password: env_value(env, "DONKA_POSTGRES_PASSWORD").unwrap_or_default(),
+        password: match crate::install::read_secret(
+            &options
+                .dir
+                .join(crate::install::SECRETS)
+                .join(crate::install::POSTGRES_PASSWORD),
+        ) {
+            Ok(password) => password,
+            Err(err) => {
+                let _ = report.step("back up", Err(err));
+                return Outcome::Refused;
+            }
+        },
     };
     if report
         .step("back up", tools.back_up(&backup).await)
@@ -279,15 +295,17 @@ async fn upgrade(
     report.backup = Some(backup.clone());
 
     let base_path = env_value(env, "DONKA_API_BASE_PATH").unwrap_or_else(|| "/api/v1".to_owned());
-    let changed = async {
+    // donka.yaml records each new version, and the files written from it follow; the compose
+    // file is the new release's.
+    let versions = |studio: &str, runtime: &str| {
+        crate::install::set_versions(&options.dir, studio, runtime)?;
         std::fs::write(options.dir.join("docker-compose.yml"), &compose)
-            .map_err(|err| err.to_string())?;
+            .map_err(|err| err.to_string())
+    };
+    let changed = async {
+        versions(&installed.studio, &installed.runtime)?;
         if target.runtime != installed.runtime {
-            set_env(
-                &options.dir.join(".env"),
-                "DONKA_RUNTIME_VERSION",
-                &target.runtime,
-            )?;
+            versions(&installed.studio, &target.runtime)?;
             tools.compose(&["up", "-d", "--no-deps", "runtime"]).await?;
             let image = engine
                 .image_id(&format!("{runtime}:{}", target.runtime))
@@ -299,7 +317,7 @@ async fn upgrade(
     .await;
     let upgraded = if report.step("upgrade the Runtime", changed).is_ok() {
         let studio_done = async {
-            set_env(&options.dir.join(".env"), "DONKA_VERSION", &target.studio)?;
+            versions(&target.studio, &target.runtime)?;
             tools.start_all().await?;
             let image = engine.image_id(&new_studio).await?;
             smoke_studio(&engine, &base_path, image.as_deref()).await?;
@@ -412,6 +430,10 @@ impl Tools<'_> {
                     .map_err(|err| format!("cannot copy {file}: {err}"))?;
             }
         }
+        copy_files(
+            &self.dir.join(crate::install::SECRETS),
+            &folder.join(crate::install::SECRETS),
+        )?;
         self.postgres_shell(format!(
             "pg_dump -h postgres -U donka -Fc -f {INSTALL}/{backup}/donka.dump donka"
         ))
@@ -423,7 +445,7 @@ impl Tools<'_> {
         ))
         .await?;
         Ok(format!(
-            "{backup}: database, volumes, .env, runtime.env, docker-compose.yml"
+            "{backup}: database, volumes, secrets, donka.yaml, .env, runtime.env, docker-compose.yml"
         ))
     }
 
@@ -436,6 +458,10 @@ impl Tools<'_> {
                     .map_err(|err| format!("cannot restore {file}: {err}"))?;
             }
         }
+        copy_files(
+            &folder.join(crate::install::SECRETS),
+            &self.dir.join(crate::install::SECRETS),
+        )?;
         self.compose(&["stop", "app", "runtime"]).await?;
         self.postgres_shell(format!(
             "psql -h postgres -U donka -d postgres -v ON_ERROR_STOP=1 \
@@ -548,29 +574,19 @@ fn env_value(env: &str, key: &str) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
-/// Sets `key` in the env file at `path`, keeping every other line as it is.
-fn set_env(path: &Path, key: &str, value: &str) -> Result<(), String> {
-    let env = read_env(path)?;
-    std::fs::write(path, with_env(&env, key, value))
-        .map_err(|err| format!("cannot write {}: {err}", path.display()))
-}
-
-fn with_env(env: &str, key: &str, value: &str) -> String {
-    let mut found = false;
-    let mut lines: Vec<String> = env
-        .lines()
-        .map(|line| match line.split_once('=') {
-            Some((name, _)) if name.trim() == key => {
-                found = true;
-                format!("{key}={value}")
-            }
-            _ => line.to_owned(),
-        })
-        .collect();
-    if !found {
-        lines.push(format!("{key}={value}"));
+/// Copies the files of `from` into `to`, keeping their permissions: the secrets folder.
+fn copy_files(from: &Path, to: &Path) -> Result<(), String> {
+    std::fs::create_dir_all(to).map_err(|err| format!("cannot create {}: {err}", to.display()))?;
+    let entries =
+        std::fs::read_dir(from).map_err(|err| format!("cannot read {}: {err}", from.display()))?;
+    for entry in entries {
+        let entry = entry.map_err(|err| err.to_string())?;
+        if entry.file_type().map_err(|err| err.to_string())?.is_file() {
+            std::fs::copy(entry.path(), to.join(entry.file_name()))
+                .map_err(|err| format!("cannot copy {}: {err}", entry.path().display()))?;
+        }
     }
-    lines.join("\n") + "\n"
+    Ok(())
 }
 
 #[cfg(test)]
@@ -578,18 +594,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn env_values_are_read_and_replaced_in_place() {
+    fn env_values_are_read_ignoring_comments() {
         let env =
             "# Images\nDONKA_VERSION=1.4.0\nDONKA_RUNTIME_VERSION=1.2.0\n# DONKA_REGISTRY=x\n";
         assert_eq!(env_value(env, "DONKA_VERSION").as_deref(), Some("1.4.0"));
         assert_eq!(env_value(env, "DONKA_REGISTRY"), None);
-        let changed = with_env(env, "DONKA_VERSION", "1.5.0");
-        assert_eq!(
-            changed,
-            "# Images\nDONKA_VERSION=1.5.0\nDONKA_RUNTIME_VERSION=1.2.0\n# DONKA_REGISTRY=x\n"
-        );
-        assert!(with_env(env, "DONKA_REGISTRY", "r")
-            .ends_with("# DONKA_REGISTRY=x\nDONKA_REGISTRY=r\n"));
     }
 
     #[test]
