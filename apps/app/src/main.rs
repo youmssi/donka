@@ -187,6 +187,22 @@ async fn main() -> anyhow::Result<()> {
         None => Catalogue::default(),
     };
     tracing::info!(packs = catalogue.packs().len(), "pack catalogue loaded");
+    let licence_key = donka_licence::PublicKey::built_in()
+        .unwrap_or_else(|err| exit_with(&format!("built-in licence key: {err}")));
+    if donka_licence::DEVELOPMENT_BUILD {
+        tracing::warn!(
+            key = licence_key.id(),
+            "this Studio trusts the development licence key: never deliver this build"
+        );
+    } else if licence_key.is_placeholder() {
+        tracing::warn!(
+            "this Studio's licence key is a placeholder: no licence verifies until Donka's \
+             public key is built in"
+        );
+    }
+    let licensing =
+        donka_app::licence::Licensing::new(config.licence_file.clone(), licence_key, clock.clone());
+    tokio::spawn(donka_app::licence::watch(licensing.clone()));
     let packs = Packs::new(
         db.clone(),
         clock.clone(),
@@ -215,6 +231,7 @@ async fn main() -> anyhow::Result<()> {
                 config.password_reset_rate_limit,
                 config.trusted_proxies.clone(),
             ),
+            licensing,
         },
         &config.api_base_path,
         config.web_dir.as_deref(),

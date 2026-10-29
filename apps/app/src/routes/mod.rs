@@ -5,6 +5,7 @@ pub mod decision_log;
 pub mod decisions;
 pub mod findings;
 pub mod health;
+pub mod licence;
 pub mod onboarding;
 pub mod packs;
 pub mod people;

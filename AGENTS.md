@@ -166,9 +166,11 @@ crates/release/      releases (frozen versions, semver), environments, deploymen
 crates/decision-log/ decision records sent by Runtimes (feed, tokens, encryption, search, replay, redaction, retention purge)
 crates/explain/      plain-language explanations from the customer's LLM endpoint (Messages API or OpenAI-compatible)
 crates/pack/         packs: the pack format (folder or zip), the catalogue, import, duplicate and export of projects
+crates/licence/      licence files: format, Ed25519 signature verified offline, status by day, modules (DNK-77)
 crates/<module>/     one crate per business module
 migrations/          PostgreSQL migrations (sqlx), forward-only; <UTC timestamp>_<what>.sql
 packs/               starter packs: decisions, test scenarios and guides (EN/FR), offered by Studio (DONKA_PACKS_DIR)
+tools/licence-issuer/ `donka-licence`: issues licence files at Donka; never built into the image
 scripts/             repo scripts (engine version drift check, end-to-end release test, image check, post-deploy smoke test, pack import)
 docs/adr/            architecture decision records
 docs/brand/          logo family: marks, lockups, usage rules

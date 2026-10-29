@@ -307,6 +307,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/licence': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** What the installation's licence allows (any signed-in user). */
+    get: operations['get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/me/tours': {
     parameters: {
       query?: never;
@@ -2138,6 +2155,55 @@ export interface components {
       token: string;
     };
     /**
+     * @description Why a licence file was refused.
+     * @enum {string}
+     */
+    LicenceRefusal: 'unreadable' | 'foreign' | 'tampered';
+    LicenceResponse: {
+      /** @description New versions and releases can be made. */
+      allowsChanges: boolean;
+      /** @description Releases can reach production (anything but evaluation). */
+      allowsProduction: boolean;
+      /** @description Who the licence was issued to; absent in evaluation and when refused. */
+      customer?: string | null;
+      /**
+       * Format: int64
+       * @description Valid days left after today, while active.
+       */
+      daysLeft?: number | null;
+      /** @description The licence ends within the notice period: administrators should renew it. */
+      expiring: boolean;
+      /** @description Optional modules this installation offers. */
+      modules: components['schemas']['LicensedModule'][];
+      /**
+       * Format: int64
+       * @description Days before the end at which `expiring` turns on.
+       * @example 30
+       */
+      noticeDays: number;
+      /** @description The same, in words (English), as Studio's log says it. */
+      reason?: string | null;
+      refusal?: null | components['schemas']['LicenceRefusal'];
+      status: components['schemas']['LicenceStatus'];
+      /**
+       * Format: date
+       * @description First and last valid days (UTC, both included).
+       */
+      validFrom?: string | null;
+      /** Format: date */
+      validUntil?: string | null;
+    };
+    /**
+     * @description Where the installation stands.
+     * @enum {string}
+     */
+    LicenceStatus: 'evaluation' | 'active' | 'notYetValid' | 'expired' | 'refused';
+    /**
+     * @description An optional part of Studio a licence includes or not.
+     * @enum {string}
+     */
+    LicensedModule: 'explain' | 'connectors' | 'analysis';
+    /**
      * @description Language of a user's emails and screens.
      * @enum {string}
      */
@@ -3555,6 +3621,25 @@ export interface operations {
       };
     };
   };
+  get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['LicenceResponse'];
+        };
+      };
+    };
+  };
   tours: {
     parameters: {
       query?: never;
@@ -3712,7 +3797,7 @@ export interface operations {
           'application/json': components['schemas']['ErrorBody'];
         };
       };
-      /** @description Not an administrator (FORBIDDEN) */
+      /** @description Not an administrator (FORBIDDEN); the licence is not valid (LICENCE_INACTIVE); the pack has a connector node and the licence leaves connectors out (MODULE_NOT_LICENSED) */
       403: {
         headers: {
           [name: string]: unknown;
@@ -3825,7 +3910,7 @@ export interface operations {
           'application/json': components['schemas']['ErrorBody'];
         };
       };
-      /** @description Not an administrator (FORBIDDEN) */
+      /** @description Not an administrator (FORBIDDEN); the licence is not valid (LICENCE_INACTIVE) */
       403: {
         headers: {
           [name: string]: unknown;
@@ -4117,7 +4202,7 @@ export interface operations {
           'application/json': components['schemas']['ApprovalResponse'];
         };
       };
-      /** @description Viewers cannot ask (FORBIDDEN) */
+      /** @description Viewers cannot ask (FORBIDDEN); evaluation, without a licence, stops at staging (PRODUCTION_NEEDS_LICENCE) */
       403: {
         headers: {
           [name: string]: unknown;
@@ -4206,7 +4291,7 @@ export interface operations {
           'application/json': components['schemas']['ApprovalResponse'];
         };
       };
-      /** @description Only owners decide (FORBIDDEN) */
+      /** @description Only owners decide (FORBIDDEN); evaluation, without a licence, stops at staging (PRODUCTION_NEEDS_LICENCE) */
       403: {
         headers: {
           [name: string]: unknown;
@@ -5001,6 +5086,15 @@ export interface operations {
           'application/json': components['schemas']['ExplainResponse'];
         };
       };
+      /** @description The licence leaves explanations out (MODULE_NOT_LICENSED) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
       /** @description NOT_FOUND (explanations are off), PROJECT_NOT_FOUND or RECORD_NOT_FOUND */
       404: {
         headers: {
@@ -5511,7 +5605,7 @@ export interface operations {
           'application/json': components['schemas']['ErrorBody'];
         };
       };
-      /** @description Viewers cannot save versions (FORBIDDEN) */
+      /** @description Viewers cannot save versions (FORBIDDEN); the licence is not valid (LICENCE_INACTIVE); the draft has a connector node and the licence leaves connectors out (MODULE_NOT_LICENSED) */
       403: {
         headers: {
           [name: string]: unknown;
@@ -5606,7 +5700,7 @@ export interface operations {
           'application/json': components['schemas']['RestoreResponse'];
         };
       };
-      /** @description Viewers cannot restore (FORBIDDEN) */
+      /** @description Viewers cannot restore (FORBIDDEN); the licence is not valid (LICENCE_INACTIVE); the version has a connector node and the licence leaves connectors out (MODULE_NOT_LICENSED) */
       403: {
         headers: {
           [name: string]: unknown;
@@ -5699,7 +5793,7 @@ export interface operations {
           'application/json': components['schemas']['ErrorBody'];
         };
       };
-      /** @description Not an administrator (FORBIDDEN) */
+      /** @description Not an administrator (FORBIDDEN); the licence is not valid (LICENCE_INACTIVE) */
       403: {
         headers: {
           [name: string]: unknown;
@@ -6534,7 +6628,7 @@ export interface operations {
           'application/json': components['schemas']['ErrorBody'];
         };
       };
-      /** @description Viewers cannot release (FORBIDDEN) */
+      /** @description Viewers cannot release (FORBIDDEN); the licence is not valid (LICENCE_INACTIVE) */
       403: {
         headers: {
           [name: string]: unknown;
@@ -6857,7 +6951,7 @@ export interface operations {
           'application/json': components['schemas']['ErrorBody'];
         };
       };
-      /** @description Only owners roll back (FORBIDDEN) */
+      /** @description Only owners roll back (FORBIDDEN); evaluation, without a licence, stops at staging (PRODUCTION_NEEDS_LICENCE) */
       403: {
         headers: {
           [name: string]: unknown;

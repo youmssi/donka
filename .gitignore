@@ -8,6 +8,7 @@ out/
 .tsgo-cache/
 runtime.env
 .feature-runtime.env
+.feature-licence.json
 .feature-cli/
 apps/web/playwright-report/
 apps/web/playwright-report-security/

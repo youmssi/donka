@@ -237,7 +237,7 @@ pub async fn list(
     request_body = RequestApprovalRequest,
     responses(
         (status = 201, body = ApprovalResponse),
-        (status = 403, description = "Viewers cannot ask (FORBIDDEN)", body = ErrorBody),
+        (status = 403, description = "Viewers cannot ask (FORBIDDEN); evaluation, without a licence, stops at staging (PRODUCTION_NEEDS_LICENCE)", body = ErrorBody),
         (status = 404, description = "PROJECT_NOT_FOUND or RELEASE_NOT_FOUND", body = ErrorBody),
         (status = 409, description = "APPROVAL_PENDING (another request waits) or PROJECT_ARCHIVED", body = ErrorBody),
         (status = 422, description = "NOT_ON_STAGING or NO_APPROVER (no other owner)", body = ErrorBody),
@@ -248,6 +248,7 @@ pub async fn request(
     ProjectAccess(access): ProjectAccess,
     ApiJson(req): ApiJson<RequestApprovalRequest>,
 ) -> Result<(StatusCode, Json<ApprovalResponse>), ApiError> {
+    state.licensing.require_production()?;
     let owners: Vec<Uuid> = state
         .projects
         .members(&access)
@@ -325,7 +326,7 @@ pub async fn get(
     params(("project_id" = Uuid, Path), ("approval_id" = Uuid, Path)),
     responses(
         (status = 200, body = ApprovalResponse),
-        (status = 403, description = "Only owners decide (FORBIDDEN)", body = ErrorBody),
+        (status = 403, description = "Only owners decide (FORBIDDEN); evaluation, without a licence, stops at staging (PRODUCTION_NEEDS_LICENCE)", body = ErrorBody),
         (status = 404, description = "PROJECT_NOT_FOUND or APPROVAL_NOT_FOUND", body = ErrorBody),
         (status = 409, description = "APPROVAL_DECIDED (someone decided first) or PROJECT_ARCHIVED", body = ErrorBody),
         (status = 422, description = "SELF_APPROVAL (you made the release or asked for it)", body = ErrorBody),
@@ -336,6 +337,7 @@ pub async fn approve(
     ProjectAccess(access): ProjectAccess,
     ApprovalId(id): ApprovalId,
 ) -> Result<Json<ApprovalResponse>, ApiError> {
+    state.licensing.require_production()?;
     let approved = state.releases.approve(&access, id).await?;
     Ok(Json(one(&state, approved).await?))
 }
@@ -489,7 +491,7 @@ pub async fn rollback_targets(
     responses(
         (status = 202, description = "Queued for production", body = DeploymentResponse),
         (status = 400, description = "Missing or too long reason (INVALID_REQUEST)", body = ErrorBody),
-        (status = 403, description = "Only owners roll back (FORBIDDEN)", body = ErrorBody),
+        (status = 403, description = "Only owners roll back (FORBIDDEN); evaluation, without a licence, stops at staging (PRODUCTION_NEEDS_LICENCE)", body = ErrorBody),
         (status = 404, description = "PROJECT_NOT_FOUND or RELEASE_NOT_FOUND", body = ErrorBody),
         (status = 409, description = "PROJECT_ARCHIVED", body = ErrorBody),
         (status = 422, description = "NEVER_APPROVED or ALREADY_LIVE", body = ErrorBody),
@@ -500,6 +502,7 @@ pub async fn rollback(
     ProjectAccess(access): ProjectAccess,
     ApiJson(req): ApiJson<RollbackRequest>,
 ) -> Result<(StatusCode, Json<DeploymentResponse>), ApiError> {
+    state.licensing.require_production()?;
     let queued = state
         .releases
         .rollback(&access, req.release_id, &req.reason)

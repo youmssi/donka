@@ -356,3 +356,18 @@ async fn numbers_keep_their_exact_decimal_value() {
     assert_eq!(out["rate"].to_string(), "2.5");
     assert_eq!(out["big"].to_string(), "12345678901234567891");
 }
+
+#[test]
+fn a_graph_uses_connectors_only_with_a_connector_node() {
+    let with = json!({ "nodes": [
+        { "type": "inputNode", "content": {} },
+        { "type": "customNode", "content": { "kind": "donka.connector", "config": {} } },
+    ]});
+    let other_custom = json!({ "nodes": [
+        { "type": "customNode", "content": { "kind": "acme.other" } },
+    ]});
+    assert!(donka_engine::uses_connectors(&with));
+    assert!(!donka_engine::uses_connectors(&other_custom));
+    assert!(!donka_engine::uses_connectors(&json!({ "nodes": [] })));
+    assert!(!donka_engine::uses_connectors(&json!({})));
+}

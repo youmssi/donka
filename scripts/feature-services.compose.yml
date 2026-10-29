@@ -1,6 +1,14 @@
 # Disposable services for the live feature suite. Use with docker-compose.yml.
 # Never add this override to a customer installation.
 services:
+  app:
+    # Trusts the development licence key; CI issues the licence (scripts/dev-licence.sh).
+    build:
+      args:
+        CARGO_FEATURES: development-licence-key
+    environment:
+      DONKA_LICENCE_FILE: /etc/donka/licence.json
+    volumes: ['./.feature-licence.json:/etc/donka/licence.json:ro']
   feature-explain:
     image: python:3.13-alpine
     command: [python, /fixture/feature-explain.py, 0.0.0.0, '8100']

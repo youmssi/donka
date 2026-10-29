@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Checks a built Studio image: it runs as a non-root user, starts against PostgreSQL, answers
-# /api/v1/health, and reports the SERVICE_VERSION it was built with on /api/v1/version.
+# /api/v1/health, reports the SERVICE_VERSION it was built with on /api/v1/version, trusts
+# Donka's licence key rather than the development one, and does not contain the licence issuer.
 #
 #   scripts/check-image.sh <image> <expected version>
 #
@@ -42,5 +43,16 @@ version=$(curl -sf "localhost:$port/api/v1/version" | jq -r .version)
 
 # The web app is served from the image too.
 curl -sf "localhost:$port/" -o /dev/null || fail "the web app is not served"
+
+# A delivered Studio trusts Donka's licence key only, and the licence issuer never ships (DNK-77).
+if docker logs "$name" 2>&1 | grep -q "trusts the development licence key"; then
+  fail "the image trusts the development licence key (built with development-licence-key)"
+fi
+probe=$(docker create "$image")
+files=$(docker export "$probe" | tar -t)
+docker rm "$probe" >/dev/null
+if grep -q 'donka-licence$' <<<"$files"; then
+  fail "the image contains the licence issuer"
+fi
 
 echo "check-image: $image runs as '$user', is healthy and reports version $version"

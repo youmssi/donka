@@ -78,7 +78,7 @@ Status: **Done** · **P1**, **P2**, **P3** (phase) · **Later** (candidate, not 
 | Partitioned decision log for long retention | Done | DNK-68 |
 | Measured performance with published targets | P1 | DNK-67 |
 | Backup, restore, RPO/RTO, Runtime availability | P1 | DNK-50 |
-| Signed licence file; the Runtime never blocked | P1 | DNK-77 |
+| Signed licence file; the Runtime never blocked | Done | DNK-77 |
 | Product documentation, Trust and Performance pages, API reference | P1 | DNK-66 |
 | Pilot integration questionnaire | Done | [pilot-questionnaire.md](pilot-questionnaire.md) |
 | Runtime client SDKs; "Ask" search in the documentation | Later | Stage 2 candidates |

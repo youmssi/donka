@@ -19,7 +19,9 @@ import { useEffect, useMemo, useState } from 'react';
 
 import type { ActionResult } from '@/components/shared/api';
 import { Button } from '@/components/ui/button';
+import { useModule } from '@/modules/licence';
 
+import { CONNECTOR_KIND } from './connector';
 import { connectorNodeSpecification } from './connector-node';
 import { decisionNodeSpecification, type DecisionNodeLabels } from './decision-node';
 import type { SimulationResult } from './schema';
@@ -91,13 +93,26 @@ function tokenColor(name: string): string {
   return `#${[r, g, b].map((part) => part.toString(16).padStart(2, '0')).join('')}`;
 }
 
-/** The custom nodes Studio adds to the editor: connectors to outside services. */
-function useCustomNodes() {
+/**
+ * The custom nodes Studio adds to the editor: connectors to outside services. When the licence
+ * leaves connectors out (DNK-77) the editor does not offer them, unless the graph already has
+ * one: it is still shown, and saving a version is refused with the reason. Read-only views show
+ * every node they meet.
+ */
+function useCustomNodes(graph?: unknown, readOnly = false) {
   const t = useTranslations('connector');
+  const licensed = useModule('connectors');
+  const shown = readOnly || licensed || usesConnectors(graph);
   return useMemo(
-    () => [connectorNodeSpecification({ displayName: t('nodeName'), shortDescription: t('nodeDescription') })],
-    [t],
+    () =>
+      shown ? [connectorNodeSpecification({ displayName: t('nodeName'), shortDescription: t('nodeDescription') })] : [],
+    [shown, t],
   );
+}
+
+function usesConnectors(graph: unknown): boolean {
+  const nodes = (graph as { nodes?: { type?: string; content?: { kind?: string } }[] } | undefined)?.nodes;
+  return Boolean(nodes?.some((node) => node.type === 'customNode' && node.content?.kind === CONNECTOR_KIND));
 }
 
 export function JdmGraph({
@@ -118,7 +133,7 @@ export function JdmGraph({
     () => [decisionNodeSpecification(callable, decisionNodeLabels)],
     [callable, decisionNodeLabels],
   );
-  const customNodes = useCustomNodes();
+  const customNodes = useCustomNodes(value);
   const [running, setRunning] = useState(false);
   const [lastRun, setLastRun] = useState<SimulatorRun | null>(null);
   useEffect(() => {
@@ -226,7 +241,7 @@ export function JdmDiffGraph({ current, previous, callable, decisionNodeLabels }
     () => [decisionNodeSpecification(callable, decisionNodeLabels)],
     [callable, decisionNodeLabels],
   );
-  const customNodes = useCustomNodes();
+  const customNodes = useCustomNodes(undefined, true);
   const diff = useMemo(
     () => calculateDiffGraph(current as Graph, previous as Graph, { components, customNodes }),
     [current, previous, components, customNodes],

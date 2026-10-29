@@ -11,6 +11,7 @@ use axum::Json;
 use chrono::{DateTime, Utc};
 use donka_decision::{VersionSummary, MAX_MESSAGE_CHARS};
 use donka_engine::contract;
+use donka_licence::Module;
 use donka_shared::page::PageRequest;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -172,7 +173,7 @@ pub async fn list(
     responses(
         (status = 201, body = SavedVersionResponse),
         (status = 400, description = "Missing or too long message (INVALID_REQUEST)", body = ErrorBody),
-        (status = 403, description = "Viewers cannot save versions (FORBIDDEN)", body = ErrorBody),
+        (status = 403, description = "Viewers cannot save versions (FORBIDDEN); the licence is not valid (LICENCE_INACTIVE); the draft has a connector node and the licence leaves connectors out (MODULE_NOT_LICENSED)", body = ErrorBody),
         (status = 404, description = "PROJECT_NOT_FOUND or DECISION_NOT_FOUND", body = ErrorBody),
         (status = 409, description = "DECISION_CONFLICT (the draft moved on) or PROJECT_ARCHIVED", body = ErrorBody),
         (status = 422, description = "Nothing changed since the latest version (VERSION_UNCHANGED, details: version), or the input schema is not a usable JSON Schema object (INVALID_CONTRACT)", body = ErrorBody),
@@ -184,6 +185,11 @@ pub async fn save(
     DecisionId(id): DecisionId,
     ApiJson(req): ApiJson<SaveVersionRequest>,
 ) -> Result<(StatusCode, Json<SavedVersionResponse>), ApiError> {
+    state.licensing.require_changes()?;
+    if !state.licensing.includes(Module::Connectors) {
+        let draft = state.decisions.get(&access, id).await?;
+        connectors_licensed(&state, &draft.content)?;
+    }
     let saved = state
         .decisions
         .save_version(&access, id, req.revision, &req.message)
@@ -235,7 +241,7 @@ pub async fn get(
     request_body = RestoreRequest,
     responses(
         (status = 201, body = RestoreResponse),
-        (status = 403, description = "Viewers cannot restore (FORBIDDEN)", body = ErrorBody),
+        (status = 403, description = "Viewers cannot restore (FORBIDDEN); the licence is not valid (LICENCE_INACTIVE); the version has a connector node and the licence leaves connectors out (MODULE_NOT_LICENSED)", body = ErrorBody),
         (status = 404, description = "PROJECT_NOT_FOUND, DECISION_NOT_FOUND or VERSION_NOT_FOUND", body = ErrorBody),
         (status = 409, description = "DECISION_CONFLICT (the draft moved on) or PROJECT_ARCHIVED", body = ErrorBody),
     )
@@ -247,6 +253,11 @@ pub async fn restore(
     VersionNumber(number): VersionNumber,
     ApiJson(req): ApiJson<RestoreRequest>,
 ) -> Result<(StatusCode, Json<RestoreResponse>), ApiError> {
+    state.licensing.require_changes()?;
+    if !state.licensing.includes(Module::Connectors) {
+        let version = state.decisions.version(&access, id, number).await?;
+        connectors_licensed(&state, &version.content)?;
+    }
     let restored = state
         .decisions
         .restore(&access, id, number, req.revision)
@@ -274,4 +285,12 @@ fn response(emails: &HashMap<Uuid, String>, version: VersionSummary) -> Decision
         restored_from: version.restored_from,
         tests: version.tests.into(),
     }
+}
+
+/// A graph with a connector node needs the connectors module (DNK-77).
+fn connectors_licensed(state: &AppState, content: &Value) -> Result<(), ApiError> {
+    if donka_engine::uses_connectors(content) {
+        state.licensing.require(Module::Connectors)?;
+    }
+    Ok(())
 }

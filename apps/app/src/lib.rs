@@ -9,6 +9,7 @@ pub mod email_worker;
 pub mod error;
 pub mod extract;
 pub mod index_people;
+pub mod licence;
 pub mod publish_worker;
 pub mod purge_worker;
 pub mod rate_limit;
@@ -76,6 +77,8 @@ pub struct AppState {
     pub mfa_required: config::MfaRequired,
     /// Per-client-address limits on sign-in and password reset (DNK-32).
     pub auth_limits: rate_limit::AuthLimits,
+    /// The installation's licence (DNK-77).
+    pub licensing: licence::Licensing,
 }
 
 #[derive(OpenApi)]
@@ -103,6 +106,7 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
 
     let protected = OpenApiRouter::new()
         .routes(routes!(routes::auth::me))
+        .routes(routes!(routes::licence::get))
         .routes(routes!(routes::auth::sign_out))
         .routes(routes!(routes::simulate::simulate))
         .routes(routes!(routes::users::invite))

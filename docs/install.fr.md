@@ -96,6 +96,39 @@ Les administrateurs démarrent des projets à partir des packs de [packs/](../pa
 l'image fournit dans `/srv/packs`. Pour proposer les vôtres, montez un dossier de packs et
 indiquez-le dans `DONKA_PACKS_DIR` ; Studio ne démarre pas si l'un d'eux est invalide, et le nomme.
 
+**Licence.** Donka envoie à chaque installation un fichier de licence qui nomme l'organisation,
+les jours de validité et les modules inclus (explications, connecteurs, analyse). Studio le
+vérifie sans accès réseau, au démarrage puis chaque jour. Montez-le en lecture seule et indiquez
+son chemin dans `DONKA_LICENCE_FILE` :
+
+```yaml
+# docker-compose.override.yml
+services:
+  app:
+    environment:
+      DONKA_LICENCE_FILE: /etc/donka/licence.json
+    volumes:
+      - ./licence.json:/etc/donka/licence.json:ro
+```
+
+- **Sans fichier de licence**, Studio fonctionne en évaluation : tout marche, mais les releases
+  ne peuvent pas aller en production.
+- **À partir de trente jours avant la fin**, les administrateurs voient un avis.
+- **Après le dernier jour**, ou si le fichier a été modifié ou émis pour une autre
+  installation, Studio reste consultable et exportable mais refuse les nouvelles versions et
+  releases, et dit pourquoi. Le journal nomme le fichier et la raison.
+- **Les décisions ne sont jamais touchées :** le Runtime ne lit pas les licences et continue de
+  servir les règles publiées.
+
+Pour installer une nouvelle licence, remplacez le fichier et rechargez-le sans redémarrage :
+
+```bash
+docker compose kill -s HUP app
+```
+
+Un module que la licence n'inclut pas est masqué dans Studio, et ses actions sont refusées avec
+un message qui le nomme.
+
 Définissez-les avant le premier démarrage : PostgreSQL et MinIO prennent leur mot de passe à la
 création de leurs données (la section 5 explique comment les changer ensuite). Tous les autres
 paramètres de Studio, listés dans [.env.example](../.env.example), peuvent aller dans le même
@@ -345,4 +378,5 @@ configure à nouveau. Chaque changement est audité et la personne est prévenue
 | Un déploiement reste *en attente* | `docker compose logs app` : le publicateur réessaie jusqu'à ce que le bucket réponde |
 | Le Runtime répond 404 pour un projet | Il sert un seul environnement (`PROVIDER__PREFIX`) ; vérifiez que la version y est en ligne |
 | Studio s'arrête sur `DONKA_PACKS_DIR` | Un pack de ce dossier est invalide : le message nomme le pack et la raison |
+| « Le fichier de licence a été refusé » | `docker compose logs app \| grep licence` donne la raison : le fichier a été modifié, a été émis pour une autre installation, ou ne peut pas être lu à `DONKA_LICENCE_FILE` |
 | Aucun e-mail | Mailpit (http://localhost:8025) tant que `DONKA_SMTP_URL` ne pointe pas vers votre serveur |
