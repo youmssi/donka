@@ -494,6 +494,35 @@ recovery codes; if they have none left, another administrator resets their secon
 
 ## Troubleshooting
 
+Start with the doctor. It checks, with Studio's own settings and from Studio's network, what
+Studio depends on: the database (and its migrations), the release storage (it writes a test
+file and removes it), the mail server (it connects and signs in, without sending anything),
+sign-in, the language model (it asks for one word), the licence, the packs, and each service
+the live decisions' connectors call (its name resolves and its port answers; nothing is sent).
+It works even when Studio does not start:
+
+```bash
+docker compose run --rm --no-deps app donka-admin doctor
+```
+
+```
+  ok    settings        Studio accepts them
+  ok    database        reachable, every migration applied
+  ok    storage         file:///var/lib/donka/releases is writable
+  FAIL  mail            cannot talk to the server: Connection refused (os error 111)
+                        → check the SMTP URL (secrets/smtp_url, DONKA_SMTP_URL): host, port, …
+  ok    sign-in         local accounts, a second step for administrators and project owners
+  off   language model  explanations are off
+  ok    licence         Microfinance SA, valid until 2027-10-31 (366 days left)
+  ok    packs           3 offered
+  ok    connectors      https://bureau.example/score is reachable
+doctor: 1 check failed
+```
+
+Each failing line says why, and under it what to change. The exit status is 0 when everything
+works and 1 otherwise, so it can gate a deployment pipeline. A production Runtime on another
+network may reach connectors differently: its logs name each failed call.
+
 | Symptom | Look at |
 | --- | --- |
 | Studio does not start | `docker compose logs app`: a missing or invalid setting is named, with an example |

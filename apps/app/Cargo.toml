@@ -60,6 +60,8 @@ semver = { version = "1", features = ["serde"] }
 # donka.yaml, the installation's answers (DNK-74).
 serde_yaml_ng = "0.10"
 sha2 = { workspace = true }
+# donka-admin doctor (DNK-74): what PostgreSQL answered.
+sqlx = { workspace = true }
 tar = "0.4"
 
 [features]

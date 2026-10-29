@@ -1600,7 +1600,7 @@ Confirmed 2026-10-25:
 #### Acceptance criteria
 - [x] The assistant runs from the published image with only Docker installed, in English and French, and every question has a default
 - [x] Running again with `donka.yaml` produces the same installation without questions; secrets are never printed nor overwritten
-- [ ] `donka-admin doctor` reports each dependency as working or not, with the reason and the setting to change
+- [x] `donka-admin doctor` reports each dependency as working or not, with the reason and the setting to change
 - [ ] The browser assistant appears only until the first administrator exists, enrols their second step, and imports the selected packs
 - [ ] Enabling or disabling a module keeps data, is audited and takes effect after a restart
 - [ ] The support bundle contains no secret, token or personal data; a test checks it

@@ -49,7 +49,23 @@ impl ObjectStorage {
             root,
         })
     }
+
+    /// Writes a small file where releases go, then removes it (`donka-admin doctor`).
+    pub async fn check(&self) -> Result<(), StoreError> {
+        let path = self.root.clone().join(CHECK_FILE);
+        self.store
+            .put(&path, PutPayload::from_static(b"donka-admin doctor"))
+            .await
+            .map_err(|err| StoreError::Write(err.to_string()))?;
+        self.store
+            .delete(&path)
+            .await
+            .map_err(|err| StoreError::Write(err.to_string()))
+    }
 }
+
+/// The file `check` writes and removes, never a release's name (keys are lowercase words).
+const CHECK_FILE: &str = ".donka-doctor";
 
 #[async_trait]
 impl ArtifactStore for ObjectStorage {

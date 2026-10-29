@@ -469,6 +469,41 @@ impl From<DeploymentRow> for Deployment {
     }
 }
 
+/// One decision live in an environment: in the release last published there.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LiveDecision {
+    pub project_key: String,
+    pub environment: Environment,
+    pub key: String,
+    pub content: serde_json::Value,
+}
+
+/// Every decision live in an environment, across projects (`donka-admin doctor`, which reaches
+/// their connectors). No member access: an operator's tool on the installation's database.
+pub async fn live_decisions(pool: &PgPool) -> Result<Vec<LiveDecision>, sqlx::Error> {
+    let rows: Vec<(String, String, String, serde_json::Value)> = sqlx::query_as(
+        "WITH live AS ( \
+           SELECT DISTINCT ON (project_id, environment) project_key, environment, release_id \
+           FROM deployments WHERE published_at IS NOT NULL \
+           ORDER BY project_id, environment, published_at DESC) \
+         SELECT l.project_key, l.environment, d.key, d.content \
+         FROM live l JOIN release_decisions d ON d.release_id = l.release_id \
+         ORDER BY l.project_key, l.environment, d.key",
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|(project_key, environment, key, content)| LiveDecision {
+            project_key,
+            // The table only holds the two environments (CHECK constraint).
+            environment: Environment::parse(&environment).unwrap_or(Environment::Staging),
+            key,
+            content,
+        })
+        .collect())
+}
+
 /// A deployment with its release's version (`$1` is the project, `$2` the environment).
 const DEPLOYMENTS: &str =
     "SELECT d.id, d.environment, d.release_id, r.major, r.minor, r.patch, d.reason, d.rollback_reason, \

@@ -534,6 +534,37 @@ configure à nouveau. Chaque changement est audité et la personne est prévenue
 
 ## Dépannage
 
+Commencez par le docteur. Il vérifie, avec les paramètres de Studio et depuis le réseau de
+Studio, ce dont Studio dépend : la base de données (et ses migrations), le stockage des versions
+(il écrit un fichier de test puis le supprime), le serveur de messagerie (il se connecte et
+s'authentifie, sans rien envoyer), la connexion des utilisateurs, le modèle de langage (il lui
+demande un mot), la licence, les packs, et chaque service qu'appellent les connecteurs des
+décisions en ligne (son nom se résout et son port répond ; rien n'est envoyé). Il fonctionne même
+quand Studio ne démarre pas :
+
+```bash
+docker compose run --rm --no-deps app donka-admin doctor
+```
+
+```
+  ok    settings        Studio accepts them
+  ok    database        reachable, every migration applied
+  ok    storage         file:///var/lib/donka/releases is writable
+  FAIL  mail            cannot talk to the server: Connection refused (os error 111)
+                        → check the SMTP URL (secrets/smtp_url, DONKA_SMTP_URL): host, port, …
+  ok    sign-in         local accounts, a second step for administrators and project owners
+  off   language model  explanations are off
+  ok    licence         Microfinance SA, valid until 2027-10-31 (366 days left)
+  ok    packs           3 offered
+  ok    connectors      https://bureau.example/score is reachable
+doctor: 1 check failed
+```
+
+Chaque ligne en échec dit pourquoi et, en dessous, quoi changer (le rapport est en anglais). Le
+code de sortie vaut 0 quand tout fonctionne et 1 sinon : il peut conditionner un pipeline de
+déploiement. Un Runtime de production sur un autre réseau peut joindre les connecteurs
+autrement : ses journaux nomment chaque appel en échec.
+
 | Symptôme | Où regarder |
 | --- | --- |
 | Studio ne démarre pas | `docker compose logs app` : un paramètre manquant ou invalide est nommé, avec un exemple |

@@ -19,6 +19,8 @@ use std::time::Duration;
 const MAX_CONTEXT_BYTES: usize = 256 * 1024;
 /// Room for the model's reasoning and the explanation.
 const MAX_TOKENS: u32 = 16_000;
+/// Enough for the check's one-word answer.
+const CHECK_MAX_TOKENS: u32 = 16;
 const ANTHROPIC_VERSION: &str = "2023-06-01";
 const FALLBACK_BETA: &str = "server-side-fallback-2026-07-01";
 
@@ -139,10 +141,22 @@ impl Explainer {
     /// Asks the endpoint to explain `question`. Nothing is retried: the reader
     /// asks again if they want to.
     pub async fn explain(&self, question: &Question) -> Result<Explanation, ExplainError> {
-        let prompt = user_prompt(question);
+        self.ask(&user_prompt(question), None).await
+    }
+
+    /// Asks for a one-word answer, to show the endpoint, the key and the model work
+    /// (`donka-admin doctor`). It costs a few tokens; no decision is sent.
+    pub async fn check(&self) -> Result<Explanation, ExplainError> {
+        self.ask("Answer with the single word OK.", Some(CHECK_MAX_TOKENS))
+            .await
+    }
+
+    /// `limit` caps the answer's tokens; without it, the Messages API gets room for an
+    /// explanation and an OpenAI-compatible endpoint its own default.
+    async fn ask(&self, prompt: &str, limit: Option<u32>) -> Result<Explanation, ExplainError> {
         let request = match self.settings.protocol {
-            Protocol::Anthropic => self.anthropic_request(&prompt),
-            Protocol::OpenAi => self.openai_request(&prompt),
+            Protocol::Anthropic => self.anthropic_request(prompt, limit.unwrap_or(MAX_TOKENS)),
+            Protocol::OpenAi => self.openai_request(prompt, limit),
         };
         let response = request.send().await.map_err(|err| {
             tracing::warn!(error = %err, "explanation endpoint unreachable");
@@ -171,10 +185,10 @@ impl Explainer {
         })
     }
 
-    fn anthropic_request(&self, prompt: &str) -> reqwest::RequestBuilder {
+    fn anthropic_request(&self, prompt: &str, max_tokens: u32) -> reqwest::RequestBuilder {
         let mut body = json!({
             "model": self.settings.model,
-            "max_tokens": MAX_TOKENS,
+            "max_tokens": max_tokens,
             "system": system_prompt(),
             "messages": [{ "role": "user", "content": prompt }],
         });
@@ -190,17 +204,21 @@ impl Explainer {
         request.json(&body)
     }
 
-    fn openai_request(&self, prompt: &str) -> reqwest::RequestBuilder {
+    fn openai_request(&self, prompt: &str, limit: Option<u32>) -> reqwest::RequestBuilder {
+        let mut body = json!({
+            "model": self.settings.model,
+            "messages": [
+                { "role": "system", "content": system_prompt() },
+                { "role": "user", "content": prompt },
+            ],
+        });
+        if let Some(limit) = limit {
+            body["max_tokens"] = json!(limit);
+        }
         self.http
             .post(&self.settings.url)
             .bearer_auth(&self.settings.api_key)
-            .json(&json!({
-                "model": self.settings.model,
-                "messages": [
-                    { "role": "system", "content": system_prompt() },
-                    { "role": "user", "content": prompt },
-                ],
-            }))
+            .json(&body)
     }
 }
 

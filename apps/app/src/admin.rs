@@ -51,6 +51,13 @@ const USAGE: &str = "usage:
       donka-admin upgrade does (verified with cosign.pub, backed up, rolled back on failure,
       reported in upgrades/). --once looks once, now, and exits: 0 nothing to do or upgraded,
       3 refused or a production installation, 4 rolled back, 5 the restore failed too.
+  donka-admin doctor
+      Checks, with Studio's settings, what Studio depends on: the database, the release
+      storage, the mail server, sign-in, the language model, the licence, the packs and the
+      services the live decisions' connectors call. Each line says whether it works, and
+      under a failing one, what to change. Run it where Studio runs:
+        docker compose run --rm --no-deps app donka-admin doctor
+      Exit status: 0 everything works, 1 a check failed.
   donka-admin demo-bureau
       The demo's fake credit bureau, on port 8080 (the demo-bureau service runs it).";
 
@@ -60,6 +67,7 @@ fn main() {
         Some("init") => init(&args[1..]),
         Some("upgrade") => run_upgrade(&args[1..]),
         Some("auto-upgrade") => auto_upgrade(&args[1..]),
+        Some("doctor") if args.len() == 1 => doctor(),
         Some("demo-bureau") if args.len() == 1 => demo_bureau(),
         _ => Err(USAGE.to_owned()),
     };
@@ -67,6 +75,20 @@ fn main() {
         eprintln!("{err}");
         std::process::exit(2);
     }
+}
+
+fn doctor() -> Result<(), String> {
+    let key = donka_licence::PublicKey::built_in().map_err(|err| err.to_string())?;
+    let runtime = tokio::runtime::Runtime::new().map_err(|err| err.to_string())?;
+    let checks = runtime.block_on(donka_app::doctor::run(
+        donka_app::config::Config::from_env(),
+        key,
+    ));
+    print!("{}", donka_app::doctor::render(&checks));
+    if checks.iter().any(donka_app::doctor::Check::failed) {
+        std::process::exit(1);
+    }
+    Ok(())
 }
 
 fn init(args: &[String]) -> Result<(), String> {
