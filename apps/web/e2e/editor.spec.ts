@@ -36,12 +36,19 @@ test('graph authoring, simulation, versions and scenarios persist through the li
   await page.locator('.grl-dg__aside__menu__heading button').click();
   const bounds = await canvas.boundingBox();
   if (!bounds) throw new Error('The graph canvas has no layout');
+  // The editor ignores a drop that lands before React Flow has initialised, which a visible
+  // canvas does not prove; drop again until each node is on the canvas.
+  const nodes = page.locator('.react-flow__node');
   for (const [index, component] of components.entries()) {
-    await palette.nth(component).dragTo(canvas, {
-      targetPosition: { x: bounds.width / 2, y: 90 + index * 160 },
-    });
+    await expect(async () => {
+      if ((await nodes.count()) === index) {
+        await palette.nth(component).dragTo(canvas, {
+          targetPosition: { x: bounds.width / 2, y: 90 + index * 160 },
+        });
+      }
+      await expect(nodes).toHaveCount(index + 1, { timeout: 1_000 });
+    }).toPass({ timeout: 15_000 });
   }
-  await expect(page.locator('.react-flow__node')).toHaveCount(3);
   for (const [from, to] of [
     ['inputNode', 'expressionNode'],
     ['expressionNode', 'outputNode'],
@@ -53,21 +60,27 @@ test('graph authoring, simulation, versions and scenarios persist through the li
   await expect(page.locator('.react-flow__edge')).toHaveCount(2);
   await page.getByRole('button', { name: 'Edit Expression', exact: true }).click();
   await page.getByRole('button', { name: 'Add row' }).click();
-  await page.locator('.expression-list-item__key [contenteditable="true"]').fill('output');
-  await page.locator('.expression-list-item__value .cm-content').fill('input * 2');
   const decisions = await admin.get(`${path}/decisions`);
   await expect(decisions).toBeOK();
   const list: ApiSchemas['DecisionListResponse'] = await decisions.json();
   const decision = list.items.find((item) => item.key === 'calculate');
   if (!decision) throw new Error('The created decision is missing from the project');
   const decisionPath = `${path}/decisions/${decision.id}`;
-  await expect
-    .poll(async () => {
-      const saved = await admin.get(decisionPath);
-      await expect(saved).toBeOK();
-      return JSON.stringify((await saved.json()).content);
-    })
-    .toContain('input * 2');
+  async function savedExpressions() {
+    const saved = await admin.get(decisionPath);
+    await expect(saved).toBeOK();
+    const { content } = (await saved.json()) as { content: { nodes: { content?: { expressions?: unknown } }[] } };
+    return content.nodes.flatMap((node) => node.content?.expressions ?? []);
+  }
+  // A key typed while the new row is still being synchronised is overwritten with the row's empty
+  // key; type it again until the saved draft holds it.
+  const expressionKey = page.locator('.expression-list-item__key [contenteditable="true"]');
+  await expect(async () => {
+    await expressionKey.fill('output');
+    await expect.poll(savedExpressions, { timeout: 3_000 }).toContainEqual(expect.objectContaining({ key: 'output' }));
+  }).toPass({ timeout: 20_000 });
+  await page.locator('.expression-list-item__value .cm-content').fill('input * 2');
+  await expect.poll(savedExpressions).toContainEqual(expect.objectContaining({ key: 'output', value: 'input * 2' }));
   page = await openPage(context, page.url(), page);
   await expect(page.locator('.react-flow__node')).toHaveCount(3);
   await expect(page.locator('.react-flow__edge')).toHaveCount(2);
