@@ -614,6 +614,12 @@ impl DecisionLog {
         filter: &Filter,
         page: PageRequest,
     ) -> Result<Page<RecordSummary>, DecisionLogError> {
+        let mut tx = self.pool.begin().await?;
+        // Runtimes keep sending records. Read the page and its total from one snapshot, so a
+        // record that arrives between the two reads cannot be counted without being listed.
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+            .execute(&mut *tx)
+            .await?;
         let mut query = sqlx::QueryBuilder::new(format!(
             "SELECT {SUMMARY_COLUMNS} FROM decision_records WHERE project_id = "
         ));
@@ -623,12 +629,13 @@ impl DecisionLog {
             .push_bind(page.limit)
             .push(" OFFSET ")
             .push_bind(page.offset);
-        let items = query.build_query_as().fetch_all(&self.pool).await?;
+        let items = query.build_query_as().fetch_all(&mut *tx).await?;
 
         let mut count =
             sqlx::QueryBuilder::new("SELECT count(*) FROM decision_records WHERE project_id = ");
         push_filter(&mut count, access, filter);
-        let (total,): (i64,) = count.build_query_as().fetch_one(&self.pool).await?;
+        let (total,): (i64,) = count.build_query_as().fetch_one(&mut *tx).await?;
+        tx.commit().await?;
         Ok(Page { items, total })
     }
 

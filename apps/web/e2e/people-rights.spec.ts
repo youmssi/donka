@@ -83,8 +83,10 @@ test('an owner answers a person: finds their decisions, exports the report, anon
     await review.getByLabel(m.contests.newOutcomeLabel).fill('approve');
     await review.getByLabel(m.contests.reviewText).fill('Salary slips checked.');
     await review.getByRole('button', { name: m.contests.reviewSubmit, exact: true }).click();
-    await expect(page.getByText('Salary slips checked.', { exact: true })).toBeVisible();
-    await expect(page.getByText(m.contests.statusRevised, { exact: true })).toBeVisible();
+    await expect(review).toBeHidden();
+    const contests = page.getByRole('list', { name: m.contests.title, exact: true });
+    await expect(contests.getByText('Salary slips checked.', { exact: true })).toBeVisible();
+    await expect(contests.getByText(m.contests.statusRevised, { exact: true })).toBeVisible();
 
     // Every step is in the audit log, and no identifier is.
     const audit = await (await admin.get(`${path}/audit`, { params: { limit: 100 } })).json();
