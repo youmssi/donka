@@ -1380,5 +1380,11 @@
       "foreign": "Il a été émis pour une autre installation, ou pas par Donka.",
       "tampered": "Il a été modifié après sa signature par Donka. Remettez le fichier envoyé par Donka."
     }
+  },
+  "updates": {
+    "title": "Donka {version} est disponible",
+    "description": "Cette installation utilise la version {current}. Lisez les notes de version, puis mettez à jour avec donka-admin upgrade (guide d'installation, section 4).",
+    "notes": "Notes de version",
+    "dismiss": "Masquer jusqu'à la prochaine version"
   }
 }

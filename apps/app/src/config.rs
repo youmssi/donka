@@ -87,6 +87,9 @@ pub struct Config {
     /// Set by `donka-admin init --demo` (DNK-64): at the first start, the retail-credit pack is
     /// imported, released and deployed to staging as the first administrator.
     pub demo: bool,
+    /// The release feed Studio checks once a day for a newer Donka (DNK-64); `None` with
+    /// `DONKA_UPDATE_CHECK=false`, for installations without internet access.
+    pub update_check_url: Option<String>,
 }
 
 /// Who must sign in with a second step (DNK-59). Anyone may turn one on.
@@ -310,6 +313,15 @@ impl Config {
                 .filter(|v| !v.trim().is_empty())
                 .map(PathBuf::from),
             demo: boolean(&get, "DONKA_DEMO", false)?,
+            update_check_url: if boolean(&get, "DONKA_UPDATE_CHECK", true)? {
+                Some(
+                    get("DONKA_UPDATE_CHECK_URL")
+                        .filter(|v| !v.trim().is_empty())
+                        .unwrap_or_else(|| crate::updates::DEFAULT_URL.to_owned()),
+                )
+            } else {
+                None
+            },
         })
     }
 }
@@ -731,6 +743,27 @@ mod tests {
                 .packs_dir,
             Some(PathBuf::from("/srv/packs"))
         );
+    }
+
+    #[test]
+    fn studio_checks_for_new_releases_unless_told_not_to() {
+        assert_eq!(
+            load(&[]).unwrap().update_check_url.as_deref(),
+            Some(crate::updates::DEFAULT_URL)
+        );
+        let mirror =
+            load(&[("DONKA_UPDATE_CHECK_URL", "https://feed.bank.example/latest")]).unwrap();
+        assert_eq!(
+            mirror.update_check_url.as_deref(),
+            Some("https://feed.bank.example/latest")
+        );
+        assert_eq!(
+            load(&[("DONKA_UPDATE_CHECK", "false")])
+                .unwrap()
+                .update_check_url,
+            None
+        );
+        assert!(load(&[("DONKA_UPDATE_CHECK", "no")]).is_err());
     }
 
     #[test]

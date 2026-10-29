@@ -2242,6 +2242,30 @@
         ],
         "type": "object"
       },
+      "PublishedRelease": {
+        "properties": {
+          "publishedAt": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "description": "Its release notes.",
+            "type": "string"
+          },
+          "version": {
+            "example": "1.6.0",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "url"
+        ],
+        "type": "object"
+      },
       "RecordListResponse": {
         "properties": {
           "items": {
@@ -3735,6 +3759,34 @@
           "input",
           "expected",
           "match"
+        ],
+        "type": "object"
+      },
+      "UpdatesResponse": {
+        "properties": {
+          "checking": {
+            "description": "Whether Studio checks for new releases; off with `DONKA_UPDATE_CHECK=false`.",
+            "type": "boolean"
+          },
+          "current": {
+            "description": "This Studio's version.",
+            "type": "string"
+          },
+          "newer": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PublishedRelease",
+                "description": "The latest published release, when it is newer than this Studio."
+              }
+            ]
+          }
+        },
+        "required": [
+          "current",
+          "checking"
         ],
         "type": "object"
       },
@@ -10138,6 +10190,47 @@
         },
         "tags": [
           "simulator"
+        ]
+      }
+    },
+    "/updates": {
+      "get": {
+        "operationId": "get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdatesResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not signed in (UNAUTHENTICATED)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not an administrator (FORBIDDEN)"
+          }
+        },
+        "summary": "Whether a newer Donka release is published (administrators only).",
+        "tags": [
+          "operations"
         ]
       }
     },

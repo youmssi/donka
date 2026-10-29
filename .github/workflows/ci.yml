@@ -220,6 +220,7 @@ jobs:
           load: true
           set: |
             app.args.CARGO_FEATURES=development-licence-key
+            app.args.SERVICE_VERSION=1.0.0
             app.cache-from=type=gha
             runtime.cache-from=type=gha,scope=runtime
             runtime.cache-to=type=gha,mode=max,scope=runtime

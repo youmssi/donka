@@ -236,7 +236,8 @@ docker load -i images.tar.gz
 ```
 
 Installez ensuite comme à la section 1, sans connexion au registre, avec les versions qu'indique
-le `README.txt` du paquet et `docker compose up -d --pull never`. `images.txt` donne chaque image
+le `README.txt` du paquet, `donka-admin init --offline` (Studio ne cherche alors jamais de
+nouvelle version) et `docker compose up -d --pull never`. `images.txt` donne chaque image
 avec le condensat du registre que couvre sa propre signature. La CI installe depuis un paquet,
 toutes les images supprimées au préalable, à chaque changement.
 
@@ -324,7 +325,9 @@ docker compose up -d app runtime
 
 ## 4. Mettre à jour
 
-Lisez d'abord les notes de version ([releases](https://github.com/youmssi/donka/releases)), puis
+Studio prévient les administrateurs quand une nouvelle version est publiée : il interroge GitHub
+une fois par jour, et jamais avec `DONKA_UPDATE_CHECK=false` (que pose `donka-admin init
+--offline`). Lisez d'abord les notes de version ([releases](https://github.com/youmssi/donka/releases)), puis
 laissez `donka-admin upgrade` faire le reste. Lancez-le avec l'image de la version **installée
 aujourd'hui**, dans le dossier de l'installation, qui doit contenir la clé publique de Donka sous
 le nom `cosign.pub` :

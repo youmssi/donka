@@ -223,7 +223,8 @@ docker load -i images.tar.gz
 ```
 
 Then install as in section 1 without logging in to the registry, with the versions the
-bundle's `README.txt` gives and `docker compose up -d --pull never`. `images.txt` lists each
+bundle's `README.txt` gives, `donka-admin init --offline` (Studio then never looks for new
+releases) and `docker compose up -d --pull never`. `images.txt` lists each
 image with the registry digest its own signature covers. CI installs from a bundle with every
 image removed beforehand, on each change.
 
@@ -308,7 +309,9 @@ docker compose up -d app runtime
 
 ## 4. Upgrade
 
-Read the release notes ([releases](https://github.com/youmssi/donka/releases)) first, then let
+Studio tells administrators when a newer release is published: it asks GitHub once a day, and
+never with `DONKA_UPDATE_CHECK=false` (`donka-admin init --offline` sets it). Read the release
+notes ([releases](https://github.com/youmssi/donka/releases)) first, then let
 `donka-admin upgrade` do the rest. Run it with the image of the version **installed now**, in the
 installation folder, which must hold Donka's public key as `cosign.pub`:
 

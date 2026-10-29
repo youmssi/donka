@@ -1509,6 +1509,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/updates': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Whether a newer Donka release is published (administrators only). */
+    get: operations['get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/users': {
     parameters: {
       query?: never;
@@ -2378,6 +2395,14 @@ export interface components {
       name: string;
       role: components['schemas']['Role'];
     };
+    PublishedRelease: {
+      /** Format: date-time */
+      publishedAt?: string | null;
+      /** @description Its release notes. */
+      url: string;
+      /** @example 1.6.0 */
+      version: string;
+    };
     RecordListResponse: {
       items: components['schemas']['RecordSummaryResponse'][];
       /**
@@ -2898,6 +2923,13 @@ export interface components {
       match: components['schemas']['MatchMode'];
       /** @description Unique among the decision's scenarios (any case). */
       name: string;
+    };
+    UpdatesResponse: {
+      /** @description Whether Studio checks for new releases; off with `DONKA_UPDATE_CHECK=false`. */
+      checking: boolean;
+      /** @description This Studio's version. */
+      current: string;
+      newer?: null | components['schemas']['PublishedRelease'];
     };
     UserResponse: {
       email: string;
@@ -7422,6 +7454,43 @@ export interface operations {
       };
       /** @description Invalid decision model (INVALID_DECISION) or evaluation error (EVALUATION_FAILED) */
       422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['UpdatesResponse'];
+        };
+      };
+      /** @description Not signed in (UNAUTHENTICATED) */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Not an administrator (FORBIDDEN) */
+      403: {
         headers: {
           [name: string]: unknown;
         };
