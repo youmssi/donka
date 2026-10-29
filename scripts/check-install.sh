@@ -4,15 +4,20 @@
 # one-time link, a release served by the staging Runtime from the shared volume, and the
 # Runtime's decision recorded in Studio's log through the token Studio wired at first start.
 #
-#   scripts/check-install.sh <studio image tag> <runtime image tag>
+#   scripts/check-install.sh <studio image tag> <runtime image tag> [demo]
+#
+# With `demo`, the installation is prepared with `--demo`: the retail-credit pack must be live on
+# staging from the first start, and its credit-application decision must call the bundled fake
+# bureau through the Runtime (a national identifier ending in 9 has serious arrears there).
 #
 # The images must exist locally as ghcr.io/youmssi/donka-studio:<tag> and
 # ghcr.io/youmssi/donka-runtime:<tag>. Needs Docker with Compose, curl and jq. Prints how long
 # it took from init to the recorded decision.
 set -euo pipefail
 
-studio_tag="${1:?usage: scripts/check-install.sh <studio image tag> <runtime image tag>}"
-runtime_tag="${2:?usage: scripts/check-install.sh <studio image tag> <runtime image tag>}"
+studio_tag="${1:?usage: scripts/check-install.sh <studio image tag> <runtime image tag> [demo]}"
+runtime_tag="${2:?usage: scripts/check-install.sh <studio image tag> <runtime image tag> [demo]}"
+demo="${3:-}"
 root="$(cd "$(dirname "$0")/.." && pwd)"
 dir="$(mktemp -d)"
 STUDIO_URL=http://localhost:8080
@@ -43,7 +48,7 @@ wait_for() {
 started=$(date +%s)
 docker run --rm -u "$(id -u):$(id -g)" -v "$dir:/install" -w /install \
   "ghcr.io/youmssi/donka-studio:$studio_tag" \
-  donka-admin init --studio-version "$studio_tag" --runtime-version "$runtime_tag"
+  donka-admin init --studio-version "$studio_tag" --runtime-version "$runtime_tag" ${demo:+--demo}
 [ "$(stat -c %a "$dir/.env")" = 600 ] || fail ".env is not readable by its owner only"
 
 # A second run keeps the secrets.
@@ -80,4 +85,28 @@ for _ in $(seq 1 60); do
   sleep 1
 done
 [ "${recorded:-0}" -ge 1 ] || fail "the Runtime's decision did not reach Studio's log"
+if [ -n "$demo" ]; then
+  # The demo project was released to staging at the first start: call it through the Runtime.
+  demo_project=$(studio GET /projects/by-key/retail-credit | jq -r .id)
+  token=$(studio POST "/projects/$demo_project/environments/staging/tokens" '{"name": "install check"}' | jq -r .token)
+  call() {
+    curl -sS -X POST "$RUNTIME_URL/api/projects/retail-credit/evaluate/credit-application" \
+      -H 'content-type: application/json' -H "X-Access-Token: $token" \
+      --data "{\"context\": {\"applicant\": {\"nationalId\": \"$1\", \"age\": 38, \"employment\": \"public\",
+        \"monthsInJob\": 96, \"monthlyIncome\": 450000, \"monthlyDebtPayments\": 40000,
+        \"salaryDomiciled\": true}, \"loan\": {\"amount\": 2500000, \"termMonths\": 36}}}"
+  }
+  answer=
+  for _ in $(seq 1 60); do
+    answer=$(call CM-100)
+    [ "$(jq -r '.result.decision // empty' <<<"$answer")" = approve ] && break
+    sleep 1
+  done
+  [ "$(jq -r '.result.decision // empty' <<<"$answer")" = approve ] \
+    || fail "the demo project is not served with a clean bureau report: $answer"
+  answer=$(call CM-109)
+  [ "$(jq -r .result.decision <<<"$answer")" = decline ] \
+    || fail "the fake bureau's arrears did not decline CM-109: $answer"
+  echo "check-install: the demo project calls the fake bureau through the Runtime"
+fi
 echo "check-install: installed from the images and a decision recorded in $(( $(date +%s) - started )) s"

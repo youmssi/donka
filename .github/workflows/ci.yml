@@ -136,6 +136,7 @@ jobs:
       - run: |
           docker tag donka-studio:ci ghcr.io/youmssi/donka-studio:ci
           scripts/check-install.sh ci ci
+          scripts/check-install.sh ci ci demo
 
   # The one-command install: `docker compose --profile full up` with its defaults, then the
   # post-deploy smoke test against it. Images come from the same compose file (bake), cached.

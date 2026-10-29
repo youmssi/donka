@@ -439,7 +439,10 @@ mod tests {
     #[test]
     fn a_pack_survives_a_round_trip_through_its_file() {
         let pack = starter("retail-credit");
-        assert_eq!(pack.manifest.decisions, ["affordability", "scorecard"]);
+        assert_eq!(
+            pack.manifest.decisions,
+            ["affordability", "scorecard", "credit-application"]
+        );
         assert!(pack.guides.en.is_some() && pack.guides.fr.is_some());
         let again = Pack::from_zip(&pack.to_zip().unwrap()).unwrap();
         assert_eq!(again, pack);
@@ -512,7 +515,7 @@ mod tests {
         let pack = starter("retail-credit");
         assert_eq!(
             dependency_order(&pack.decisions).unwrap(),
-            ["affordability", "scorecard"]
+            ["affordability", "scorecard", "credit-application"]
         );
         let mut reversed = pack.clone();
         reversed.manifest.decisions.reverse();
@@ -520,7 +523,7 @@ mod tests {
             .check()
             .unwrap_err()
             .to_string()
-            .contains("calls affordability"));
+            .contains("calls scorecard"));
 
         let calling = |key: &str| {
             json!({ "nodes": [{ "id": "d", "name": "d", "type": "decisionNode",

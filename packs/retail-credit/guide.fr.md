@@ -45,9 +45,17 @@ refuse une requête qui en omet un ou dépasse ses limites avec `400`, en nomman
 formulaires peuvent être construits à partir de la même définition.
 
 Les champs `bureau` sont remplis par votre système à partir de la source consultée (un bureau de
-crédit privé ou la centrale des risques de la banque centrale). Si vous préférez interroger le
-bureau depuis le Runtime, remplacez-les par un nœud connecteur (voir le guide des connecteurs du
-Runtime).
+crédit privé ou la centrale des risques de la banque centrale). Pour que le Runtime interroge
+lui-même le bureau, appelez **credit-application** : elle prend les mêmes champs sans `bureau`,
+plus `applicant.nationalId`, interroge le bureau par son nœud connecteur *Credit bureau*, puis
+exécute la grille. Si le bureau ne répond pas, la demande continue sans consultation du bureau :
+une acceptation devient alors un renvoi à un analyste (R60).
+
+Le connecteur pointe vers le faux bureau de la démo (`http://demo-bureau:8080/report`, installé
+par `donka-admin init --demo`). Avant un usage réel, indiquez dans le nœud l'adresse de votre
+bureau, la forme de sa requête et de sa réponse, et sa clé dans `DONKA_SECRET_BUREAU_API_KEY` du
+Runtime (guide des connecteurs du Runtime). En simulation, le nœud répond avec son exemple : un
+rapport sans incident.
 
 ## Ce qu'elle répond
 

@@ -50,6 +50,8 @@ pub struct TestApp {
     pub store: Arc<MemoryStore>,
     /// Runs the publisher (`publish_due`) on demand.
     pub releases: Releases,
+    pub projects: Projects,
+    pub packs: donka_pack::Packs,
     /// Runs the retention purge on demand.
     pub decision_log: DecisionLog,
     /// The installation's licence (DNK-77): reload it after rewriting the file.
@@ -297,13 +299,13 @@ fn assemble_with_cipher(
             runtime,
             db,
             identity: identity.clone(),
-            projects,
+            projects: projects.clone(),
             decisions,
             releases: releases.clone(),
             decision_log: decision_log.clone(),
             explainer,
             audit,
-            packs,
+            packs: packs.clone(),
             catalogue: Arc::new(catalogue()),
             cookies: CookieSettings {
                 secure: true,
@@ -323,6 +325,8 @@ fn assemble_with_cipher(
         mailer: Arc::new(RecordingMailer::default()),
         store,
         releases,
+        projects,
+        packs,
         decision_log,
         licensing,
         licence_file,

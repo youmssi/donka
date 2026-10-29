@@ -68,6 +68,17 @@ services:
     ports: ["8090:8080"]
     restart: unless-stopped
 
+  # Only with `donka-admin init --demo` (COMPOSE_PROFILES=demo in .env): the fake credit bureau
+  # the demo project's connector calls. Its key is in runtime.env, shared with the Runtime.
+  demo-bureau:
+    profiles: [demo]
+    image: ghcr.io/youmssi/donka-studio:${DONKA_VERSION:?run donka-admin init first}
+    command: [donka-admin, demo-bureau]
+    env_file:
+      - path: runtime.env
+        required: false
+    restart: unless-stopped
+
 volumes:
   postgres:
   releases:

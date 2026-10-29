@@ -420,7 +420,12 @@ async fn a_project_duplicates_from_its_drafts_or_a_release(db: PgPool) {
     let drafts_id = drafts.body["project"]["id"].as_str().unwrap();
     assert_eq!(
         decision_keys(&app, &admin, drafts_id).await,
-        ["affordability", "pricing", "scorecard"]
+        [
+            "affordability",
+            "credit-application",
+            "pricing",
+            "scorecard"
+        ]
     );
 
     let frozen = duplicate("from-release", release.body["id"].clone()).await;
@@ -429,7 +434,7 @@ async fn a_project_duplicates_from_its_drafts_or_a_release(db: PgPool) {
     let frozen_id = frozen.body["project"]["id"].as_str().unwrap();
     assert_eq!(
         decision_keys(&app, &admin, frozen_id).await,
-        ["affordability", "scorecard"]
+        ["affordability", "credit-application", "scorecard"]
     );
     let created = event(&audit(&app, &admin, frozen_id).await, "project.created").clone();
     assert_eq!(

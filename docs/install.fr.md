@@ -57,6 +57,26 @@ Sans options, init prépare un premier essai sur cette machine : http://localhos
 `admin@donka.local`. `--studio-version` et `--runtime-version` fixent d'autres versions
 d'images.
 
+**La démo.** `donka-admin init --demo` prépare la même installation avec un projet prêt à être
+appelé. Au premier démarrage, Studio importe le pack *Crédit aux particuliers*, le publie et le
+déploie en staging, et un faux bureau de crédit répond à son connecteur (service `demo-bureau`,
+clé dans `runtime.env`). Une fois le mot de passe du premier administrateur choisi, la liste
+*Pour commencer* montre les étapes déjà faites ; créez un jeton Runtime dans **Environnements**
+et appelez la décision :
+
+```bash
+curl -X POST http://localhost:8090/api/projects/retail-credit/evaluate/credit-application \
+  -H 'content-type: application/json' -H "X-Access-Token: $TOKEN" \
+  -d '{"context": {"applicant": {"nationalId": "CM-109", "age": 38, "employment": "public",
+       "monthsInJob": 96, "monthlyIncome": 450000, "monthlyDebtPayments": 40000,
+       "salaryDomiciled": true}, "loan": {"amount": 2500000, "termMonths": 36}}}'
+```
+
+Les réponses du faux bureau sont fictives et dépendent du dernier chiffre de `nationalId` : la
+plupart sont sans incident, `7` et `8` ont des retards et `9` des retards graves (un refus). La
+décision apparaît dans le journal des décisions de Studio. Une démo sert à un premier essai :
+réinstallez sans `--demo` pour un usage réel.
+
 Pour changer un paramètre ensuite, modifiez `.env` puis lancez `docker compose up -d`. **Avant
 un usage réel**, définissez au moins l'adresse où l'on joint Studio et votre serveur de
 messagerie :

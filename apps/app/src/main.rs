@@ -143,9 +143,11 @@ async fn main() -> anyhow::Result<()> {
         Err(err) => tracing::warn!(%err, "cannot check whether the people index is complete"),
     }
 
+    let mut first_start = false;
     if let Some(email) = &config.bootstrap_admin_email {
         match identity.bootstrap_admin(email, config.default_locale).await {
             Ok(Some(token)) => {
+                first_start = true;
                 // Printed once, to the operator's console, as the only way into a new
                 // installation. The link works once and expires with the invitation lifetime.
                 eprintln!(
@@ -231,6 +233,24 @@ async fn main() -> anyhow::Result<()> {
         decision_log.clone(),
         releases.clone(),
     );
+    if config.demo && first_start {
+        let set_up = donka_app::demo::set_up(
+            &identity,
+            &projects,
+            &packs,
+            &releases,
+            &catalogue,
+            config.bootstrap_admin_email.as_deref().unwrap_or_default(),
+        )
+        .await;
+        match set_up {
+            Ok(project) => tracing::info!(
+                %project,
+                "demo: the retail-credit pack is imported, released and deployed to staging"
+            ),
+            Err(err) => tracing::error!(%err, "demo: cannot set up the demo project"),
+        }
+    }
     let app = router(
         AppState {
             runtime,

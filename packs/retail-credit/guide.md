@@ -42,8 +42,16 @@ request that lacks one or breaks its limits with `400`, naming the field, and fo
 from the same definition.
 
 The `bureau` fields are filled by your system from the source you consult (a private credit
-bureau or the central bank's risk register). If you call the bureau from the Runtime instead,
-replace them with a connector node (see the Runtime's connectors guide).
+bureau or the central bank's risk register). To have the Runtime call the bureau instead, call
+**credit-application**: it takes the same fields without `bureau`, plus `applicant.nationalId`,
+asks the bureau through its *Credit bureau* connector node, then runs the scorecard. If the
+bureau does not answer, the application goes on without a bureau check, so an approval becomes
+a referral (R60).
+
+The connector points at the demo's fake bureau (`http://demo-bureau:8080/report`, installed by
+`donka-admin init --demo`). Before real use, set your bureau's address, the shape of its
+request and its answer in the node, and its key in the Runtime's `DONKA_SECRET_BUREAU_API_KEY`
+(the Runtime's connectors guide). In simulation, the node answers with its mock: a clean report.
 
 ## What it answers
 

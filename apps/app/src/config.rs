@@ -84,6 +84,9 @@ pub struct Config {
     /// Where Studio writes, at first start, the decision-log token of the staging Runtime it
     /// is installed with (DNK-64). Unset: Runtimes get their token from an administrator.
     pub runtime_log_token_file: Option<PathBuf>,
+    /// Set by `donka-admin init --demo` (DNK-64): at the first start, the retail-credit pack is
+    /// imported, released and deployed to staging as the first administrator.
+    pub demo: bool,
 }
 
 /// Who must sign in with a second step (DNK-59). Anyone may turn one on.
@@ -306,6 +309,7 @@ impl Config {
             runtime_log_token_file: get("DONKA_RUNTIME_LOG_TOKEN_FILE")
                 .filter(|v| !v.trim().is_empty())
                 .map(PathBuf::from),
+            demo: boolean(&get, "DONKA_DEMO", false)?,
         })
     }
 }
@@ -737,6 +741,16 @@ mod tests {
                 .unwrap()
                 .licence_file,
             Some(PathBuf::from("/etc/donka/licence.json"))
+        );
+    }
+
+    #[test]
+    fn the_demo_is_off_unless_asked_for() {
+        assert!(!load(&[]).unwrap().demo);
+        assert!(load(&[("DONKA_DEMO", "true")]).unwrap().demo);
+        assert_eq!(
+            load(&[("DONKA_DEMO", "maybe")]).unwrap_err().var,
+            "DONKA_DEMO"
         );
     }
 
