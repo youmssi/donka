@@ -9,6 +9,7 @@ pub mod email_worker;
 pub mod error;
 pub mod extract;
 pub mod index_people;
+pub mod install;
 pub mod licence;
 pub mod publish_worker;
 pub mod purge_worker;
@@ -18,6 +19,7 @@ pub mod reseal;
 pub mod routes;
 pub mod telemetry;
 pub mod web;
+pub mod wiring;
 
 use auth::CookieSettings;
 use axum::extract::DefaultBodyLimit;

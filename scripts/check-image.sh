@@ -54,5 +54,6 @@ docker rm "$probe" >/dev/null
 if grep -q 'donka-licence$' <<<"$files"; then
   fail "the image contains the licence issuer"
 fi
+grep -qx 'usr/local/bin/donka-admin' <<<"$files" || fail "the image has no donka-admin"
 
 echo "check-image: $image runs as '$user', is healthy and reports version $version"

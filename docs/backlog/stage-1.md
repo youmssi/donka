@@ -1366,14 +1366,14 @@ Confirmed 2026-10-25, before DNK-50:
 #### Acceptance criteria
 - [ ] From an empty server with Docker, pulling the images, preparing the installation and starting it reaches a Runtime decision recorded in Studio in five minutes or less on the documented reference machine; CI measures it
 - [ ] The offline bundle installs the same version with no network access
-- [ ] Generated secrets are random, written once, never printed except the one-time setup link, and never overwritten by a second run
+- [x] Generated secrets are random, written once, never printed except the one-time setup link, and never overwritten by a second run
 - [ ] Without the demo option, nothing is imported; with it, the Get started checklist (DNK-41) shows the demo project's progress
 - [ ] `donka-admin upgrade` refuses an image whose signature does not verify, and an upgrade the release notes mark as incompatible with the installed version
 - [ ] An upgrade whose smoke test fails restores the previous version and data, and says what failed; a successful one keeps the data and writes its report
 - [ ] Studio shows when a newer version is published, without any outgoing call when the installation is offline; unattended upgrades, when enabled, run only in the configured window and never in production
 - [ ] The DNK-50 rehearsal runs on this installation and this upgrade path
 - [ ] Studio publishes to a disk volume that the Runtime's `Filesystem` provider serves and hot-reloads; S3 still works; CI runs the storage tests against the latest SILO release
-- [ ] The install guides (EN/FR) start with this path; building from source moves to the contributor guide
+- [x] The install guides (EN/FR) start with this path; building from source moves to the contributor guide
 
 #### Out of scope
 Kubernetes charts; high availability; production hardening beyond the documented settings.

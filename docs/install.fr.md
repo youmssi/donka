@@ -6,59 +6,65 @@ Ce guide installe Donka sur un serveur avec Docker Compose et couvre son exploit
 courante : le test de fumée après chaque déploiement, les sauvegardes, les mises à jour et le
 renouvellement des secrets.
 
-Une installation sert une organisation. Elle fait tourner cinq conteneurs :
+Une installation sert une organisation. Elle fait tourner quatre conteneurs depuis les images
+publiées de Donka :
 
 | Service | Rôle | Port (hôte) |
 | --- | --- | --- |
 | `app` | Donka Studio : l'application web et son API | `8080` |
 | `runtime` | Donka Runtime, qui sert l'environnement **staging** | `8090` |
-| `postgres` | La base de données de Studio (PostgreSQL 16) | `127.0.0.1:5432` |
-| `minio` | Le stockage des versions publiées (compatible S3) | `127.0.0.1:9000`, console `127.0.0.1:9001` |
+| `postgres` | La base de données de Studio (PostgreSQL 16) | aucun |
 | `mailpit` | Retient les e-mails sortants tant qu'aucun serveur de messagerie n'est configuré | `127.0.0.1:8025` |
 
-PostgreSQL, MinIO et Mailpit n'écoutent que sur le serveur lui-même. Exposez Studio et le
-Runtime derrière votre proxy inverse (TLS), pas directement.
+Studio publie les versions dans le volume `releases`, que le Runtime de staging sert et
+recharge quand un déploiement le modifie ; Studio relie le Runtime à son journal des décisions
+au premier démarrage (le jeton est dans le volume `wiring`). Exposez Studio et le Runtime
+derrière votre proxy inverse (TLS), pas directement. Pour construire Donka depuis les sources,
+voir [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ## 1. Installer
 
-Il faut Docker Engine avec le plugin Compose (2.24 ou plus récent), git, environ 10 Go
-d'espace disque libre pour la première construction, et un accès sortant à GitHub et aux
-registres d'images.
+Il faut un serveur avec Docker Engine et le plugin Compose (2.24 ou plus récent), et un accès à
+GitHub Container Registry. L'image de Studio est privée : connectez-vous avec le jeton de lecture
+que Donka vous remet (voir *Images publiées* plus bas). Rien d'autre n'est installé sur le
+serveur.
 
 ```bash
-git clone https://github.com/youmssi/donka.git && cd donka
-docker compose --profile full up -d
+echo "$DONKA_REGISTRY_TOKEN" | docker login ghcr.io -u <votre utilisateur GitHub> --password-stdin
+mkdir donka && cd donka
+docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/install" -w /install \
+  ghcr.io/youmssi/donka-studio:latest donka-admin init \
+  --public-url https://donka.banque.example --admin-email vous@banque.example
+docker compose up -d
 ```
 
-Le premier démarrage construit Studio et le Runtime depuis les sources (15 à 30 minutes).
-Ensuite :
-
-1. Ouvrez http://localhost:8080 (ou l'adresse de votre serveur).
-2. Récupérez le lien à usage unique pour choisir le mot de passe du premier administrateur :
+1. `donka-admin init` écrit `docker-compose.yml` et `.env` dans le dossier. `.env` contient les
+   secrets de l'installation (mot de passe de la base, clés du journal des décisions, de la
+   seconde étape et de l'index des personnes), tirés au hasard et lisibles par vous seul.
+   Relancer init n'écrase jamais ces fichiers. Gardez `.env` hors du contrôle de version et
+   sauvegardez-le (section 3).
+2. Récupérez le lien à usage unique pour choisir le mot de passe du premier administrateur ;
+   c'est le seul secret jamais affiché :
 
    ```bash
    docker compose logs app | grep setup-password
    ```
 
-   L'administrateur est `admin@donka.local`, sauf si vous définissez `DONKA_BOOTSTRAP_ADMIN_EMAIL`.
-3. Lancez le test de fumée (section 2).
+3. Ouvrez Studio (port 8080), choisissez le mot de passe, puis lancez le test de fumée
+   (section 2).
 
-Chaque paramètre a une valeur par défaut qui fonctionne sur une seule machine. **Avant un
-usage réel, définissez vos propres valeurs** dans un fichier `.env` à côté de
-`docker-compose.yml` (gardez-le hors de git : il contient des secrets) :
+Sans options, init prépare un premier essai sur cette machine : http://localhost:8080 et
+`admin@donka.local`. `--studio-version` et `--runtime-version` fixent d'autres versions
+d'images.
+
+Pour changer un paramètre ensuite, modifiez `.env` puis lancez `docker compose up -d`. **Avant
+un usage réel**, définissez au moins l'adresse où l'on joint Studio et votre serveur de
+messagerie :
 
 ```bash
 # .env
 DONKA_PUBLIC_URL=https://donka.banque.example   # l'adresse où l'on joint Studio
 DONKA_COOKIE_SECURE=true                        # Studio est servi en HTTPS
-DONKA_BOOTSTRAP_ADMIN_EMAIL=vous@banque.example # premier administrateur, sur une base vide
-DONKA_POSTGRES_PASSWORD=<généré>                # openssl rand -hex 24
-DONKA_STORAGE_ACCESS_KEY_ID=donka
-DONKA_STORAGE_SECRET_ACCESS_KEY=<généré>        # openssl rand -hex 24
-DONKA_DECISION_LOG_KEY=<généré>                 # openssl rand -base64 32
-DONKA_SECOND_STEP_KEY=<généré>                  # openssl rand -base64 32
-DONKA_PERSON_INDEX_KEY=<généré>                 # openssl rand -base64 32
-DONKA_MFA_REQUIRED=privileged                   # seconde étape pour administrateurs et propriétaires
 DONKA_SMTP_URL=smtp://user:pass@mail.banque.example:587?tls=required
 DONKA_SMTP_FROM=Donka <donka@banque.example>
 ```
@@ -129,24 +135,26 @@ docker compose kill -s HUP app
 Un module que la licence n'inclut pas est masqué dans Studio, et ses actions sont refusées avec
 un message qui le nomme.
 
-Définissez-les avant le premier démarrage : PostgreSQL et MinIO prennent leur mot de passe à la
-création de leurs données (la section 5 explique comment les changer ensuite). Tous les autres
-paramètres de Studio, listés dans [.env.example](../.env.example), peuvent aller dans le même
-fichier.
+PostgreSQL prend son mot de passe à la création de ses données (la section 5 explique comment
+le changer ensuite). Tous les autres paramètres de Studio, listés dans
+[.env.example](../.env.example), peuvent aller dans le même fichier.
 
-Le Runtime lit des paramètres supplémentaires dans un fichier facultatif `runtime.env`, par
-exemple pour envoyer ses décisions au journal des décisions de Studio (créez le jeton dans
-**Runtimes** dans Studio) :
+Le Runtime de staging envoie ses décisions au journal des décisions de Studio avec un jeton que
+Studio crée à son premier démarrage, listé comme *Staging Runtime (installed)* parmi les jetons
+du journal. Pour le remplacer, révoquez-le dans Studio, puis supprimez le fichier et
+redémarrez ; Studio en crée un nouveau :
 
 ```bash
-# runtime.env
-DECISION_LOG__URL=http://app:8080/api/v1/decision-log/records
-DECISION_LOG__TOKEN=dnk_log_...
+docker run --rm -v donka_wiring:/wiring alpine rm /wiring/staging-decision-log-token
+docker compose restart app runtime
 ```
 
-Ses paramètres sont décrits dans le
-[guide de configuration](https://github.com/youmssi/donka-runtime/blob/develop/docs/configuration.md)
-du Runtime. Pour la production, faites tourner un second Runtime avec `PROVIDER__PREFIX: production/`.
+Le Runtime lit des paramètres supplémentaires dans un fichier facultatif `runtime.env` à côté
+de `docker-compose.yml` ; ils sont décrits dans son
+[guide de configuration](https://github.com/youmssi/donka-runtime/blob/develop/docs/configuration.md).
+Un Runtime de production tourne en général sur une autre machine : Studio et ses Runtimes
+partagent alors un stockage S3 (le vôtre, ou [SILO](https://github.com/pgsty/silo)) au lieu du
+volume `releases`.
 
 **Secrets des connecteurs.** Les nœuds connecteurs d'une décision nomment leurs secrets ; le
 Runtime lit chaque valeur dans `DONKA_SECRET_<NOM>`, ou dans le fichier désigné par
@@ -234,7 +242,7 @@ de test dans Studio.
 
 ## 3. Sauvegarder
 
-Sauvegardez trois choses, ensemble : la base de données, le bucket des versions et les secrets.
+Sauvegardez trois choses, ensemble : la base de données, le volume des versions et les secrets.
 
 ```bash
 mkdir -p backups
@@ -244,10 +252,9 @@ stamp=$(date +%Y%m%d-%H%M)
 # (ses partitions mensuelles comprises).
 docker compose exec -T postgres pg_dump -U donka -Fc donka > "backups/donka-$stamp.dump"
 
-# Le bucket des versions : ce que servent les Runtimes.
-docker compose run --rm -v "$PWD/backups:/backups" --entrypoint sh minio-init -c \
-  "mc alias set local http://minio:9000 \$AWS_ACCESS_KEY_ID \$AWS_SECRET_ACCESS_KEY >/dev/null &&
-   mc mirror --overwrite local/donka-releases /backups/releases-$stamp"
+# Le volume des versions : ce que servent les Runtimes.
+docker run --rm -v donka_releases:/releases:ro -v "$PWD/backups:/backups" alpine \
+  tar -czf "/backups/releases-$stamp.tar.gz" -C /releases .
 ```
 
 Gardez `.env` et `runtime.env` dans votre coffre à secrets. **Sans `DONKA_DECISION_LOG_KEY` (et,
@@ -264,9 +271,8 @@ restaurer, Studio arrêté :
 ```bash
 docker compose stop app runtime
 docker compose exec -T postgres pg_restore -U donka -d donka --clean --if-exists < backups/donka-<stamp>.dump
-docker compose run --rm -v "$PWD/backups:/backups" --entrypoint sh minio-init -c \
-  "mc alias set local http://minio:9000 \$AWS_ACCESS_KEY_ID \$AWS_SECRET_ACCESS_KEY >/dev/null &&
-   mc mirror --overwrite /backups/releases-<stamp> local/donka-releases"
+docker run --rm -v donka_releases:/releases -v "$PWD/backups:/backups" alpine \
+  sh -c "rm -rf /releases/* && tar -xzf /backups/releases-<stamp>.tar.gz -C /releases"
 docker compose up -d app runtime
 ```
 
@@ -277,15 +283,14 @@ docker compose up -d app runtime
    jour.
 2. Sauvegardez (section 3). Les migrations de la base ne vont que vers l'avant : le retour
    arrière, c'est la sauvegarde.
-3. Récupérez la nouvelle version et reconstruisez :
+3. Indiquez les nouvelles versions dans `.env` (`DONKA_VERSION`, et `DONKA_RUNTIME_VERSION`
+   quand les notes de version en nomment une), vérifiez les images (*Images publiées*), puis
+   récupérez-les et redémarrez :
 
    ```bash
-   git fetch --tags && git checkout v1.5.0
-   DONKA_VERSION=1.5.0 docker compose --profile full up -d --build
+   docker compose pull && docker compose up -d
    ```
 
-   Pour fixer le Runtime sur une version, définissez
-   `DONKA_RUNTIME_SOURCE=https://github.com/youmssi/donka-runtime.git#v1.5.0` dans `.env`.
    Studio applique les migrations en attente au démarrage (`DONKA_DB_MIGRATE=true`).
 4. Vérifiez : `curl -s localhost:8080/api/v1/version`, puis le test de fumée (section 2).
 5. Si le journal de Studio indique que des enregistrements ne sont pas encore indexés (après la
@@ -308,13 +313,10 @@ docker compose exec postgres psql -U donka -c "ALTER USER donka PASSWORD 'nouvea
 docker compose up -d app
 ```
 
-**Clés du stockage (MinIO)** : MinIO lit ses identifiants racine au démarrage. Mettez les
-nouvelles valeurs de `DONKA_STORAGE_ACCESS_KEY_ID` et `DONKA_STORAGE_SECRET_ACCESS_KEY` dans
-`.env`, puis redémarrez tous les services qui les utilisent :
-
-```bash
-docker compose --profile full up -d minio minio-init app runtime
-```
+**Clés du stockage**, quand les versions vont dans un stockage S3 : changez la clé dans le
+stockage, mettez les nouvelles valeurs de `DONKA_STORAGE_ACCESS_KEY_ID` et
+`DONKA_STORAGE_SECRET_ACCESS_KEY` pour Studio et les clés `AWS_*` des Runtimes, puis
+redémarrez-les. Le volume `releases` n'a pas de clés.
 
 **Identifiants du serveur de messagerie** : changez `DONKA_SMTP_URL` dans `.env`, puis
 `docker compose up -d app`.
@@ -325,7 +327,8 @@ l'ancien. Chaque étape est dans le journal d'audit.
 
 **Clé du journal des décisions** : les enregistrements sont chiffrés avec
 `DONKA_DECISION_LOG_KEY`. Remplacez-la si elle a pu fuiter, si une personne qui la connaissait
-part, ou si vous avez démarré avec la clé par défaut de `docker-compose.yml`. Chaque
+part, ou si vous avez démarré avec une clé publique par défaut (le `docker-compose.yml` de la
+construction depuis les sources en contient). Chaque
 enregistrement indique la clé qui l'a chiffré, donc rien n'est perdu :
 
 1. Générez une nouvelle clé : `openssl rand -base64 32`.
@@ -391,8 +394,9 @@ configure à nouveau. Chaque changement est audité et la personne est prévenue
 | --- | --- |
 | Studio ne démarre pas | `docker compose logs app` : un paramètre manquant ou invalide est nommé, avec un exemple |
 | `/api/v1/ready` répond 503 | PostgreSQL : `docker compose ps postgres`, puis `docker compose logs postgres` |
-| Un déploiement reste *en attente* | `docker compose logs app` : le publicateur réessaie jusqu'à ce que le bucket réponde |
-| Le Runtime répond 404 pour un projet | Il sert un seul environnement (`PROVIDER__PREFIX`) ; vérifiez que la version y est en ligne |
+| Un déploiement reste *en attente* | `docker compose logs app` : le publicateur réessaie jusqu'à ce que le stockage des versions réponde |
+| Le Runtime répond 404 pour un projet | Il sert un seul environnement (ici staging) ; vérifiez que la version y est en ligne, puis `docker compose logs runtime` |
+| Le Runtime redémarre en boucle au premier démarrage | Il attend que Studio écrive son jeton du journal des décisions : `docker compose logs app \| grep decision-log` |
 | Studio s'arrête sur `DONKA_PACKS_DIR` | Un pack de ce dossier est invalide : le message nomme le pack et la raison |
 | « Le fichier de licence a été refusé » | `docker compose logs app \| grep licence` donne la raison : le fichier a été modifié, a été émis pour une autre installation, ou ne peut pas être lu à `DONKA_LICENCE_FILE` |
 | Aucun e-mail | Mailpit (http://localhost:8025) tant que `DONKA_SMTP_URL` ne pointe pas vers votre serveur |

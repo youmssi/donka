@@ -1061,6 +1061,7 @@ dependencies = [
  "donka-release",
  "donka-shared",
  "donka-storage",
+ "getrandom 0.3.4",
  "http-body-util",
  "ipnet",
  "opentelemetry",

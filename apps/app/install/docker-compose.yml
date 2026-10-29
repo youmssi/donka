@@ -1,0 +1,74 @@
+# Donka on one server, from its published images (DNK-64). Written by `donka-admin init`;
+# the settings and secrets are in `.env` next to this file.
+#
+#   docker compose up -d
+#   docker compose logs app | grep setup-password   # the first administrator's one-time link
+#
+# Studio publishes releases to the `releases` volume; the staging Runtime serves them and sends
+# its decisions to Studio with the token Studio writes at first start in the `wiring` volume.
+name: donka
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: donka
+      POSTGRES_PASSWORD: ${DONKA_POSTGRES_PASSWORD:?run donka-admin init first}
+      POSTGRES_DB: donka
+    volumes: [postgres:/var/lib/postgresql/data]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U donka"]
+      interval: 5s
+      retries: 10
+
+  # Catches every email Studio sends (http://localhost:8025) until DONKA_SMTP_URL in .env
+  # points at your mail server.
+  mailpit:
+    image: axllent/mailpit:v1.31.3
+    ports: ["127.0.0.1:8025:8025"]
+    restart: unless-stopped
+
+  app:
+    image: ghcr.io/youmssi/donka-studio:${DONKA_VERSION:?run donka-admin init first}
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgres://donka:${DONKA_POSTGRES_PASSWORD}@postgres:5432/donka
+      DONKA_SMTP_URL: ${DONKA_SMTP_URL:-smtp://mailpit:1025}
+      DONKA_SMTP_FROM: ${DONKA_SMTP_FROM:-Donka <donka@localhost>}
+      DONKA_STORAGE_URL: file:///var/lib/donka/releases
+      DONKA_RUNTIME_LOG_TOKEN_FILE: /var/lib/donka/wiring/staging-decision-log-token
+    volumes:
+      - releases:/var/lib/donka/releases
+      - wiring:/var/lib/donka/wiring
+    depends_on:
+      postgres: { condition: service_healthy }
+      mailpit: { condition: service_started }
+    ports: ["8080:8080"]
+    restart: unless-stopped
+
+  # The staging Runtime. It restarts until Studio has written its decision-log token.
+  runtime:
+    image: ghcr.io/youmssi/donka-runtime:${DONKA_RUNTIME_VERSION:?run donka-admin init first}
+    environment:
+      PROVIDER__TYPE: Zip
+      PROVIDER__ROOT_DIR: /var/lib/donka/releases/staging
+      PROVIDER__WATCH: "true"
+      DECISION_LOG__URL: http://app:8080/api/v1/decision-log/records
+      DECISION_LOG__TOKEN_FILE: /var/lib/donka/wiring/staging-decision-log-token
+    # The Runtime's other settings, such as connector secrets (DONKA_SECRET_<NAME>).
+    env_file:
+      - path: runtime.env
+        required: false
+    volumes:
+      - releases:/var/lib/donka/releases:ro
+      - wiring:/var/lib/donka/wiring:ro
+    depends_on:
+      app: { condition: service_started }
+    ports: ["8090:8080"]
+    restart: unless-stopped
+
+volumes:
+  postgres:
+  releases:
+  wiring:
