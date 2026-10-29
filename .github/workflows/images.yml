@@ -4,6 +4,9 @@ name: Images
 #
 # - Every push to develop publishes `edge` and `sha-<commit>`, for staging and demos.
 # - Each release (called by release.yml with its tag) publishes `X.Y.Z`, `X.Y` and `latest`.
+#   Its offline bundle, signed with the same key, is attached to the GitHub release.
+# - After each publish, a fresh runner measures the install: pull, init --demo, start, until a
+#   Runtime decision is recorded in Studio, within five minutes.
 #
 # Every image carries an SBOM and a provenance attestation, and is signed with cosign using
 # the key pair whose public key is `cosign.pub` at the root of this repository. Signatures are
@@ -137,3 +140,78 @@ jobs:
             echo "$TAGS"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # The five-minute promise, measured on a fresh runner (the reference machine: GitHub's
+  # ubuntu-latest, 4 vCPU and 16 GB): pull the published images, prepare the demo installation
+  # and start it, until a Runtime decision is recorded in Studio.
+  measure:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: read
+    env:
+      STUDIO_TAG: ${{ inputs.version || format('sha-{0}', github.sha) }}
+      RUNTIME_TAG: ${{ inputs.version && 'latest' || 'edge' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.version && format('v{0}', inputs.version) || github.sha }}
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Pull the images
+        run: |
+          echo "DONKA_INSTALL_STARTED=$(date +%s)" >> "$GITHUB_ENV"
+          scripts/install-images.sh "$STUDIO_TAG" "$RUNTIME_TAG" | xargs -n1 docker pull -q
+      - run: scripts/check-install.sh "$STUDIO_TAG" "$RUNTIME_TAG" demo | tee -a "$GITHUB_STEP_SUMMARY"
+        env:
+          DONKA_INSTALL_BUDGET: 300
+
+  # A release's offline bundle, attached to its GitHub release: its signed images and the
+  # latest Runtime release's, checked against each repository's cosign.pub, then signed as one.
+  bundle:
+    needs: publish
+    if: inputs.version != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      packages: read
+    env:
+      VERSION: ${{ inputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v${{ inputs.version }}
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - uses: sigstore/cosign-installer@v3
+      - name: Check the images' signatures
+        run: |
+          runtime=$(gh release view --repo youmssi/donka-runtime --json tagName -q .tagName)
+          echo "RUNTIME_VERSION=${runtime#v}" >> "$GITHUB_ENV"
+          gh api -H 'Accept: application/vnd.github.raw' \
+            "repos/youmssi/donka-runtime/contents/cosign.pub?ref=$runtime" > "$RUNNER_TEMP/runtime-cosign.pub"
+          cosign verify --key cosign.pub --insecure-ignore-tlog "$IMAGE:$VERSION" > /dev/null
+          cosign verify --key "$RUNNER_TEMP/runtime-cosign.pub" --insecure-ignore-tlog \
+            "ghcr.io/youmssi/donka-runtime:${runtime#v}" > /dev/null
+      - name: Bundle and sign
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          bundle=$(scripts/bundle.sh "$VERSION" "$RUNTIME_VERSION" "$RUNNER_TEMP")
+          cosign sign-blob --yes --key env://COSIGN_PRIVATE_KEY --tlog-upload=false \
+            --output-signature "$bundle/SHA256SUMS.sig" "$bundle/SHA256SUMS"
+          cosign verify-blob --key cosign.pub --insecure-ignore-tlog \
+            --signature "$bundle/SHA256SUMS.sig" "$bundle/SHA256SUMS"
+          tar -C "$RUNNER_TEMP" -cf "$RUNNER_TEMP/donka-$VERSION-offline.tar" "donka-$VERSION-offline"
+          gh release upload "v$VERSION" "$RUNNER_TEMP/donka-$VERSION-offline.tar" --clobber

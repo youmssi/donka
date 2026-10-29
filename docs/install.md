@@ -205,6 +205,31 @@ cosign verify --key cosign.pub --insecure-ignore-tlog ghcr.io/youmssi/donka-runt
 docker buildx imagetools inspect ghcr.io/youmssi/donka-studio:1.5.0 --format '{{ json .SBOM }}'
 ```
 
+### Without internet access
+
+Each release also comes as an offline bundle, `donka-<version>-offline.tar`, attached to the
+release: Studio, the latest Runtime release and every other image the installation runs (the
+demo's included), for linux/amd64 servers. Its `SHA256SUMS` is signed with the same key as the
+images. Copy the bundle to the server, then check it with `cosign.pub` obtained from Donka, never
+from the bundle itself; `openssl` does instead of cosign:
+
+```bash
+tar -xf donka-1.5.0-offline.tar && cd donka-1.5.0-offline
+openssl dgst -sha256 -verify cosign.pub -signature <(base64 -d SHA256SUMS.sig) SHA256SUMS
+sha256sum -c SHA256SUMS
+docker load -i images.tar.gz
+```
+
+Then install as in section 1 without logging in to the registry, with the versions the
+bundle's `README.txt` gives and `docker compose up -d --pull never`. `images.txt` lists each
+image with the registry digest its own signature covers. CI installs from a bundle with every
+image removed beforehand, on each change.
+
+**Five minutes.** On GitHub's `ubuntu-latest` runner (4 vCPU, 16 GB), the reference machine,
+pulling the images, `donka-admin init --demo` and `docker compose up` reach a Runtime decision
+recorded in Studio in under five minutes. CI measures it after each published image and fails
+above that.
+
 ## 2. Smoke test after each deploy
 
 `scripts/smoke.sh` checks that Studio answers and reaches its database, that the decision
