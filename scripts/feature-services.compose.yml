@@ -2,13 +2,23 @@
 # Never add this override to a customer installation.
 services:
   app:
-    # Trusts the development licence key; CI issues the licence (scripts/dev-licence.sh).
+    # Trusts the development licence key; CI issues the licence (scripts/dev-licence.sh). A
+    # release version, so that the disposable feed's 99.0.0 is newer (CI sets the same in bake).
     build:
       args:
         CARGO_FEATURES: development-licence-key
+        SERVICE_VERSION: 1.0.0
     environment:
       DONKA_LICENCE_FILE: /etc/donka/licence.json
+      DONKA_UPDATE_CHECK_URL: http://feature-releases:8101/releases/latest
     volumes: ['./.feature-licence.json:/etc/donka/licence.json:ro']
+    depends_on:
+      feature-releases: { condition: service_started }
+  # The release feed Studio checks for a newer Donka (DNK-64), announcing 99.0.0.
+  feature-releases:
+    image: python:3.13-alpine
+    command: [python, -m, http.server, '8101', --directory, /feed]
+    volumes: ['./scripts/feature-releases:/feed:ro']
   feature-explain:
     image: python:3.13-alpine
     command: [python, /fixture/feature-explain.py, 0.0.0.0, '8100']

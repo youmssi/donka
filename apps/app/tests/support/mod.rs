@@ -8,6 +8,7 @@ use chrono::{TimeZone, Utc};
 use donka_app::auth::{CookieSettings, CSRF_HEADER, PENDING_COOKIE, SESSION_COOKIE};
 use donka_app::config::MfaRequired;
 use donka_app::rate_limit::AuthLimits;
+use donka_app::updates::Updates;
 use donka_app::{router, AppState};
 use donka_audit::AuditLog;
 use donka_db::{DbOptions, PgPool};
@@ -60,6 +61,8 @@ pub struct TestApp {
     pub licence_file: Option<std::path::PathBuf>,
     /// Signs licences the test app trusts.
     pub licence_signer: Arc<SigningKeyPair>,
+    /// The release check (DNK-64): off unless the app was built `with_update_feed`.
+    pub updates: Updates,
 }
 
 /// The key the test app trusts, standing for Donka's.
@@ -124,6 +127,23 @@ pub fn in_evaluation(db: PgPool) -> TestApp {
         Cipher::from_base64(DECISION_LOG_KEY).unwrap(),
         SecondStep::default(),
         false,
+        Updates::new("1.4.0", None),
+    )
+}
+
+/// An app of version 1.4.0 that checks the release feed at `url` (DNK-64).
+pub fn with_update_feed(db: PgPool, url: &str) -> TestApp {
+    assemble_with_cipher(
+        db,
+        Arc::new(ZenRuntime::new(1)),
+        BASE,
+        None,
+        None,
+        generous_limits(),
+        Cipher::from_base64(DECISION_LOG_KEY).unwrap(),
+        SecondStep::default(),
+        true,
+        Updates::new("1.4.0", Some(url.to_owned())),
     )
 }
 
@@ -169,6 +189,7 @@ fn assemble(
         cipher,
         SecondStep::default(),
         true,
+        Updates::new("1.4.0", None),
     )
 }
 
@@ -203,6 +224,7 @@ pub fn with_second_step(db: PgPool, required: MfaRequired, keys: &[&str]) -> Tes
         Cipher::from_base64(DECISION_LOG_KEY).unwrap(),
         SecondStep { required, keys },
         true,
+        Updates::new("1.4.0", None),
     )
 }
 
@@ -223,6 +245,7 @@ pub fn with_decision_log_keys(db: PgPool, current: &str, previous: &[&str]) -> T
         cipher,
         SecondStep::default(),
         true,
+        Updates::new("1.4.0", None),
     )
 }
 
@@ -237,6 +260,7 @@ fn assemble_with_cipher(
     cipher: Cipher,
     second_step: SecondStep,
     licensed: bool,
+    updates: Updates,
 ) -> TestApp {
     let clock = Arc::new(ManualClock::new(
         Utc.with_ymd_and_hms(2026, 9, 28, 9, 0, 0).unwrap(),
@@ -314,6 +338,7 @@ fn assemble_with_cipher(
             auth_limits,
             mfa_required: second_step.required,
             licensing: licensing.clone(),
+            updates: updates.clone(),
         },
         base,
         web_dir,
@@ -331,6 +356,7 @@ fn assemble_with_cipher(
         licensing,
         licence_file,
         licence_signer,
+        updates,
     }
 }
 

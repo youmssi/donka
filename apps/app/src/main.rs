@@ -225,6 +225,9 @@ async fn main() -> anyhow::Result<()> {
     let licensing =
         donka_app::licence::Licensing::new(config.licence_file.clone(), licence_key, clock.clone());
     tokio::spawn(donka_app::licence::watch(licensing.clone()));
+    let updates =
+        donka_app::updates::Updates::new(donka_app::VERSION, config.update_check_url.clone());
+    tokio::spawn(donka_app::updates::watch(updates.clone()));
     let packs = Packs::new(
         db.clone(),
         clock.clone(),
@@ -272,6 +275,7 @@ async fn main() -> anyhow::Result<()> {
                 config.trusted_proxies.clone(),
             ),
             licensing,
+            updates,
         },
         &config.api_base_path,
         config.web_dir.as_deref(),

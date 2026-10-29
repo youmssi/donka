@@ -55,7 +55,7 @@ Donka Studio $studio_tag with Donka Runtime $runtime_tag, for a server without i
 
      docker run --rm -u "\$(id -u):\$(id -g)" -v "\$PWD:/install" -w /install \\
        ghcr.io/youmssi/donka-studio:$studio_tag donka-admin init \\
-       --studio-version $studio_tag --runtime-version $runtime_tag \\
+       --studio-version $studio_tag --runtime-version $runtime_tag --offline \\
        --public-url https://donka.bank.example --admin-email you@bank.example
      docker compose up -d --pull never
 

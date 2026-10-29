@@ -19,6 +19,7 @@ pub mod request_id;
 pub mod reseal;
 pub mod routes;
 pub mod telemetry;
+pub mod updates;
 pub mod upgrade;
 pub mod web;
 pub mod wiring;
@@ -83,6 +84,8 @@ pub struct AppState {
     pub auth_limits: rate_limit::AuthLimits,
     /// The installation's licence (DNK-77).
     pub licensing: licence::Licensing,
+    /// Whether a newer Donka release is published (DNK-64).
+    pub updates: updates::Updates,
 }
 
 #[derive(OpenApi)]
@@ -111,6 +114,7 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
     let protected = OpenApiRouter::new()
         .routes(routes!(routes::auth::me))
         .routes(routes!(routes::licence::get))
+        .routes(routes!(routes::updates::get))
         .routes(routes!(routes::auth::sign_out))
         .routes(routes!(routes::simulate::simulate))
         .routes(routes!(routes::users::invite))

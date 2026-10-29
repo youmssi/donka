@@ -21,6 +21,8 @@ pub struct Options {
     pub runtime_version: String,
     /// Where the images come from, when not GitHub Container Registry: a mirror.
     pub registry: Option<String>,
+    /// No internet access: Studio never checks for new releases.
+    pub offline: bool,
     /// The demo: the retail-credit pack released to staging at the first start, its bureau
     /// connector answered by a bundled fake bureau.
     pub demo: bool,
@@ -40,6 +42,7 @@ impl Options {
             studio_version: if released { version } else { "edge" }.to_owned(),
             runtime_version: if released { "latest" } else { "edge" }.to_owned(),
             registry: None,
+            offline: false,
             demo: false,
         }
     }
@@ -117,8 +120,15 @@ fn env_file(
         studio_version,
         runtime_version,
         registry,
+        offline,
         demo,
     } = options;
+    let offline = if *offline {
+        "\n# No internet access (donka-admin init --offline): Studio never checks for new releases\n\
+         DONKA_UPDATE_CHECK=false\n"
+    } else {
+        ""
+    };
     let registry = match registry {
         Some(registry) => format!("DONKA_REGISTRY={registry}"),
         None => "# A mirror of the images, if not GitHub Container Registry\n\
@@ -160,7 +170,7 @@ fn env_file(
          # Mail: Mailpit (http://localhost:8025) catches every email until these point at your server\n\
          # DONKA_SMTP_URL=smtp://user:pass@mail.example:587?tls=required\n\
          # DONKA_SMTP_FROM=Donka <donka@example>\n\
-         {demo}"
+         {offline}{demo}"
     ))
 }
 
@@ -313,11 +323,13 @@ mod tests {
         init(&plain, &Options::for_version("1.4.0"), system_random).unwrap();
         let env = std::fs::read_to_string(plain.join(".env")).unwrap();
         assert!(!env.contains("DONKA_DEMO") && !env.contains("COMPOSE_PROFILES"));
+        assert!(!env.contains("DONKA_UPDATE_CHECK"));
         assert!(!plain.join("runtime.env").exists());
 
         let demo = dir("demo");
         let options = Options {
             demo: true,
+            offline: true,
             registry: Some("registry.bank.example/donka".into()),
             ..Options::for_version("1.4.0")
         };
@@ -325,6 +337,7 @@ mod tests {
         assert_eq!(outcome.len(), 3);
         let env = std::fs::read_to_string(demo.join(".env")).unwrap();
         assert_eq!(env_value(&env, "COMPOSE_PROFILES"), "demo");
+        assert_eq!(env_value(&env, "DONKA_UPDATE_CHECK"), "false");
         assert_eq!(env_value(&env, "DONKA_DEMO"), "true");
         assert_eq!(
             env_value(&env, "DONKA_REGISTRY"),

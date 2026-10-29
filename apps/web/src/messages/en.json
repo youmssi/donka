@@ -1380,5 +1380,11 @@
       "foreign": "It was issued for another installation, or not by Donka.",
       "tampered": "It was changed after Donka signed it. Put back the file Donka sent."
     }
+  },
+  "updates": {
+    "title": "Donka {version} is available",
+    "description": "This installation runs {current}. Read the release notes, then upgrade with donka-admin upgrade (installation guide, section 4).",
+    "notes": "Release notes",
+    "dismiss": "Hide until the next release"
   }
 }

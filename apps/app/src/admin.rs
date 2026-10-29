@@ -13,12 +13,13 @@ use std::path::PathBuf;
 const USAGE: &str = "usage:
   donka-admin init [--dir <dir>] [--public-url <url>] [--admin-email <email>]
                    [--studio-version <tag>] [--runtime-version <tag>] [--registry <host/path>]
-                   [--demo]
+                   [--demo] [--offline]
       Prepares an installation in <dir> (the current folder by default): docker-compose.yml
       and .env with random secrets. Existing files are kept, never overwritten.
       --demo also releases the retail-credit pack to staging at the first start, its bureau
       connector answered by a fake bureau (its key in runtime.env).
       --registry names a mirror of the images (ghcr.io/youmssi by default).
+      --offline: the server has no internet access, Studio never checks for new releases.
       Then: docker compose up -d
   donka-admin upgrade <studio version> [--runtime-version <tag>] [--key <file>]
       Moves the installation to another release. Run it with the INSTALLED version's image, in
@@ -56,6 +57,10 @@ fn init(args: &[String]) -> Result<(), String> {
     while let Some(flag) = rest.next() {
         if flag == "--demo" {
             options.demo = true;
+            continue;
+        }
+        if flag == "--offline" {
+            options.offline = true;
             continue;
         }
         let value = rest
