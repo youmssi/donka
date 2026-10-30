@@ -16,9 +16,10 @@
 #
 # The results go to performance.json (or $DONKA_PERFORMANCE_OUT) and are checked against the
 # published targets (docs/performance.json) and the baseline measured on the reference machine:
-# a maximum throughput more than 20% below its baseline fails. Latency at the target rate is held
-# to the targets only: on a shared runner it moves between runs (2 to 20 ms at p99) far more than
-# a regression would. `full` runs longer, for the published
+# a Runtime maximum throughput more than 20% below its baseline or Studio pooled p95 more than
+# 20% above its baseline fails. Runtime latency at the target rate is held to the targets only:
+# on a shared runner it moves between runs (2 to 20 ms at p99) far more than a regression would.
+# `full` runs longer, for the published
 # figures; CI runs the short version. The Studio image's donka-admin generates the load.
 set -euo pipefail
 

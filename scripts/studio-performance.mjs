@@ -37,13 +37,18 @@ export function checkTargets(report, config) {
   const targets = config.targets.studio;
   const baseline = config.baseline?.studio;
   for (const [name, measured] of Object.entries({ ...report.search, replay: report.replay })) {
-    assert.equal(measured.errors, 0, `${name}: ${measured.errors} failed requests`);
     const target = name === 'replay' ? targets.replay_p95_ms : targets.search_p95_ms;
-    assert.ok(measured.p95_ms <= target, `${name}: p95 ${measured.p95_ms} ms exceeds target ${target} ms`);
+    for (const [index, result] of [measured, ...(measured.rounds ?? [])].entries()) {
+      const label = index === 0 ? name : `${name} round ${index}`;
+      assert.equal(result.errors, 0, `${label}: ${result.errors} failed requests`);
+      assert.ok(result.p95_ms <= target, `${label}: p95 ${result.p95_ms} ms exceeds target ${target} ms`);
+    }
     // A baseline is comparable only at the same sample size, partition span and request count.
     if (
       baseline &&
-      ['records', 'months', 'samples', 'warmup'].every((key) => baseline.sample?.[key] === report.sample[key]) &&
+      ['records', 'months', 'samples', 'warmup', 'rounds'].every(
+        (key) => baseline.sample?.[key] === report.sample[key],
+      ) &&
       baseline.corpus?.after === report.corpus.after
     ) {
       const previous = name === 'replay' ? baseline.replay : baseline.search?.[name];
@@ -55,10 +60,24 @@ export function checkTargets(report, config) {
 }
 
 export async function run(options) {
-  const { studioUrl, email, password, project, release, decision, input, output, records, months, samples, warmup } =
-    options;
+  const {
+    studioUrl,
+    email,
+    password,
+    project,
+    release,
+    decision,
+    input,
+    output,
+    records,
+    months,
+    samples,
+    warmup,
+    rounds,
+  } = options;
   assert.ok(Number.isSafeInteger(samples) && samples > 0, 'samples must be positive');
   assert.ok(Number.isSafeInteger(warmup) && warmup >= 0, 'warmup must be nonnegative');
+  assert.ok(Number.isSafeInteger(rounds) && rounds > 0, 'rounds must be positive');
   const span = distribution(records, months, options.now ?? new Date());
   const base = new URL('/api/v1/', studioUrl);
   assert.ok(['http:', 'https:'].includes(base.protocol) && !base.username && !base.password, 'Invalid Studio origin');
@@ -86,18 +105,27 @@ export async function run(options) {
   };
   const measure = async (call) => {
     const latencies = [];
+    const measuredRounds = [];
     let errors = 0;
-    for (let i = 0; i < warmup + samples; i++) {
-      const start = performance.now();
-      try {
-        await call(i);
-      } catch (error) {
-        if (i < warmup) throw error;
-        errors++;
+    for (let round = 0; round < rounds; round++) {
+      const current = [];
+      let roundErrors = 0;
+      for (let i = 0; i < warmup + samples; i++) {
+        const start = performance.now();
+        try {
+          await call(i);
+        } catch (error) {
+          if (i < warmup) throw error;
+          roundErrors++;
+        }
+        if (i >= warmup) current.push(performance.now() - start);
       }
-      if (i >= warmup) latencies.push(performance.now() - start);
+      measuredRounds.push(summary(current, roundErrors));
+      latencies.push(...current);
+      errors += roundErrors;
     }
-    return summary(latencies, errors);
+    // Pool every request, including failed measurements; never select the fastest round.
+    return { ...summary(latencies, errors), rounds: measuredRounds };
   };
   const started = performance.now();
   const path = `projects/${encodeURIComponent(project)}/decision-log`;
@@ -180,7 +208,7 @@ export async function run(options) {
     });
     return {
       measuredAt: new Date().toISOString(),
-      sample: { records, months, samples, warmup },
+      sample: { records, months, samples, warmup, rounds },
       corpus: { before: before.total, after: after.total, partitions: span, seedSeconds },
       search,
       replay,
@@ -228,6 +256,7 @@ async function main() {
     months: setting.months,
     samples: full ? setting.full_samples : setting.samples,
     warmup: setting.warmup,
+    rounds: setting.rounds,
     progress: (message) => console.error(`studio-performance: ${message}`),
   });
   await writeFile(out, JSON.stringify({ studio: report }, null, 2) + '\n');

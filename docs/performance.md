@@ -16,7 +16,7 @@ CI checks every pull request against them.
 | Studio stopped, within the Runtime's queue | no decision fails, no record lost |
 | Studio stopped, beyond the queue | no decision fails; dropped records are counted in the Runtime's log |
 | Studio decision-log search and replay | p95 1 s and 2 s on the documented sample |
-| Regression | a maximum throughput more than 20% below its baseline fails CI |
+| Regression | Runtime maximum throughput more than 20% below baseline, or Studio pooled p95 more than 20% above baseline, fails CI |
 
 The latency is measured from when each request was due, not from when it left, so a slow
 Runtime cannot hide its own queueing.
@@ -97,7 +97,9 @@ per day or varied customer payload sizes. A full-retention measurement needs a s
 provisioned machine and data set before claiming that capacity. `sample.studio` in
 `performance.json` defines these sizes, the span, the request counts and the warm-up.
 
-Each of the following makes 50 measured HTTP requests after five warm-ups (200 in `full`):
+Each case now makes **three rounds of 1,000 measured HTTP requests**, with 50 warm-ups before
+each round, in both modes. All 3,000 measurements are pooled for p50/p95/p99; no round is
+discarded and no fastest round is selected. The cases are:
 the newest page, lookup by reference, decision plus recent date range, failed status, and
 replay of successful records spread across old and recent partitions. Search timings include
 both the page and its **exact total count**, transaction, JSON response and network transfer;
@@ -108,12 +110,13 @@ enough: filters must return matching records and replay must return the identica
 `studio.search` (one report per filter) and `studio.replay` contain p50/p95/p99, the maximum,
 request count and errors in the same result artifact and a Studio performance notice in the CI job. `studio.corpus` records the actual totals
 before and after seeding and every month's row count; `studio.machine` includes the CPU model.
-Any error, search p95 above 1,000 ms or replay p95 above 2,000 ms fails the check. Once a Studio
+Each case also retains its individual round summaries in `rounds`. Any error, search p95 above
+1,000 ms or replay p95 above 2,000 ms, pooled or in any round, fails the check. Once a Studio
 baseline is measured on the reference runner, `baseline.studio` uses the same report shape;
-the 20% p95 regression gate compares identical sample settings and actual corpus sizes.
+the 20% p95 regression gate compares identical sample settings (including rounds) and actual corpus sizes.
 A Runtime baseline never substitutes for a Studio baseline.
 
-### Reference results, 30 October 2026
+### Initial 50-request results, 30 October 2026
 
 [CI run 41084840154](https://github.com/youmssi/donka/actions/runs/41084840154), commit `83b01d5`: images built by the CI image job,
 installed with the demo on the reference 4-vCPU, 16-GB GitHub runner (AMD EPYC 7763,
@@ -130,8 +133,18 @@ excluded from the request timings. Each case has 50 measured requests after five
 | Replay | 5.61 ms | 8.47 ms | 12.35 ms |
 
 No measured request failed; every replay returned the recorded output. The existing Runtime,
-feed and outage checks also passed in that image job. These measured p95 values form the first
-Studio baseline in `performance.json`; the next CI run verifies its 20% regression gate.
+feed and outage checks also passed in that image job. These values are the original
+50-request baseline. [Validation run 41088061492](https://github.com/youmssi/donka/actions/runs/41088061492)
+met the absolute targets with zero errors, but replay p95 was **13.40 ms**, 58% above 8.47 ms,
+and correctly failed the 20% gate. Its search p95 values were 33.35, 21.22, 17.96 and 51.61 ms,
+respectively. The CPU model, sample and corpus matched; application source had not changed.
+These observations alone do not identify the cause of the difference.
+
+The owner confirmed keeping the 20% gate and calibrating with larger, repeated samples.
+The revised method above is awaiting three independent CI measurements. Their pooled p95s
+will be averaged, using all three runs, to form the new baseline; a separate run will validate
+it. The old 50-request baseline remains recorded until then and is not compared against the
+different request count. No baseline has been raised to make the failed run pass.
 The separate DNK-66 publication criterion remains open until the product documentation site
 publishes these results. This sample does not establish full-retention capacity.
 

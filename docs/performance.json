@@ -58,9 +58,10 @@
       "records": 100000,
       "full_records": 1000000,
       "months": 60,
-      "samples": 50,
-      "full_samples": 200,
-      "warmup": 5
+      "samples": 1000,
+      "full_samples": 1000,
+      "warmup": 50,
+      "rounds": 3
     }
   }
 }

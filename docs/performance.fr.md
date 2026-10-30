@@ -16,7 +16,7 @@ le mesurer sur vos propres serveurs. Les objectifs et la référence sont dans
 | Studio arrêté, dans la file du Runtime | aucune décision en échec, aucun enregistrement perdu |
 | Studio arrêté, au-delà de la file | aucune décision en échec ; les enregistrements abandonnés sont comptés dans le journal du Runtime |
 | Recherche et rejeu du journal dans Studio | p95 1 s et 2 s sur l'échantillon documenté |
-| Régression | un débit maximal inférieur de plus de 20 % à sa référence fait échouer la CI |
+| Régression | débit maximal Runtime inférieur de plus de 20 % à sa référence, ou p95 global Studio supérieur de plus de 20 %, fait échouer la CI |
 
 La latence est mesurée à partir du moment où chaque requête était prévue, pas de celui où elle
 est partie : un Runtime lent ne peut pas masquer sa propre file d'attente.
@@ -101,7 +101,9 @@ Une mesure sur tout le volume exige une machine et un jeu de données adaptés a
 annoncer cette capacité. `sample.studio` dans `performance.json` fixe les tailles, la période,
 le nombre de requêtes et l'échauffement.
 
-Chaque cas envoie 50 requêtes mesurées après cinq échauffements (200 avec `full`) : première
+Chaque cas envoie désormais **trois séries de 1 000 requêtes mesurées**, après 50 échauffements
+par série, dans les deux modes. Les 3 000 mesures sont réunies pour calculer p50/p95/p99 ;
+aucune série n'est écartée ou choisie parce qu'elle est plus rapide. Les cas sont : première
 page récente, recherche par référence, décision avec période récente, statut en échec et rejeu
 de décisions réussies réparties entre partitions anciennes et récentes. La recherche comprend
 la page et son **nombre total exact**, la transaction, le JSON et le transfert réseau ; ce
@@ -112,12 +114,14 @@ les filtres doivent renvoyer les bonnes décisions et le rejeu doit rendre la m�
 `studio.search` (un rapport par filtre) et `studio.replay` contiennent p50/p95/p99, maximum,
 nombre de requêtes et erreurs dans le même artefact et dans un avis Studio performance du contrôle CI. `studio.corpus` donne les totaux réels
 avant et après insertion et le nombre de lignes par mois ; `studio.machine` précise le modèle
-de processeur. Toute erreur, un p95 de recherche supérieur à 1 000 ms ou de rejeu supérieur à
-2 000 ms fait échouer le contrôle. Une fois la référence Studio mesurée sur le runner convenu,
+de processeur. Chaque cas conserve aussi les résumés de ses séries dans `rounds`. Toute erreur,
+un p95 de recherche supérieur à 1 000 ms ou de rejeu supérieur à 2 000 ms, globalement ou dans
+une série, fait échouer le contrôle. Une fois la référence Studio mesurée sur le runner convenu,
 `baseline.studio` reprend ce format ; la limite de régression de 20 % sur p95 compare des
-échantillons et des volumes réels identiques. La référence Runtime ne remplace pas celle de Studio.
+échantillons (nombre de séries compris) et des volumes réels identiques. La référence Runtime
+ne remplace pas celle de Studio.
 
-### Résultats de référence, 30 octobre 2026
+### Premières mesures sur 50 requêtes, 30 octobre 2026
 
 [Exécution CI 41084840154](https://github.com/youmssi/donka/actions/runs/41084840154), commit `83b01d5` : images construites par la tâche CI,
 puis installées avec la démo sur le runner GitHub de référence, 4 vCPU et 16 Go (AMD EPYC 7763,
@@ -134,9 +138,20 @@ exclues des durées de requête. Chaque cas mesure 50 requêtes après cinq éch
 | Rejeu | 5.61 ms | 8.47 ms | 12.35 ms |
 
 Aucune requête mesurée n'échoue ; chaque rejeu rend la sortie enregistrée. Les contrôles existants
-du Runtime, du flux et des pannes passent aussi dans cette tâche. Ces p95 mesurés constituent
-la première référence Studio dans `performance.json` ; la prochaine CI vérifie sa limite de
-régression de 20 %. Le critère de publication DNK-66 reste ouvert tant que le site de
+du Runtime, du flux et des pannes passent aussi dans cette tâche. Ces valeurs forment la
+référence initiale sur 50 requêtes. L'[exécution de validation 41088061492](https://github.com/youmssi/donka/actions/runs/41088061492)
+respecte les objectifs absolus sans erreur, mais son p95 de rejeu atteint **13,40 ms**, soit
+58 % au-dessus de 8,47 ms : la limite de 20 % la refuse correctement. Ses p95 de recherche sont
+respectivement 33,35, 21,22, 17,96 et 51,61 ms. Modèle de processeur, échantillon et volume
+sont identiques ; le code applicatif n'a pas changé. Ces observations seules n'identifient
+pas la cause de l'écart.
+
+Le propriétaire a confirmé le maintien de la limite de 20 % et le calibrage sur des mesures
+plus nombreuses et répétées. La méthode ci-dessus attend trois mesures CI indépendantes.
+La moyenne de leurs p95 globaux, en conservant les trois exécutions, formera la nouvelle
+référence ; une autre exécution la vérifiera. La référence sur 50 requêtes reste enregistrée
+entre-temps et ne se compare pas à un nombre de requêtes différent. Elle n'a pas été relevée
+pour faire passer l'exécution refusée. Le critère de publication DNK-66 reste ouvert tant que le site de
 documentation produit ne publie pas ces résultats. Cet échantillon ne prouve pas la capacité
 sur tout le volume de rétention.
 

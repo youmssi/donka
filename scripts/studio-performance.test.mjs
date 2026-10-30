@@ -32,7 +32,7 @@ test('percentiles use nearest rank and empty measurements cannot pass', () => {
 
 test('targets and comparable baselines fail on errors, latency and regression', () => {
   const report = {
-    sample: { records: 600 },
+    sample: { records: 600, months: 60, samples: 1, warmup: 0, rounds: 1 },
     corpus: { after: 600 },
     search: { newest: summary([500], 0) },
     replay: summary([1000], 0),
@@ -46,9 +46,14 @@ test('targets and comparable baselines fail on errors, latency and regression', 
   };
   assert.throws(() => checkTargets(report, config), /baseline margin/);
   checkTargets({ ...report, sample: { records: 1000 } }, config);
+  checkTargets({ ...report, sample: { ...report.sample, rounds: 3 } }, config);
+  assert.throws(
+    () => checkTargets({ ...report, replay: { ...report.replay, rounds: [summary([2001], 0)] } }, targets),
+    /replay round 1.*exceeds target/,
+  );
 });
 
-async function studio(t, { rejectFeed = false, wrongReplay = false } = {}) {
+async function studio(t, { rejectFeed = false, wrongReplay = false, wrongReplayAt } = {}) {
   const records = [];
   const replayed = [];
   const cleanup = [];
@@ -87,7 +92,11 @@ async function studio(t, { rejectFeed = false, wrongReplay = false } = {}) {
         const record = records.find((row) => row.id === id);
         assert.ok(record && record.status === 'succeeded');
         replayed.push(record);
-        return send({ identical: !wrongReplay, status: 'succeeded', output: record.output });
+        return send({
+          identical: !wrongReplay && replayed.length !== wrongReplayAt,
+          status: 'succeeded',
+          output: record.output,
+        });
       }
       let filtered = records;
       for (const [name, value] of url.searchParams) {
@@ -121,6 +130,7 @@ async function studio(t, { rejectFeed = false, wrongReplay = false } = {}) {
       months: 60,
       samples: 60,
       warmup: 1,
+      rounds: 3,
       now: new Date('2026-10-30T12:00:00Z'),
     },
   };
@@ -134,8 +144,13 @@ test('seed, filtered searches and replay exercise all monthly partitions and rev
   assert.equal(app.records.filter((record) => record.status === 'failed').length, 60);
   assert.equal(new Set(app.records.map((record) => record.evaluatedAt)).size, 60);
   assert.equal(new Set(app.replayed.map((record) => record.evaluatedAt)).size, 60);
-  assert.equal(report.replay.requests, 60);
-  for (const measured of Object.values(report.search)) assert.equal(measured.requests, 60);
+  assert.equal(report.replay.requests, 180);
+  assert.equal(app.replayed.length, 183, 'each round has its own excluded warm-up');
+  for (const measured of [...Object.values(report.search), report.replay]) {
+    assert.equal(measured.requests, 180);
+    assert.equal(measured.rounds.length, 3);
+    assert.ok(measured.rounds.every((round) => round.requests === 60 && round.errors === 0));
+  }
   assert.ok(app.records.every((record) => record.projectId === 'project' && record.releaseId === 'release'));
   assert.deepEqual(app.cleanup, ['/api/v1/decision-log/tokens/feed-id', '/api/v1/auth/sign-out']);
   assert.ok(!JSON.stringify(report).includes('synthetic-feed-token'));
@@ -150,8 +165,21 @@ test('a refused feed cannot become a successful benchmark and still revokes its 
 test('HTTP success with a wrong replay is counted as a failed measurement', async (t) => {
   const app = await studio(t, { wrongReplay: true });
   const report = await run({ ...app.options, samples: 2, warmup: 0 });
-  assert.equal(report.replay.errors, 2);
+  assert.equal(report.replay.errors, 6);
+  assert.ok(report.replay.rounds.every((round) => round.errors === 2));
   assert.throws(() => checkTargets(report, targets), /failed requests/);
+});
+
+test('a failure in the last round remains in the pooled result and fails the gate', async (t) => {
+  const app = await studio(t, { wrongReplayAt: 3 });
+  const report = await run({ ...app.options, samples: 1, warmup: 0 });
+  assert.equal(report.replay.requests, 3);
+  assert.equal(report.replay.errors, 1);
+  assert.deepEqual(
+    report.replay.rounds.map((round) => round.errors),
+    [0, 0, 1],
+  );
+  assert.throws(() => checkTargets(report, targets), /replay: 1 failed requests/);
 });
 
 test('the command refuses seeding without explicit disposable-installation acknowledgement', async () => {

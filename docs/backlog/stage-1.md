@@ -1462,6 +1462,15 @@ Confirmed 2026-10-30, before the pilot questionnaire's figures:
   Studio's search within **p95 1 s** and replay within **p95 2 s**. CI fails when a measure
   regresses more than **20%** beyond its baseline.
 
+Confirmed 2026-10-30 after Studio's 50-request reference and validation runs:
+- Keep the **20% Studio p95 gate** and calibrate with larger, repeated samples. Replay p95
+  moved from 8.47 to 13.40 ms with no application-source change; both runs met the absolute
+  targets, but the latter correctly failed the regression gate.
+- Each case now measures three rounds of 1,000 requests after 50 warm-ups per round. The gate
+  uses p95 across all 3,000 measured requests, retaining every round in the report. Every round
+  must also meet the absolute targets with zero errors. Establish the new baseline from three
+  independent reference-runner measurements, including all three, then validate it separately.
+
 #### Acceptance criteria
 - [x] A repeatable load test (scripted, in the repository) measures the Runtime's p50/p95/p99 and maximum throughput on each starter pack, without connectors and with mocked ones
 - [x] The decision-log feed keeps up with the target throughput; back-pressure and loss behaviour under Studio outage are measured
