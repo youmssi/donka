@@ -110,6 +110,9 @@ enough: filters must return matching records and replay must return the identica
 `studio.search` (one report per filter) and `studio.replay` contain p50/p95/p99, the maximum,
 request count and errors in the same result artifact and a Studio performance notice in the CI job. `studio.corpus` records the actual totals
 before and after seeding and every month's row count; `studio.machine` includes the CPU model.
+The artifact retains every partition; the notice keeps their count and all timing summaries
+to stay below GitHub's 4,096-character limit. A separate Runtime performance notice preserves
+its latency, throughput, feed and outage measures, and a failed gate names its cause in a check annotation.
 Each case also retains its individual round summaries in `rounds`. Any error, search p95 above
 1,000 ms or replay p95 above 2,000 ms, pooled or in any round, fails the check. Once a Studio
 baseline is measured on the reference runner, `baseline.studio` uses the same report shape;
@@ -134,11 +137,14 @@ excluded from the request timings. Each case has 50 measured requests after five
 
 No measured request failed; every replay returned the recorded output. The existing Runtime,
 feed and outage checks also passed in that image job. These values are the original
-50-request baseline. [Validation run 41088061492](https://github.com/youmssi/donka/actions/runs/41088061492)
+50-request baseline. [Validation run 41088061492](https://github.com/youmssi/donka/actions/runs/41088061492/attempts/1)
 met the absolute targets with zero errors, but replay p95 was **13.40 ms**, 58% above 8.47 ms,
 and correctly failed the 20% gate. Its search p95 values were 33.35, 21.22, 17.96 and 51.61 ms,
 respectively. The CPU model, sample and corpus matched; application source had not changed.
-These observations alone do not identify the cause of the difference.
+These observations alone do not identify the cause of the difference. One controlled
+[same-head repeat](https://github.com/youmssi/donka/actions/runs/41088061492/attempts/2)
+passed with replay p95 8.42 ms on a newer AMD EPYC 9V45 CPU. It does not explain the original
+same-model difference or replace the failed measurement.
 
 The owner confirmed keeping the 20% gate and calibrating with larger, repeated samples.
 The revised method above is awaiting three independent CI measurements. Their pooled p95s

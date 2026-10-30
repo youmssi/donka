@@ -41,6 +41,15 @@ if [ -n "$full" ]; then seconds=60; max_seconds=30; else seconds=15; max_seconds
 
 fail() {
   echo "check-performance: $*" >&2
+  if [ "${GITHUB_ACTIONS:-}" = true ]; then
+    # The complete metrics stay in the log/artifact; keep the check annotation concise.
+    local reason="$*"
+    reason="${reason%%:*}"
+    reason="${reason//%/%25}"
+    reason="${reason//$'\r'/%0D}"
+    reason="${reason//$'\n'/%0A}"
+    echo "::error title=Performance check::$reason"
+  fi
   exit 1
 }
 cleanup() { rm -rf "$JAR" "$work"; }
@@ -213,6 +222,17 @@ done
 results=$(jq --arg m "$(uname -m)" --arg c "$(nproc)" --arg full "${full:-short}" \
   '. + {machine: {cpus: ($c | tonumber), arch: $m}, run: $full}' <<<"$results")
 echo "$results" > "$out"
+
+if [ "${GITHUB_ACTIONS:-}" = true ]; then
+  # Numeric results fit in the check's 4096-character notice, even when full logs are unavailable.
+  notice=$(jq -c '{machine, run, feed,
+    outage: (.outage | map_values({sent, answered, errors, p95_ms, p99_ms, lost, droppedLogged})),
+    runtime: (.runtime | map_values({connector,
+      atRate: (.atRate | {sent, answered, errors, p95_ms, p99_ms, throughput}),
+      maximum: (.maximum | {sent, answered, errors, throughput})}))}' "$out")
+  notice="${notice//%/%25}"
+  echo "::notice title=Runtime performance::$notice"
+fi
 
 # The published targets, then no regression beyond the margin against the baseline.
 jq -e --slurpfile t "$targets" '

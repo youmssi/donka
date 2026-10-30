@@ -114,7 +114,10 @@ les filtres doivent renvoyer les bonnes décisions et le rejeu doit rendre la m�
 `studio.search` (un rapport par filtre) et `studio.replay` contiennent p50/p95/p99, maximum,
 nombre de requêtes et erreurs dans le même artefact et dans un avis Studio performance du contrôle CI. `studio.corpus` donne les totaux réels
 avant et après insertion et le nombre de lignes par mois ; `studio.machine` précise le modèle
-de processeur. Chaque cas conserve aussi les résumés de ses séries dans `rounds`. Toute erreur,
+de processeur. L'artefact conserve chaque partition ; l'avis garde leur nombre et tous les
+résumés de durée pour rester sous la limite GitHub de 4 096 caractères. Un avis Runtime performance
+séparé conserve latence, débit, flux et pannes ; un contrôle refusé indique sa cause dans une annotation.
+Chaque cas conserve aussi les résumés de ses séries dans `rounds`. Toute erreur,
 un p95 de recherche supérieur à 1 000 ms ou de rejeu supérieur à 2 000 ms, globalement ou dans
 une série, fait échouer le contrôle. Une fois la référence Studio mesurée sur le runner convenu,
 `baseline.studio` reprend ce format ; la limite de régression de 20 % sur p95 compare des
@@ -139,12 +142,15 @@ exclues des durées de requête. Chaque cas mesure 50 requêtes après cinq éch
 
 Aucune requête mesurée n'échoue ; chaque rejeu rend la sortie enregistrée. Les contrôles existants
 du Runtime, du flux et des pannes passent aussi dans cette tâche. Ces valeurs forment la
-référence initiale sur 50 requêtes. L'[exécution de validation 41088061492](https://github.com/youmssi/donka/actions/runs/41088061492)
+référence initiale sur 50 requêtes. L'[exécution de validation 41088061492](https://github.com/youmssi/donka/actions/runs/41088061492/attempts/1)
 respecte les objectifs absolus sans erreur, mais son p95 de rejeu atteint **13,40 ms**, soit
 58 % au-dessus de 8,47 ms : la limite de 20 % la refuse correctement. Ses p95 de recherche sont
 respectivement 33,35, 21,22, 17,96 et 51,61 ms. Modèle de processeur, échantillon et volume
 sont identiques ; le code applicatif n'a pas changé. Ces observations seules n'identifient
-pas la cause de l'écart.
+pas la cause de l'écart. Une unique [répétition au même commit](https://github.com/youmssi/donka/actions/runs/41088061492/attempts/2)
+passe avec un p95 de rejeu de 8,42 ms sur un processeur AMD EPYC 9V45 plus récent. Elle
+n'explique pas l'écart initial entre processeurs du même modèle et ne remplace pas la mesure
+refusée.
 
 Le propriétaire a confirmé le maintien de la limite de 20 % et le calibrage sur des mesures
 plus nombreuses et répétées. La méthode ci-dessus attend trois mesures CI indépendantes.

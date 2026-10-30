@@ -4,7 +4,7 @@ import { promisify } from 'node:util';
 import { once } from 'node:events';
 import { createServer } from 'node:http';
 import test from 'node:test';
-import { checkTargets, distribution, projectKey, run, summary } from './studio-performance.mjs';
+import { checkTargets, distribution, noticeReport, projectKey, run, summary } from './studio-performance.mjs';
 
 const targets = { targets: { studio: { search_p95_ms: 1000, replay_p95_ms: 2000 } }, margin: 0.2 };
 
@@ -28,6 +28,32 @@ test('percentiles use nearest rank and empty measurements cannot pass', () => {
   );
   assert.deepEqual(measured, { requests: 100, errors: 2, p50_ms: 50, p95_ms: 95, p99_ms: 99, max_ms: 100 });
   assert.throws(() => summary([], 0), /No requests/);
+});
+
+test('CI notices retain all measured rounds without exceeding GitHub’s annotation limit', () => {
+  const round = summary([1000, 2000, 3000], 0);
+  const measured = { ...round, requests: 3000, rounds: [round, round, round] };
+  const report = {
+    measuredAt: '2026-10-30T20:00:00.000Z',
+    sample: { records: 100000, months: 60, samples: 1000, warmup: 50, rounds: 3 },
+    corpus: {
+      before: 0,
+      after: 100000,
+      seedSeconds: 128.513285568,
+      partitions: distribution(100000, 60, new Date('2026-10-30')),
+    },
+    search: { newest: measured, reference: measured, decisionAndDate: measured, status: measured },
+    replay: measured,
+    machine: { cpus: 4, cpuModel: 'AMD EPYC 7763 64-Core Processor', arch: 'x64', node: '22.23.4' },
+  };
+  const notice = noticeReport(report);
+  const serialized = JSON.stringify(notice);
+  assert.ok(Buffer.byteLength(serialized) < 4096);
+  assert.deepEqual(JSON.parse(serialized).replay, report.replay);
+  assert.deepEqual(notice.search, report.search);
+  assert.equal(notice.corpus.partitionCount, 60);
+  assert.equal(notice.corpus.after, 100000);
+  assert.equal(report.corpus.partitions.length, 60, 'the full artifact must retain its partition details');
 });
 
 test('targets and comparable baselines fail on errors, latency and regression', () => {

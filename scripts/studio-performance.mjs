@@ -33,6 +33,12 @@ export function summary(latencies, errors) {
   return { requests: sorted.length, errors, p50_ms: at(0.5), p95_ms: at(0.95), p99_ms: at(0.99), max_ms: at(1) };
 }
 
+/** Keep the CI notice below GitHub's 4096-character limit; the artifact retains every partition. */
+export function noticeReport(report) {
+  const { partitions, ...corpus } = report.corpus;
+  return { ...report, corpus: { ...corpus, partitionCount: partitions.length } };
+}
+
 export function checkTargets(report, config) {
   const targets = config.targets.studio;
   const baseline = config.baseline?.studio;
@@ -263,7 +269,10 @@ async function main() {
   console.log(`studio-performance: ${JSON.stringify(report)}`);
   // Keep the measured corpus and percentiles visible in the job's checks as well as its artifact.
   if (process.env.GITHUB_ACTIONS === 'true') {
-    const notice = JSON.stringify(report).replaceAll('%', '%25').replaceAll('\r', '%0D').replaceAll('\n', '%0A');
+    const notice = JSON.stringify(noticeReport(report))
+      .replaceAll('%', '%25')
+      .replaceAll('\r', '%0D')
+      .replaceAll('\n', '%0A');
     console.log(`::notice title=Studio performance::${notice}`);
   }
   checkTargets(report, config);
