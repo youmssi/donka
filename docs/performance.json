@@ -15,5 +15,15 @@
       "retail-credit/scorecard": { "maximum": { "throughput": 2999 } },
       "sme-treasury/evaluation": { "maximum": { "throughput": 3143 } }
     }
+  },
+  "sample": {
+    "studio": {
+      "records": 100000,
+      "full_records": 1000000,
+      "months": 60,
+      "samples": 50,
+      "full_samples": 200,
+      "warmup": 5
+    }
   }
 }

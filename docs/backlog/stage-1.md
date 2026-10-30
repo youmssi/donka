@@ -1466,6 +1466,7 @@ Confirmed 2026-10-30, before the pilot questionnaire's figures:
 - [x] A repeatable load test (scripted, in the repository) measures the Runtime's p50/p95/p99 and maximum throughput on each starter pack, without connectors and with mocked ones
 - [x] The decision-log feed keeps up with the target throughput; back-pressure and loss behaviour under Studio outage are measured
 - [ ] Studio's decision-log search and replay stay within their targets on a database holding the retention period's volume
+  - Part 2 adds the real-feed, 60-month sample and HTTP checks in `scripts/studio-performance.mjs`, integrated before Runtime load. Reference-image measurements and the Studio baseline remain pending; see `docs/performance.md`.
 - [x] CI runs a shortened version and fails when a target regresses beyond a stated margin
 - [ ] The targets and results are published in the documentation (DNK-66)
 

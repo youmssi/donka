@@ -15,7 +15,7 @@ le mesurer sur vos propres serveurs. Les objectifs et la référence sont dans
 | Flux du journal des décisions | chaque décision rendue à 100/s est dans le journal de Studio en moins de 5 s |
 | Studio arrêté, dans la file du Runtime | aucune décision en échec, aucun enregistrement perdu |
 | Studio arrêté, au-delà de la file | aucune décision en échec ; les enregistrements abandonnés sont comptés dans le journal du Runtime |
-| Recherche et rejeu du journal dans Studio | p95 1 s et 2 s (mesurés dans un changement ultérieur) |
+| Recherche et rejeu du journal dans Studio | p95 1 s et 2 s sur l'échantillon documenté |
 | Régression | un débit maximal inférieur de plus de 20 % à sa référence fait échouer la CI |
 
 La latence est mesurée à partir du moment où chaque requête était prévue, pas de celui où elle
@@ -80,3 +80,48 @@ docker compose run --rm -e DONKA_RUNTIME_TOKEN=<jeton> -v "$PWD/inputs.json:/inp
 `--rate` envoie selon un rythme fixe et donne la latence à cette charge ; `--concurrency <n>`
 envoie aussi vite que le Runtime répond et donne le débit maximal. `inputs.json` est un tableau
 JSON d'entrées, envoyées tour à tour.
+
+## Recherche et rejeu dans Studio
+
+La mesure de Studio passe **avant** la charge du Runtime et les tests de panne, sur la même
+installation isolée construite à partir des images. Elle envoie des décisions synthétiques au
+vrai flux `/api/v1/decision-log/records`, par lots de 1 000 au maximum : Studio les valide,
+chiffre leurs données et crée les partitions mensuelles. Aucune insertion SQL directe ne
+contourne ce chemin. Chaque contrôle crée un projet synthétique séparé : les décisions de
+calibrage du Runtime arrivant en différé ne changent pas son volume. La sortie vient d'une évaluation réelle de la décision d'entrée du pack
+KYC. Une décision sur dix est un échec synthétique pour vérifier le filtre par statut.
+
+La CI courte insère **100 000 décisions sur 60 mois civils** ; `full` en insère **1 000 000**.
+Les lignes sont réparties uniformément, le reste dans les mois récents. Ce sont des
+**échantillons**, pas une certification de capacité sur cinq ans et 180 millions de décisions :
+ils ne reproduisent ni 100 000 décisions par jour ni la variété des tailles de données clients.
+Une mesure sur tout le volume exige une machine et un jeu de données adaptés avant de pouvoir
+annoncer cette capacité. `sample.studio` dans `performance.json` fixe les tailles, la période,
+le nombre de requêtes et l'échauffement.
+
+Chaque cas envoie 50 requêtes mesurées après cinq échauffements (200 avec `full`) : première
+page récente, recherche par référence, décision avec période récente, statut en échec et rejeu
+de décisions réussies réparties entre partitions anciennes et récentes. La recherche comprend
+la page et son **nombre total exact**, la transaction, le JSON et le transfert réseau ; ce
+n'est pas seulement la durée d'un accès à l'index. Le rejeu comprend ouverture, déchiffrement,
+chargement de la release enregistrée, évaluation et audit. Un statut HTTP réussi ne suffit pas :
+les filtres doivent renvoyer les bonnes décisions et le rejeu doit rendre la même sortie.
+
+`studio.search` (un rapport par filtre) et `studio.replay` contiennent p50/p95/p99, maximum,
+nombre de requêtes et erreurs dans le même artefact. `studio.corpus` donne les totaux réels
+avant et après insertion et le nombre de lignes par mois ; `studio.machine` précise le modèle
+de processeur. Toute erreur, un p95 de recherche supérieur à 1 000 ms ou de rejeu supérieur à
+2 000 ms fait échouer le contrôle. Une fois la référence Studio mesurée sur le runner convenu,
+`baseline.studio` reprend ce format ; la limite de régression de 20 % sur p95 compare des
+échantillons et des volumes réels identiques. La référence Runtime ne remplace pas celle de Studio.
+
+Les premières mesures sur le runner de référence et la référence Studio restent à obtenir.
+Une mesure locale de développement ne prouve pas la performance des images publiées. Le critère
+de cette story et celui de publication DNK-66 restent ouverts tant que leurs preuves manquent.
+
+L'outil demande Node.js 22 ou ultérieur, sans paquet à installer. `check-performance.sh` fixe
+ses variables `DONKA_PERFORMANCE_*` (listées dans `.env.example`) puis appelle
+`scripts/studio-performance.mjs --disposable`. Cette option confirme l'**ajout de décisions
+synthétiques** : ne jamais utiliser une base client. Chaque exécution émet puis révoque son
+propre jeton de flux et ferme sa session. Les lignes restent dans l'installation jetable pour
+inspection ; une nouvelle exécution signale le volume augmenté au lieu de le masquer.

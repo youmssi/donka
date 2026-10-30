@@ -15,7 +15,7 @@ CI checks every pull request against them.
 | Decision-log feed | every decision answered at 100/s is in Studio's log within 5 s |
 | Studio stopped, within the Runtime's queue | no decision fails, no record lost |
 | Studio stopped, beyond the queue | no decision fails; dropped records are counted in the Runtime's log |
-| Studio decision-log search and replay | p95 1 s and 2 s (measured in a later change) |
+| Studio decision-log search and replay | p95 1 s and 2 s on the documented sample |
 | Regression | a maximum throughput more than 20% below its baseline fails CI |
 
 The latency is measured from when each request was due, not from when it left, so a slow
@@ -78,3 +78,47 @@ docker compose run --rm -e DONKA_RUNTIME_TOKEN=<token> -v "$PWD/inputs.json:/inp
 `--rate` sends on a fixed schedule and reports the latency at that load; `--concurrency <n>`
 sends as fast as the Runtime answers and reports the maximum throughput. `inputs.json` is a
 JSON array of inputs, sent in turn.
+
+## Studio search and replay
+
+The Studio measurement runs **before** the Runtime load and outage checks, on the same
+isolated installation made from the images. It sends synthetic records through the real
+`/api/v1/decision-log/records` feed in batches of at most 1,000: Studio validates them, encrypts
+the payloads and creates their monthly partitions. No raw SQL insertion bypasses that path.
+Each installation check creates a separate synthetic project, so asynchronous Runtime calibration
+records cannot change its corpus. The output is taken from an actual evaluation of the KYC starter pack's entry decision.
+One record in ten is a synthetic failure so the status filter is exercised too.
+
+The short CI run seeds **100,000 records across 60 calendar months**; `full` seeds **1,000,000**.
+The rows are spread evenly, with the remainder in the newest months. These are **samples**, not
+a five-year, 180-million-record capacity certification: they do not reproduce 100,000 records
+per day or varied customer payload sizes. A full-retention measurement needs a separately
+provisioned machine and data set before claiming that capacity. `sample.studio` in
+`performance.json` defines these sizes, the span, the request counts and the warm-up.
+
+Each of the following makes 50 measured HTTP requests after five warm-ups (200 in `full`):
+the newest page, lookup by reference, decision plus recent date range, failed status, and
+replay of successful records spread across old and recent partitions. Search timings include
+both the page and its **exact total count**, transaction, JSON response and network transfer;
+they are not a timing of the index lookup alone. Replay includes opening and decrypting the
+record, loading its recorded release, evaluation and audit. A successful HTTP status is not
+enough: filters must return matching records and replay must return the identical output.
+
+`studio.search` (one report per filter) and `studio.replay` contain p50/p95/p99, the maximum,
+request count and errors in the same result artifact. `studio.corpus` records the actual totals
+before and after seeding and every month's row count; `studio.machine` includes the CPU model.
+Any error, search p95 above 1,000 ms or replay p95 above 2,000 ms fails the check. Once a Studio
+baseline is measured on the reference runner, `baseline.studio` uses the same report shape;
+the 20% p95 regression gate compares identical sample settings and actual corpus sizes.
+A Runtime baseline never substitutes for a Studio baseline.
+
+The first reference-runner results and the Studio baseline are still pending. Local development
+measurements do not establish published-image performance. The story's acceptance criterion and
+the DNK-66 publication criterion remain open until their evidence is available.
+
+The tool requires Node.js 22 or later, with no installed packages. `check-performance.sh` sets
+its `DONKA_PERFORMANCE_*` variables (listed in `.env.example`) and runs
+`scripts/studio-performance.mjs --disposable`. That flag acknowledges it **adds synthetic
+records**; never use a customer database. Each run issues then revokes its own feed token and
+signs out its session. It leaves the synthetic rows in the disposable installation so they can
+be inspected; another run reports the enlarged corpus rather than pretending the rows vanished.

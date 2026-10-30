@@ -4,6 +4,7 @@
 #
 #   scripts/check-performance.sh <installation folder> [full]
 #
+# 0. Studio search (including the exact count) and replay over a synthetic 60-month sample.
 # 1. Each starter pack's entry decision, and retail-credit's credit-application, which calls the
 #    demo's fake bureau (a mocked connector), through the staging Runtime: p50/p95/p99 at the
 #    target rate, then the maximum throughput. The inputs are the packs' own test scenarios.
@@ -109,7 +110,37 @@ for pack in "${!ids[@]}"; do
 done
 IFS=$'\n' measured=($(sort <<<"${measured[*]}")); unset IFS
 
-results='{}'
+# Studio is measured before Runtime load and outages, with no feed backlog. Its synthetic
+# records go through the authenticated feed: encryption and monthly partitioning are unchanged.
+studio_pack=kyc-risk-rating
+studio_decision=$(jq -r .entry "$root/packs/$studio_pack/pack.json")
+jq --arg d "$studio_decision" '[.[] | select(.decision == $d) | .input]' \
+  "$root/packs/$studio_pack/scenarios.json" > "$work/$studio_pack-$studio_decision.json"
+ready "$studio_pack" "$studio_decision"
+curl -sS --fail-with-body -X POST "$RUNTIME_URL/api/projects/$studio_pack/evaluate/$studio_decision" \
+  -H "X-Access-Token: ${tokens[$studio_pack]}" -H 'content-type: application/json' \
+  --data "$(jq -c '{context: .[0]}' "$work/$studio_pack-$studio_decision.json")" > "$work/answer.json"
+jq -e --slurpfile answer "$work/answer.json" '{input: .[0], output: $answer[0].result} | select(.output != null)' \
+  "$work/$studio_pack-$studio_decision.json" > "$work/studio-fixture.json"
+# A separate project keeps the measured corpus stable: calibration requests to the Runtime
+# may reach its own log asynchronously, but never this project's log.
+studio_key="performance-$(node -e 'process.stdout.write(crypto.randomUUID())')"
+studio_project=$(studio POST "/packs/$studio_pack/import" "$(jq -n --arg k "$studio_key" '{key: $k, name: "Studio performance"}')" | jq -er .project.id)
+studio_release=$(studio POST "/projects/$studio_project/releases" '{"bump": "minor", "notes": "Studio performance"}' | jq -er .id)
+deployment=$(studio POST "/projects/$studio_project/environments/staging/deployments" "$(jq -n --arg id "$studio_release" '{releaseId: $id}')" | jq -er .id)
+for _ in $(seq 1 60); do
+  publication=$(studio GET "/projects/$studio_project/environments/staging/deployments" | jq -r --arg id "$deployment" '.items[] | select(.id == $id) | .status')
+  [ "$publication" = published ] && break
+  [ "$publication" != failed ] || fail "Studio performance release failed to publish"
+  sleep 1
+done
+[ "$publication" = published ] || fail "Studio performance release did not publish"
+DONKA_PERFORMANCE_STUDIO_URL="$STUDIO_URL" DONKA_PERFORMANCE_EMAIL=admin@donka.local \
+DONKA_PERFORMANCE_PASSWORD="$PASSWORD" DONKA_PERFORMANCE_PROJECT="$studio_project" \
+DONKA_PERFORMANCE_RELEASE="$studio_release" \
+DONKA_PERFORMANCE_DECISION="$studio_decision" DONKA_PERFORMANCE_FIXTURE="$work/studio-fixture.json" \
+DONKA_PERFORMANCE_STUDIO_OUT="$out" node "$root/scripts/studio-performance.mjs" --disposable ${full:+full}
+results=$(cat "$out")
 # The feed keeps up: every decision answered is in the log within the target delay.
 feed_pack=kyc-risk-rating
 feed_decision=$(jq -r .entry "$root/packs/$feed_pack/pack.json")
