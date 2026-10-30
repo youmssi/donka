@@ -1452,6 +1452,16 @@ separately).
 [INTERACTIVE STEP] at story start: the reference machine and the volumes to hold (decisions
 per second at peak, records per day), taken from the pilot questionnaire when available.
 
+Confirmed 2026-10-30, before the pilot questionnaire's figures:
+- Reference machine: GitHub's `ubuntu-latest` runner (4 vCPU, 16 GB), as for the five-minute
+  install; CI measures on it with each published image.
+- One Runtime holds **100 decisions per second** at peak.
+- The decision log is sized for **100,000 records a day**, about 180 million over the five-year
+  retention; Studio's search is measured on a sample of that volume.
+- Targets: the Runtime answers within **p95 20 ms and p99 50 ms** at peak without connectors;
+  Studio's search within **p95 1 s** and replay within **p95 2 s**. CI fails when a measure
+  regresses more than **20%** beyond its baseline.
+
 #### Acceptance criteria
 - [ ] A repeatable load test (scripted, in the repository) measures the Runtime's p50/p95/p99 and maximum throughput on each starter pack, without connectors and with mocked ones
 - [ ] The decision-log feed keeps up with the target throughput; back-pressure and loss behaviour under Studio outage are measured

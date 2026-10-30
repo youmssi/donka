@@ -1,0 +1,10 @@
+{
+  "machine": "GitHub ubuntu-latest runner: 4 vCPU, 16 GB",
+  "targets": {
+    "runtime": { "rate": 100, "p95_ms": 20, "p99_ms": 50 },
+    "feed": { "lag_seconds": 5 },
+    "studio": { "search_p95_ms": 1000, "replay_p95_ms": 2000 }
+  },
+  "margin": 0.2,
+  "baseline": null
+}

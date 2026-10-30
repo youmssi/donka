@@ -159,9 +159,20 @@ jobs:
           echo "DONKA_INSTALL_STARTED=$(date +%s)" >> "$GITHUB_ENV"
           docker load -q -i images.tar.gz
           du -h images.tar.gz
+      - run: |
+          echo "DONKA_INSTALL_DIR=$(mktemp -d)" >> "$GITHUB_ENV"
       - run: scripts/check-install.sh ci ci demo
         env:
           DONKA_INSTALL_BUDGET: 300
+      # Measured performance (DNK-67), short version, on the demo installation just made: the
+      # published targets hold and no measure regressed beyond the margin.
+      - run: scripts/check-performance.sh "$DONKA_INSTALL_DIR"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance
+          path: performance.json
+          if-no-files-found: ignore
 
   # donka-admin upgrade (DNK-64) against a test registry: unsigned and incompatible releases
   # refused, a broken one rolled back with its data, a good one carried out. Its own job: the

@@ -13,3 +13,4 @@ runtime.env
 apps/web/playwright-report/
 apps/web/playwright-report-security/
 apps/web/test-results/
+/performance.json
