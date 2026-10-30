@@ -39,6 +39,7 @@ import {
 import { Link, usePathname, useRouter } from '@/i18n/navigation';
 import { routing } from '@/i18n/routing';
 import { useCurrentUser, useSignOut } from '@/modules/identity';
+import { useOrganisation } from '@/modules/installation';
 import { projectHref, useOpenProject, useProjectList, type Project, type ProjectSection } from '@/modules/project';
 
 import {
@@ -48,6 +49,7 @@ import {
   PROJECTS_ICON,
   projectSections,
   RUNTIMES_ICON,
+  SETTINGS_ICON,
   type Place,
 } from './sections';
 
@@ -56,6 +58,7 @@ export function AppSidebar() {
   const t = useTranslations('nav');
   const app = useTranslations('app');
   const user = useCurrentUser();
+  const organisation = useOrganisation();
   const place = placeOf(usePathname());
   const { setOpenMobile } = useSidebar();
   // On a phone the sidebar is a sheet: close it once a link is followed.
@@ -66,12 +69,13 @@ export function AppSidebar() {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild tooltip={app('name')}>
+            <SidebarMenuButton size="lg" asChild tooltip={organisation ?? app('name')}>
               <Link href="/" onClick={close}>
                 <BrandMark className="size-8 bg-sidebar-primary text-sidebar-primary-foreground" />
-                <span className="grid leading-tight">
+                <span className="grid min-w-0 leading-tight">
                   <span className="font-semibold">{app('name')}</span>
-                  <span className="text-xs text-muted-foreground">Studio</span>
+                  {/* The organisation the installation serves, once named (DNK-74). */}
+                  <span className="truncate text-xs text-muted-foreground">{organisation ?? 'Studio'}</span>
                 </span>
               </Link>
             </SidebarMenuButton>
@@ -111,6 +115,14 @@ export function AppSidebar() {
                       <Link href="/runtimes" onClick={close}>
                         <RUNTIMES_ICON aria-hidden />
                         <span>{t('runtimes')}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={place.kind === 'settings'} tooltip={t('settings')}>
+                      <Link href="/settings" onClick={close}>
+                        <SETTINGS_ICON aria-hidden />
+                        <span>{t('settings')}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

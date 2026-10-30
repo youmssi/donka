@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 
 import { Separator } from '@/components/ui/separator';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import { OrganisationTitle } from '@/modules/installation';
 import { LicenceNotice } from '@/modules/licence';
 import { TourState } from '@/modules/onboarding';
 import { UpdateNotice } from '@/modules/updates';
@@ -21,6 +22,7 @@ import { HelpMenu } from './help-menu';
 export function StudioShell({ children }: { children: ReactNode }) {
   return (
     <TourState>
+      <OrganisationTitle />
       <SidebarProvider>
         <AppSidebar />
         <SidebarInset>

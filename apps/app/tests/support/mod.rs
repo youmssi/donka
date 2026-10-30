@@ -63,6 +63,7 @@ pub struct TestApp {
     pub licence_signer: Arc<SigningKeyPair>,
     /// The release check (DNK-64): off unless the app was built `with_update_feed`.
     pub updates: Updates,
+    pub installation: donka_installation::Installation,
 }
 
 /// The key the test app trusts, standing for Donka's.
@@ -318,6 +319,7 @@ fn assemble_with_cipher(
         decision_log.clone(),
         releases.clone(),
     );
+    let installation = donka_installation::Installation::new(db.clone(), clock.clone());
     let router = router(
         AppState {
             runtime,
@@ -339,6 +341,7 @@ fn assemble_with_cipher(
             mfa_required: second_step.required,
             licensing: licensing.clone(),
             updates: updates.clone(),
+            installation: installation.clone(),
         },
         base,
         web_dir,
@@ -357,6 +360,7 @@ fn assemble_with_cipher(
         licence_file,
         licence_signer,
         updates,
+        installation,
     }
 }
 
@@ -523,7 +527,11 @@ pub fn assert_error(reply: &Reply, status: StatusCode, code: &str) {
 /// Runs one pass of the email worker; returns how many emails were sent.
 pub async fn deliver(app: &TestApp) -> usize {
     app.identity
-        .deliver_due_emails(app.mailer.as_ref(), PUBLIC_URL)
+        .deliver_due_emails(
+            app.mailer.as_ref(),
+            PUBLIC_URL,
+            app.installation.organisation().await.unwrap().as_deref(),
+        )
         .await
         .unwrap()
 }

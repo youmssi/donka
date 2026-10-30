@@ -830,7 +830,7 @@ async fn decide(
 /// Approval emails sent in one pass of the email worker.
 async fn deliver_approvals(app: &TestApp) -> usize {
     app.releases
-        .deliver_due_emails(app.mailer.as_ref())
+        .deliver_due_emails(app.mailer.as_ref(), None)
         .await
         .unwrap()
 }

@@ -186,9 +186,11 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|err| exit_with(&format!("DONKA_SMTP_URL / DONKA_SMTP_FROM: {err}")));
     tokio::spawn(donka_app::publish_worker::run(releases.clone()));
     tokio::spawn(donka_app::purge_worker::run(decision_log.clone()));
+    let installation = donka_installation::Installation::new(db.clone(), clock.clone());
     tokio::spawn(donka_app::email_worker::run(
         identity.clone(),
         releases.clone(),
+        installation.clone(),
         Arc::new(mailer),
         config.public_url.clone(),
     ));
@@ -276,6 +278,7 @@ async fn main() -> anyhow::Result<()> {
             ),
             licensing,
             updates,
+            installation,
         },
         &config.api_base_path,
         config.web_dir.as_deref(),

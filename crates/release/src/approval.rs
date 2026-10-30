@@ -595,7 +595,11 @@ impl Releases {
 
     /// Sends the approval emails that are due, each in its own transaction,
     /// and returns how many were sent. Safe to run from several instances.
-    pub async fn deliver_due_emails(&self, mailer: &dyn Mailer) -> Result<usize, ReleaseError> {
+    pub async fn deliver_due_emails(
+        &self,
+        mailer: &dyn Mailer,
+        organisation: Option<&str>,
+    ) -> Result<usize, ReleaseError> {
         let mut sent = 0;
         for _ in 0..EMAIL_BATCH {
             let now = self.clock.now();
@@ -614,7 +618,8 @@ impl Releases {
                 to: due.recipient,
                 subject: due.subject,
                 text: due.body,
-            };
+            }
+            .signed(organisation);
             match mailer.send(&email).await {
                 Ok(()) => {
                     sqlx::query(

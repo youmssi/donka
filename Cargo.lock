@@ -1116,6 +1116,7 @@ dependencies = [
  "donka-engine",
  "donka-explain",
  "donka-identity",
+ "donka-installation",
  "donka-licence",
  "donka-mail",
  "donka-pack",
@@ -1284,6 +1285,21 @@ dependencies = [
  "totp-rs",
  "tracing",
  "utoipa",
+ "uuid",
+]
+
+[[package]]
+name = "donka-installation"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "donka-audit",
+ "donka-db",
+ "donka-shared",
+ "serde_json",
+ "sqlx",
+ "thiserror 2.0.21",
+ "tokio",
  "uuid",
 ]
 

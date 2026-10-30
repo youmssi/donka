@@ -57,3 +57,13 @@ it('offers a new link when this one no longer works, keeping what was typed', as
   expect(screen.queryByText(/r-9/)).not.toBeInTheDocument();
   expect(screen.getByLabelText('New password')).toHaveValue(GOOD);
 });
+
+it('sends the first administrator on to the first-run assistant', async () => {
+  setPasswordMock.mockResolvedValue({ ok: true, data: null });
+  renderWithProviders(<SetupPasswordForm next="/first-run" />);
+  await fill(GOOD, GOOD);
+  expect(await screen.findByRole('link', { name: 'Sign in to set up Donka' })).toHaveAttribute(
+    'href',
+    '/sign-in?next=%2Ffirst-run',
+  );
+});

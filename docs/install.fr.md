@@ -68,8 +68,14 @@ docker compose up -d
    docker compose logs app | grep setup-password
    ```
 
-4. Ouvrez Studio (port 8080), choisissez le mot de passe, puis lancez le test de fumée
-   (section 2).
+4. Ouvrez le lien (port 8080) et choisissez le mot de passe. La connexion ouvre ensuite
+   l'assistant de premier démarrage, en trois étapes : activer la connexion en deux étapes avec
+   une application d'authentification (obligatoire : ce compte a tous les droits), nommer
+   l'organisation (Studio l'affiche dans son en-tête, ses e-mails, les rapports d'accès et les
+   exports d'audit ; les administrateurs la renomment ensuite dans **Paramètres**), et choisir
+   les packs de départ, chacun devenant un projet dont vous êtes propriétaire. La liste *Pour
+   commencer* suit. Tant qu'un administrateur n'a pas terminé l'assistant, la page des projets
+   le lui demande. Lancez ensuite le test de fumée (section 2).
 
 Les valeurs par défaut préparent un premier essai sur cette machine : http://localhost:8080 et
 `admin@donka.local`. `--studio-version` et `--runtime-version` fixent d'autres versions

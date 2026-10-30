@@ -3,7 +3,8 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { Suspense } from 'react';
 
 import { PageSkeleton } from '@/components/shared/page-skeleton';
-import { SetupPasswordForm } from '@/modules/identity';
+
+import { SetupPassword } from './setup';
 
 export async function generateMetadata({ params }: PageProps<'/[locale]/setup-password'>): Promise<Metadata> {
   const { locale } = await params;
@@ -16,7 +17,7 @@ export default async function Page({ params }: PageProps<'/[locale]/setup-passwo
   setRequestLocale(locale);
   return (
     <Suspense fallback={<PageSkeleton />}>
-      <SetupPasswordForm />
+      <SetupPassword />
     </Suspense>
   );
 }

@@ -22,6 +22,7 @@ export type Place =
   | { kind: 'projects' }
   | { kind: 'people' }
   | { kind: 'runtimes' }
+  | { kind: 'settings' }
   | { kind: 'project'; section: ProjectSection }
   | { kind: 'other' };
 
@@ -29,6 +30,7 @@ export function placeOf(pathname: string): Place {
   if (pathname === '/') return { kind: 'projects' };
   if (pathname.startsWith('/people')) return { kind: 'people' };
   if (pathname.startsWith('/runtimes')) return { kind: 'runtimes' };
+  if (pathname.startsWith('/settings')) return { kind: 'settings' };
   const match =
     /^\/projects\/(decisions|decision|scenarios|releases|environments|approvals|approval|decision-log|decision-record|people-requests|settings|members|audit)\/?$/.exec(
       pathname,
@@ -40,6 +42,7 @@ export function placeOf(pathname: string): Place {
 export const PROJECTS_ICON = FolderKanban;
 export const PEOPLE_ICON = UsersRound;
 export const RUNTIMES_ICON = RadioTower;
+export const SETTINGS_ICON = Settings;
 
 /** The section a page belongs to in the navigation: a decision's editor is under Decisions,
  * a request's review under Approvals, a record under the Decision log. */

@@ -13,6 +13,7 @@ use donka_decision_log::DecisionLogError;
 use donka_engine::RuntimeError;
 use donka_explain::ExplainError;
 use donka_identity::IdentityError;
+use donka_installation::InstallationError;
 use donka_pack::PackError;
 use donka_project::ProjectError;
 use donka_release::{ReleaseError, MAX_NOTES_CHARS, MAX_TOKEN_NAME_CHARS};
@@ -160,6 +161,13 @@ pub enum ApiError {
     SecondStepOff,
     #[error("second step required")]
     SecondStepRequired,
+    /// The first-run assistant finishes only once the administrator has a second step.
+    #[error("second step required to finish the first run")]
+    SetUpNeedsSecondStep,
+    #[error("installation already set up")]
+    AlreadySetUp,
+    #[error("installation not set up")]
+    NotSetUp,
     #[error("project not found")]
     ProjectNotFound,
     #[error("project key already used")]
@@ -354,6 +362,17 @@ impl From<RuntimeError> for ApiError {
             RuntimeError::InvalidContent { key, message } => Self::InvalidDecision { key, message },
             RuntimeError::Evaluation { details } => Self::EvaluationFailed(details),
             RuntimeError::Internal(message) => Self::Internal(message),
+        }
+    }
+}
+
+impl From<InstallationError> for ApiError {
+    fn from(err: InstallationError) -> Self {
+        match err {
+            InstallationError::InvalidOrganisation => Self::InvalidRequest(err.to_string()),
+            InstallationError::AlreadySetUp => Self::AlreadySetUp,
+            InstallationError::NotSetUp => Self::NotSetUp,
+            InstallationError::Database(err) => Self::Internal(err.to_string()),
         }
     }
 }
@@ -845,6 +864,28 @@ impl IntoResponse for ApiError {
                 StatusCode::CONFLICT,
                 "SECOND_STEP_OFF",
                 "Two-step sign-in is not on for this account.".to_owned(),
+                None,
+                None,
+            ),
+            Self::SetUpNeedsSecondStep => (
+                StatusCode::CONFLICT,
+                "SECOND_STEP_REQUIRED",
+                "Set up two-step sign-in first: the first administrator holds every right."
+                    .to_owned(),
+                None,
+                None,
+            ),
+            Self::AlreadySetUp => (
+                StatusCode::CONFLICT,
+                "ALREADY_SET_UP",
+                "This installation is already set up.".to_owned(),
+                None,
+                None,
+            ),
+            Self::NotSetUp => (
+                StatusCode::CONFLICT,
+                "NOT_SET_UP",
+                "Finish setting up the installation first.".to_owned(),
                 None,
                 None,
             ),

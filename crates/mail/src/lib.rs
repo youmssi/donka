@@ -16,6 +16,20 @@ pub struct Email {
     pub text: String,
 }
 
+impl Email {
+    /// Ends the text with the organisation the installation serves (DNK-74), in a line that
+    /// reads the same in every language.
+    pub fn signed(mut self, organisation: Option<&str>) -> Self {
+        if let Some(organisation) = organisation {
+            self.text = format!(
+                "{}\n— Donka Studio · {organisation}\n",
+                self.text.trim_end()
+            );
+        }
+        self
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum MailError {
     #[error("invalid mail settings: {0}")]
@@ -170,6 +184,20 @@ pub mod testing {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn emails_are_signed_with_the_organisation_when_there_is_one() {
+        let email = Email {
+            to: "ada@bank.example".into(),
+            subject: "Hello".into(),
+            text: "Body.\n\n".into(),
+        };
+        assert_eq!(email.clone().signed(None), email);
+        assert_eq!(
+            email.signed(Some("Microfinance SA")).text,
+            "Body.\n— Donka Studio · Microfinance SA\n"
+        );
+    }
 
     #[tokio::test]
     async fn accepts_the_three_connection_styles() {

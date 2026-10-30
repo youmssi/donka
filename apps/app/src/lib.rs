@@ -87,6 +87,8 @@ pub struct AppState {
     pub licensing: licence::Licensing,
     /// Whether a newer Donka release is published (DNK-64).
     pub updates: updates::Updates,
+    /// The organisation served and the first-run assistant (DNK-74).
+    pub installation: donka_installation::Installation,
 }
 
 #[derive(OpenApi)]
@@ -110,11 +112,14 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
         .routes(routes!(routes::auth::sign_in_enrolment))
         .routes(routes!(routes::auth::sign_in_enrolment_confirm))
         .routes(routes!(routes::auth::password_setup))
-        .routes(routes!(routes::auth::password_reset));
+        .routes(routes!(routes::auth::password_reset))
+        .routes(routes!(routes::installation::get));
 
     let protected = OpenApiRouter::new()
         .routes(routes!(routes::auth::me))
         .routes(routes!(routes::licence::get))
+        .routes(routes!(routes::installation::finish_first_run))
+        .routes(routes!(routes::installation::rename))
         .routes(routes!(routes::updates::get))
         .routes(routes!(routes::auth::sign_out))
         .routes(routes!(routes::simulate::simulate))

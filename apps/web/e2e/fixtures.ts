@@ -1,5 +1,5 @@
 import { test as base, expect, type APIRequestContext, type Page, type BrowserContext } from '@playwright/test';
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
 import en from '../src/messages/en.json';
@@ -175,4 +175,17 @@ export async function passwordLink(api: APIRequestContext, email: string, previo
     .toBe(true);
   if (!token) throw new Error('The matching password link was not found');
   return token;
+}
+
+/** RFC 6238 code (SHA-1, six digits, 30 s) for a base32 key, at `time` seconds. */
+export function totp(key: string, time = Date.now() / 1000): string {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  let bits = '';
+  for (const char of key.replace(/=+$/, '')) bits += alphabet.indexOf(char).toString(2).padStart(5, '0');
+  const secret = Buffer.from(bits.match(/.{8}/g)?.map((byte) => parseInt(byte, 2)) ?? []);
+  const counter = Buffer.alloc(8);
+  counter.writeBigUInt64BE(BigInt(Math.floor(time / 30)));
+  const mac = createHmac('sha1', secret).update(counter).digest();
+  const offset = (mac.at(-1) ?? 0) & 0xf;
+  return String((mac.readUInt32BE(offset) & 0x7fffffff) % 1_000_000).padStart(6, '0');
 }

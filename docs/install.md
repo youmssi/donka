@@ -64,7 +64,13 @@ docker compose up -d
    docker compose logs app | grep setup-password
    ```
 
-4. Open Studio (port 8080), choose the password, then run the smoke test (section 2).
+4. Open the link (port 8080) and choose the password. Signing in then opens the first-run
+   assistant, in three steps: turn on two-step sign-in with an authenticator app (required:
+   this account holds every right), name the organisation (Studio shows it in its header, its
+   emails, the access reports and the audit exports; administrators rename it later in
+   **Settings**), and choose the packs to start from, each becoming a project you own. The Get
+   started checklist follows. Until an administrator finishes the assistant, the projects page
+   asks them to. Then run the smoke test (section 2).
 
 The defaults set up a first look on this machine: http://localhost:8080 and
 `admin@donka.local`. `--studio-version` and `--runtime-version` pin other image tags;
