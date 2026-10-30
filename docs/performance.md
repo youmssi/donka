@@ -105,7 +105,7 @@ record, loading its recorded release, evaluation and audit. A successful HTTP st
 enough: filters must return matching records and replay must return the identical output.
 
 `studio.search` (one report per filter) and `studio.replay` contain p50/p95/p99, the maximum,
-request count and errors in the same result artifact. `studio.corpus` records the actual totals
+request count and errors in the same result artifact and a Studio performance notice in the CI job. `studio.corpus` records the actual totals
 before and after seeding and every month's row count; `studio.machine` includes the CPU model.
 Any error, search p95 above 1,000 ms or replay p95 above 2,000 ms fails the check. Once a Studio
 baseline is measured on the reference runner, `baseline.studio` uses the same report shape;

@@ -4,7 +4,7 @@ import { promisify } from 'node:util';
 import { once } from 'node:events';
 import { createServer } from 'node:http';
 import test from 'node:test';
-import { checkTargets, distribution, run, summary } from './studio-performance.mjs';
+import { checkTargets, distribution, projectKey, run, summary } from './studio-performance.mjs';
 
 const targets = { targets: { studio: { search_p95_ms: 1000, replay_p95_ms: 2000 } }, margin: 0.2 };
 
@@ -159,4 +159,19 @@ test('the command refuses seeding without explicit disposable-installation ackno
     promisify(execFile)(process.execPath, [new URL('./studio-performance.mjs', import.meta.url).pathname]),
     (error) => error.code === 1 && error.stderr.includes('Pass --disposable'),
   );
+});
+
+test('the disposable project key satisfies Studio’s public key length and character contract', async () => {
+  const first = projectKey();
+  assert.ok(first.length <= 40);
+  assert.match(first, /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/);
+  assert.notEqual(first, projectKey());
+  const { stdout } = await promisify(execFile)(process.execPath, [
+    '--input-type=module',
+    '-e',
+    'const {projectKey} = await import(process.argv[1]); process.stdout.write(projectKey())',
+    new URL('./studio-performance.mjs', import.meta.url).href,
+  ]);
+  assert.ok(stdout.length <= 40);
+  assert.match(stdout, /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/);
 });

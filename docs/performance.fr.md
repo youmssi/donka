@@ -108,7 +108,7 @@ chargement de la release enregistrée, évaluation et audit. Un statut HTTP réu
 les filtres doivent renvoyer les bonnes décisions et le rejeu doit rendre la même sortie.
 
 `studio.search` (un rapport par filtre) et `studio.replay` contiennent p50/p95/p99, maximum,
-nombre de requêtes et erreurs dans le même artefact. `studio.corpus` donne les totaux réels
+nombre de requêtes et erreurs dans le même artefact et dans un avis Studio performance du contrôle CI. `studio.corpus` donne les totaux réels
 avant et après insertion et le nombre de lignes par mois ; `studio.machine` précise le modèle
 de processeur. Toute erreur, un p95 de recherche supérieur à 1 000 ms ou de rejeu supérieur à
 2 000 ms fait échouer le contrôle. Une fois la référence Studio mesurée sur le runner convenu,

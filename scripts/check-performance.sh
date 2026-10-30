@@ -124,7 +124,9 @@ jq -e --slurpfile answer "$work/answer.json" '{input: .[0], output: $answer[0].r
   "$work/$studio_pack-$studio_decision.json" > "$work/studio-fixture.json"
 # A separate project keeps the measured corpus stable: calibration requests to the Runtime
 # may reach its own log asynchronously, but never this project's log.
-studio_key="performance-$(node -e 'process.stdout.write(crypto.randomUUID())')"
+studio_key=$(node --input-type=module -e \
+  'const {projectKey} = await import(process.argv[1]); process.stdout.write(projectKey())' \
+  "file://$root/scripts/studio-performance.mjs")
 studio_project=$(studio POST "/packs/$studio_pack/import" "$(jq -n --arg k "$studio_key" '{key: $k, name: "Studio performance"}')" | jq -er .project.id)
 studio_release=$(studio POST "/projects/$studio_project/releases" '{"bump": "minor", "notes": "Studio performance"}' | jq -er .id)
 deployment=$(studio POST "/projects/$studio_project/environments/staging/deployments" "$(jq -n --arg id "$studio_release" '{releaseId: $id}')" | jq -er .id)

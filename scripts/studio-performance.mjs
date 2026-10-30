@@ -7,6 +7,11 @@ import { cpus } from 'node:os';
 import { performance } from 'node:perf_hooks';
 import { pathToFileURL } from 'node:url';
 
+/** A unique synthetic project key within Studio's 40-character contract. */
+export function projectKey() {
+  return `perf-${randomUUID().replaceAll('-', '')}`;
+}
+
 export function distribution(records, months, now) {
   assert.ok(Number.isSafeInteger(records) && records >= months, 'Use at least one record per month');
   assert.ok(Number.isSafeInteger(months) && months >= 2 && months <= 60, 'Use 2 to 60 months');
@@ -225,6 +230,11 @@ async function main() {
   });
   await writeFile(out, JSON.stringify({ studio: report }, null, 2) + '\n');
   console.log(`studio-performance: ${JSON.stringify(report)}`);
+  // Keep the measured corpus and percentiles visible in the job's checks as well as its artifact.
+  if (process.env.GITHUB_ACTIONS === 'true') {
+    const notice = JSON.stringify(report).replaceAll('%', '%25').replaceAll('\r', '%0D').replaceAll('\n', '%0A');
+    console.log(`::notice title=Studio performance::${notice}`);
+  }
   checkTargets(report, config);
 }
 
