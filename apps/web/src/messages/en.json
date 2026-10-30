@@ -98,7 +98,9 @@
     "RETENTION_RULE_NOT_FOUND": "This project has no such retention rule.",
     "CONTEST_NOT_FOUND": "This project has no such contest.",
     "CONTEST_OPEN": "This decision already has a contest under review.",
-    "CONTEST_REVIEWED": "This contest has already been reviewed."
+    "CONTEST_REVIEWED": "This contest has already been reviewed.",
+    "ALREADY_SET_UP": "This installation is already set up.",
+    "NOT_SET_UP": "Finish setting up the installation first."
   },
   "validation": {
     "email": "Enter a valid email address.",
@@ -125,7 +127,8 @@
     "allowedValues": "Separate values with commas; for a number field, numbers only.",
     "notPast": "Choose today or a later day.",
     "clientId": "Use 1 to {max} characters.",
-    "scopes": "Separate scopes with spaces; no quotes or backslashes, at most 20."
+    "scopes": "Separate scopes with spaces; no quotes or backslashes, at most 20.",
+    "oneLine": "Write it on one line."
   },
   "signIn": {
     "title": "Sign in",
@@ -212,7 +215,8 @@
     "requestNewLink": "Ask for a new link",
     "doneTitle": "Your password is set",
     "done": "Sign in with your email and new password.",
-    "signIn": "Sign in"
+    "signIn": "Sign in",
+    "continueSetUp": "Sign in to set up Donka"
   },
   "session": {
     "errorTitle": "We could not check your session"
@@ -324,7 +328,8 @@
     "project": "Project",
     "switchProject": "Switch project (current: {name})",
     "allProjects": "All projects",
-    "runtimes": "Runtimes"
+    "runtimes": "Runtimes",
+    "settings": "Settings"
   },
   "people": {
     "title": "People",
@@ -476,6 +481,10 @@
     "decision_contest": {
       "opened": "Decision contested",
       "reviewed": "Contest reviewed"
+    },
+    "installation": {
+      "set_up": "Installation set up",
+      "organisation_renamed": "Organisation renamed"
     }
   },
   "auditSentences": {
@@ -1164,7 +1173,10 @@
     "duplicated": "{name} was created. {passed, plural, one {# test scenario passes} other {# test scenarios pass}}.",
     "export": "Export pack file",
     "exporting": "Exporting…",
-    "exported": "{file} downloaded."
+    "exported": "{file} downloaded.",
+    "pickNone": "This installation offers no packs; you can import a pack file later.",
+    "alreadyInStudio": "Already in Studio",
+    "importingPack": "Importing {name}…"
   },
   "tour": {
     "next": "Next",
@@ -1386,5 +1398,45 @@
     "description": "This installation runs {current}. Read the release notes, then upgrade with donka-admin upgrade (installation guide, section 4).",
     "notes": "Release notes",
     "dismiss": "Hide until the next release"
+  },
+  "installation": {
+    "title": "Set up Donka",
+    "description": "Three steps before your teams start: protect your account, name your organisation, choose the packs to start from.",
+    "stepsLabel": "Setup steps",
+    "stepDone": "(done)",
+    "continue": "Continue",
+    "finish": "Finish setting up",
+    "finishing": "Finishing…",
+    "secondStep": {
+      "short": "Two-step sign-in",
+      "title": "Protect your account",
+      "description": "You hold every right in this Studio: sign in with a code from an authenticator app as well as your password."
+    },
+    "organisation": {
+      "short": "Organisation",
+      "title": "Name your organisation",
+      "description": "Studio shows it in its header, its emails, the access reports and the audit exports."
+    },
+    "packs": {
+      "short": "Packs",
+      "title": "Choose packs to start from",
+      "description": "Each pack becomes a project you own, with its decisions, test scenarios and guide. You can import more later."
+    },
+    "organisationHint": "As people know it, e.g. Microfinance SA.",
+    "adminsOnlyTitle": "An administrator sets up Donka",
+    "adminsOnly": "Setting up this installation is for administrators. You can use Studio meanwhile.",
+    "doneTitle": "Donka is set up",
+    "done": "This installation is already set up. Its administrators change the organisation's name in Settings.",
+    "toStudio": "Go to Studio",
+    "noticeTitle": "Finish setting up Donka",
+    "noticeText": "Protect your account with two-step sign-in, name your organisation and choose packs to start from.",
+    "noticeAction": "Continue setting up",
+    "settingsTitle": "Settings",
+    "settingsDescription": "This installation's settings, for administrators.",
+    "organisationTitle": "Organisation",
+    "organisationDescription": "Shown in Studio's header and browser tab, its emails, the access reports and the audit exports.",
+    "nameInFirstRun": "The first-run assistant names the organisation.",
+    "renamed": "The organisation's name is saved.",
+    "organisationName": "Organisation name"
   }
 }

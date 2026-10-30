@@ -1,22 +1,7 @@
-import { createHmac } from 'node:crypto';
-
-import { test, expect, newUser } from './fixtures';
+import { test, expect, newUser, totp } from './fixtures';
 import { openPage } from './navigation';
 
 test.use({ storageState: { cookies: [], origins: [] } });
-
-/** RFC 6238 code (SHA-1, six digits, 30 s) for a base32 key, at `time` seconds. */
-function totp(key: string, time = Date.now() / 1000): string {
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-  let bits = '';
-  for (const char of key.replace(/=+$/, '')) bits += alphabet.indexOf(char).toString(2).padStart(5, '0');
-  const secret = Buffer.from(bits.match(/.{8}/g)?.map((byte) => parseInt(byte, 2)) ?? []);
-  const counter = Buffer.alloc(8);
-  counter.writeBigUInt64BE(BigInt(Math.floor(time / 30)));
-  const mac = createHmac('sha1', secret).update(counter).digest();
-  const offset = (mac.at(-1) ?? 0) & 0xf;
-  return String((mac.readUInt32BE(offset) & 0x7fffffff) % 1_000_000).padStart(6, '0');
-}
 
 test('a person turns on two-step sign-in, signs in with a recovery code and is reset by an administrator', async ({
   context,

@@ -43,6 +43,9 @@ export function Breadcrumbs() {
     case 'runtimes':
       crumbs = [{ label: t('runtimes') }];
       break;
+    case 'settings':
+      crumbs = [{ label: t('settings') }];
+      break;
     case 'project':
       crumbs = project
         ? [

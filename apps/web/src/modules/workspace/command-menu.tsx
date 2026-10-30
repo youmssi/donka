@@ -22,7 +22,7 @@ import { routing } from '@/i18n/routing';
 import { useCurrentUser } from '@/modules/identity';
 import { projectHome, projectHref, useOpenProject, useProjectList } from '@/modules/project';
 
-import { PEOPLE_ICON, RUNTIMES_ICON, placeOf, PROJECTS_ICON, projectSections } from './sections';
+import { PEOPLE_ICON, RUNTIMES_ICON, placeOf, PROJECTS_ICON, projectSections, SETTINGS_ICON } from './sections';
 
 /** Jump anywhere with the keyboard: Ctrl K (⌘ K on a Mac). */
 export function CommandMenu() {
@@ -107,6 +107,10 @@ export function CommandMenu() {
                 <CommandItem onSelect={() => run(() => router.push('/runtimes'))}>
                   <RUNTIMES_ICON aria-hidden />
                   {nav('runtimes')}
+                </CommandItem>
+                <CommandItem onSelect={() => run(() => router.push('/settings'))}>
+                  <SETTINGS_ICON aria-hidden />
+                  {nav('settings')}
                 </CommandItem>
               </>
             ) : null}

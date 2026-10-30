@@ -98,7 +98,9 @@
     "RETENTION_RULE_NOT_FOUND": "Ce projet n'a pas cette règle de conservation.",
     "CONTEST_NOT_FOUND": "Ce projet n'a pas cette contestation.",
     "CONTEST_OPEN": "Cette décision a déjà une contestation en cours d'examen.",
-    "CONTEST_REVIEWED": "Cette contestation a déjà été examinée."
+    "CONTEST_REVIEWED": "Cette contestation a déjà été examinée.",
+    "ALREADY_SET_UP": "Cette installation est déjà configurée.",
+    "NOT_SET_UP": "Terminez d'abord la configuration de l'installation."
   },
   "validation": {
     "email": "Saisissez une adresse e-mail valide.",
@@ -125,7 +127,8 @@
     "allowedValues": "Séparez les valeurs par des virgules ; pour un champ numérique, uniquement des nombres.",
     "notPast": "Choisissez aujourd'hui ou un jour suivant.",
     "clientId": "Utilisez 1 à {max} caractères.",
-    "scopes": "Séparez les portées par des espaces ; sans guillemets ni barres obliques inverses, 20 au plus."
+    "scopes": "Séparez les portées par des espaces ; sans guillemets ni barres obliques inverses, 20 au plus.",
+    "oneLine": "Écrivez-le sur une seule ligne."
   },
   "signIn": {
     "title": "Connexion",
@@ -212,7 +215,8 @@
     "requestNewLink": "Demander un nouveau lien",
     "doneTitle": "Votre mot de passe est enregistré",
     "done": "Connectez-vous avec votre e-mail et votre nouveau mot de passe.",
-    "signIn": "Se connecter"
+    "signIn": "Se connecter",
+    "continueSetUp": "Se connecter pour configurer Donka"
   },
   "session": {
     "errorTitle": "Impossible de vérifier votre session"
@@ -324,7 +328,8 @@
     "project": "Projet",
     "switchProject": "Changer de projet (actuel : {name})",
     "allProjects": "Tous les projets",
-    "runtimes": "Runtimes"
+    "runtimes": "Runtimes",
+    "settings": "Paramètres"
   },
   "people": {
     "title": "Personnes",
@@ -476,6 +481,10 @@
     "decision_contest": {
       "opened": "Décision contestée",
       "reviewed": "Contestation examinée"
+    },
+    "installation": {
+      "set_up": "Installation configurée",
+      "organisation_renamed": "Organisation renommée"
     }
   },
   "auditSentences": {
@@ -1164,7 +1173,10 @@
     "duplicated": "{name} a été créé. {passed, plural, one {# scénario de test réussit} other {# scénarios de test réussissent}}.",
     "export": "Exporter le fichier pack",
     "exporting": "Export…",
-    "exported": "{file} téléchargé."
+    "exported": "{file} téléchargé.",
+    "pickNone": "Cette installation ne propose aucun pack ; vous pourrez importer un fichier de pack plus tard.",
+    "alreadyInStudio": "Déjà dans Studio",
+    "importingPack": "Import de {name}…"
   },
   "tour": {
     "next": "Suivant",
@@ -1386,5 +1398,45 @@
     "description": "Cette installation utilise la version {current}. Lisez les notes de version, puis mettez à jour avec donka-admin upgrade (guide d'installation, section 4).",
     "notes": "Notes de version",
     "dismiss": "Masquer jusqu'à la prochaine version"
+  },
+  "installation": {
+    "title": "Configurer Donka",
+    "description": "Trois étapes avant que vos équipes commencent : protéger votre compte, nommer votre organisation, choisir les packs de départ.",
+    "stepsLabel": "Étapes de configuration",
+    "stepDone": "(fait)",
+    "continue": "Continuer",
+    "finish": "Terminer la configuration",
+    "finishing": "Finalisation…",
+    "secondStep": {
+      "short": "Connexion en deux étapes",
+      "title": "Protégez votre compte",
+      "description": "Vous avez tous les droits dans ce Studio : connectez-vous avec un code d'une application d'authentification en plus de votre mot de passe."
+    },
+    "organisation": {
+      "short": "Organisation",
+      "title": "Nommez votre organisation",
+      "description": "Studio l'affiche dans son en-tête, ses e-mails, les rapports d'accès et les exports d'audit."
+    },
+    "packs": {
+      "short": "Packs",
+      "title": "Choisissez les packs de départ",
+      "description": "Chaque pack devient un projet dont vous êtes propriétaire, avec ses décisions, ses scénarios de test et son guide. Vous pourrez en importer d'autres plus tard."
+    },
+    "organisationHint": "Tel qu'on la connaît, par exemple Microfinance SA.",
+    "adminsOnlyTitle": "Un administrateur configure Donka",
+    "adminsOnly": "La configuration de cette installation revient aux administrateurs. Vous pouvez utiliser Studio en attendant.",
+    "doneTitle": "Donka est configuré",
+    "done": "Cette installation est déjà configurée. Ses administrateurs changent le nom de l'organisation dans Paramètres.",
+    "toStudio": "Aller dans Studio",
+    "noticeTitle": "Terminez la configuration de Donka",
+    "noticeText": "Protégez votre compte avec la connexion en deux étapes, nommez votre organisation et choisissez les packs de départ.",
+    "noticeAction": "Continuer la configuration",
+    "settingsTitle": "Paramètres",
+    "settingsDescription": "Les paramètres de cette installation, pour les administrateurs.",
+    "organisationTitle": "Organisation",
+    "organisationDescription": "Affichée dans l'en-tête et l'onglet de Studio, ses e-mails, les rapports d'accès et les exports d'audit.",
+    "nameInFirstRun": "L'assistant de premier démarrage nomme l'organisation.",
+    "renamed": "Le nom de l'organisation est enregistré.",
+    "organisationName": "Nom de l'organisation"
   }
 }

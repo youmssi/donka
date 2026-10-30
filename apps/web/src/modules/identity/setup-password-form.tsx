@@ -18,8 +18,11 @@ import { PASSWORD_MAX, PASSWORD_MIN, setupPasswordSchema, type SetupPasswordValu
 
 const limits = { min: PASSWORD_MIN, max: PASSWORD_MAX };
 
-/** Opened from an invitation, password-reset or first-administrator link (`?token=`). */
-export function SetupPasswordForm() {
+/**
+ * Opened from an invitation, password-reset or first-administrator link (`?token=`). `next` is
+ * where signing in leads afterwards: the first-run assistant for the first administrator.
+ */
+export function SetupPasswordForm({ next }: { next?: string }) {
   const t = useTranslations('setupPassword');
   const token = useSearchParams().get('token');
   const [error, setError] = useState<ActionError | null>(null);
@@ -53,7 +56,9 @@ export function SetupPasswordForm() {
             <AlertDescription>{t('done')}</AlertDescription>
           </Alert>
           <Button asChild className="w-full">
-            <Link href="/sign-in">{t('signIn')}</Link>
+            <Link href={next ? `/sign-in?next=${encodeURIComponent(next)}` : '/sign-in'}>
+              {next ? t('continueSetUp') : t('signIn')}
+            </Link>
           </Button>
         </CardContent>
       </Card>
