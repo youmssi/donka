@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 
 import { SettingsPage } from '@/modules/installation';
+import { ModulesCard } from '@/modules/licence';
 
 export async function generateMetadata({ params }: PageProps<'/[locale]/settings'>): Promise<Metadata> {
   const { locale } = await params;
@@ -12,5 +13,5 @@ export async function generateMetadata({ params }: PageProps<'/[locale]/settings
 export default async function Page({ params }: PageProps<'/[locale]/settings'>) {
   const { locale } = await params;
   setRequestLocale(locale);
-  return <SettingsPage />;
+  return <SettingsPage more={<ModulesCard />} />;
 }

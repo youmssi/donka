@@ -9,6 +9,7 @@
 use donka_app::install::{self, assistant, Installation, Outcome, Provided};
 use donka_app::upgrade;
 use donka_app::upgrade::auto::{self, Role, Window};
+use donka_licence::Module;
 use std::io::IsTerminal as _;
 use std::path::PathBuf;
 
@@ -58,6 +59,10 @@ const USAGE: &str = "usage:
       under a failing one, what to change. Run it where Studio runs:
         docker compose run --rm --no-deps app donka-admin doctor
       Exit status: 0 everything works, 1 a check failed.
+  donka-admin modules [enable|disable <module>...] [--dir <dir>]
+      Lists the optional modules (explain, connectors, analysis) and whether they are on, or
+      turns them on or off in donka.yaml, within what the licence includes. Their data is kept.
+      It takes effect when Studio restarts (docker compose up -d app), which audits the change.
   donka-admin demo-bureau
       The demo's fake credit bureau, on port 8080 (the demo-bureau service runs it).";
 
@@ -68,6 +73,7 @@ fn main() {
         Some("upgrade") => run_upgrade(&args[1..]),
         Some("auto-upgrade") => auto_upgrade(&args[1..]),
         Some("doctor") if args.len() == 1 => doctor(),
+        Some("modules") => modules(&args[1..]),
         Some("demo-bureau") if args.len() == 1 => demo_bureau(),
         _ => Err(USAGE.to_owned()),
     };
@@ -88,6 +94,58 @@ fn doctor() -> Result<(), String> {
     if checks.iter().any(donka_app::doctor::Check::failed) {
         std::process::exit(1);
     }
+    Ok(())
+}
+
+fn modules(args: &[String]) -> Result<(), String> {
+    let mut dir = PathBuf::from(".");
+    let mut action = None;
+    let mut names = Vec::new();
+    let mut rest = args.iter();
+    while let Some(arg) = rest.next() {
+        match arg.as_str() {
+            "--dir" => dir = PathBuf::from(rest.next().ok_or("--dir needs a folder")?),
+            "enable" | "disable" if action.is_none() => action = Some(arg.as_str() == "enable"),
+            name if action.is_some() => names.push(Module::parse(name).ok_or_else(|| {
+                format!("`{name}` is not a module: explain, connectors or analysis")
+            })?),
+            other => return Err(format!("unexpected `{other}`\n\n{USAGE}")),
+        }
+    }
+    let installation = Installation::read(&dir)?;
+    let mut on = installation
+        .modules
+        .clone()
+        .unwrap_or_else(|| Module::ALL.into_iter().collect());
+    let Some(enable) = action else {
+        for module in Module::ALL {
+            let state = if on.contains(&module) { "on" } else { "off" };
+            println!("  {state:<3}  {module}");
+        }
+        println!(
+            "Only the modules the licence includes are offered; Settings in Studio says which."
+        );
+        return Ok(());
+    };
+    if names.is_empty() {
+        return Err("name the modules: explain, connectors or analysis".to_owned());
+    }
+    for module in &names {
+        if enable {
+            on.insert(*module);
+        } else {
+            on.remove(module);
+        }
+    }
+    // Every module on is the default: the entry goes, and a new module will be on too.
+    let all = on.len() == Module::ALL.len();
+    install::set_modules(&dir, (!all).then_some(&on))?;
+    let names: Vec<&str> = names.iter().map(|module| module.as_str()).collect();
+    println!(
+        "{} {} in donka.yaml. Restart Studio to apply it: docker compose up -d app",
+        if enable { "Turned on" } else { "Turned off" },
+        names.join(", ")
+    );
     Ok(())
 }
 

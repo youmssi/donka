@@ -217,6 +217,12 @@ pub enum Action {
     #[serde(rename = "installation.organisation_renamed")]
     #[sqlx(rename = "installation.organisation_renamed")]
     InstallationOrganisationRenamed,
+    /// Studio started with other modules turned on (`DONKA_MODULES`); `details.from` and
+    /// `details.to` list them, `null` meaning every module the licence includes. No actor: an
+    /// operator changed the setting.
+    #[serde(rename = "installation.modules_changed")]
+    #[sqlx(rename = "installation.modules_changed")]
+    InstallationModulesChanged,
 }
 
 impl Action {
@@ -280,6 +286,7 @@ impl Action {
             Self::CiTokenRevoked => "ci_token.revoked",
             Self::InstallationSetUp => "installation.set_up",
             Self::InstallationOrganisationRenamed => "installation.organisation_renamed",
+            Self::InstallationModulesChanged => "installation.modules_changed",
         }
     }
 }

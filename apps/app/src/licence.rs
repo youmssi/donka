@@ -8,6 +8,7 @@
 use crate::error::ApiError;
 use donka_licence::{Licence, LicenceError, Module, PublicKey, Status};
 use donka_shared::clock::Clock;
+use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
@@ -22,6 +23,8 @@ pub struct Licensing {
 
 struct Inner {
     file: Option<PathBuf>,
+    /// The modules the installation turns on (`DONKA_MODULES`, DNK-74); all when `None`.
+    enabled: Option<BTreeSet<Module>>,
     key: PublicKey,
     clock: Arc<dyn Clock>,
     /// What the file said when last read; `None` without a file (evaluation).
@@ -31,10 +34,16 @@ struct Inner {
 impl Licensing {
     /// Reads and verifies `file` with `key` now. A file that cannot be trusted does not stop
     /// Studio: it is refused, named in the log, and Studio stays readable.
-    pub fn new(file: Option<PathBuf>, key: PublicKey, clock: Arc<dyn Clock>) -> Self {
+    pub fn new(
+        file: Option<PathBuf>,
+        enabled: Option<BTreeSet<Module>>,
+        key: PublicKey,
+        clock: Arc<dyn Clock>,
+    ) -> Self {
         let licensing = Self {
             inner: Arc::new(Inner {
                 file,
+                enabled,
                 key,
                 clock,
                 verified: RwLock::new(None),
@@ -93,17 +102,27 @@ impl Licensing {
         }
     }
 
-    /// The module is part of this installation.
+    /// The module is part of this installation: the licence includes it and it is turned on.
     pub fn require(&self, module: Module) -> Result<(), ApiError> {
-        if self.includes(module) {
-            Ok(())
-        } else {
+        if !self.status().includes(module) {
             Err(ApiError::ModuleNotLicensed(module))
+        } else if !self.turned_on(module) {
+            Err(ApiError::ModuleOff(module))
+        } else {
+            Ok(())
         }
     }
 
     pub fn includes(&self, module: Module) -> bool {
-        self.status().includes(module)
+        self.status().includes(module) && self.turned_on(module)
+    }
+
+    /// The installation turns the module on (`DONKA_MODULES`), whatever the licence says.
+    pub fn turned_on(&self, module: Module) -> bool {
+        self.inner
+            .enabled
+            .as_ref()
+            .is_none_or(|enabled| enabled.contains(&module))
     }
 
     fn log(&self, status: &Status) {

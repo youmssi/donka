@@ -187,6 +187,20 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn(donka_app::publish_worker::run(releases.clone()));
     tokio::spawn(donka_app::purge_worker::run(decision_log.clone()));
     let installation = donka_installation::Installation::new(db.clone(), clock.clone());
+    // A change of modules takes effect at this start, and is audited here (DNK-74).
+    let modules = config
+        .modules
+        .as_ref()
+        .map(|modules| modules.iter().map(|m| m.as_str().to_owned()).collect());
+    match installation.apply_modules(modules).await {
+        Ok(Some(previous)) => tracing::info!(
+            from = ?previous,
+            to = ?config.modules,
+            "the modules turned on changed (DONKA_MODULES); their data is kept"
+        ),
+        Ok(None) => {}
+        Err(err) => exit_with(&format!("cannot record the modules turned on: {err}")),
+    }
     tokio::spawn(donka_app::email_worker::run(
         identity.clone(),
         releases.clone(),
@@ -224,8 +238,12 @@ async fn main() -> anyhow::Result<()> {
              public key is built in"
         );
     }
-    let licensing =
-        donka_app::licence::Licensing::new(config.licence_file.clone(), licence_key, clock.clone());
+    let licensing = donka_app::licence::Licensing::new(
+        config.licence_file.clone(),
+        config.modules.clone(),
+        licence_key,
+        clock.clone(),
+    );
     tokio::spawn(donka_app::licence::watch(licensing.clone()));
     let updates =
         donka_app::updates::Updates::new(donka_app::VERSION, config.update_check_url.clone());

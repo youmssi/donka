@@ -153,7 +153,8 @@
           "ci_token.issued",
           "ci_token.revoked",
           "installation.set_up",
-          "installation.organisation_renamed"
+          "installation.organisation_renamed",
+          "installation.modules_changed"
         ],
         "type": "string"
       },
@@ -1653,7 +1654,7 @@
             "type": "boolean"
           },
           "modules": {
-            "description": "Optional modules this installation offers.",
+            "description": "Optional modules this installation offers: the licence includes them and they are on.",
             "items": {
               "$ref": "#/components/schemas/LicensedModule"
             },
@@ -1686,6 +1687,13 @@
           "status": {
             "$ref": "#/components/schemas/LicenceStatus"
           },
+          "turnedOff": {
+            "description": "Modules the licence includes that the installation turned off (`DONKA_MODULES`,\nDNK-74); their data is kept.",
+            "items": {
+              "$ref": "#/components/schemas/LicensedModule"
+            },
+            "type": "array"
+          },
           "validFrom": {
             "description": "First and last valid days (UTC, both included).",
             "format": "date",
@@ -1707,6 +1715,7 @@
           "expiring",
           "noticeDays",
           "modules",
+          "turnedOff",
           "allowsChanges",
           "allowsProduction"
         ],

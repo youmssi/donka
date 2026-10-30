@@ -127,7 +127,7 @@ pub fn in_evaluation(db: PgPool) -> TestApp {
         generous_limits(),
         Cipher::from_base64(DECISION_LOG_KEY).unwrap(),
         SecondStep::default(),
-        false,
+        Licensed::Evaluation,
         Updates::new("1.4.0", None),
     )
 }
@@ -143,7 +143,7 @@ pub fn with_update_feed(db: PgPool, url: &str) -> TestApp {
         generous_limits(),
         Cipher::from_base64(DECISION_LOG_KEY).unwrap(),
         SecondStep::default(),
-        true,
+        Licensed::Modules(None),
         Updates::new("1.4.0", Some(url.to_owned())),
     )
 }
@@ -189,7 +189,7 @@ fn assemble(
         auth_limits,
         cipher,
         SecondStep::default(),
-        true,
+        Licensed::Modules(None),
         Updates::new("1.4.0", None),
     )
 }
@@ -224,7 +224,7 @@ pub fn with_second_step(db: PgPool, required: MfaRequired, keys: &[&str]) -> Tes
         generous_limits(),
         Cipher::from_base64(DECISION_LOG_KEY).unwrap(),
         SecondStep { required, keys },
-        true,
+        Licensed::Modules(None),
         Updates::new("1.4.0", None),
     )
 }
@@ -245,7 +245,30 @@ pub fn with_decision_log_keys(db: PgPool, current: &str, previous: &[&str]) -> T
         generous_limits(),
         cipher,
         SecondStep::default(),
-        true,
+        Licensed::Modules(None),
+        Updates::new("1.4.0", None),
+    )
+}
+
+/// The licence of a test app: none (evaluation), or one with every module, of which the
+/// installation turns on `Some(modules)` only (`DONKA_MODULES`, DNK-74).
+pub enum Licensed {
+    Evaluation,
+    Modules(Option<std::collections::BTreeSet<Module>>),
+}
+
+/// An app whose licence includes every module, with only `modules` turned on.
+pub fn with_modules(db: PgPool, modules: &[Module]) -> TestApp {
+    assemble_with_cipher(
+        db,
+        Arc::new(ZenRuntime::new(1)),
+        BASE,
+        None,
+        None,
+        generous_limits(),
+        Cipher::from_base64(DECISION_LOG_KEY).unwrap(),
+        SecondStep::default(),
+        Licensed::Modules(Some(modules.iter().copied().collect())),
         Updates::new("1.4.0", None),
     )
 }
@@ -260,7 +283,7 @@ fn assemble_with_cipher(
     auth_limits: AuthLimits,
     cipher: Cipher,
     second_step: SecondStep,
-    licensed: bool,
+    licensed: Licensed,
     updates: Updates,
 ) -> TestApp {
     let clock = Arc::new(ManualClock::new(
@@ -268,7 +291,11 @@ fn assemble_with_cipher(
     ));
     // Unless a test says otherwise, a licence with every module, valid around the test clock.
     let licence_signer = Arc::new(SigningKeyPair::from_seed(LICENCE_SEED));
-    let licence_file = licensed.then(|| {
+    let modules = match &licensed {
+        Licensed::Evaluation => None,
+        Licensed::Modules(modules) => modules.clone(),
+    };
+    let licence_file = matches!(licensed, Licensed::Modules(_)).then(|| {
         let file =
             std::env::temp_dir().join(format!("donka-licence-{}.json", uuid::Uuid::new_v4()));
         let all = licence(&Module::ALL, "2026-01-01", "2027-12-31");
@@ -277,6 +304,7 @@ fn assemble_with_cipher(
     });
     let licensing = donka_app::licence::Licensing::new(
         licence_file.clone(),
+        modules,
         licence_signer.public_key(),
         clock.clone(),
     );

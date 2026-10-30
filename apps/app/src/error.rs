@@ -135,6 +135,9 @@ pub enum ApiError {
     ProductionNeedsLicence,
     #[error("module {0} not licensed")]
     ModuleNotLicensed(donka_licence::Module),
+    /// The licence includes the module, but the installation turned it off (DNK-74).
+    #[error("module turned off")]
+    ModuleOff(donka_licence::Module),
     #[error("database unavailable")]
     DatabaseUnavailable,
     #[error("no such endpoint")]
@@ -759,6 +762,13 @@ impl IntoResponse for ApiError {
                 StatusCode::FORBIDDEN,
                 "MODULE_NOT_LICENSED",
                 format!("The {module} module is not part of this installation's licence."),
+                None,
+                Some(serde_json::json!({ "module": module.as_str() })),
+            ),
+            Self::ModuleOff(module) => (
+                StatusCode::FORBIDDEN,
+                "MODULE_OFF",
+                format!("The {module} module is turned off on this installation."),
                 None,
                 Some(serde_json::json!({ "module": module.as_str() })),
             ),

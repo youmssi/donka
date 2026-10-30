@@ -391,3 +391,80 @@ async fn modules_outside_the_licence_are_refused(db: PgPool) {
     let saved = save_version(&app, &admin, &calling).await;
     assert_eq!(saved.status, StatusCode::CREATED, "{}", saved.body);
 }
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn modules_turned_off_are_refused_and_their_data_kept(db: PgPool) {
+    // On: a decision that calls a connector is saved.
+    let app = with_database(db.clone());
+    let admin = signed_in_admin(&app).await;
+    let p = project(&app, &admin, "credit").await;
+    let calling = decision(&app, &admin, &p, "bureau", graph(true)).await;
+    let saved = save_version(&app, &admin, &calling).await;
+    assert_eq!(saved.status, StatusCode::CREATED, "{}", saved.body);
+
+    // Restarted with connectors turned off (`DONKA_MODULES=analysis`), the licence unchanged.
+    let app = with_modules(db, &[Module::Analysis]);
+    let reply = sign_in(&app, ADMIN_EMAIL, ADMIN_PASSWORD).await;
+    assert_eq!(reply.status, StatusCode::OK, "{}", reply.body);
+    let admin = session_from(&reply);
+    let shown = licence_of(&app, &admin).await;
+    assert_eq!(shown["modules"], json!(["analysis"]));
+    assert_eq!(shown["turnedOff"], json!(["explain", "connectors"]));
+
+    // The decision and its version are still there, and still read.
+    let read = call(&app, "GET", &format!("{calling}/versions"), None, &admin).await;
+    assert_eq!(read.status, StatusCode::OK, "{}", read.body);
+    assert_eq!(
+        read.body["items"].as_array().unwrap().len(),
+        1,
+        "{}",
+        read.body
+    );
+    // A new version that calls it is refused, saying the module is off, not unlicensed.
+    let refused = save_version(&app, &admin, &calling).await;
+    assert_error(&refused, StatusCode::FORBIDDEN, "MODULE_OFF");
+    assert_eq!(refused.body["details"]["module"], "connectors");
+    let explained = call(
+        &app,
+        "POST",
+        &format!("/projects/{p}/decision-log/00000000-0000-0000-0000-000000000000/explain"),
+        Some(json!({ "language": "en" })),
+        &admin,
+    )
+    .await;
+    assert_error(&explained, StatusCode::FORBIDDEN, "MODULE_OFF");
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn a_change_of_modules_is_audited_once_at_start(db: PgPool) {
+    let app = with_database(db.clone());
+    let changes = || async {
+        sqlx::query_as::<_, (Option<uuid::Uuid>, Value)>(
+            "SELECT actor_id, details FROM audit_events \
+             WHERE action = 'installation.modules_changed' ORDER BY occurred_at, id",
+        )
+        .fetch_all(&db)
+        .await
+        .unwrap()
+    };
+    // Every module, as before: nothing to record.
+    assert_eq!(app.installation.apply_modules(None).await.unwrap(), None);
+    let off = Some(vec!["explain".to_owned(), "analysis".to_owned()]);
+    assert_eq!(
+        app.installation.apply_modules(off.clone()).await.unwrap(),
+        Some(None)
+    );
+    // The same at the next start: nothing new.
+    assert_eq!(app.installation.apply_modules(off).await.unwrap(), None);
+    assert_eq!(
+        app.installation.apply_modules(None).await.unwrap(),
+        Some(Some(vec!["analysis".to_owned(), "explain".to_owned()]))
+    );
+    assert_eq!(
+        changes().await,
+        vec![
+            (None, json!({ "from": null, "to": ["analysis", "explain"] })),
+            (None, json!({ "from": ["analysis", "explain"], "to": null })),
+        ]
+    );
+}

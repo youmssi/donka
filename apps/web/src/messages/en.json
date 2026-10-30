@@ -100,7 +100,8 @@
     "CONTEST_OPEN": "This decision already has a contest under review.",
     "CONTEST_REVIEWED": "This contest has already been reviewed.",
     "ALREADY_SET_UP": "This installation is already set up.",
-    "NOT_SET_UP": "Finish setting up the installation first."
+    "NOT_SET_UP": "Finish setting up the installation first.",
+    "MODULE_OFF": "This module is turned off on this installation. An operator can turn it on again; its data is kept."
   },
   "validation": {
     "email": "Enter a valid email address.",
@@ -1378,7 +1379,7 @@
   },
   "licence": {
     "evaluationTitle": "Evaluation, without a licence",
-    "evaluation": "Everything works, but releases cannot reach production. Ask Donka for a licence file and set DONKA_LICENCE_FILE.",
+    "evaluation": "Everything works, but releases cannot reach production. Ask Donka for a licence file and install it in secrets/licence.json (or the file DONKA_LICENCE_FILE names).",
     "expiringTitle": "The licence ends on {date}",
     "expiring": "{days, plural, one {# day left.} other {# days left.}} Ask Donka for the next licence, replace the file and reload Studio; nothing is lost.",
     "lastDay": "Today is its last day. Ask Donka for the next licence, replace the file and reload Studio; nothing is lost.",
@@ -1391,6 +1392,28 @@
       "unreadable": "Studio cannot read it as a licence: check the file DONKA_LICENCE_FILE names.",
       "foreign": "It was issued for another installation, or not by Donka.",
       "tampered": "It was changed after Donka signed it. Put back the file Donka sent."
+    },
+    "modules": {
+      "title": "Modules",
+      "description": "Optional parts of Studio, within what the licence includes.",
+      "explain": {
+        "name": "Explanations",
+        "description": "Plain-language explanations of logged decisions, from your language model."
+      },
+      "connectors": {
+        "name": "Connectors",
+        "description": "Decision nodes that call your services, such as a credit bureau."
+      },
+      "analysis": {
+        "name": "Analysis",
+        "description": "Analysis of recorded decisions."
+      },
+      "state": {
+        "on": "On",
+        "off": "Turned off",
+        "unlicensed": "Not in the licence"
+      },
+      "howTo": "An operator turns a module on or off on the server with <code>donka-admin modules enable</code> or <code>disable</code>, then restarts Studio. Its data is kept, and the change is in the audit log."
     }
   },
   "updates": {

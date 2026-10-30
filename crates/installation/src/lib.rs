@@ -153,6 +153,47 @@ impl Installation {
     }
 }
 
+impl Installation {
+    /// Records the modules Studio starts with (`None`: every module the licence includes), and
+    /// audits a change since the last start. Returns the previous modules when they changed.
+    pub async fn apply_modules(
+        &self,
+        modules: Option<Vec<String>>,
+    ) -> Result<Option<Option<Vec<String>>>, InstallationError> {
+        let modules = modules.map(|mut names| {
+            names.sort();
+            names.dedup();
+            names
+        });
+        let now = self.clock.now();
+        let mut tx = self.pool.begin().await?;
+        let previous: Option<Option<Vec<String>>> =
+            sqlx::query_scalar("SELECT modules FROM installation_modules FOR UPDATE")
+                .fetch_optional(&mut *tx)
+                .await?;
+        let previous = previous.flatten();
+        if previous == modules {
+            return Ok(None);
+        }
+        sqlx::query(
+            "INSERT INTO installation_modules (modules, applied_at) VALUES ($1, $2) \
+             ON CONFLICT (only_row) DO UPDATE SET modules = $1, applied_at = $2",
+        )
+        .bind(&modules)
+        .bind(now)
+        .execute(&mut *tx)
+        .await?;
+        donka_audit::record(
+            &mut tx,
+            Event::new(now, None, Action::InstallationModulesChanged)
+                .with_details(json!({ "from": previous, "to": modules })),
+        )
+        .await?;
+        tx.commit().await?;
+        Ok(Some(previous))
+    }
+}
+
 /// The name, trimmed; one line of at most [`MAX_ORGANISATION_CHARS`] characters.
 fn valid(organisation: &str) -> Result<String, InstallationError> {
     let organisation = organisation.trim();
