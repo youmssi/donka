@@ -30,6 +30,8 @@ API="$STUDIO_URL/api/v1"
 PASSWORD="installation check passphrase"
 JAR="$(mktemp)"
 work="$(mktemp -d)"
+# The inputs, read by donka-admin in the Studio image, which runs as its own user.
+chmod 755 "$work"
 rate=$(jq -r .targets.runtime.rate "$targets")
 if [ -n "$full" ]; then seconds=60; max_seconds=30; else seconds=15; max_seconds=10; fi
 
