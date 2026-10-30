@@ -63,6 +63,14 @@ const USAGE: &str = "usage:
       Lists the optional modules (explain, connectors, analysis) and whether they are on, or
       turns them on or off in donka.yaml, within what the licence includes. Their data is kept.
       It takes effect when Studio restarts (docker compose up -d app), which audits the change.
+  donka-admin support-bundle [--since <hours>]
+      Writes support-<time>.tar.gz in the installation folder, for Donka's support: versions,
+      configuration, the doctor's report, the last day of logs (or --since hours) and the
+      latest upgrade reports. Secret values, passwords in addresses, tokens, email addresses and
+      public IP addresses are removed; read it before sending it. Run it as the upgrade runs:
+        docker run --rm -u \"$(id -u):$(id -g)\" --group-add \"$(stat -c %g /var/run/docker.sock)\" \\
+          -v /var/run/docker.sock:/var/run/docker.sock -v \"$PWD:/install\" -w /install \\
+          ghcr.io/youmssi/donka-studio:<installed version> donka-admin support-bundle
   donka-admin demo-bureau
       The demo's fake credit bureau, on port 8080 (the demo-bureau service runs it).";
 
@@ -74,6 +82,7 @@ fn main() {
         Some("auto-upgrade") => auto_upgrade(&args[1..]),
         Some("doctor") if args.len() == 1 => doctor(),
         Some("modules") => modules(&args[1..]),
+        Some("support-bundle") => support_bundle(&args[1..]),
         Some("demo-bureau") if args.len() == 1 => demo_bureau(),
         _ => Err(USAGE.to_owned()),
     };
@@ -94,6 +103,34 @@ fn doctor() -> Result<(), String> {
     if checks.iter().any(donka_app::doctor::Check::failed) {
         std::process::exit(1);
     }
+    Ok(())
+}
+
+fn support_bundle(args: &[String]) -> Result<(), String> {
+    let mut since_hours = 24;
+    let mut rest = args.iter();
+    while let Some(arg) = rest.next() {
+        match arg.as_str() {
+            "--since" => {
+                since_hours = rest
+                    .next()
+                    .and_then(|hours| hours.parse().ok())
+                    .filter(|hours: &i64| *hours > 0)
+                    .ok_or("--since needs a number of hours")?;
+            }
+            other => return Err(format!("unexpected `{other}`\n\n{USAGE}")),
+        }
+    }
+    let options = donka_app::support::Options {
+        dir: PathBuf::from("."),
+        since_hours,
+    };
+    let runtime = tokio::runtime::Runtime::new().map_err(|err| err.to_string())?;
+    let path = runtime.block_on(donka_app::support::run(&options))?;
+    println!(
+        "Written: {}\nRead it before sending it to Donka's support.",
+        path.display()
+    );
     Ok(())
 }
 

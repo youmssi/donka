@@ -64,6 +64,9 @@ sha2 = { workspace = true }
 # donka-admin doctor (DNK-74): what PostgreSQL answered.
 sqlx = { workspace = true }
 tar = "0.4"
+# donka-admin support-bundle (DNK-74): the archive, and what is removed from it.
+flate2 = "1"
+regex = "1"
 
 [features]
 # Trust the development licence key instead of Donka's (DNK-77): local development and CI only.

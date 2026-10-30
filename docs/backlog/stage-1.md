@@ -1613,8 +1613,8 @@ Confirmed 2026-10-29, for the browser assistant:
 - [x] Running again with `donka.yaml` produces the same installation without questions; secrets are never printed nor overwritten
 - [x] `donka-admin doctor` reports each dependency as working or not, with the reason and the setting to change
 - [x] The browser assistant appears only until the first administrator exists, enrols their second step, and imports the selected packs
-- [ ] Enabling or disabling a module keeps data, is audited and takes effect after a restart
-- [ ] The support bundle contains no secret, token or personal data; a test checks it
+- [x] Enabling or disabling a module keeps data, is audited and takes effect after a restart
+- [x] The support bundle contains no secret, token or personal data; a test checks it
 - [ ] The install guides (EN/FR) and DNK-50's rehearsal use this path
 
 ---

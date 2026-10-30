@@ -174,6 +174,21 @@ docker compose kill -s HUP app
 A module the licence leaves out is hidden in Studio, and its actions are refused with a message
 that names it.
 
+**Modules.** Within the licence, an operator turns a module off, or on again, on the server; it
+takes effect when Studio restarts:
+
+```bash
+docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/install" -w /install \
+  ghcr.io/youmssi/donka-studio:<installed version> donka-admin modules disable connectors
+docker compose up -d app
+```
+
+`donka-admin modules` alone lists them; `enable` turns them on again. The change is written to
+`donka.yaml` (`modules: [explain, analysis]`, all of them when absent). A module turned off is
+hidden and refused like one outside the licence, and its data is kept: decisions that call a
+connector stay readable, and come back when it is on again. Studio records each change in the
+audit log when it starts with it; **Settings** shows each module's state.
+
 PostgreSQL takes its password, `secrets/postgres_password`, when its data is first created
 (section 5 explains how to change it later).
 
@@ -528,6 +543,21 @@ doctor: 1 check failed
 Each failing line says why, and under it what to change. The exit status is 0 when everything
 works and 1 otherwise, so it can gate a deployment pipeline. A production Runtime on another
 network may reach connectors differently: its logs name each failed call.
+
+**For Donka's support**, make a support bundle rather than giving access to the server:
+
+```bash
+docker run --rm -u "$(id -u):$(id -g)" --group-add "$(stat -c %g /var/run/docker.sock)" \
+  -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/install" -w /install \
+  ghcr.io/youmssi/donka-studio:<installed version> donka-admin support-bundle
+```
+
+It writes `support-<time>.tar.gz` in the folder, readable by you only: the images and
+containers, `donka.yaml` and the files Compose reads, the names of the secret files, the
+doctor's report, each service's last day of logs (`--since 48` for two days) and the latest
+upgrade reports. The values of the secret files, passwords in addresses, Donka tokens, other
+secret settings, email addresses and public IP addresses are removed. Read it before you send
+it.
 
 | Symptom | Look at |
 | --- | --- |

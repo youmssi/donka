@@ -3,7 +3,8 @@
 //! work a shell would (pg_dump, tar, docker compose).
 
 use bollard::auth::DockerCredentials;
-use bollard::models::{ContainerCreateBody, HostConfig, NetworkConnectRequest};
+use bollard::exec::StartExecResults;
+use bollard::models::{ContainerCreateBody, ExecConfig, HostConfig, NetworkConnectRequest};
 use bollard::query_parameters::{
     CreateContainerOptionsBuilder, CreateImageOptionsBuilder, DownloadFromContainerOptionsBuilder,
     ListContainersOptionsBuilder, LogsOptionsBuilder, RemoveContainerOptionsBuilder,
@@ -29,6 +30,17 @@ pub struct Engine {
     pub user: String,
 }
 
+/// One of the installation's containers.
+pub struct Container {
+    pub service: String,
+    pub id: String,
+    pub image: String,
+    pub image_id: String,
+    pub running: bool,
+    /// As `docker ps` says it, e.g. `Up 3 hours (healthy)`.
+    pub status: String,
+}
+
 /// A helper container: an image, a command, its mounts and environment.
 #[derive(Default)]
 pub struct Helper {
@@ -45,14 +57,14 @@ pub struct Helper {
 impl Engine {
     pub async fn connect() -> Result<Self, String> {
         let docker = Docker::connect_with_socket_defaults().map_err(|err| {
-            format!("no Docker socket ({err}): start the upgrade with -v /var/run/docker.sock:/var/run/docker.sock")
+            format!("no Docker socket ({err}): start donka-admin with -v /var/run/docker.sock:/var/run/docker.sock")
         })?;
         docker
             .ping()
             .await
             .map_err(|err| format!("Docker does not answer on its socket: {err}"))?;
         let own_id = std::env::var("HOSTNAME")
-            .map_err(|_| "HOSTNAME is not set: run the upgrade in its container".to_owned())?;
+            .map_err(|_| "HOSTNAME is not set: run donka-admin in its container".to_owned())?;
         let own = docker
             .inspect_container(&own_id, None)
             .await
@@ -335,6 +347,92 @@ impl Engine {
             }
         }
         Ok(code)
+    }
+
+    /// The installation's containers, running or not (`donka-admin support-bundle`).
+    pub async fn containers(&self) -> Result<Vec<Container>, String> {
+        let filters = HashMap::from([(
+            "label",
+            vec![format!("com.docker.compose.project={PROJECT}")],
+        )]);
+        let options = ListContainersOptionsBuilder::new()
+            .all(true)
+            .filters(&filters)
+            .build();
+        let mut containers: Vec<Container> = self
+            .docker
+            .list_containers(Some(options))
+            .await
+            .map_err(|err| err.to_string())?
+            .into_iter()
+            .map(|summary| {
+                let label = |key: &str| {
+                    summary
+                        .labels
+                        .as_ref()
+                        .and_then(|labels| labels.get(key).cloned())
+                        .unwrap_or_default()
+                };
+                Container {
+                    service: label("com.docker.compose.service"),
+                    id: summary.id.clone().unwrap_or_default(),
+                    image: summary.image.clone().unwrap_or_default(),
+                    image_id: summary.image_id.clone().unwrap_or_default(),
+                    running: summary.state.as_ref().map(ToString::to_string).as_deref()
+                        == Some("running"),
+                    status: summary.status.clone().unwrap_or_default(),
+                }
+            })
+            .collect();
+        containers.sort_by(|a, b| a.service.cmp(&b.service));
+        Ok(containers)
+    }
+
+    /// What a container wrote in the last `since_seconds`, at most `tail` lines.
+    pub async fn logs(&self, id: &str, since_seconds: i64, tail: usize) -> Result<String, String> {
+        let since = chrono::Utc::now().timestamp() - since_seconds;
+        let options = LogsOptionsBuilder::new()
+            .stdout(true)
+            .stderr(true)
+            .timestamps(true)
+            .since(i32::try_from(since).unwrap_or(0))
+            .tail(&tail.to_string())
+            .build();
+        let mut logs = self.docker.logs(id, Some(options));
+        let mut text = String::new();
+        while let Some(line) = logs.next().await {
+            text.push_str(&line.map_err(|err| err.to_string())?.to_string());
+        }
+        Ok(text)
+    }
+
+    /// Runs `cmd` in a running container and returns what it wrote.
+    pub async fn exec(&self, id: &str, cmd: &[&str]) -> Result<String, String> {
+        let exec = self
+            .docker
+            .create_exec(
+                id,
+                ExecConfig {
+                    attach_stdout: Some(true),
+                    attach_stderr: Some(true),
+                    cmd: Some(cmd.iter().map(|part| (*part).to_owned()).collect()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .map_err(|err| err.to_string())?;
+        let mut text = String::new();
+        if let StartExecResults::Attached { mut output, .. } = self
+            .docker
+            .start_exec(&exec.id, None)
+            .await
+            .map_err(|err| err.to_string())?
+        {
+            while let Some(chunk) = output.next().await {
+                text.push_str(&chunk.map_err(|err| err.to_string())?.to_string());
+            }
+        }
+        Ok(text)
     }
 
     /// The last lines a container wrote.
