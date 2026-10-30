@@ -151,7 +151,8 @@ printf 'services:\n  runtime:\n    environment:\n      DECISION_LOG__QUEUE_CAPAC
 COMPOSE_FILE=docker-compose.yml:docker-compose.performance.yml docker compose up -d runtime >/dev/null 2>&1
 sleep 5
 overflow=$(outage 30 15)
-dropped=$(docker compose logs runtime 2>&1 | grep -o 'dropped[^0-9]*[0-9]*' | grep -o '[0-9]*$' | sort -n | tail -1)
+# The Runtime logs (as JSON) the running count at 1, 2, 4, 8…: the last is a lower bound.
+dropped=$(docker compose logs --no-log-prefix runtime 2>&1 | grep -o '"dropped":[0-9]*' | cut -d: -f2 | sort -n | tail -1)
 echo "check-performance: Studio stopped 15 s beyond the queue: $overflow; the Runtime logged ${dropped:-0} dropped"
 rm docker-compose.performance.yml
 docker compose up -d runtime >/dev/null 2>&1
