@@ -54,13 +54,28 @@ load() {
     "$image" donka-admin load-test --url "$RUNTIME_URL/api/projects/$1/evaluate/$2" \
     --inputs "/work/$3" "$4" "$5" --seconds "$6" --warmup "${7:-3}"
 }
+# ready <project> <decision>: the release reaches the Runtime within a few seconds of its
+# deployment.
+ready() {
+  for _ in $(seq 1 60); do
+    curl -sf -X POST "$RUNTIME_URL/api/projects/$1/evaluate/$2" \
+      -H "X-Access-Token: ${tokens[$1]}" -H 'content-type: application/json' \
+      --data "$(jq -c '{context: .[0]}' "$work/$1-$2.json")" >/dev/null && return 0
+    sleep 1
+  done
+  fail "$1/$2 is not served by the Runtime"
+}
 logged() { studio GET "/projects/${ids[$1]}/decision-log?limit=1" | jq .total; }
 # wait_logged <project> <count>: seconds until the log holds <count> records, or fails after 60.
 wait_logged() {
-  local started=$SECONDS
-  for _ in $(seq 1 120); do
-    [ "$(logged "$1")" -ge "$2" ] && { echo $((SECONDS - started)); return 0; }
-    sleep 0.5
+  local started
+  started=$(date +%s.%N)
+  for _ in $(seq 1 240); do
+    if [ "$(logged "$1")" -ge "$2" ]; then
+      echo "$(date +%s.%N) - $started" | bc | xargs printf '%.1f\n'
+      return 0
+    fi
+    sleep 0.25
   done
   echo -1
 }
@@ -93,29 +108,12 @@ done
 IFS=$'\n' measured=($(sort <<<"${measured[*]}")); unset IFS
 
 results='{}'
-for target in "${measured[@]}"; do
-  pack="${target%/*}"; decision="${target#*/}"
-  jq --arg d "$decision" '[.[] | select(.decision == $d) | .input]' \
-    "$root/packs/$pack/scenarios.json" > "$work/$pack-$decision.json"
-  [ "$(jq length "$work/$pack-$decision.json")" -gt 0 ] || fail "$target has no scenario to send"
-  # The release reaches the Runtime within a few seconds of its deployment.
-  for _ in $(seq 1 60); do
-    curl -sf -X POST "$RUNTIME_URL/api/projects/$pack/evaluate/$decision" \
-      -H "X-Access-Token: ${tokens[$pack]}" -H 'content-type: application/json' \
-      --data "$(jq -c '{context: .[0]}' "$work/$pack-$decision.json")" >/dev/null && break
-    sleep 1
-  done
-  at_rate=$(load "$pack" "$decision" "$pack-$decision.json" --rate "$rate" "$seconds")
-  maximum=$(load "$pack" "$decision" "$pack-$decision.json" --concurrency 32 "$max_seconds")
-  connector=$(grep -q '"donka.connector"' "$root/packs/$pack/decisions/$decision.json" && echo true || echo false)
-  echo "check-performance: $target at $rate/s: $at_rate; maximum: $maximum"
-  results=$(jq --arg t "$target" --argjson r "$at_rate" --argjson m "$maximum" --argjson c "$connector" \
-    '.runtime[$t] = {connector: $c, atRate: $r, maximum: $m}' <<<"$results")
-done
-
 # The feed keeps up: every decision answered is in the log within the target delay.
 feed_pack=kyc-risk-rating
 feed_decision=$(jq -r .entry "$root/packs/$feed_pack/pack.json")
+jq --arg d "$feed_decision" '[.[] | select(.decision == $d) | .input]' \
+  "$root/packs/$feed_pack/scenarios.json" > "$work/$feed_pack-$feed_decision.json"
+ready "$feed_pack" "$feed_decision"
 before=$(logged "$feed_pack")
 run=$(load "$feed_pack" "$feed_decision" "$feed_pack-$feed_decision.json" --rate "$rate" "$seconds" 0)
 lag=$(wait_logged "$feed_pack" $((before + $(jq .answered <<<"$run"))))
@@ -158,6 +156,23 @@ rm docker-compose.performance.yml
 docker compose up -d runtime >/dev/null 2>&1
 results=$(jq --argjson s "$short" --argjson o "$overflow" --argjson d "${dropped:-0}" \
   '.outage = {withinQueue: $s, beyondQueue: ($o + {droppedLogged: $d})}' <<<"$results")
+
+# Then each decision, at the target rate and as fast as the Runtime answers. The fastest runs
+# overflow the Runtime's decision-log queue by design (thousands a second for seconds): they come
+# last, after the feed is measured on a Runtime that holds no backlog.
+for target in "${measured[@]}"; do
+  pack="${target%/*}"; decision="${target#*/}"
+  jq --arg d "$decision" '[.[] | select(.decision == $d) | .input]' \
+    "$root/packs/$pack/scenarios.json" > "$work/$pack-$decision.json"
+  [ "$(jq length "$work/$pack-$decision.json")" -gt 0 ] || fail "$target has no scenario to send"
+  ready "$pack" "$decision"
+  at_rate=$(load "$pack" "$decision" "$pack-$decision.json" --rate "$rate" "$seconds")
+  maximum=$(load "$pack" "$decision" "$pack-$decision.json" --concurrency 32 "$max_seconds")
+  connector=$(grep -q '"donka.connector"' "$root/packs/$pack/decisions/$decision.json" && echo true || echo false)
+  echo "check-performance: $target at $rate/s: $at_rate; maximum: $maximum"
+  results=$(jq --arg t "$target" --argjson r "$at_rate" --argjson m "$maximum" --argjson c "$connector" \
+    '.runtime[$t] = {connector: $c, atRate: $r, maximum: $m}' <<<"$results")
+done
 
 results=$(jq --arg m "$(uname -m)" --arg c "$(nproc)" --arg full "${full:-short}" \
   '. + {machine: {cpus: ($c | tonumber), arch: $m}, run: $full}' <<<"$results")
