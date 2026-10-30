@@ -69,8 +69,11 @@ pub struct LicenceResponse {
     /// Days before the end at which `expiring` turns on.
     #[schema(example = 30)]
     pub notice_days: i64,
-    /// Optional modules this installation offers.
+    /// Optional modules this installation offers: the licence includes them and they are on.
     pub modules: Vec<LicensedModule>,
+    /// Modules the licence includes that the installation turned off (`DONKA_MODULES`,
+    /// DNK-74); their data is kept.
+    pub turned_off: Vec<LicensedModule>,
     /// New versions and releases can be made.
     pub allows_changes: bool,
     /// Releases can reach production (anything but evaluation).
@@ -89,10 +92,12 @@ pub struct LicenceResponse {
     responses((status = 200, body = LicenceResponse))
 )]
 pub async fn get(State(state): State<AppState>) -> Json<LicenceResponse> {
-    Json(response(&state.licensing.status()))
+    Json(response(&state.licensing.status(), |module| {
+        state.licensing.turned_on(module)
+    }))
 }
 
-fn response(status: &Status) -> LicenceResponse {
+fn response(status: &Status, turned_on: impl Fn(Module) -> bool) -> LicenceResponse {
     let licence = status.licence();
     LicenceResponse {
         status: match status {
@@ -113,7 +118,12 @@ fn response(status: &Status) -> LicenceResponse {
         notice_days: NOTICE_DAYS,
         modules: Module::ALL
             .into_iter()
-            .filter(|module| status.includes(*module))
+            .filter(|module| status.includes(*module) && turned_on(*module))
+            .map(LicensedModule::from)
+            .collect(),
+        turned_off: Module::ALL
+            .into_iter()
+            .filter(|module| status.includes(*module) && !turned_on(*module))
             .map(LicensedModule::from)
             .collect(),
         allows_changes: status.allows_changes(),

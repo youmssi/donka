@@ -186,6 +186,22 @@ docker compose kill -s HUP app
 Un module que la licence n'inclut pas est masqué dans Studio, et ses actions sont refusées avec
 un message qui le nomme.
 
+**Modules.** Dans la limite de la licence, un opérateur désactive un module, ou le réactive, sur
+le serveur ; le changement prend effet au redémarrage de Studio :
+
+```bash
+docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/install" -w /install \
+  ghcr.io/youmssi/donka-studio:<installed version> donka-admin modules disable connectors
+docker compose up -d app
+```
+
+`donka-admin modules` seul les liste ; `enable` les réactive. Le changement est écrit dans
+`donka.yaml` (`modules: [explain, analysis]`, tous quand il est absent). Un module désactivé est
+masqué et refusé comme un module hors licence, et ses données sont conservées : les décisions qui
+appellent un connecteur restent lisibles, et reviennent quand il est réactivé. Studio inscrit
+chaque changement au journal d'audit au démarrage qui l'applique ; **Paramètres** montre l'état
+de chaque module.
+
 PostgreSQL prend son mot de passe, `secrets/postgres_password`, à la création de ses données
 (la section 5 explique comment le changer ensuite).
 
@@ -570,6 +586,22 @@ Chaque ligne en échec dit pourquoi et, en dessous, quoi changer (le rapport est
 code de sortie vaut 0 quand tout fonctionne et 1 sinon : il peut conditionner un pipeline de
 déploiement. Un Runtime de production sur un autre réseau peut joindre les connecteurs
 autrement : ses journaux nomment chaque appel en échec.
+
+**Pour le support de Donka**, produisez un paquet de support plutôt que de donner accès au
+serveur :
+
+```bash
+docker run --rm -u "$(id -u):$(id -g)" --group-add "$(stat -c %g /var/run/docker.sock)" \
+  -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/install" -w /install \
+  ghcr.io/youmssi/donka-studio:<installed version> donka-admin support-bundle
+```
+
+Il écrit `support-<heure>.tar.gz` dans le dossier, lisible par vous seul : les images et
+conteneurs, `donka.yaml` et les fichiers que lit Compose, les noms des fichiers secrets, le
+rapport du docteur, la dernière journée de journaux de chaque service (`--since 48` pour deux
+jours) et les derniers rapports de mise à jour. Les valeurs des fichiers secrets, les mots de
+passe dans les adresses, les jetons Donka, les autres paramètres secrets, les adresses e-mail et
+les adresses IP publiques en sont retirés. Relisez-le avant de l'envoyer.
 
 | Symptôme | Où regarder |
 | --- | --- |

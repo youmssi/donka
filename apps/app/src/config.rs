@@ -1,4 +1,6 @@
 use donka_identity::Locale;
+use donka_licence::Module;
+use std::collections::BTreeSet;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
@@ -81,6 +83,9 @@ pub struct Config {
     /// The licence file Donka issued for this installation (DNK-77). Unset: evaluation, where
     /// everything works but nothing reaches production.
     pub licence_file: Option<PathBuf>,
+    /// The optional modules the installation turns on (`DONKA_MODULES`, DNK-74), within what the
+    /// licence includes; every module the licence includes when unset.
+    pub modules: Option<BTreeSet<Module>>,
     /// Where Studio writes, at first start, the decision-log token of the staging Runtime it
     /// is installed with (DNK-64). Unset: Runtimes get their token from an administrator.
     pub runtime_log_token_file: Option<PathBuf>,
@@ -309,6 +314,7 @@ impl Config {
             licence_file: get("DONKA_LICENCE_FILE")
                 .filter(|v| !v.trim().is_empty())
                 .map(PathBuf::from),
+            modules: modules(&get)?,
             runtime_log_token_file: get("DONKA_RUNTIME_LOG_TOKEN_FILE")
                 .filter(|v| !v.trim().is_empty())
                 .map(PathBuf::from),
@@ -503,6 +509,26 @@ fn validate_base_path(path: &str) -> Result<(), ConfigError> {
             "must start with '/', not end with '/', and use only letters, digits, '-', '_', '.'",
         ))
     }
+}
+
+/// `DONKA_MODULES`: module names separated by commas or spaces; empty turns them all off.
+fn modules(get: &impl Fn(&str) -> Option<String>) -> Result<Option<BTreeSet<Module>>, ConfigError> {
+    let Some(value) = get("DONKA_MODULES") else {
+        return Ok(None);
+    };
+    value
+        .split(|c: char| c == ',' || c.is_whitespace())
+        .filter(|name| !name.is_empty())
+        .map(|name| {
+            Module::parse(name).ok_or_else(|| {
+                invalid(
+                    "DONKA_MODULES",
+                    &format!("`{name}` is not a module: explain, connectors or analysis"),
+                )
+            })
+        })
+        .collect::<Result<_, _>>()
+        .map(Some)
 }
 
 fn invalid(var: &'static str, reason: &str) -> ConfigError {
@@ -764,6 +790,27 @@ mod tests {
             None
         );
         assert!(load(&[("DONKA_UPDATE_CHECK", "no")]).is_err());
+    }
+
+    #[test]
+    fn modules_narrow_the_licence_or_leave_it_whole() {
+        assert_eq!(load(&[]).unwrap().modules, None);
+        assert_eq!(
+            load(&[("DONKA_MODULES", "explain, connectors")])
+                .unwrap()
+                .modules,
+            Some(BTreeSet::from([Module::Explain, Module::Connectors]))
+        );
+        assert_eq!(
+            load(&[("DONKA_MODULES", "")]).unwrap().modules,
+            Some(BTreeSet::new())
+        );
+        assert_eq!(
+            load(&[("DONKA_MODULES", "explain,scoring")])
+                .unwrap_err()
+                .var,
+            "DONKA_MODULES"
+        );
     }
 
     #[test]

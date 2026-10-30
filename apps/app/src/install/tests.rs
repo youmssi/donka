@@ -318,3 +318,46 @@ fn an_upgrade_changes_only_the_versions_in_donka_yaml() {
     assert_eq!(value(&read(&dir, ".env"), "DONKA_VERSION"), "1.5.0");
     assert_eq!(value(&read(&dir, ".env"), "DONKA_RUNTIME_VERSION"), "1.3.0");
 }
+
+#[test]
+fn modules_are_turned_on_and_off_in_donka_yaml_only() {
+    let dir = dir("modules");
+    init(
+        &dir,
+        &Installation::for_version("1.4.0"),
+        &Provided::default(),
+        system_random,
+    )
+    .unwrap();
+    assert!(!read(&dir, ".env").contains("DONKA_MODULES"));
+    let yaml = read(&dir, CONFIG) + "# the operator's note\n";
+    std::fs::write(dir.join(CONFIG), &yaml).unwrap();
+
+    let some = BTreeSet::from([Module::Analysis, Module::Explain]);
+    set_modules(&dir, Some(&some)).unwrap();
+    let after = read(&dir, CONFIG);
+    assert!(after.ends_with("modules: [explain, analysis]\n"), "{after}");
+    assert!(after.contains("# the operator's note"));
+    assert_eq!(Installation::read(&dir).unwrap().modules, Some(some));
+    assert_eq!(
+        value(&read(&dir, ".env"), "DONKA_MODULES"),
+        "explain,analysis"
+    );
+
+    // Written as a list by hand, then every module again: the entry goes.
+    let listed = after.replace(
+        "modules: [explain, analysis]\n",
+        "modules:\n  - connectors\n",
+    );
+    std::fs::write(dir.join(CONFIG), &listed).unwrap();
+    set_modules(&dir, Some(&BTreeSet::new())).unwrap();
+    assert_eq!(value(&read(&dir, ".env"), "DONKA_MODULES"), "");
+    set_modules(&dir, None).unwrap();
+    let after = read(&dir, CONFIG);
+    assert!(
+        !after.contains("modules") && !after.contains("connectors"),
+        "{after}"
+    );
+    assert!(after.contains("# the operator's note"));
+    assert!(!read(&dir, ".env").contains("DONKA_MODULES"));
+}

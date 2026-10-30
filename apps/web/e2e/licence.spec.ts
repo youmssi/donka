@@ -18,6 +18,7 @@ test('the installation runs on its verified licence, with every module and no no
     allowsChanges: true,
     allowsProduction: true,
     modules: ['explain', 'connectors', 'analysis'],
+    turnedOff: [],
   });
 
   const page = await openPage(context, `/${appLocale}/`);

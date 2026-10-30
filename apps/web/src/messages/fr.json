@@ -100,7 +100,8 @@
     "CONTEST_OPEN": "Cette décision a déjà une contestation en cours d'examen.",
     "CONTEST_REVIEWED": "Cette contestation a déjà été examinée.",
     "ALREADY_SET_UP": "Cette installation est déjà configurée.",
-    "NOT_SET_UP": "Terminez d'abord la configuration de l'installation."
+    "NOT_SET_UP": "Terminez d'abord la configuration de l'installation.",
+    "MODULE_OFF": "Ce module est désactivé sur cette installation. Un opérateur peut le réactiver ; ses données sont conservées."
   },
   "validation": {
     "email": "Saisissez une adresse e-mail valide.",
@@ -1378,7 +1379,7 @@
   },
   "licence": {
     "evaluationTitle": "Évaluation, sans licence",
-    "evaluation": "Tout fonctionne, mais les releases ne peuvent pas aller en production. Demandez un fichier de licence à Donka et renseignez DONKA_LICENCE_FILE.",
+    "evaluation": "Tout fonctionne, mais les releases ne peuvent pas aller en production. Demandez un fichier de licence à Donka et installez-le dans secrets/licence.json (ou le fichier que désigne DONKA_LICENCE_FILE).",
     "expiringTitle": "La licence prend fin le {date}",
     "expiring": "{days, plural, one {# jour restant.} other {# jours restants.}} Demandez la licence suivante à Donka, remplacez le fichier et rechargez Studio ; rien n’est perdu.",
     "lastDay": "C’est son dernier jour. Demandez la licence suivante à Donka, remplacez le fichier et rechargez Studio ; rien n’est perdu.",
@@ -1391,6 +1392,28 @@
       "unreadable": "Studio ne peut pas le lire comme une licence : vérifiez le fichier qu’indique DONKA_LICENCE_FILE.",
       "foreign": "Il a été émis pour une autre installation, ou pas par Donka.",
       "tampered": "Il a été modifié après sa signature par Donka. Remettez le fichier envoyé par Donka."
+    },
+    "modules": {
+      "title": "Modules",
+      "description": "Les parties facultatives de Studio, dans la limite de ce que la licence inclut.",
+      "explain": {
+        "name": "Explications",
+        "description": "Des explications en langage clair des décisions enregistrées, par votre modèle de langage."
+      },
+      "connectors": {
+        "name": "Connecteurs",
+        "description": "Des nœuds de décision qui appellent vos services, comme un bureau de crédit."
+      },
+      "analysis": {
+        "name": "Analyse",
+        "description": "L'analyse des décisions enregistrées."
+      },
+      "state": {
+        "on": "Activé",
+        "off": "Désactivé",
+        "unlicensed": "Hors licence"
+      },
+      "howTo": "Un opérateur active ou désactive un module sur le serveur avec <code>donka-admin modules enable</code> ou <code>disable</code>, puis redémarre Studio. Ses données sont conservées, et le changement figure dans le journal d'audit."
     }
   },
   "updates": {

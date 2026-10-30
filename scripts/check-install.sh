@@ -147,5 +147,30 @@ report=$(docker compose run --rm --no-deps -T app donka-admin doctor) \
 grep -q 'FAIL  mail' <<<"$report" || fail "the doctor did not name the mail server: $report"
 docker compose start mailpit >/dev/null 2>&1
 echo "check-install: the doctor checks the installation and names what fails"
+
+# The support bundle: the logs, the doctor's report and the configuration, and not one secret
+# value, token or email address.
+docker run --rm -u "$(id -u):$(id -g)" --group-add "$(stat -c %g /var/run/docker.sock)" \
+  -v /var/run/docker.sock:/var/run/docker.sock -v "$dir:/install" -w /install \
+  "$registry/donka-studio:$studio_tag" donka-admin support-bundle \
+  || fail "the support bundle could not be made"
+bundle=$(ls "$dir"/support-*.tar.gz)
+[ "$(stat -c %a "$bundle")" = 600 ] || fail "the support bundle is open to others"
+unpacked=$(mktemp -d)
+tar -xzf "$bundle" -C "$unpacked"
+for file in logs/app.log logs/runtime.log logs/postgres.log doctor.txt versions.txt config/.env; do
+  [ -s "$unpacked/donka-support/$file" ] || fail "the support bundle has no $file"
+done
+grep -q 'ok    database' "$unpacked/donka-support/doctor.txt" \
+  || fail "the support bundle's doctor report is not the doctor's"
+for secret in "$dir"/secrets/*; do
+  if grep -rqF "$(cat "$secret")" "$unpacked"; then
+    fail "$(basename "$secret") is in the support bundle"
+  fi
+done
+grep -rqE 'dnk_[A-Za-z0-9_-]{8,}|admin@donka\.local' "$unpacked" \
+  && fail "a token or an email address is in the support bundle"
+rm -rf "$unpacked" "$bundle"
+echo "check-install: the support bundle holds logs and reports, and no secret"
 echo "check-install: installed from the images and a decision recorded in $took s"
 [ -z "$budget" ] || [ "$took" -le "$budget" ] || fail "took $took s, over the budget of $budget s"

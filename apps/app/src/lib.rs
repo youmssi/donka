@@ -19,6 +19,7 @@ pub mod rate_limit;
 pub mod request_id;
 pub mod reseal;
 pub mod routes;
+pub mod support;
 pub mod telemetry;
 pub mod updates;
 pub mod upgrade;

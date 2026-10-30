@@ -13,7 +13,9 @@ use crate::upgrade::auto::{Role, Window};
 use crate::upgrade::UPGRADER;
 use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine as _;
+use donka_licence::Module;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
@@ -70,6 +72,10 @@ pub struct Installation {
     /// The weekly window of unattended upgrades (staging and demo only).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_upgrade: Option<Window>,
+    /// The optional modules turned on (DNK-74): `explain`, `connectors`, `analysis`, within what
+    /// the licence includes. Every module the licence includes when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub modules: Option<BTreeSet<Module>>,
     /// The connector secrets the Runtime reads (`DONKA_SECRET_<NAME>`), each in
     /// `secrets/connector_<name>`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -187,6 +193,7 @@ impl Installation {
             demo: false,
             offline: false,
             auto_upgrade: None,
+            modules: None,
             connector_secrets: Vec::new(),
         }
     }
@@ -434,6 +441,42 @@ pub fn set_versions(dir: &Path, studio: &str, runtime: &str) -> Result<(), Strin
     Ok(())
 }
 
+/// Records the modules turned on in `donka.yaml` (`None`: every module the licence includes) and
+/// writes the files again (`donka-admin modules`). Only the `modules` entry changes.
+pub fn set_modules(dir: &Path, modules: Option<&BTreeSet<Module>>) -> Result<(), String> {
+    let path = dir.join(CONFIG);
+    let text = std::fs::read_to_string(&path)
+        .map_err(|err| format!("cannot read {}: {err}", path.display()))?;
+    replace_file(&path, &with_modules(&text, modules))?;
+    let installation = Installation::read(dir)?;
+    apply(dir, &installation, &Provided::default(), |_| {
+        Err("changing modules generates no secret".to_owned())
+    })?;
+    Ok(())
+}
+
+/// `text` without its `modules` entry (inline or as a list), then the new one at the end.
+fn with_modules(text: &str, modules: Option<&BTreeSet<Module>>) -> String {
+    let mut in_modules = false;
+    let mut lines: Vec<&str> = Vec::new();
+    for line in text.lines() {
+        if !line.starts_with(' ') && !line.starts_with('-') && !line.starts_with('#') {
+            in_modules = line.starts_with("modules:");
+        } else if in_modules && line.starts_with('#') {
+            in_modules = false;
+        }
+        if !in_modules {
+            lines.push(line);
+        }
+    }
+    let mut text = lines.join("\n") + "\n";
+    if let Some(modules) = modules {
+        let names: Vec<&str> = modules.iter().map(|module| module.as_str()).collect();
+        text.push_str(&format!("modules: [{}]\n", names.join(", ")));
+    }
+    text
+}
+
 fn with_versions(text: &str, studio: &str, runtime: &str) -> String {
     let mut in_images = false;
     let mut lines: Vec<String> = Vec::new();
@@ -561,6 +604,10 @@ fn env_file(installation: &Installation) -> String {
     }
     if let Some(window) = &i.auto_upgrade {
         lines.push(format!("DONKA_AUTO_UPGRADE_WINDOW={window}"));
+    }
+    if let Some(modules) = &i.modules {
+        let names: Vec<&str> = modules.iter().map(|module| module.as_str()).collect();
+        lines.push(format!("DONKA_MODULES={}", names.join(",")));
     }
     lines.join("\n") + "\n"
 }

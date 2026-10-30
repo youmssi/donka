@@ -14,6 +14,7 @@ const active: Licence = {
   expiring: false,
   noticeDays: 30,
   modules: ['explain', 'connectors'],
+  turnedOff: [],
   allowsChanges: true,
   allowsProduction: true,
   refusal: null,

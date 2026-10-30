@@ -1754,7 +1754,8 @@ export interface components {
       | 'ci_token.issued'
       | 'ci_token.revoked'
       | 'installation.set_up'
-      | 'installation.organisation_renamed';
+      | 'installation.organisation_renamed'
+      | 'installation.modules_changed';
     AddMemberRequest: {
       /** @description Email of an existing Studio account. */
       email: string;
@@ -2255,7 +2256,7 @@ export interface components {
       daysLeft?: number | null;
       /** @description The licence ends within the notice period: administrators should renew it. */
       expiring: boolean;
-      /** @description Optional modules this installation offers. */
+      /** @description Optional modules this installation offers: the licence includes them and they are on. */
       modules: components['schemas']['LicensedModule'][];
       /**
        * Format: int64
@@ -2267,6 +2268,11 @@ export interface components {
       reason?: string | null;
       refusal?: null | components['schemas']['LicenceRefusal'];
       status: components['schemas']['LicenceStatus'];
+      /**
+       * @description Modules the licence includes that the installation turned off (`DONKA_MODULES`,
+       *     DNK-74); their data is kept.
+       */
+      turnedOff: components['schemas']['LicensedModule'][];
       /**
        * Format: date
        * @description First and last valid days (UTC, both included).
