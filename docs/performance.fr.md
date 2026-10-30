@@ -92,7 +92,9 @@ calibrage du Runtime arrivant en différé ne changent pas son volume. La sortie
 KYC. Une décision sur dix est un échec synthétique pour vérifier le filtre par statut.
 
 La CI courte insère **100 000 décisions sur 60 mois civils** ; `full` en insère **1 000 000**.
-Les lignes sont réparties uniformément, le reste dans les mois récents. Ce sont des
+Les lignes sont réparties uniformément, le reste dans les mois récents. Les dates historiques
+sont au milieu du mois pour rester dans la rétention de 1 825 jours, même en fin de mois ou
+après un 29 février. Ce sont des
 **échantillons**, pas une certification de capacité sur cinq ans et 180 millions de décisions :
 ils ne reproduisent ni 100 000 décisions par jour ni la variété des tailles de données clients.
 Une mesure sur tout le volume exige une machine et un jeu de données adaptés avant de pouvoir
@@ -115,9 +117,28 @@ de processeur. Toute erreur, un p95 de recherche supérieur à 1 000 ms ou de re
 `baseline.studio` reprend ce format ; la limite de régression de 20 % sur p95 compare des
 échantillons et des volumes réels identiques. La référence Runtime ne remplace pas celle de Studio.
 
-Les premières mesures sur le runner de référence et la référence Studio restent à obtenir.
-Une mesure locale de développement ne prouve pas la performance des images publiées. Le critère
-de cette story et celui de publication DNK-66 restent ouverts tant que leurs preuves manquent.
+### Résultats de référence, 30 octobre 2026
+
+[Exécution CI 41084840154](https://github.com/youmssi/donka/actions/runs/41084840154), commit `83b01d5` : images construites par la tâche CI,
+puis installées avec la démo sur le runner GitHub de référence, 4 vCPU et 16 Go (AMD EPYC 7763,
+Node 22.23.4). Un projet séparé contient exactement **100 000 décisions dans 60 partitions
+mensuelles**, dans un journal initialement vide. L'insertion prend 128.7 secondes,
+exclues des durées de requête. Chaque cas mesure 50 requêtes après cinq échauffements.
+
+| Mesure | p50 | p95 | p99 |
+| --- | --- | --- | --- |
+| Page récente | 23.18 ms | 33.03 ms | 34.48 ms |
+| Référence | 5.74 ms | 18.48 ms | 18.78 ms |
+| Décision et période récente | 4.33 ms | 17.99 ms | 18.64 ms |
+| Statut en échec | 39.75 ms | 51.38 ms | 52.34 ms |
+| Rejeu | 5.61 ms | 8.47 ms | 12.35 ms |
+
+Aucune requête mesurée n'échoue ; chaque rejeu rend la sortie enregistrée. Les contrôles existants
+du Runtime, du flux et des pannes passent aussi dans cette tâche. Ces p95 mesurés constituent
+la première référence Studio dans `performance.json` ; la prochaine CI vérifie sa limite de
+régression de 20 %. Le critère de publication DNK-66 reste ouvert tant que le site de
+documentation produit ne publie pas ces résultats. Cet échantillon ne prouve pas la capacité
+sur tout le volume de rétention.
 
 L'outil demande Node.js 22 ou ultérieur, sans paquet à installer. `check-performance.sh` fixe
 ses variables `DONKA_PERFORMANCE_*` (listées dans `.env.example`) puis appelle

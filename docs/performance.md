@@ -90,7 +90,8 @@ records cannot change its corpus. The output is taken from an actual evaluation 
 One record in ten is a synthetic failure so the status filter is exercised too.
 
 The short CI run seeds **100,000 records across 60 calendar months**; `full` seeds **1,000,000**.
-The rows are spread evenly, with the remainder in the newest months. These are **samples**, not
+The rows are spread evenly, with the remainder in the newest months. Historical rows use
+mid-month timestamps so month ends and leap days cannot push them outside 1,825-day retention. These are **samples**, not
 a five-year, 180-million-record capacity certification: they do not reproduce 100,000 records
 per day or varied customer payload sizes. A full-retention measurement needs a separately
 provisioned machine and data set before claiming that capacity. `sample.studio` in
@@ -112,9 +113,27 @@ baseline is measured on the reference runner, `baseline.studio` uses the same re
 the 20% p95 regression gate compares identical sample settings and actual corpus sizes.
 A Runtime baseline never substitutes for a Studio baseline.
 
-The first reference-runner results and the Studio baseline are still pending. Local development
-measurements do not establish published-image performance. The story's acceptance criterion and
-the DNK-66 publication criterion remain open until their evidence is available.
+### Reference results, 30 October 2026
+
+[CI run 41084840154](https://github.com/youmssi/donka/actions/runs/41084840154), commit `83b01d5`: images built by the CI image job,
+installed with the demo on the reference 4-vCPU, 16-GB GitHub runner (AMD EPYC 7763,
+Node 22.23.4). A separate project held exactly **100,000 records in 60 monthly
+partitions**, starting from an empty log. Seeding took 128.7 seconds and is
+excluded from the request timings. Each case has 50 measured requests after five warm-ups.
+
+| Measure | p50 | p95 | p99 |
+| --- | --- | --- | --- |
+| Newest page | 23.18 ms | 33.03 ms | 34.48 ms |
+| Reference lookup | 5.74 ms | 18.48 ms | 18.78 ms |
+| Decision and recent date | 4.33 ms | 17.99 ms | 18.64 ms |
+| Failed status | 39.75 ms | 51.38 ms | 52.34 ms |
+| Replay | 5.61 ms | 8.47 ms | 12.35 ms |
+
+No measured request failed; every replay returned the recorded output. The existing Runtime,
+feed and outage checks also passed in that image job. These measured p95 values form the first
+Studio baseline in `performance.json`; the next CI run verifies its 20% regression gate.
+The separate DNK-66 publication criterion remains open until the product documentation site
+publishes these results. This sample does not establish full-retention capacity.
 
 The tool requires Node.js 22 or later, with no installed packages. `check-performance.sh` sets
 its `DONKA_PERFORMANCE_*` variables (listed in `.env.example`) and runs

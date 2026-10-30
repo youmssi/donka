@@ -16,7 +16,9 @@ export function distribution(records, months, now) {
   assert.ok(Number.isSafeInteger(records) && records >= months, 'Use at least one record per month');
   assert.ok(Number.isSafeInteger(months) && months >= 2 && months <= 60, 'Use 2 to 60 months');
   return Array.from({ length: months }, (_, offset) => {
-    const start = Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - offset, 1);
+    // A month-start five calendar years back can fall outside the 1825-day retention
+    // window at month end or after a leap day. Mid-month keeps historical rows inside it.
+    const start = Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - offset, offset === 0 ? 1 : 15);
     return {
       at: new Date(start).toISOString(),
       records: Math.floor(records / months) + Number(offset < records % months),

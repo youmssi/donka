@@ -16,7 +16,7 @@ test('the corpus spans every retained month without inventing extra records', ()
     100003,
   );
   assert.equal(span[0].at, '2026-10-01T00:00:00.000Z');
-  assert.equal(span[59].at, '2021-11-01T00:00:00.000Z');
+  assert.equal(span[59].at, '2021-11-15T00:00:00.000Z');
   assert.equal(new Set(span.map((part) => part.at)).size, 60);
   assert.throws(() => distribution(1, 60, new Date()), /one record per month/);
 });
@@ -174,4 +174,16 @@ test('the disposable project key satisfies Studio’s public key length and char
   ]);
   assert.ok(stdout.length <= 40);
   assert.match(stdout, /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/);
+});
+
+test('all sixty months remain inside five-year retention at month end and after leap days', () => {
+  for (const timestamp of ['2026-10-31T16:00:00Z', '2028-02-29T16:00:00Z', '2028-03-01T00:00:00Z']) {
+    const now = new Date(timestamp);
+    const span = distribution(100000, 60, now);
+    assert.equal(new Set(span.map((part) => part.at.slice(0, 7))).size, 60);
+    for (const part of span) {
+      assert.ok(Date.parse(part.at) <= now.getTime());
+      assert.ok(Date.parse(part.at) > now.getTime() - 1825 * 86400000, part.at);
+    }
+  }
 });

@@ -1465,8 +1465,8 @@ Confirmed 2026-10-30, before the pilot questionnaire's figures:
 #### Acceptance criteria
 - [x] A repeatable load test (scripted, in the repository) measures the Runtime's p50/p95/p99 and maximum throughput on each starter pack, without connectors and with mocked ones
 - [x] The decision-log feed keeps up with the target throughput; back-pressure and loss behaviour under Studio outage are measured
-- [ ] Studio's decision-log search and replay stay within their targets on a database holding the retention period's volume
-  - Part 2 adds the real-feed, 60-month sample and HTTP checks in `scripts/studio-performance.mjs`, integrated before Runtime load. Reference-image measurements and the Studio baseline remain pending; see `docs/performance.md`.
+- [x] Studio's decision-log search and replay stay within their targets on a database holding the retention period's volume
+  - Confirmed sample: 100,000 encrypted records across 60 monthly partitions; [reference CI](https://github.com/youmssi/donka/actions/runs/41084840154) measured search p95 17.99–51.38 ms and replay p95 8.47 ms with no errors. The scripted sample, baseline and exact method are in `docs/performance.md` and `docs/performance.json`; no full-volume capacity claim.
 - [x] CI runs a shortened version and fails when a target regresses beyond a stated margin
 - [ ] The targets and results are published in the documentation (DNK-66)
 
