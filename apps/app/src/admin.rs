@@ -71,6 +71,13 @@ const USAGE: &str = "usage:
         docker run --rm -u \"$(id -u):$(id -g)\" --group-add \"$(stat -c %g /var/run/docker.sock)\" \\
           -v /var/run/docker.sock:/var/run/docker.sock -v \"$PWD:/install\" -w /install \\
           ghcr.io/youmssi/donka-studio:<installed version> donka-admin support-bundle
+  donka-admin load-test --url <evaluate address> --inputs <file.json>
+                        [--rate <per second> | --concurrency <callers>] [--seconds 30] [--warmup 5]
+      Calls one decision of a Runtime and prints, as JSON, its answers' p50, p95, p99 and
+      maximum in milliseconds, the throughput and the errors. --rate sends on a fixed schedule
+      (the latency at that load); --concurrency sends as fast as it answers (the maximum
+      throughput). The inputs file is a JSON array of inputs, sent in turn. The Runtime token
+      is read from DONKA_RUNTIME_TOKEN.
   donka-admin demo-bureau
       The demo's fake credit bureau, on port 8080 (the demo-bureau service runs it).";
 
@@ -83,6 +90,7 @@ fn main() {
         Some("doctor") if args.len() == 1 => doctor(),
         Some("modules") => modules(&args[1..]),
         Some("support-bundle") => support_bundle(&args[1..]),
+        Some("load-test") => load_test(&args[1..]),
         Some("demo-bureau") if args.len() == 1 => demo_bureau(),
         _ => Err(USAGE.to_owned()),
     };
@@ -103,6 +111,61 @@ fn doctor() -> Result<(), String> {
     if checks.iter().any(donka_app::doctor::Check::failed) {
         std::process::exit(1);
     }
+    Ok(())
+}
+
+fn load_test(args: &[String]) -> Result<(), String> {
+    use donka_app::load::{self, Load};
+    let mut url = None;
+    let mut inputs = None;
+    let mut mode = Load::Rate(100);
+    let mut seconds = 30;
+    let mut warmup = 5;
+    let mut rest = args.iter();
+    let number = |value: Option<&String>, flag: &str| {
+        value
+            .and_then(|value| value.parse::<u64>().ok())
+            .ok_or_else(|| format!("{flag} needs a whole number"))
+    };
+    while let Some(arg) = rest.next() {
+        match arg.as_str() {
+            "--url" => url = rest.next().cloned(),
+            "--inputs" => inputs = rest.next().cloned(),
+            "--rate" => {
+                let rate = number(rest.next(), "--rate")?;
+                mode = Load::Rate(u32::try_from(rate).map_err(|_| "--rate is too large")?);
+            }
+            "--concurrency" => {
+                let callers = number(rest.next(), "--concurrency")?;
+                mode = Load::Concurrency(usize::try_from(callers).unwrap_or(usize::MAX));
+            }
+            "--seconds" => seconds = number(rest.next(), "--seconds")?,
+            "--warmup" => warmup = number(rest.next(), "--warmup")?,
+            other => return Err(format!("unexpected `{other}`\n\n{USAGE}")),
+        }
+    }
+    let url = url.ok_or("--url is required: the decision's evaluate address")?;
+    let path = inputs.ok_or("--inputs is required: a JSON array of inputs")?;
+    let text =
+        std::fs::read_to_string(&path).map_err(|err| format!("cannot read {path}: {err}"))?;
+    let inputs: Vec<serde_json::Value> =
+        serde_json::from_str(&text).map_err(|err| format!("{path} is not a JSON array: {err}"))?;
+    let options = load::Options {
+        url,
+        token: std::env::var("DONKA_RUNTIME_TOKEN")
+            .ok()
+            .filter(|token| !token.is_empty()),
+        inputs,
+        load: mode,
+        duration: std::time::Duration::from_secs(seconds),
+        warmup: std::time::Duration::from_secs(warmup),
+    };
+    let runtime = tokio::runtime::Runtime::new().map_err(|err| err.to_string())?;
+    let report = runtime.block_on(load::run(options))?;
+    println!(
+        "{}",
+        serde_json::to_string(&report).map_err(|err| err.to_string())?
+    );
     Ok(())
 }
 

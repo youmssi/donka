@@ -1,0 +1,19 @@
+{
+  "machine": "GitHub ubuntu-latest runner: 4 vCPU, 16 GB",
+  "targets": {
+    "runtime": { "rate": 100, "p95_ms": 20, "p99_ms": 50 },
+    "feed": { "lag_seconds": 5 },
+    "studio": { "search_p95_ms": 1000, "replay_p95_ms": 2000 }
+  },
+  "margin": 0.2,
+  "baseline": {
+    "measured": "2026-10-30, mean of two CI runs",
+    "runtime": {
+      "kyc-risk-rating/risk-rating": { "maximum": { "throughput": 3800 } },
+      "mobile-money-limits/transaction-limits": { "maximum": { "throughput": 6344 } },
+      "retail-credit/credit-application": { "maximum": { "throughput": 2154 } },
+      "retail-credit/scorecard": { "maximum": { "throughput": 2999 } },
+      "sme-treasury/evaluation": { "maximum": { "throughput": 3143 } }
+    }
+  }
+}

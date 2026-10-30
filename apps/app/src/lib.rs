@@ -13,6 +13,7 @@ pub mod extract;
 pub mod index_people;
 pub mod install;
 pub mod licence;
+pub mod load;
 pub mod publish_worker;
 pub mod purge_worker;
 pub mod rate_limit;
