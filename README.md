@@ -139,6 +139,7 @@ curl -s -b jar -X POST localhost:8080/api/v1/simulate -H 'x-donka-csrf: 1' \
 | [Architecture](docs/ARCHITECTURE.md) | Modules, data flow, security baseline |
 | [Artifact format](docs/artifact-format.md) | What Studio publishes for the Runtime (`.config/project.json`) |
 | [Decision-log feed](docs/decision-log-feed.md) | How Runtimes send decisions to Studio |
+| [Performance](docs/performance.md) · [Performance (FR)](docs/performance.fr.md) | Load-test targets, results and how to reproduce them |
 | [Rules sync](docs/rules-sync.md) | How CI pipelines pull release artifacts |
 | [Engineering guides](docs/engineering/) | Principles, backend and frontend conventions |
 | [Delivery plan](docs/delivery-plan.md) | Approved phase scope, feature testing and readiness gates |

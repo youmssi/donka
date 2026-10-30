@@ -15,7 +15,9 @@
 #
 # The results go to performance.json (or $DONKA_PERFORMANCE_OUT) and are checked against the
 # published targets (docs/performance.json) and the baseline measured on the reference machine:
-# a measure more than 20% worse than its baseline fails. `full` runs longer, for the published
+# a maximum throughput more than 20% below its baseline fails. Latency at the target rate is held
+# to the targets only: on a shared runner it moves between runs (2 to 20 ms at p99) far more than
+# a regression would. `full` runs longer, for the published
 # figures; CI runs the short version. The Studio image's donka-admin generates the load.
 set -euo pipefail
 
@@ -193,8 +195,6 @@ jq -e --slurpfile t "$targets" '
   ($t[0].margin) as $margin | ($t[0].baseline // {}) as $b
   | [ .runtime | to_entries[] | select($b.runtime[.key]) | . as $e
       | ($b.runtime[$e.key]) as $base
-      | ($e.value.atRate.p95_ms <= ([$base.atRate.p95_ms * (1 + $margin), $base.atRate.p95_ms + 2] | max))
-        and ($e.value.atRate.p99_ms <= ([$base.atRate.p99_ms * (1 + $margin), $base.atRate.p99_ms + 2] | max))
-        and ($e.value.maximum.throughput >= $base.maximum.throughput * (1 - $margin)) ] | all' \
-  "$out" >/dev/null || fail "a measure regressed more than the margin against the baseline: $(jq -c .runtime "$out")"
-echo "check-performance: the targets hold, and no measure regressed beyond the margin ($out)"
+      | $e.value.maximum.throughput >= $base.maximum.throughput * (1 - $margin) ] | all' \
+  "$out" >/dev/null || fail "a maximum throughput fell more than the margin below its baseline: $(jq -c .runtime "$out")"
+echo "check-performance: the targets hold, and no throughput fell beyond the margin ($out)"
