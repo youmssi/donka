@@ -114,45 +114,67 @@ The artifact retains every partition; the notice keeps their count and all timin
 to stay below GitHub's 4,096-character limit. A separate Runtime performance notice preserves
 its latency, throughput, feed and outage measures, and a failed gate names its cause in a check annotation.
 Each case also retains its individual round summaries in `rounds`. Any error, search p95 above
-1,000 ms or replay p95 above 2,000 ms, pooled or in any round, fails the check. Once a Studio
-baseline is measured on the reference runner, `baseline.studio` uses the same report shape;
-the 20% p95 regression gate compares identical sample settings (including rounds) and actual corpus sizes.
-A Runtime baseline never substitutes for a Studio baseline.
+1,000 ms or replay p95 above 2,000 ms, pooled or in any round, fails the check.
 
-### Initial 50-request results, 30 October 2026
+`baseline.studio` records the sample settings and actual corpus size, with a `profiles` entry
+for each measured CPU model. A comparison requires the same CPU model, virtual core count,
+architecture and Node major version, plus identical sample settings and corpus size. CPU names
+ignore case and extra spaces; Node updates within the same major remain comparable.
+The **20% p95 margin is unchanged** and applies to every search case and replay.
+The hardware policy is recorded in [ADR-008](adr/008-hardware-matched-performance-baselines.md).
 
-[CI run 41084840154](https://github.com/youmssi/donka/actions/runs/41084840154), commit `83b01d5`: images built by the CI image job,
-installed with the demo on the reference 4-vCPU, 16-GB GitHub runner (AMD EPYC 7763,
-Node 22.23.4). A separate project held exactly **100,000 records in 60 monthly
-partitions**, starting from an empty log. Seeding took 128.7 seconds and is
-excluded from the request timings. Each case has 50 measured requests after five warm-ups.
+Every CI run requires a comparable profile: an unknown CPU, different corpus/request count,
+missing metric or ambiguous profile fails the check after the result has been saved. A local
+run without a comparable profile still checks every absolute target and explicitly reports
+that it did not compare a baseline. This also permits a local `full` measurement without
+pretending the 100,000-record baseline covers its larger corpus.
 
-| Measure | p50 | p95 | p99 |
+### CPU-specific reference results, 30 October 2026
+
+Three independent installations from the images, on GitHub `ubuntu-latest` (4 vCPU, 16 GB,
+x64, Node 22.23.4), each held exactly **100,000 records across 60 monthly partitions** in a
+separate, initially empty project. Each case measured 3,000 requests in three rounds of 1,000,
+after 50 warm-ups per round. All **45,000 measured requests succeeded** and every replay
+returned the recorded output. The Runtime, feed and outage checks also passed in all three runs.
+
+| Case, pooled p95 | AMD EPYC 7763 | AMD EPYC 9V74 | Intel Xeon Platinum 8573C |
 | --- | --- | --- | --- |
-| Newest page | 23.18 ms | 33.03 ms | 34.48 ms |
-| Reference lookup | 5.74 ms | 18.48 ms | 18.78 ms |
-| Decision and recent date | 4.33 ms | 17.99 ms | 18.64 ms |
-| Failed status | 39.75 ms | 51.38 ms | 52.34 ms |
-| Replay | 5.61 ms | 8.47 ms | 12.35 ms |
+| Newest page | 21.78 ms | 19.07 ms | 15.08 ms |
+| Reference lookup | 5.57 ms | 4.28 ms | 3.96 ms |
+| Decision and recent date | 5.00 ms | 3.10 ms | 3.40 ms |
+| Failed status | 39.64 ms | 35.54 ms | 23.30 ms |
+| Replay | 6.06 ms | 4.36 ms | 4.24 ms |
 
-No measured request failed; every replay returned the recorded output. The existing Runtime,
-feed and outage checks also passed in that image job. These values are the original
-50-request baseline. [Validation run 41088061492](https://github.com/youmssi/donka/actions/runs/41088061492/attempts/1)
-met the absolute targets with zero errors, but replay p95 was **13.40 ms**, 58% above 8.47 ms,
-and correctly failed the 20% gate. Its search p95 values were 33.35, 21.22, 17.96 and 51.61 ms,
-respectively. The CPU model, sample and corpus matched; application source had not changed.
-These observations alone do not identify the cause of the difference. One controlled
-[same-head repeat](https://github.com/youmssi/donka/actions/runs/41088061492/attempts/2)
-passed with replay p95 8.42 ms on a newer AMD EPYC 9V45 CPU. It does not explain the original
-same-model difference or replace the failed measurement.
+Sources on commit `dbcf8f1`:
 
-The owner confirmed keeping the 20% gate and calibrating with larger, repeated samples.
-The revised method above is awaiting three independent CI measurements. Their pooled p95s
-will be averaged, using all three runs, to form the new baseline; a separate run will validate
-it. The old 50-request baseline remains recorded until then and is not compared against the
-different request count. No baseline has been raised to make the failed run pass.
-The separate DNK-66 publication criterion remains open until the product documentation site
-publishes these results. This sample does not establish full-retention capacity.
+- [Attempt 1, EPYC 7763](https://github.com/youmssi/donka/actions/runs/41121411427/attempts/1).
+- [Attempt 2, EPYC 9V74](https://github.com/youmssi/donka/actions/runs/41121411427/attempts/2).
+- [Attempt 3, Xeon 8573C](https://github.com/youmssi/donka/actions/runs/41121411427/attempts/3).
+
+Each column supplies its own profile in `performance.json`, using that CPU's pooled p95 from
+all three rounds. Values from different CPU models are not averaged together. Seeding is
+excluded from request timings; complete p50/p95/p99, maxima, round timings, corpus counts and
+machine metadata remain in each run's artifact and compact check notice. Subsequent CI runs
+validate against the committed profile matching the hardware GitHub assigns.
+
+The initial 50-request trial's replay p95 moved from
+[8.47 ms](https://github.com/youmssi/donka/actions/runs/41084840154) to
+[13.40 ms](https://github.com/youmssi/donka/actions/runs/41088061492/attempts/1), failing the
+20% gate despite passing the absolute target. This led to larger, repeated samples.
+Even with those samples, averaging the three CPU models above would make four unchanged-code
+cases exceed their shared mean by 21–31%. CPU-specific comparison retains the 20% rule without
+using another hardware model as the reference. Matching a model does not fix all scheduling
+or host-load variation; the measured profile and the absolute targets both remain enforced.
+
+To calibrate a new model, review its complete failed-CI report: verify an empty starting
+project, the expected corpus/settings, all three rounds, zero errors and every absolute
+target. Add the measured hardware profile and its source run to `performance.json` through
+the normal PR workflow, then validate with CI. Do not substitute a different model's numbers
+or increase an existing profile to conceal a regression. Results are saved before a missing
+profile fails, so calibration does not require disabling a gate.
+
+The DNK-66 publication criterion remains open until the product documentation site publishes
+these results. This sample does not establish full-retention capacity.
 
 The tool requires Node.js 22 or later, with no installed packages. `check-performance.sh` sets
 its `DONKA_PERFORMANCE_*` variables (listed in `.env.example`) and runs

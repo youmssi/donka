@@ -39,30 +39,62 @@ export function noticeReport(report) {
   return { ...report, corpus: { ...corpus, partitionCount: partitions.length } };
 }
 
-export function checkTargets(report, config) {
+function machineKey(machine) {
+  if (!machine?.cpuModel || !machine.arch || !machine.cpus || !machine.node) return null;
+  return JSON.stringify([
+    machine.cpuModel.trim().replace(/\s+/g, ' ').toLowerCase(),
+    machine.cpus,
+    machine.arch,
+    machine.node.split('.')[0],
+  ]);
+}
+
+/** Always enforce absolute targets; CI additionally requires a comparable hardware baseline. */
+export function checkTargets(report, config, { requireBaseline = false } = {}) {
   const targets = config.targets.studio;
-  const baseline = config.baseline?.studio;
-  for (const [name, measured] of Object.entries({ ...report.search, replay: report.replay })) {
+  const measurements = Object.entries({ ...report.search, replay: report.replay });
+  for (const [name, measured] of measurements) {
     const target = name === 'replay' ? targets.replay_p95_ms : targets.search_p95_ms;
     for (const [index, result] of [measured, ...(measured.rounds ?? [])].entries()) {
       const label = index === 0 ? name : `${name} round ${index}`;
       assert.equal(result.errors, 0, `${label}: ${result.errors} failed requests`);
       assert.ok(result.p95_ms <= target, `${label}: p95 ${result.p95_ms} ms exceeds target ${target} ms`);
     }
-    // A baseline is comparable only at the same sample size, partition span and request count.
-    if (
-      baseline &&
-      ['records', 'months', 'samples', 'warmup', 'rounds'].every(
-        (key) => baseline.sample?.[key] === report.sample[key],
-      ) &&
-      baseline.corpus?.after === report.corpus.after
-    ) {
-      const previous = name === 'replay' ? baseline.replay : baseline.search?.[name];
-      if (previous) {
-        assert.ok(measured.p95_ms <= previous.p95_ms * (1 + config.margin), `${name}: p95 exceeds the baseline margin`);
-      }
-    }
   }
+  const baseline = config.baseline?.studio;
+  const key = machineKey(report.machine);
+  const sameSample =
+    baseline &&
+    ['records', 'months', 'samples', 'warmup', 'rounds'].every(
+      (name) => baseline.sample?.[name] === report.sample[name],
+    ) &&
+    baseline.corpus?.after === report.corpus.after;
+  const profiles =
+    sameSample && key ? (baseline.profiles ?? []).filter((profile) => machineKey(profile.machine) === key) : [];
+  assert.ok(profiles.length <= 1, 'Multiple comparable Studio baselines; remove the ambiguous profile');
+  const profile = profiles[0];
+  if (!profile) {
+    assert.ok(
+      !requireBaseline,
+      `No comparable Studio baseline for ${report.machine?.cpuModel ?? 'unknown CPU'} ` +
+        `(${report.machine?.cpus ?? '?'} CPUs, ${report.machine?.arch ?? '?'}, Node ${report.machine?.node ?? '?'}); ` +
+        'calibrate this hardware and sample before CI can pass',
+    );
+    return false;
+  }
+  for (const [name, measured] of measurements) {
+    const previous = name === 'replay' ? profile.replay : profile.search?.[name];
+    assert.ok(
+      previous && Number.isFinite(previous.p95_ms) && previous.p95_ms > 0,
+      `${name}: comparable baseline is missing`,
+    );
+    const ceiling = previous.p95_ms * (1 + config.margin);
+    assert.ok(
+      measured.p95_ms <= ceiling,
+      `${name}: p95 ${measured.p95_ms} ms exceeds the baseline margin (${previous.p95_ms} ms + ${config.margin * 100}%)`,
+    );
+  }
+  return true;
 }
 
 export async function run(options) {
@@ -275,7 +307,20 @@ async function main() {
       .replaceAll('\n', '%0A');
     console.log(`::notice title=Studio performance::${notice}`);
   }
-  checkTargets(report, config);
+  try {
+    const compared = checkTargets(report, config, { requireBaseline: process.env.GITHUB_ACTIONS === 'true' });
+    console.log(
+      compared
+        ? 'studio-performance: absolute targets and matching hardware baseline passed'
+        : 'studio-performance: absolute targets passed; no comparable hardware/sample baseline',
+    );
+  } catch (error) {
+    if (process.env.GITHUB_ACTIONS === 'true') {
+      const message = error.message.replaceAll('%', '%25').replaceAll('\r', '%0D').replaceAll('\n', '%0A');
+      console.log(`::error title=Studio performance gate::${message}`);
+    }
+    throw error;
+  }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();

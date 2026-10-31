@@ -3,10 +3,14 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { once } from 'node:events';
 import { createServer } from 'node:http';
+import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 import { checkTargets, distribution, noticeReport, projectKey, run, summary } from './studio-performance.mjs';
 
 const targets = { targets: { studio: { search_p95_ms: 1000, replay_p95_ms: 2000 } }, margin: 0.2 };
+const machine = { cpus: 4, cpuModel: 'Synthetic CPU', arch: 'x64', node: '22.23.4' };
 
 test('the corpus spans every retained month without inventing extra records', () => {
   const span = distribution(100003, 60, new Date('2026-10-01T00:00:00Z'));
@@ -58,6 +62,7 @@ test('CI notices retain all measured rounds without exceeding GitHub’s annotat
 
 test('targets and comparable baselines fail on errors, latency and regression', () => {
   const report = {
+    machine,
     sample: { records: 600, months: 60, samples: 1, warmup: 0, rounds: 1 },
     corpus: { after: 600 },
     search: { newest: summary([500], 0) },
@@ -68,7 +73,13 @@ test('targets and comparable baselines fail on errors, latency and regression', 
   assert.throws(() => checkTargets({ ...report, replay: summary([1], 1) }, targets), /failed requests/);
   const config = {
     ...targets,
-    baseline: { studio: { sample: report.sample, corpus: report.corpus, search: { newest: { p95_ms: 400 } } } },
+    baseline: {
+      studio: {
+        sample: report.sample,
+        corpus: report.corpus,
+        profiles: [{ machine, search: { newest: { p95_ms: 400 } }, replay: { p95_ms: 1000 } }],
+      },
+    },
   };
   assert.throws(() => checkTargets(report, config), /baseline margin/);
   checkTargets({ ...report, sample: { records: 1000 } }, config);
@@ -76,6 +87,74 @@ test('targets and comparable baselines fail on errors, latency and regression', 
   assert.throws(
     () => checkTargets({ ...report, replay: { ...report.replay, rounds: [summary([2001], 0)] } }, targets),
     /replay round 1.*exceeds target/,
+  );
+});
+
+test('the 20 percent gate selects the matching CPU instead of the first available profile', () => {
+  const sample = { records: 100000, months: 60, samples: 1000, warmup: 50, rounds: 3 };
+  const corpus = { after: 100000 };
+  const profile = (cpuModel, p95) => ({
+    machine: { ...machine, cpuModel },
+    search: { newest: { p95_ms: p95 } },
+    replay: { p95_ms: 1000 },
+  });
+  const config = {
+    ...targets,
+    baseline: { studio: { sample, corpus, profiles: [profile('Fast CPU', 400), profile('Slow CPU', 800)] } },
+  };
+  const report = {
+    machine: { ...machine, cpuModel: 'Slow CPU' },
+    sample,
+    corpus,
+    search: { newest: summary([500], 0) },
+    replay: summary([1000], 0),
+  };
+  assert.equal(checkTargets(report, config, { requireBaseline: true }), true);
+  assert.throws(
+    () => checkTargets({ ...report, machine: { ...machine, cpuModel: 'Fast CPU' } }, config),
+    /baseline margin/,
+  );
+  const fast = { ...report, machine: { ...machine, cpuModel: 'Fast CPU' }, search: { newest: summary([480], 0) } };
+  assert.equal(checkTargets(fast, config), true);
+  assert.throws(() => checkTargets({ ...fast, search: { newest: summary([480.01], 0) } }, config), /baseline margin/);
+  assert.equal(checkTargets({ ...fast, replay: summary([1200], 0) }, config), true);
+  assert.throws(() => checkTargets({ ...fast, replay: summary([1200.01], 0) }, config), /baseline margin/);
+});
+
+test('CI rejects unknown hardware, client major versions, sample sizes and incomplete baselines', () => {
+  const sample = { records: 100000, months: 60, samples: 1000, warmup: 50, rounds: 3 };
+  const corpus = { after: 100000 };
+  const profile = { machine, search: { newest: { p95_ms: 500 } }, replay: { p95_ms: 1000 } };
+  const config = { ...targets, baseline: { studio: { sample, corpus, profiles: [profile] } } };
+  const report = { machine, sample, corpus, search: { newest: summary([500], 0) }, replay: summary([1000], 0) };
+  for (const change of [
+    { machine: { ...machine, cpuModel: 'Unknown CPU' } },
+    { machine: { ...machine, cpus: 8 } },
+    { machine: { ...machine, arch: 'arm64' } },
+    { machine: { ...machine, node: '24.1.0' } },
+    { sample: { ...sample, samples: 50 } },
+    { corpus: { after: 200000 } },
+  ]) {
+    const different = { ...report, ...change };
+    assert.throws(() => checkTargets(different, config, { requireBaseline: true }), /No comparable Studio baseline/);
+    assert.equal(checkTargets(different, config), false, 'local measurements still enforce absolute targets');
+    assert.throws(() => checkTargets({ ...different, replay: summary([2001], 0) }, config), /exceeds target/);
+  }
+  assert.equal(
+    checkTargets({ ...report, machine: { ...machine, cpuModel: '  SYNTHETIC   CPU ', node: '22.99.0' } }, config),
+    true,
+  );
+  assert.throws(
+    () =>
+      checkTargets(report, {
+        ...config,
+        baseline: { studio: { sample, corpus, profiles: [{ ...profile, replay: undefined }] } },
+      }),
+    /comparable baseline is missing/,
+  );
+  assert.throws(
+    () => checkTargets(report, { ...config, baseline: { studio: { sample, corpus, profiles: [profile, profile] } } }),
+    /ambiguous profile/,
   );
 });
 
@@ -161,6 +240,63 @@ async function studio(t, { rejectFeed = false, wrongReplay = false, wrongReplayA
     },
   };
 }
+
+test('the real command rejects missing CI calibration, preserves its result and reports local absolute-only checks', async (t) => {
+  const app = await studio(t);
+  const dir = await mkdtemp(join(tmpdir(), 'donka-performance-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await mkdir(join(dir, 'scripts'));
+  await mkdir(join(dir, 'docs'));
+  const script = join(dir, 'scripts/studio-performance.mjs');
+  await copyFile(new URL('./studio-performance.mjs', import.meta.url), script);
+  await writeFile(
+    join(dir, 'docs/performance.json'),
+    JSON.stringify({
+      ...targets,
+      sample: {
+        studio: {
+          records: 600,
+          full_records: 600,
+          months: 60,
+          samples: 2,
+          full_samples: 2,
+          warmup: 0,
+          rounds: 3,
+        },
+      },
+    }),
+  );
+  const fixture = join(dir, 'fixture.json'),
+    out = join(dir, 'performance.json');
+  await writeFile(fixture, JSON.stringify({ input: app.options.input, output: app.options.output }));
+  const env = {
+    ...process.env,
+    GITHUB_ACTIONS: 'true',
+    DONKA_PERFORMANCE_STUDIO_URL: app.options.studioUrl,
+    DONKA_PERFORMANCE_EMAIL: app.options.email,
+    DONKA_PERFORMANCE_PASSWORD: app.options.password,
+    DONKA_PERFORMANCE_PROJECT: app.options.project,
+    DONKA_PERFORMANCE_RELEASE: app.options.release,
+    DONKA_PERFORMANCE_DECISION: app.options.decision,
+    DONKA_PERFORMANCE_FIXTURE: fixture,
+    DONKA_PERFORMANCE_STUDIO_OUT: out,
+  };
+  await assert.rejects(promisify(execFile)(process.execPath, [script, '--disposable'], { env }), (error) => {
+    assert.equal(error.code, 1);
+    assert.match(error.stderr, /No comparable Studio baseline/);
+    assert.match(error.stdout, /::error title=Studio performance gate::/);
+    return true;
+  });
+  const saved = JSON.parse(await readFile(out, 'utf8')).studio;
+  assert.equal(saved.corpus.after, 600);
+  assert.equal(saved.replay.requests, 6);
+  assert.equal(saved.replay.errors, 0);
+  assert.equal(app.cleanup.length, 2);
+  const { stdout } = await promisify(execFile)(process.execPath, [script, '--disposable'], {
+    env: { ...env, GITHUB_ACTIONS: 'false' },
+  });
+  assert.match(stdout, /absolute targets passed; no comparable hardware\/sample baseline/);
+});
 
 test('seed, filtered searches and replay exercise all monthly partitions and revoke credentials', async (t) => {
   const app = await studio(t);

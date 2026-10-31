@@ -117,49 +117,74 @@ avant et après insertion et le nombre de lignes par mois ; `studio.machine` pr�
 de processeur. L'artefact conserve chaque partition ; l'avis garde leur nombre et tous les
 résumés de durée pour rester sous la limite GitHub de 4 096 caractères. Un avis Runtime performance
 séparé conserve latence, débit, flux et pannes ; un contrôle refusé indique sa cause dans une annotation.
-Chaque cas conserve aussi les résumés de ses séries dans `rounds`. Toute erreur,
-un p95 de recherche supérieur à 1 000 ms ou de rejeu supérieur à 2 000 ms, globalement ou dans
-une série, fait échouer le contrôle. Une fois la référence Studio mesurée sur le runner convenu,
-`baseline.studio` reprend ce format ; la limite de régression de 20 % sur p95 compare des
-échantillons (nombre de séries compris) et des volumes réels identiques. La référence Runtime
-ne remplace pas celle de Studio.
+Chaque cas conserve aussi les résumés de ses séries dans `rounds`. Toute erreur, un p95 de
+recherche supérieur à 1 000 ms ou de rejeu supérieur à 2 000 ms, globalement ou dans une série,
+fait échouer le contrôle.
 
-### Premières mesures sur 50 requêtes, 30 octobre 2026
+`baseline.studio` décrit l'échantillon et le volume réel, avec une entrée `profiles` pour
+chaque modèle de processeur mesuré. Une comparaison exige le même modèle de processeur,
+nombre de cœurs virtuels, architecture et version majeure de Node, ainsi que des réglages
+d'échantillon et volumes identiques. La casse et les espaces supplémentaires du nom de
+processeur sont ignorés ; les mises à jour mineures de Node restent comparables.
+La **limite de 20 % sur p95 reste inchangée** pour chaque recherche et le rejeu.
+Le choix matériel est consigné dans [ADR-008](adr/008-hardware-matched-performance-baselines.md).
 
-[Exécution CI 41084840154](https://github.com/youmssi/donka/actions/runs/41084840154), commit `83b01d5` : images construites par la tâche CI,
-puis installées avec la démo sur le runner GitHub de référence, 4 vCPU et 16 Go (AMD EPYC 7763,
-Node 22.23.4). Un projet séparé contient exactement **100 000 décisions dans 60 partitions
-mensuelles**, dans un journal initialement vide. L'insertion prend 128.7 secondes,
-exclues des durées de requête. Chaque cas mesure 50 requêtes après cinq échauffements.
+Chaque exécution CI exige un profil comparable : processeur inconnu, volume ou nombre de
+requêtes différent, mesure manquante ou profil ambigu font échouer le contrôle après
+l'enregistrement du résultat. Sans profil comparable, une exécution locale vérifie toujours
+tous les objectifs absolus et indique explicitement l'absence de comparaison à une référence.
+Le mode local `full` peut donc mesurer son volume supérieur sans le comparer à la référence
+sur 100 000 décisions.
 
-| Mesure | p50 | p95 | p99 |
+### Références par processeur, 30 octobre 2026
+
+Trois installations indépendantes depuis les images, sur GitHub `ubuntu-latest` (4 vCPU,
+16 Go, x64, Node 22.23.4), contiennent chacune exactement **100 000 décisions dans 60 partitions
+mensuelles**, dans un projet séparé initialement vide. Chaque cas mesure 3 000 requêtes en trois
+séries de 1 000, après 50 échauffements par série. Les **45 000 requêtes mesurées réussissent**,
+et chaque rejeu rend la sortie enregistrée. Les contrôles Runtime, flux et pannes passent aussi
+sur les trois installations.
+
+| Cas, p95 global | AMD EPYC 7763 | AMD EPYC 9V74 | Intel Xeon Platinum 8573C |
 | --- | --- | --- | --- |
-| Page récente | 23.18 ms | 33.03 ms | 34.48 ms |
-| Référence | 5.74 ms | 18.48 ms | 18.78 ms |
-| Décision et période récente | 4.33 ms | 17.99 ms | 18.64 ms |
-| Statut en échec | 39.75 ms | 51.38 ms | 52.34 ms |
-| Rejeu | 5.61 ms | 8.47 ms | 12.35 ms |
+| Page récente | 21,78 ms | 19,07 ms | 15,08 ms |
+| Référence | 5,57 ms | 4,28 ms | 3,96 ms |
+| Décision et période récente | 5,00 ms | 3,10 ms | 3,40 ms |
+| Statut en échec | 39,64 ms | 35,54 ms | 23,30 ms |
+| Rejeu | 6,06 ms | 4,36 ms | 4,24 ms |
 
-Aucune requête mesurée n'échoue ; chaque rejeu rend la sortie enregistrée. Les contrôles existants
-du Runtime, du flux et des pannes passent aussi dans cette tâche. Ces valeurs forment la
-référence initiale sur 50 requêtes. L'[exécution de validation 41088061492](https://github.com/youmssi/donka/actions/runs/41088061492/attempts/1)
-respecte les objectifs absolus sans erreur, mais son p95 de rejeu atteint **13,40 ms**, soit
-58 % au-dessus de 8,47 ms : la limite de 20 % la refuse correctement. Ses p95 de recherche sont
-respectivement 33,35, 21,22, 17,96 et 51,61 ms. Modèle de processeur, échantillon et volume
-sont identiques ; le code applicatif n'a pas changé. Ces observations seules n'identifient
-pas la cause de l'écart. Une unique [répétition au même commit](https://github.com/youmssi/donka/actions/runs/41088061492/attempts/2)
-passe avec un p95 de rejeu de 8,42 ms sur un processeur AMD EPYC 9V45 plus récent. Elle
-n'explique pas l'écart initial entre processeurs du même modèle et ne remplace pas la mesure
-refusée.
+Sources au commit `dbcf8f1` :
 
-Le propriétaire a confirmé le maintien de la limite de 20 % et le calibrage sur des mesures
-plus nombreuses et répétées. La méthode ci-dessus attend trois mesures CI indépendantes.
-La moyenne de leurs p95 globaux, en conservant les trois exécutions, formera la nouvelle
-référence ; une autre exécution la vérifiera. La référence sur 50 requêtes reste enregistrée
-entre-temps et ne se compare pas à un nombre de requêtes différent. Elle n'a pas été relevée
-pour faire passer l'exécution refusée. Le critère de publication DNK-66 reste ouvert tant que le site de
-documentation produit ne publie pas ces résultats. Cet échantillon ne prouve pas la capacité
-sur tout le volume de rétention.
+- [Exécution 1, EPYC 7763](https://github.com/youmssi/donka/actions/runs/41121411427/attempts/1).
+- [Exécution 2, EPYC 9V74](https://github.com/youmssi/donka/actions/runs/41121411427/attempts/2).
+- [Exécution 3, Xeon 8573C](https://github.com/youmssi/donka/actions/runs/41121411427/attempts/3).
+
+Chaque colonne fournit son propre profil dans `performance.json`, avec le p95 de l'ensemble
+des trois séries de ce processeur. Les modèles de processeur ne sont pas moyennés ensemble.
+L'insertion est exclue des durées de requête ; p50/p95/p99, maxima, séries, volumes et métadonnées
+machine restent dans l'artefact et l'avis compact du contrôle. Les exécutions CI suivantes
+comparent au profil enregistré correspondant au matériel attribué par GitHub.
+
+Le premier essai sur 50 requêtes a vu son p95 de rejeu passer de
+[8,47 ms](https://github.com/youmssi/donka/actions/runs/41084840154) à
+[13,40 ms](https://github.com/youmssi/donka/actions/runs/41088061492/attempts/1), refusé par la
+limite de 20 % malgré le respect de l'objectif absolu. Cela a conduit aux séries plus longues
+et répétées. Même avec ces séries, une moyenne des trois processeurs ci-dessus ferait dépasser
+la moyenne commune de 21 à 31 % pour quatre cas sans changement de code. Les profils séparés
+conservent la limite de 20 % sans prendre un autre modèle de processeur comme référence.
+Un modèle identique ne fixe pas toutes les variations d'ordonnancement ou de charge de l'hôte ;
+le profil mesuré et les objectifs absolus restent tous deux imposés.
+
+Pour calibrer un nouveau modèle, examiner le rapport complet de la CI refusée : projet
+initialement vide, volume et réglages attendus, trois séries, aucune erreur et tous les
+objectifs absolus respectés. Ajouter le profil matériel mesuré et sa source dans
+`performance.json` par le processus habituel de PR, puis le vérifier avec la CI. Ne pas
+reprendre les valeurs d'un autre modèle ni relever un profil existant pour masquer une
+régression. Le résultat est enregistré avant le refus pour profil manquant : aucun contrôle
+ne doit être désactivé pour calibrer.
+
+Le critère de publication DNK-66 reste ouvert tant que le site produit ne publie pas ces
+résultats. Cet échantillon ne prouve pas la capacité sur tout le volume de rétention.
 
 L'outil demande Node.js 22 ou ultérieur, sans paquet à installer. `check-performance.sh` fixe
 ses variables `DONKA_PERFORMANCE_*` (listées dans `.env.example`) puis appelle
