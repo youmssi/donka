@@ -112,6 +112,10 @@ jobs:
           --health-retries 10
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test scripts/studio-performance.test.mjs
       - uses: docker/setup-buildx-action@v3
       - uses: docker/build-push-action@v6
         with:

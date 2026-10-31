@@ -9,6 +9,7 @@
 | [005](005-tanstack-form.md) | TanStack Form + Zod for all forms |
 | [006](006-fork-policy.md) | How the forks follow the playbook |
 | [007](007-sessions-on-our-own-pool.md) | Sessions on Studio's own pool; hashed tokens; CSRF header |
+| [008](008-hardware-matched-performance-baselines.md) | Studio performance baselines compare matching hardware and samples |
 
 ## Product decisions (signed off 2026-09-28)
 

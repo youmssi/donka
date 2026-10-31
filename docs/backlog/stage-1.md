@@ -1462,10 +1462,32 @@ Confirmed 2026-10-30, before the pilot questionnaire's figures:
   Studio's search within **p95 1 s** and replay within **p95 2 s**. CI fails when a measure
   regresses more than **20%** beyond its baseline.
 
+Confirmed 2026-10-30 after Studio's 50-request reference and validation runs:
+- Keep the **20% Studio p95 gate** and calibrate with larger, repeated samples. Replay p95
+  moved from 8.47 to 13.40 ms with no application-source change; both runs met the absolute
+  targets, but the latter correctly failed the regression gate.
+- Each case now measures three rounds of 1,000 requests after 50 warm-ups per round. The gate
+  uses p95 across all 3,000 measured requests, retaining every round in the report. Every round
+  must also meet the absolute targets with zero errors. Establish the new baseline from three
+  independent reference-runner measurements, including all three, then validate it separately.
+
+Confirmed 2026-10-31 after the three larger-sample runs:
+- Keep the standard GitHub runner and **CPU-specific Studio baselines**. The three assigned
+  models differ enough that a shared mean would reject four unchanged-code cases by 21–31%.
+- Match CPU model, virtual core count, architecture and Node major version, along with the
+  configured sample and actual corpus. Each model's initial baseline uses its own pooled
+  3,000-request measurement; do not average hardware models together.
+- Unknown hardware or incompatible samples **fail CI until calibrated**. Results are saved
+  first so a new profile can be reviewed without bypassing a gate. Local runs still enforce
+  the absolute targets and explicitly report an unavailable regression comparison.
+- Validate the matching-hardware gate independently in CI before merging. The owner authorized
+  the CPU-specific implementation and the merge after the required checks pass.
+
 #### Acceptance criteria
 - [x] A repeatable load test (scripted, in the repository) measures the Runtime's p50/p95/p99 and maximum throughput on each starter pack, without connectors and with mocked ones
 - [x] The decision-log feed keeps up with the target throughput; back-pressure and loss behaviour under Studio outage are measured
-- [ ] Studio's decision-log search and replay stay within their targets on a database holding the retention period's volume
+- [x] Studio's decision-log search and replay stay within their targets on a database holding the retention period's volume
+  - Confirmed sample: 100,000 encrypted records across 60 monthly partitions; [three reference runs](https://github.com/youmssi/donka/actions/runs/41121411427) plus [EPYC 9V45 calibration](https://github.com/youmssi/donka/actions/runs/41183908484/attempts/1) measured 60,000 requests with no errors. Search p95 is 3.10–40.87 ms and replay 4.24–6.06 ms across the recorded CPU profiles. The script, hardware-specific baselines and exact method are in `docs/performance.md` and `docs/performance.json`; no full-volume capacity claim.
 - [x] CI runs a shortened version and fails when a target regresses beyond a stated margin
 - [ ] The targets and results are published in the documentation (DNK-66)
 

@@ -1,19 +1,206 @@
 {
   "machine": "GitHub ubuntu-latest runner: 4 vCPU, 16 GB",
   "targets": {
-    "runtime": { "rate": 100, "p95_ms": 20, "p99_ms": 50 },
-    "feed": { "lag_seconds": 5 },
-    "studio": { "search_p95_ms": 1000, "replay_p95_ms": 2000 }
+    "runtime": {
+      "rate": 100,
+      "p95_ms": 20,
+      "p99_ms": 50
+    },
+    "feed": {
+      "lag_seconds": 5
+    },
+    "studio": {
+      "search_p95_ms": 1000,
+      "replay_p95_ms": 2000
+    }
   },
   "margin": 0.2,
   "baseline": {
-    "measured": "2026-10-30, mean of two CI runs",
+    "measured": "Runtime: 2026-10-30, mean of two CI runs",
     "runtime": {
-      "kyc-risk-rating/risk-rating": { "maximum": { "throughput": 3800 } },
-      "mobile-money-limits/transaction-limits": { "maximum": { "throughput": 6344 } },
-      "retail-credit/credit-application": { "maximum": { "throughput": 2154 } },
-      "retail-credit/scorecard": { "maximum": { "throughput": 2999 } },
-      "sme-treasury/evaluation": { "maximum": { "throughput": 3143 } }
+      "kyc-risk-rating/risk-rating": {
+        "maximum": {
+          "throughput": 3800
+        }
+      },
+      "mobile-money-limits/transaction-limits": {
+        "maximum": {
+          "throughput": 6344
+        }
+      },
+      "retail-credit/credit-application": {
+        "maximum": {
+          "throughput": 2154
+        }
+      },
+      "retail-credit/scorecard": {
+        "maximum": {
+          "throughput": 2999
+        }
+      },
+      "sme-treasury/evaluation": {
+        "maximum": {
+          "throughput": 3143
+        }
+      }
+    },
+    "studio": {
+      "method": "pooled p95 of three 1000-request rounds per CPU profile; no averaging across hardware models",
+      "sample": {
+        "records": 100000,
+        "months": 60,
+        "samples": 1000,
+        "warmup": 50,
+        "rounds": 3
+      },
+      "corpus": {
+        "after": 100000
+      },
+      "profiles": [
+        {
+          "machine": {
+            "cpus": 4,
+            "cpuModel": "AMD EPYC 7763 64-Core Processor",
+            "arch": "x64",
+            "node": "22.23.4"
+          },
+          "source": {
+            "run": 41121411427,
+            "attempt": 1,
+            "job": 124288653297,
+            "commit": "dbcf8f186ec541b79c26f6889b415d60c8ac63c2",
+            "url": "https://github.com/youmssi/donka/actions/runs/41121411427/attempts/1",
+            "measuredAt": "2026-10-30T20:31:08.278Z"
+          },
+          "search": {
+            "newest": {
+              "p95_ms": 21.78
+            },
+            "reference": {
+              "p95_ms": 5.57
+            },
+            "decisionAndDate": {
+              "p95_ms": 5
+            },
+            "status": {
+              "p95_ms": 39.64
+            }
+          },
+          "replay": {
+            "p95_ms": 6.06
+          }
+        },
+        {
+          "machine": {
+            "cpus": 4,
+            "cpuModel": "AMD EPYC 9V74 80-Core Processor",
+            "arch": "x64",
+            "node": "22.23.4"
+          },
+          "source": {
+            "run": 41121411427,
+            "attempt": 2,
+            "job": 124357871026,
+            "commit": "dbcf8f186ec541b79c26f6889b415d60c8ac63c2",
+            "url": "https://github.com/youmssi/donka/actions/runs/41121411427/attempts/2",
+            "measuredAt": "2026-10-30T23:08:33.070Z"
+          },
+          "search": {
+            "newest": {
+              "p95_ms": 19.07
+            },
+            "reference": {
+              "p95_ms": 4.28
+            },
+            "decisionAndDate": {
+              "p95_ms": 3.1
+            },
+            "status": {
+              "p95_ms": 35.54
+            }
+          },
+          "replay": {
+            "p95_ms": 4.36
+          }
+        },
+        {
+          "machine": {
+            "cpus": 4,
+            "cpuModel": "INTEL(R) XEON(R) PLATINUM 8573C",
+            "arch": "x64",
+            "node": "22.23.4"
+          },
+          "source": {
+            "run": 41121411427,
+            "attempt": 3,
+            "job": 124362367564,
+            "commit": "dbcf8f186ec541b79c26f6889b415d60c8ac63c2",
+            "url": "https://github.com/youmssi/donka/actions/runs/41121411427/attempts/3",
+            "measuredAt": "2026-10-30T23:20:20.016Z"
+          },
+          "search": {
+            "newest": {
+              "p95_ms": 15.08
+            },
+            "reference": {
+              "p95_ms": 3.96
+            },
+            "decisionAndDate": {
+              "p95_ms": 3.4
+            },
+            "status": {
+              "p95_ms": 23.3
+            }
+          },
+          "replay": {
+            "p95_ms": 4.24
+          }
+        },
+        {
+          "machine": {
+            "cpus": 4,
+            "cpuModel": "AMD EPYC 9V45 96-Core Processor",
+            "arch": "x64",
+            "node": "22.23.4"
+          },
+          "source": {
+            "run": 41183908484,
+            "job": 124486785268,
+            "commit": "caaa056727727c8266bc97c7f30045928f3a6611",
+            "attempt": 1,
+            "url": "https://github.com/youmssi/donka/actions/runs/41183908484/attempts/1",
+            "measuredAt": "2026-10-31T08:28:06.054Z"
+          },
+          "search": {
+            "newest": {
+              "p95_ms": 19.27
+            },
+            "reference": {
+              "p95_ms": 5.63
+            },
+            "decisionAndDate": {
+              "p95_ms": 4.33
+            },
+            "status": {
+              "p95_ms": 40.87
+            }
+          },
+          "replay": {
+            "p95_ms": 5.37
+          }
+        }
+      ]
+    }
+  },
+  "sample": {
+    "studio": {
+      "records": 100000,
+      "full_records": 1000000,
+      "months": 60,
+      "samples": 1000,
+      "full_samples": 1000,
+      "warmup": 50,
+      "rounds": 3
     }
   }
 }

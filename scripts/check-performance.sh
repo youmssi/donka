@@ -4,6 +4,7 @@
 #
 #   scripts/check-performance.sh <installation folder> [full]
 #
+# 0. Studio search (including the exact count) and replay over a synthetic 60-month sample.
 # 1. Each starter pack's entry decision, and retail-credit's credit-application, which calls the
 #    demo's fake bureau (a mocked connector), through the staging Runtime: p50/p95/p99 at the
 #    target rate, then the maximum throughput. The inputs are the packs' own test scenarios.
@@ -15,9 +16,10 @@
 #
 # The results go to performance.json (or $DONKA_PERFORMANCE_OUT) and are checked against the
 # published targets (docs/performance.json) and the baseline measured on the reference machine:
-# a maximum throughput more than 20% below its baseline fails. Latency at the target rate is held
-# to the targets only: on a shared runner it moves between runs (2 to 20 ms at p99) far more than
-# a regression would. `full` runs longer, for the published
+# a Runtime maximum throughput more than 20% below its baseline or Studio pooled p95 more than
+# 20% above its baseline fails. Runtime latency at the target rate is held to the targets only:
+# on a shared runner it moves between runs (2 to 20 ms at p99) far more than a regression would.
+# `full` runs longer, for the published
 # figures; CI runs the short version. The Studio image's donka-admin generates the load.
 set -euo pipefail
 
@@ -39,6 +41,15 @@ if [ -n "$full" ]; then seconds=60; max_seconds=30; else seconds=15; max_seconds
 
 fail() {
   echo "check-performance: $*" >&2
+  if [ "${GITHUB_ACTIONS:-}" = true ]; then
+    # The complete metrics stay in the log/artifact; keep the check annotation concise.
+    local reason="$*"
+    reason="${reason%%:*}"
+    reason="${reason//%/%25}"
+    reason="${reason//$'\r'/%0D}"
+    reason="${reason//$'\n'/%0A}"
+    echo "::error title=Performance check::$reason"
+  fi
   exit 1
 }
 cleanup() { rm -rf "$JAR" "$work"; }
@@ -109,7 +120,39 @@ for pack in "${!ids[@]}"; do
 done
 IFS=$'\n' measured=($(sort <<<"${measured[*]}")); unset IFS
 
-results='{}'
+# Studio is measured before Runtime load and outages, with no feed backlog. Its synthetic
+# records go through the authenticated feed: encryption and monthly partitioning are unchanged.
+studio_pack=kyc-risk-rating
+studio_decision=$(jq -r .entry "$root/packs/$studio_pack/pack.json")
+jq --arg d "$studio_decision" '[.[] | select(.decision == $d) | .input]' \
+  "$root/packs/$studio_pack/scenarios.json" > "$work/$studio_pack-$studio_decision.json"
+ready "$studio_pack" "$studio_decision"
+curl -sS --fail-with-body -X POST "$RUNTIME_URL/api/projects/$studio_pack/evaluate/$studio_decision" \
+  -H "X-Access-Token: ${tokens[$studio_pack]}" -H 'content-type: application/json' \
+  --data "$(jq -c '{context: .[0]}' "$work/$studio_pack-$studio_decision.json")" > "$work/answer.json"
+jq -e --slurpfile answer "$work/answer.json" '{input: .[0], output: $answer[0].result} | select(.output != null)' \
+  "$work/$studio_pack-$studio_decision.json" > "$work/studio-fixture.json"
+# A separate project keeps the measured corpus stable: calibration requests to the Runtime
+# may reach its own log asynchronously, but never this project's log.
+studio_key=$(node --input-type=module -e \
+  'const {projectKey} = await import(process.argv[1]); process.stdout.write(projectKey())' \
+  "file://$root/scripts/studio-performance.mjs")
+studio_project=$(studio POST "/packs/$studio_pack/import" "$(jq -n --arg k "$studio_key" '{key: $k, name: "Studio performance"}')" | jq -er .project.id)
+studio_release=$(studio POST "/projects/$studio_project/releases" '{"bump": "minor", "notes": "Studio performance"}' | jq -er .id)
+deployment=$(studio POST "/projects/$studio_project/environments/staging/deployments" "$(jq -n --arg id "$studio_release" '{releaseId: $id}')" | jq -er .id)
+for _ in $(seq 1 60); do
+  publication=$(studio GET "/projects/$studio_project/environments/staging/deployments" | jq -r --arg id "$deployment" '.items[] | select(.id == $id) | .status')
+  [ "$publication" = published ] && break
+  [ "$publication" != failed ] || fail "Studio performance release failed to publish"
+  sleep 1
+done
+[ "$publication" = published ] || fail "Studio performance release did not publish"
+DONKA_PERFORMANCE_STUDIO_URL="$STUDIO_URL" DONKA_PERFORMANCE_EMAIL=admin@donka.local \
+DONKA_PERFORMANCE_PASSWORD="$PASSWORD" DONKA_PERFORMANCE_PROJECT="$studio_project" \
+DONKA_PERFORMANCE_RELEASE="$studio_release" \
+DONKA_PERFORMANCE_DECISION="$studio_decision" DONKA_PERFORMANCE_FIXTURE="$work/studio-fixture.json" \
+DONKA_PERFORMANCE_STUDIO_OUT="$out" node "$root/scripts/studio-performance.mjs" --disposable ${full:+full}
+results=$(cat "$out")
 # The feed keeps up: every decision answered is in the log within the target delay.
 feed_pack=kyc-risk-rating
 feed_decision=$(jq -r .entry "$root/packs/$feed_pack/pack.json")
@@ -179,6 +222,17 @@ done
 results=$(jq --arg m "$(uname -m)" --arg c "$(nproc)" --arg full "${full:-short}" \
   '. + {machine: {cpus: ($c | tonumber), arch: $m}, run: $full}' <<<"$results")
 echo "$results" > "$out"
+
+if [ "${GITHUB_ACTIONS:-}" = true ]; then
+  # Numeric results fit in the check's 4096-character notice, even when full logs are unavailable.
+  notice=$(jq -c '{machine, run, feed,
+    outage: (.outage | map_values({sent, answered, errors, p95_ms, p99_ms, lost, droppedLogged})),
+    runtime: (.runtime | map_values({connector,
+      atRate: (.atRate | {sent, answered, errors, p95_ms, p99_ms, throughput}),
+      maximum: (.maximum | {sent, answered, errors, throughput})}))}' "$out")
+  notice="${notice//%/%25}"
+  echo "::notice title=Runtime performance::$notice"
+fi
 
 # The published targets, then no regression beyond the margin against the baseline.
 jq -e --slurpfile t "$targets" '

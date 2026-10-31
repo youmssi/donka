@@ -15,8 +15,8 @@ le mesurer sur vos propres serveurs. Les objectifs et la référence sont dans
 | Flux du journal des décisions | chaque décision rendue à 100/s est dans le journal de Studio en moins de 5 s |
 | Studio arrêté, dans la file du Runtime | aucune décision en échec, aucun enregistrement perdu |
 | Studio arrêté, au-delà de la file | aucune décision en échec ; les enregistrements abandonnés sont comptés dans le journal du Runtime |
-| Recherche et rejeu du journal dans Studio | p95 1 s et 2 s (mesurés dans un changement ultérieur) |
-| Régression | un débit maximal inférieur de plus de 20 % à sa référence fait échouer la CI |
+| Recherche et rejeu du journal dans Studio | p95 1 s et 2 s sur l'échantillon documenté |
+| Régression | débit maximal Runtime inférieur de plus de 20 % à sa référence, ou p95 global Studio supérieur de plus de 20 %, fait échouer la CI |
 
 La latence est mesurée à partir du moment où chaque requête était prévue, pas de celui où elle
 est partie : un Runtime lent ne peut pas masquer sa propre file d'attente.
@@ -80,3 +80,118 @@ docker compose run --rm -e DONKA_RUNTIME_TOKEN=<jeton> -v "$PWD/inputs.json:/inp
 `--rate` envoie selon un rythme fixe et donne la latence à cette charge ; `--concurrency <n>`
 envoie aussi vite que le Runtime répond et donne le débit maximal. `inputs.json` est un tableau
 JSON d'entrées, envoyées tour à tour.
+
+## Recherche et rejeu dans Studio
+
+La mesure de Studio passe **avant** la charge du Runtime et les tests de panne, sur la même
+installation isolée construite à partir des images. Elle envoie des décisions synthétiques au
+vrai flux `/api/v1/decision-log/records`, par lots de 1 000 au maximum : Studio les valide,
+chiffre leurs données et crée les partitions mensuelles. Aucune insertion SQL directe ne
+contourne ce chemin. Chaque contrôle crée un projet synthétique séparé : les décisions de
+calibrage du Runtime arrivant en différé ne changent pas son volume. La sortie vient d'une évaluation réelle de la décision d'entrée du pack
+KYC. Une décision sur dix est un échec synthétique pour vérifier le filtre par statut.
+
+La CI courte insère **100 000 décisions sur 60 mois civils** ; `full` en insère **1 000 000**.
+Les lignes sont réparties uniformément, le reste dans les mois récents. Les dates historiques
+sont au milieu du mois pour rester dans la rétention de 1 825 jours, même en fin de mois ou
+après un 29 février. Ce sont des
+**échantillons**, pas une certification de capacité sur cinq ans et 180 millions de décisions :
+ils ne reproduisent ni 100 000 décisions par jour ni la variété des tailles de données clients.
+Une mesure sur tout le volume exige une machine et un jeu de données adaptés avant de pouvoir
+annoncer cette capacité. `sample.studio` dans `performance.json` fixe les tailles, la période,
+le nombre de requêtes et l'échauffement.
+
+Chaque cas envoie désormais **trois séries de 1 000 requêtes mesurées**, après 50 échauffements
+par série, dans les deux modes. Les 3 000 mesures sont réunies pour calculer p50/p95/p99 ;
+aucune série n'est écartée ou choisie parce qu'elle est plus rapide. Les cas sont : première
+page récente, recherche par référence, décision avec période récente, statut en échec et rejeu
+de décisions réussies réparties entre partitions anciennes et récentes. La recherche comprend
+la page et son **nombre total exact**, la transaction, le JSON et le transfert réseau ; ce
+n'est pas seulement la durée d'un accès à l'index. Le rejeu comprend ouverture, déchiffrement,
+chargement de la release enregistrée, évaluation et audit. Un statut HTTP réussi ne suffit pas :
+les filtres doivent renvoyer les bonnes décisions et le rejeu doit rendre la même sortie.
+
+`studio.search` (un rapport par filtre) et `studio.replay` contiennent p50/p95/p99, maximum,
+nombre de requêtes et erreurs dans le même artefact et dans un avis Studio performance du contrôle CI. `studio.corpus` donne les totaux réels
+avant et après insertion et le nombre de lignes par mois ; `studio.machine` précise le modèle
+de processeur. L'artefact conserve chaque partition ; l'avis garde leur nombre et tous les
+résumés de durée pour rester sous la limite GitHub de 4 096 caractères. Un avis Runtime performance
+séparé conserve latence, débit, flux et pannes ; un contrôle refusé indique sa cause dans une annotation.
+Chaque cas conserve aussi les résumés de ses séries dans `rounds`. Toute erreur, un p95 de
+recherche supérieur à 1 000 ms ou de rejeu supérieur à 2 000 ms, globalement ou dans une série,
+fait échouer le contrôle.
+
+`baseline.studio` décrit l'échantillon et le volume réel, avec une entrée `profiles` pour
+chaque modèle de processeur mesuré. Une comparaison exige le même modèle de processeur,
+nombre de cœurs virtuels, architecture et version majeure de Node, ainsi que des réglages
+d'échantillon et volumes identiques. La casse et les espaces supplémentaires du nom de
+processeur sont ignorés ; les mises à jour mineures de Node restent comparables.
+La **limite de 20 % sur p95 reste inchangée** pour chaque recherche et le rejeu.
+Le choix matériel est consigné dans [ADR-008](adr/008-hardware-matched-performance-baselines.md).
+
+Chaque exécution CI exige un profil comparable : processeur inconnu, volume ou nombre de
+requêtes différent, mesure manquante ou profil ambigu font échouer le contrôle après
+l'enregistrement du résultat. Sans profil comparable, une exécution locale vérifie toujours
+tous les objectifs absolus et indique explicitement l'absence de comparaison à une référence.
+Le mode local `full` peut donc mesurer son volume supérieur sans le comparer à la référence
+sur 100 000 décisions.
+
+### Références par processeur, 30–31 octobre 2026
+
+Quatre installations indépendantes depuis les images, sur GitHub `ubuntu-latest` (4 vCPU,
+16 Go, x64, Node 22.23.4), contiennent chacune exactement **100 000 décisions dans 60 partitions
+mensuelles**, dans un projet séparé initialement vide. Chaque cas mesure 3 000 requêtes en trois
+séries de 1 000, après 50 échauffements par série. Les **60 000 requêtes mesurées réussissent**,
+et chaque rejeu rend la sortie enregistrée. Les contrôles Runtime, flux et pannes passent aussi
+sur les trois premières installations. La quatrième enregistre le résultat Studio complet puis
+s'arrête au refus pour profil manquant : les contrôles Runtime suivants ne sont pas exécutés
+dans cet essai.
+
+| Cas, p95 global | AMD EPYC 7763 | AMD EPYC 9V74 | Intel Xeon Platinum 8573C | AMD EPYC 9V45 |
+| --- | --- | --- | --- | --- |
+| Page récente | 21,78 ms | 19,07 ms | 15,08 ms | 19,27 ms |
+| Référence | 5,57 ms | 4,28 ms | 3,96 ms | 5,63 ms |
+| Décision et période récente | 5,00 ms | 3,10 ms | 3,40 ms | 4,33 ms |
+| Statut en échec | 39,64 ms | 35,54 ms | 23,30 ms | 40,87 ms |
+| Rejeu | 6,06 ms | 4,36 ms | 4,24 ms | 5,37 ms |
+
+Premières sources au commit `dbcf8f1` :
+
+- [Exécution 1, EPYC 7763](https://github.com/youmssi/donka/actions/runs/41121411427/attempts/1).
+- [Exécution 2, EPYC 9V74](https://github.com/youmssi/donka/actions/runs/41121411427/attempts/2).
+- [Exécution 3, Xeon 8573C](https://github.com/youmssi/donka/actions/runs/41121411427/attempts/3).
+- [Calibrage EPYC 9V45, commit `caaa056`](https://github.com/youmssi/donka/actions/runs/41183908484/attempts/1) : refus attendu pour profil manquant, après réussite des objectifs absolus Studio.
+
+Chaque colonne fournit son propre profil dans `performance.json`, avec le p95 de l'ensemble
+des trois séries de ce processeur. Les modèles de processeur ne sont pas moyennés ensemble.
+L'insertion est exclue des durées de requête ; p50/p95/p99, maxima, séries, volumes et métadonnées
+machine restent dans l'artefact et l'avis compact du contrôle. Les exécutions CI suivantes
+comparent au profil enregistré correspondant au matériel attribué par GitHub.
+
+Le premier essai sur 50 requêtes a vu son p95 de rejeu passer de
+[8,47 ms](https://github.com/youmssi/donka/actions/runs/41084840154) à
+[13,40 ms](https://github.com/youmssi/donka/actions/runs/41088061492/attempts/1), refusé par la
+limite de 20 % malgré le respect de l'objectif absolu. Cela a conduit aux séries plus longues
+et répétées. Même avec ces séries, une moyenne des trois premiers processeurs ferait dépasser
+la moyenne commune de 21 à 31 % pour quatre cas sans changement de code. Les profils séparés
+conservent la limite de 20 % sans prendre un autre modèle de processeur comme référence.
+Un modèle identique ne fixe pas toutes les variations d'ordonnancement ou de charge de l'hôte ;
+le profil mesuré et les objectifs absolus restent tous deux imposés.
+
+Pour calibrer un nouveau modèle, examiner le rapport complet de la CI refusée : projet
+initialement vide, volume et réglages attendus, trois séries, aucune erreur et tous les
+objectifs absolus respectés. Ajouter le profil matériel mesuré et sa source dans
+`performance.json` par le processus habituel de PR, puis le vérifier avec la CI. Ne pas
+reprendre les valeurs d'un autre modèle ni relever un profil existant pour masquer une
+régression. Le résultat est enregistré avant le refus pour profil manquant : aucun contrôle
+ne doit être désactivé pour calibrer.
+
+Le critère de publication DNK-66 reste ouvert tant que le site produit ne publie pas ces
+résultats. Cet échantillon ne prouve pas la capacité sur tout le volume de rétention.
+
+L'outil demande Node.js 22 ou ultérieur, sans paquet à installer. `check-performance.sh` fixe
+ses variables `DONKA_PERFORMANCE_*` (listées dans `.env.example`) puis appelle
+`scripts/studio-performance.mjs --disposable`. Cette option confirme l'**ajout de décisions
+synthétiques** : ne jamais utiliser une base client. Chaque exécution émet puis révoque son
+propre jeton de flux et ferme sa session. Les lignes restent dans l'installation jetable pour
+inspection ; une nouvelle exécution signale le volume augmenté au lieu de le masquer.
