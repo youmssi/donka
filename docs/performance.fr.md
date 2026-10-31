@@ -136,28 +136,31 @@ tous les objectifs absolus et indique explicitement l'absence de comparaison à 
 Le mode local `full` peut donc mesurer son volume supérieur sans le comparer à la référence
 sur 100 000 décisions.
 
-### Références par processeur, 30 octobre 2026
+### Références par processeur, 30–31 octobre 2026
 
-Trois installations indépendantes depuis les images, sur GitHub `ubuntu-latest` (4 vCPU,
+Quatre installations indépendantes depuis les images, sur GitHub `ubuntu-latest` (4 vCPU,
 16 Go, x64, Node 22.23.4), contiennent chacune exactement **100 000 décisions dans 60 partitions
 mensuelles**, dans un projet séparé initialement vide. Chaque cas mesure 3 000 requêtes en trois
-séries de 1 000, après 50 échauffements par série. Les **45 000 requêtes mesurées réussissent**,
+séries de 1 000, après 50 échauffements par série. Les **60 000 requêtes mesurées réussissent**,
 et chaque rejeu rend la sortie enregistrée. Les contrôles Runtime, flux et pannes passent aussi
-sur les trois installations.
+sur les trois premières installations. La quatrième enregistre le résultat Studio complet puis
+s'arrête au refus pour profil manquant : les contrôles Runtime suivants ne sont pas exécutés
+dans cet essai.
 
-| Cas, p95 global | AMD EPYC 7763 | AMD EPYC 9V74 | Intel Xeon Platinum 8573C |
-| --- | --- | --- | --- |
-| Page récente | 21,78 ms | 19,07 ms | 15,08 ms |
-| Référence | 5,57 ms | 4,28 ms | 3,96 ms |
-| Décision et période récente | 5,00 ms | 3,10 ms | 3,40 ms |
-| Statut en échec | 39,64 ms | 35,54 ms | 23,30 ms |
-| Rejeu | 6,06 ms | 4,36 ms | 4,24 ms |
+| Cas, p95 global | AMD EPYC 7763 | AMD EPYC 9V74 | Intel Xeon Platinum 8573C | AMD EPYC 9V45 |
+| --- | --- | --- | --- | --- |
+| Page récente | 21,78 ms | 19,07 ms | 15,08 ms | 19,27 ms |
+| Référence | 5,57 ms | 4,28 ms | 3,96 ms | 5,63 ms |
+| Décision et période récente | 5,00 ms | 3,10 ms | 3,40 ms | 4,33 ms |
+| Statut en échec | 39,64 ms | 35,54 ms | 23,30 ms | 40,87 ms |
+| Rejeu | 6,06 ms | 4,36 ms | 4,24 ms | 5,37 ms |
 
-Sources au commit `dbcf8f1` :
+Premières sources au commit `dbcf8f1` :
 
 - [Exécution 1, EPYC 7763](https://github.com/youmssi/donka/actions/runs/41121411427/attempts/1).
 - [Exécution 2, EPYC 9V74](https://github.com/youmssi/donka/actions/runs/41121411427/attempts/2).
 - [Exécution 3, Xeon 8573C](https://github.com/youmssi/donka/actions/runs/41121411427/attempts/3).
+- [Calibrage EPYC 9V45, commit `caaa056`](https://github.com/youmssi/donka/actions/runs/41183908484/attempts/1) : refus attendu pour profil manquant, après réussite des objectifs absolus Studio.
 
 Chaque colonne fournit son propre profil dans `performance.json`, avec le p95 de l'ensemble
 des trois séries de ce processeur. Les modèles de processeur ne sont pas moyennés ensemble.
@@ -169,7 +172,7 @@ Le premier essai sur 50 requêtes a vu son p95 de rejeu passer de
 [8,47 ms](https://github.com/youmssi/donka/actions/runs/41084840154) à
 [13,40 ms](https://github.com/youmssi/donka/actions/runs/41088061492/attempts/1), refusé par la
 limite de 20 % malgré le respect de l'objectif absolu. Cela a conduit aux séries plus longues
-et répétées. Même avec ces séries, une moyenne des trois processeurs ci-dessus ferait dépasser
+et répétées. Même avec ces séries, une moyenne des trois premiers processeurs ferait dépasser
 la moyenne commune de 21 à 31 % pour quatre cas sans changement de code. Les profils séparés
 conservent la limite de 20 % sans prendre un autre modèle de processeur comme référence.
 Un modèle identique ne fixe pas toutes les variations d'ordonnancement ou de charge de l'hôte ;

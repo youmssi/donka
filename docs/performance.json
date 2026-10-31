@@ -155,6 +155,39 @@
           "replay": {
             "p95_ms": 4.24
           }
+        },
+        {
+          "machine": {
+            "cpus": 4,
+            "cpuModel": "AMD EPYC 9V45 96-Core Processor",
+            "arch": "x64",
+            "node": "22.23.4"
+          },
+          "source": {
+            "run": 41183908484,
+            "job": 124486785268,
+            "commit": "caaa056727727c8266bc97c7f30045928f3a6611",
+            "attempt": 1,
+            "url": "https://github.com/youmssi/donka/actions/runs/41183908484/attempts/1",
+            "measuredAt": "2026-10-31T08:28:06.054Z"
+          },
+          "search": {
+            "newest": {
+              "p95_ms": 19.27
+            },
+            "reference": {
+              "p95_ms": 5.63
+            },
+            "decisionAndDate": {
+              "p95_ms": 4.33
+            },
+            "status": {
+              "p95_ms": 40.87
+            }
+          },
+          "replay": {
+            "p95_ms": 5.37
+          }
         }
       ]
     }

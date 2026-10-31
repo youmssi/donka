@@ -1487,7 +1487,7 @@ Confirmed 2026-10-31 after the three larger-sample runs:
 - [x] A repeatable load test (scripted, in the repository) measures the Runtime's p50/p95/p99 and maximum throughput on each starter pack, without connectors and with mocked ones
 - [x] The decision-log feed keeps up with the target throughput; back-pressure and loss behaviour under Studio outage are measured
 - [x] Studio's decision-log search and replay stay within their targets on a database holding the retention period's volume
-  - Confirmed sample: 100,000 encrypted records across 60 monthly partitions; [three reference runs](https://github.com/youmssi/donka/actions/runs/41121411427) measured 45,000 requests with no errors. Search p95 is 3.10–39.64 ms and replay 4.24–6.06 ms across the recorded CPU profiles. The script, hardware-specific baselines and exact method are in `docs/performance.md` and `docs/performance.json`; no full-volume capacity claim.
+  - Confirmed sample: 100,000 encrypted records across 60 monthly partitions; [three reference runs](https://github.com/youmssi/donka/actions/runs/41121411427) plus [EPYC 9V45 calibration](https://github.com/youmssi/donka/actions/runs/41183908484/attempts/1) measured 60,000 requests with no errors. Search p95 is 3.10–40.87 ms and replay 4.24–6.06 ms across the recorded CPU profiles. The script, hardware-specific baselines and exact method are in `docs/performance.md` and `docs/performance.json`; no full-volume capacity claim.
 - [x] CI runs a shortened version and fails when a target regresses beyond a stated margin
 - [ ] The targets and results are published in the documentation (DNK-66)
 

@@ -129,27 +129,30 @@ run without a comparable profile still checks every absolute target and explicit
 that it did not compare a baseline. This also permits a local `full` measurement without
 pretending the 100,000-record baseline covers its larger corpus.
 
-### CPU-specific reference results, 30 October 2026
+### CPU-specific reference results, 30–31 October 2026
 
-Three independent installations from the images, on GitHub `ubuntu-latest` (4 vCPU, 16 GB,
+Four independent installations from the images, on GitHub `ubuntu-latest` (4 vCPU, 16 GB,
 x64, Node 22.23.4), each held exactly **100,000 records across 60 monthly partitions** in a
 separate, initially empty project. Each case measured 3,000 requests in three rounds of 1,000,
-after 50 warm-ups per round. All **45,000 measured requests succeeded** and every replay
-returned the recorded output. The Runtime, feed and outage checks also passed in all three runs.
+after 50 warm-ups per round. All **60,000 measured requests succeeded** and every replay
+returned the recorded output. The Runtime, feed and outage checks also passed in the first
+three runs. The fourth run saved its complete Studio result and stopped at the missing-profile gate, so its later Runtime
+checks did not run in that attempt.
 
-| Case, pooled p95 | AMD EPYC 7763 | AMD EPYC 9V74 | Intel Xeon Platinum 8573C |
-| --- | --- | --- | --- |
-| Newest page | 21.78 ms | 19.07 ms | 15.08 ms |
-| Reference lookup | 5.57 ms | 4.28 ms | 3.96 ms |
-| Decision and recent date | 5.00 ms | 3.10 ms | 3.40 ms |
-| Failed status | 39.64 ms | 35.54 ms | 23.30 ms |
-| Replay | 6.06 ms | 4.36 ms | 4.24 ms |
+| Case, pooled p95 | AMD EPYC 7763 | AMD EPYC 9V74 | Intel Xeon Platinum 8573C | AMD EPYC 9V45 |
+| --- | --- | --- | --- | --- |
+| Newest page | 21.78 ms | 19.07 ms | 15.08 ms | 19.27 ms |
+| Reference lookup | 5.57 ms | 4.28 ms | 3.96 ms | 5.63 ms |
+| Decision and recent date | 5.00 ms | 3.10 ms | 3.40 ms | 4.33 ms |
+| Failed status | 39.64 ms | 35.54 ms | 23.30 ms | 40.87 ms |
+| Replay | 6.06 ms | 4.36 ms | 4.24 ms | 5.37 ms |
 
-Sources on commit `dbcf8f1`:
+Initial sources on commit `dbcf8f1`:
 
 - [Attempt 1, EPYC 7763](https://github.com/youmssi/donka/actions/runs/41121411427/attempts/1).
 - [Attempt 2, EPYC 9V74](https://github.com/youmssi/donka/actions/runs/41121411427/attempts/2).
 - [Attempt 3, Xeon 8573C](https://github.com/youmssi/donka/actions/runs/41121411427/attempts/3).
+- [EPYC 9V45 calibration, commit `caaa056`](https://github.com/youmssi/donka/actions/runs/41183908484/attempts/1): the expected missing-profile failure; absolute Studio checks passed before it.
 
 Each column supplies its own profile in `performance.json`, using that CPU's pooled p95 from
 all three rounds. Values from different CPU models are not averaged together. Seeding is
@@ -161,7 +164,7 @@ The initial 50-request trial's replay p95 moved from
 [8.47 ms](https://github.com/youmssi/donka/actions/runs/41084840154) to
 [13.40 ms](https://github.com/youmssi/donka/actions/runs/41088061492/attempts/1), failing the
 20% gate despite passing the absolute target. This led to larger, repeated samples.
-Even with those samples, averaging the three CPU models above would make four unchanged-code
+Even with those samples, averaging the initial three CPU models would make four unchanged-code
 cases exceed their shared mean by 21–31%. CPU-specific comparison retains the 20% rule without
 using another hardware model as the reference. Matching a model does not fix all scheduling
 or host-load variation; the measured profile and the absolute targets both remain enforced.
