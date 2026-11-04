@@ -134,7 +134,10 @@ fn read_zip(bytes: Vec<u8>) -> std::collections::BTreeMap<String, Value> {
         let mut file = zip.by_index(i).unwrap();
         let mut text = String::new();
         file.read_to_string(&mut text).unwrap();
-        entries.insert(file.name().to_owned(), serde_json::from_str(&text).unwrap());
+        entries.insert(
+            file.name().unwrap().into_owned(),
+            serde_json::from_str(&text).unwrap(),
+        );
     }
     entries
 }

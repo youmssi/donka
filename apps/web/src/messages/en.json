@@ -485,7 +485,8 @@
     },
     "installation": {
       "set_up": "Installation set up",
-      "organisation_renamed": "Organisation renamed"
+      "organisation_renamed": "Organisation renamed",
+      "modules_changed": "Modules changed"
     }
   },
   "auditSentences": {

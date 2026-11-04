@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { getProjectByKey } from '@/modules/project/project.service';
@@ -65,8 +65,15 @@ beforeEach(() => {
   searchMock.mockResolvedValue({ ok: true, data: { items: records, total: 2 } });
 });
 
-it('lists the decisions the Runtimes made, newest first, to any member', async () => {
+async function renderLog() {
   renderWithProviders(<DecisionLogPage />);
+  // The page loads the project before starting its record query.
+  await waitFor(() => expect(searchMock).toHaveBeenCalled());
+}
+
+it('lists the decisions the Runtimes made, newest first, to any member', async () => {
+  await renderLog();
+  expect(searchMock).toHaveBeenCalledWith('p-1', expect.objectContaining({ reference: undefined }), 0);
   expect(await screen.findByText('APP-2026-0043')).toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Decision log' })).toBeInTheDocument();
   expect(screen.getByText('approve')).toBeInTheDocument();
@@ -77,12 +84,11 @@ it('lists the decisions the Runtimes made, newest first, to any member', async (
     'href',
     '/projects/decision-record?p=retail&r=r-2',
   );
-  expect(searchMock).toHaveBeenCalledWith('p-1', expect.objectContaining({ reference: undefined }), 0);
 });
 
 it('searches by reference, decision and outcome through the address', async () => {
   search.params = new URLSearchParams({ p: 'retail', offset: '50' });
-  renderWithProviders(<DecisionLogPage />);
+  await renderLog();
   await screen.findByText('APP-2026-0043');
   const user = userEvent.setup();
   await user.type(screen.getByRole('textbox', { name: 'Reference' }), 'APP-2026-0043');
@@ -95,7 +101,7 @@ it('searches by reference, decision and outcome through the address', async () =
 it('filters from the address and says when nothing matches', async () => {
   searchMock.mockResolvedValue({ ok: true, data: { items: [], total: 0 } });
   search.params = new URLSearchParams({ p: 'retail', status: 'failed', environment: 'production' });
-  renderWithProviders(<DecisionLogPage />);
+  await renderLog();
   expect(await screen.findByText('No decision matches')).toBeInTheDocument();
   expect(searchMock).toHaveBeenCalledWith(
     'p-1',
@@ -110,14 +116,14 @@ it('filters from the address and says when nothing matches', async () => {
 
 it('explains how decisions arrive when there are none yet', async () => {
   searchMock.mockResolvedValue({ ok: true, data: { items: [], total: 0 } });
-  renderWithProviders(<DecisionLogPage />);
+  await renderLog();
   expect(await screen.findByText('No decision yet')).toBeInTheDocument();
   expect(screen.getByText(/issues a decision-log token under Runtimes/)).toBeInTheDocument();
 });
 
 it('shows a failure with a way to try again', async () => {
   searchMock.mockResolvedValue({ ok: false, error: { code: 'NETWORK' } });
-  renderWithProviders(<DecisionLogPage />);
+  await renderLog();
   expect(await screen.findByText('The decision log could not be loaded.')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
 });

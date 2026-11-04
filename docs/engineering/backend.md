@@ -164,16 +164,16 @@ One shape for the whole API:
 
 - Integration tests use a real PostgreSQL, never a substitute.
 - Tests do not depend on the wall clock, the timezone or execution order: inject a `Clock`.
-- Coverage (`cargo llvm-cov`) floor of 70 % on business crates, enforced in CI once the first
-  module lands.
+- Coverage (`cargo llvm-cov`) floor of 70 % independently on every business crate, enforced in
+  CI by the [coverage policy and report checker](quality-gates.md).
 
 ## 11. CI
 
 In order, each step blocking: format, clippy, build + tests (with PostgreSQL), engine version
 check, coverage gate, `cargo audit`, container image build.
 
-The DNK-47 audit found that coverage and dependency-security gates are not yet enforced by
-the current workflow. DNK-49 must add them; the requirements above remain the quality bar.
+The [quality-gates guide](quality-gates.md) defines coverage scope, dependency checks and
+container scanning before publication, with local commands matching CI (DNK-49).
 
 ## 12. Checklist for a new endpoint
 

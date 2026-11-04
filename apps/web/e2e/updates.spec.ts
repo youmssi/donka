@@ -34,8 +34,9 @@ test('administrators learn of a newer Donka release and can hide it; others neve
   await other.getByLabel(m.signIn.email, { exact: true }).fill(member.email);
   await other.getByLabel(m.signIn.password, { exact: true }).fill(member.password);
   await other.getByRole('button', { name: m.signIn.submit, exact: true }).click();
+  await expect(other).toHaveURL(new RegExp(`/${appLocale}/?$`));
   other = await openPage(reviewer, `/${appLocale}/`, other);
-  await expect(other.getByRole('main')).toBeVisible();
+  await expect(other.getByRole('heading', { name: m.projects.title, exact: true })).toBeVisible();
   await expect(other.getByText(title, { exact: true })).toHaveCount(0);
   expect((await reviewer.request.get('/api/v1/updates')).status()).toBe(403);
   await expect(await reviewer.request.post('/api/v1/auth/sign-out', { headers: { 'x-donka-csrf': '1' } })).toBeOK();

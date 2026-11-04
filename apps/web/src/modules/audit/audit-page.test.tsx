@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { router, search } from '@/test/navigation-mock';
@@ -86,6 +86,7 @@ beforeEach(() => {
 
 it('tells an owner what changed, who did it and when', async () => {
   renderWithProviders(<ProjectAuditPage />);
+  await waitFor(() => expect(listAuditMock).toHaveBeenCalledWith('p-1', expect.any(Object), 0));
   expect(await screen.findByText('Changed the role of ada@bank.example from Owner to Editor')).toBeInTheDocument();
   expect(screen.getByText('Renamed the project from “Retail” to “Retail scoring”')).toBeInTheDocument();
   expect(screen.getByText('Created the project “Retail”')).toBeInTheDocument();

@@ -112,14 +112,19 @@ file and add what is specific to that tool.
 # Rust (apps/app, crates/*)
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo test --workspace --locked        # integration tests need DATABASE_URL (Postgres 16)
+node --test ../donka-runtime/scripts/check-rust-coverage.test.mjs
+mkdir -p coverage
+cargo llvm-cov --workspace --locked --json --output-path coverage/rust.json  # needs PostgreSQL 16
+node ../donka-runtime/scripts/check-rust-coverage.mjs coverage/rust.json scripts/rust-coverage.json
+cargo audit
 scripts/check-engine-version.sh        # same zen-engine as Studio; needs ../donka-runtime (or pass its path)
 
 # Web (apps/web)
 pnpm --dir apps/web format:check
 pnpm --dir apps/web lint
 pnpm --dir apps/web typecheck           # next typegen + tsc
-pnpm --dir apps/web test
+pnpm --dir apps/web test:coverage
+pnpm --dir apps/web audit:security
 pnpm --dir apps/web i18n:check
 pnpm --dir apps/web build
 pnpm --dir apps/web build-storybook
@@ -131,6 +136,8 @@ DONKA_UPDATE_OPENAPI=1 cargo test -p donka-app --test api && pnpm --dir apps/web
 ```
 
 CI (`.github/workflows/ci.yml`) runs the same commands and blocks the merge when one fails.
+The coverage commands run the full test suites. See [quality gates](docs/engineering/quality-gates.md)
+for the measured scope, companion Rust test modules and image scan before publication.
 
 ## 6. Pull requests
 

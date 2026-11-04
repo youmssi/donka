@@ -55,9 +55,12 @@ it('adds a field in the table and writes the schema on the Request node', async 
   expect(await within(dialog).findByText(/Use names of letters, digits and underscores/)).toBeInTheDocument();
 
   await user.clear(within(dialog).getByLabelText('Field'));
-  await user.type(within(dialog).getByLabelText('Field'), 'applicant.employment');
-  await user.type(within(dialog).getByLabelText('Allowed values'), 'public, private');
-  await user.type(within(dialog).getByLabelText('Label (French)'), 'Emploi');
+  await user.click(within(dialog).getByLabelText('Field'));
+  await user.paste('applicant.employment');
+  await user.click(within(dialog).getByLabelText('Allowed values'));
+  await user.paste('public, private');
+  await user.click(within(dialog).getByLabelText('Label (French)'));
+  await user.paste('Emploi');
   await user.click(within(dialog).getByLabelText('Personal data (never sent to be explained)'));
   await user.click(within(dialog).getByRole('button', { name: 'Save field' }));
 

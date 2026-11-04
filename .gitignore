@@ -1,4 +1,6 @@
 /target
+/coverage
+/.quality-gates
 node_modules/
 .next/
 out/

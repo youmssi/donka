@@ -7,3 +7,4 @@ storybook-static
 playwright-report/
 playwright-report-security/
 test-results/
+coverage/

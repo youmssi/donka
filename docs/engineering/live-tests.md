@@ -5,7 +5,8 @@ suite covers authentication, People, project membership/settings, permission bou
 graph authoring/simulation, input contracts, versions/scenarios, release creation, token
 issuance, production approval/rejection/rollback, token isolation/revocation, connector
 failure policies, staging publication, real Runtime records/replay, explanations/redaction
-and audit access/export, pack import/copy/export, onboarding and real CLI sync/contracts. A separate service restart
+and audit access/export, pack import/copy/export, onboarding, Runtime OpenAPI/Swagger and real
+CLI sync/contracts. A separate service restart
 exercises actual authentication throttling.
 The reset journey deliberately holds JavaScript requests to prove static form controls stay
 disabled until hydration, then exercises the real email and password change. This guards the
@@ -100,7 +101,7 @@ From the repository root with Node 22 and the repository's pnpm version:
 
 ```bash
 git clone https://github.com/youmssi/donka-cli.git .feature-cli
-git -C .feature-cli checkout --detach 515dd51403ca334db14b312045c6c654cf6f9878
+git -C .feature-cli checkout --detach 32ddc1105f5a6e7755975f0055da875c523d2b9f
 pnpm --dir .feature-cli install --frozen-lockfile
 pnpm --dir .feature-cli lint
 pnpm --dir .feature-cli format
@@ -112,14 +113,14 @@ pnpm --dir apps/web exec playwright install --with-deps chromium
 pnpm --dir apps/web test:e2e
 ```
 
-The default command selects Chromium: nineteen tests across EN/FR, light/dark and desktop/390 px
-(152 cases). To run one project while investigating a failure:
+The default command selects Chromium: twenty-seven tests across EN/FR, light/dark and desktop/390 px
+(216 cases). To run one project while investigating a failure:
 
 ```bash
 pnpm --dir apps/web exec playwright test --project=chromium-en-light-1440
 ```
 
-Before a release, install all engines and run the same suite in all three (456 cases):
+Before a release, install all engines and run the same suite in all three (648 cases):
 
 ```bash
 pnpm --dir apps/web exec playwright install --with-deps chromium firefox webkit
@@ -436,7 +437,7 @@ and removes its private temporary package, files and npm cache. It exercises the
 locally, not GitLab/Azure hosted orchestration or their runner setup tasks. The retained CLI
 suite additionally checks template edge cases against its controlled fake Studio.
 
-CI pins CLI commit `515dd51403ca334db14b312045c6c654cf6f9878`, installs its frozen dependencies,
+CI pins CLI commit `32ddc1105f5a6e7755975f0055da875c523d2b9f`, installs its frozen dependencies,
 runs all CLI checks and builds it before the Playwright journeys and template harness. The
 ignored `.feature-cli` reference is excluded from Docker build contexts. CLI child processes
 receive only OS essentials and their scoped token; administrator credentials are not inherited.

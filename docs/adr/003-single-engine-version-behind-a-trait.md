@@ -28,3 +28,7 @@ also not ripple through route handlers.
 - 2026-10-28, DNK-62: moved to 2.1.6 following `docs/engineering/engine-upgrade.md`; every pack
   scenario passes in Studio and on the Runtime, and records logged by a 2.0.1 Runtime replay
   identically.
+- DNK-49 keeps 2.1.6 and pins both servers to the same source revision with the ZIP security
+  fix. The drift check compares the locked version and source for the engine, expression
+  evaluator and template evaluator. Switch both servers back together when a compatible
+  upstream release contains the fix.

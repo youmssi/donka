@@ -55,7 +55,7 @@ thiserror = { workspace = true }
 bollard = "0.21"
 futures-util = "0.3"
 hex = "0.4"
-p256 = { version = "0.13", features = ["ecdsa", "pem"] }
+p256 = { version = "0.14", features = ["ecdsa", "pem"] }
 reqwest = { workspace = true }
 semver = { version = "1", features = ["serde"] }
 # donka.yaml, the installation's answers (DNK-74).
