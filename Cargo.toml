@@ -47,7 +47,7 @@ sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio",
 # Release artifacts: S3, MinIO or a local folder behind one interface.
 object_store = { version = "0.14", features = ["aws"] }
 url = "2"
-zip = { version = "8", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 zen-engine = { version = "=2.1.6", features = ["arbitrary_precision"] }
 # Explanations from the customer's LLM endpoint (DNK-19); rustls with the system trust
 # store, so an endpoint behind a bank's internal CA is honoured.
@@ -84,3 +84,9 @@ unwrap_used = "deny"
 lto = "thin"
 codegen-units = 1
 strip = "symbols"
+
+[patch.crates-io]
+# DNK-49: the 2.1.6 engine source with the patched ZIP reader. Keep both server pins identical.
+zen-engine = { git = "https://github.com/youmssi/zen", rev = "04d835fb9c8bb2102244059bb1883e9dd162ede6" }
+zen-expression = { git = "https://github.com/youmssi/zen", rev = "04d835fb9c8bb2102244059bb1883e9dd162ede6" }
+zen-tmpl = { git = "https://github.com/youmssi/zen", rev = "04d835fb9c8bb2102244059bb1883e9dd162ede6" }

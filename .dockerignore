@@ -1,8 +1,11 @@
 target
+coverage
+.quality-gates
 node_modules
 **/node_modules
 apps/web/.next
 apps/web/out
+apps/web/coverage
 .git
 .env
 runtime.env

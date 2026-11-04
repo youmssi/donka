@@ -37,6 +37,7 @@ export default defineConfig([
   },
   globalIgnores([
     '.next/**',
+    'coverage/**',
     'out/**',
     'storybook-static/**',
     'playwright-report/**',

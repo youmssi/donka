@@ -39,11 +39,42 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt, clippy
+          components: rustfmt, clippy, llvm-tools-preview
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov@0.9.1,cargo-audit@0.22.2
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
-      - run: cargo test --workspace --locked
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # The shared checker lives in public Runtime so its CI can run independently of Studio.
+      - uses: actions/checkout@v4
+        with:
+          repository: youmssi/donka-runtime
+          ref: 2a2c2eb1798b6ba3920d4ad85559a0610887d8f4
+          path: .quality-gates
+          sparse-checkout: |
+            scripts/check-rust-coverage.mjs
+            scripts/check-rust-coverage.test.mjs
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - run: node --test .quality-gates/scripts/check-rust-coverage.test.mjs
+      - run: mkdir -p coverage && cargo llvm-cov --workspace --locked --json --output-path coverage/rust.json
+        env:
+          CARGO_PROFILE_DEV_DEBUG: '0'
+          CARGO_PROFILE_TEST_DEBUG: '0'
+          CARGO_INCREMENTAL: '0'
+          CARGO_BUILD_JOBS: '2'
+      - run: node .quality-gates/scripts/check-rust-coverage.mjs coverage/rust.json scripts/rust-coverage.json
+      - run: cargo audit
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rust-coverage
+          path: coverage/rust.json
+          retention-days: 7
       # Compare against the runtime's next release so Studio and Runtime evaluate identically.
       - uses: actions/checkout@v4
         with:
@@ -75,7 +106,14 @@ jobs:
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm typecheck
-      - run: pnpm test
+      - run: pnpm test:coverage
+      - run: pnpm audit:security
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: web-coverage
+          path: apps/web/coverage
+          retention-days: 7
       - run: pnpm i18n:check
       # The typed client must match apps/web/openapi.json (kept in step by the Rust tests).
       - run: pnpm api:generate && git diff --exit-code -- src/components/shared/api/schema.d.ts
@@ -128,6 +166,14 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - run: scripts/check-image.sh donka-studio:ci ${{ github.sha }}
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.76.1
+          image-ref: donka-studio:ci
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
       # The installation from the images (DNK-64): donka-admin init, docker compose up, a
       # release the staging Runtime serves from the shared volume, its decision in Studio's log.
       - uses: docker/build-push-action@v6
@@ -302,7 +348,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: youmssi/donka-cli
-          ref: 515dd51403ca334db14b312045c6c654cf6f9878
+          ref: 32ddc1105f5a6e7755975f0055da875c523d2b9f
           path: .feature-cli
           persist-credentials: false
       - name: Build and verify the locked CLI reference

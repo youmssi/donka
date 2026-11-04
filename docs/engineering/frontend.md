@@ -10,6 +10,10 @@ Practices from upstream are recorded in [references](references.md); the
 
 ## 1. Architecture: modules by business domain
 
+Business logic in module and shared API `.ts` files has a 70% executable-line coverage gate.
+The [quality-gates guide](quality-gates.md) defines its scope and local commands alongside
+component, Storybook and live-browser coverage.
+
 ```
 apps/web/src/
 ├── app/[locale]/…            # routing only (static export)

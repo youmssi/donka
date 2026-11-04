@@ -30,8 +30,9 @@ Remaining order:
    contest) after partitioning; DNK-77 a signed licence file; DNK-74 a guided command-line and
    browser setup with chosen modules, `donka-admin doctor` and a support bundle, after DNK-64.
 5. **DNK-49:** enforce the coverage and dependency-security gates already required by the
-   engineering guides, plus image scanning. Their current absence is an audit finding, not a
-   passing check. **DNK-69** follows: a threat model and an external penetration test; then **DNK-73**, a
+   engineering guides, plus image scanning. See [quality gates](engineering/quality-gates.md)
+   for the measured scope, local commands and checks required to merge. **DNK-69** follows: a
+   threat model and an external penetration test; then **DNK-73**, a
    trust dossier (OWASP ASVS level 2 self-assessment, NIST SSDF, SLSA level 3, OpenSSF, CIS,
    PCI DSS out of scope by design, and compliance matrices for ISO/IEC 27001, SOC 2, GDPR,
    ISO 22301, the EU AI Act, WCAG 2.2, the Malabo Convention and the CEMAC, UEMOA and Guinea
