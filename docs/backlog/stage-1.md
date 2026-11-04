@@ -1091,11 +1091,11 @@ The engineering guides require a business-logic coverage floor and dependency-se
 the current Studio workflow does not enforce them. Audit the other repos before applying changes.
 
 #### Acceptance criteria
-- [ ] CI measures business-logic coverage and enforces the documented floor with a justified module scope
-- [ ] Dependency checks fail on fixable high/critical vulnerabilities in the affected ecosystems
-- [ ] Published container images are scanned (Trivy or equivalent) and a fixable high/critical finding fails the release (added 2026-10-25)
-- [ ] Findings are fixed at their cause; no skipped tests, arbitrary exclusions or lowered thresholds to obtain green
-- [ ] Local commands and CI behavior are documented; gaps found in Runtime/CLI are tracked and resolved
+- [x] CI measures business-logic coverage and enforces the documented floor with a justified module scope
+- [x] Dependency checks fail on fixable high/critical vulnerabilities in the affected ecosystems
+- [x] Published container images are scanned (Trivy or equivalent) and a fixable high/critical finding fails the release (added 2026-10-25)
+- [x] Findings are fixed at their cause; no skipped tests, arbitrary exclusions or lowered thresholds to obtain green
+- [x] Local commands and CI behavior are documented; gaps found in Runtime/CLI are tracked and resolved
 
 ---
 

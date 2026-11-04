@@ -43,4 +43,7 @@ class Bureau(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
+    # The default backlog of 5 drops connections when parallel tests call at once; the client
+    # retries a second later, after a short connector timeout has already expired.
+    ThreadingHTTPServer.request_queue_size = 128
     ThreadingHTTPServer((sys.argv[1], int(sys.argv[2])), Bureau).serve_forever()

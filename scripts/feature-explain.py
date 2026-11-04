@@ -105,4 +105,7 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     if not os.environ.get("FEATURE_EXPLAIN_KEY"):
         raise SystemExit("Set FEATURE_EXPLAIN_KEY for the controlled endpoint")
+    # The default backlog of 5 drops connections when parallel tests call at once; the client
+    # retries a second later, after a short connector timeout has already expired.
+    ThreadingHTTPServer.request_queue_size = 128
     ThreadingHTTPServer((sys.argv[1], int(sys.argv[2])), Handler).serve_forever()
