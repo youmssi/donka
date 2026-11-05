@@ -16,7 +16,7 @@ le mesurer sur vos propres serveurs. Les objectifs et la référence sont dans
 | Studio arrêté, dans la file du Runtime | aucune décision en échec, aucun enregistrement perdu |
 | Studio arrêté, au-delà de la file | aucune décision en échec ; les enregistrements abandonnés sont comptés dans le journal du Runtime |
 | Recherche et rejeu du journal dans Studio | p95 1 s et 2 s sur l'échantillon documenté |
-| Régression | débit maximal Runtime inférieur de plus de 20 % à la référence du même modèle de processeur, ou p95 global Studio supérieur de plus de 20 % (au moins 5 ms) à sa référence, fait échouer la CI |
+| Régression | débit maximal Runtime inférieur de plus de 20 % à la référence du même modèle de processeur, ou p95 global Studio supérieur de plus de 20 % (au moins 10 ms) à sa référence, fait échouer la CI |
 
 La latence est mesurée à partir du moment où chaque requête était prévue, pas de celui où elle
 est partie : un Runtime lent ne peut pas masquer sa propre file d'attente.
@@ -138,11 +138,16 @@ nombre de cœurs virtuels, architecture et version majeure de Node, ainsi que de
 d'échantillon et volumes identiques. La casse et les espaces supplémentaires du nom de
 processeur sont ignorés ; les mises à jour mineures de Node restent comparables.
 La **limite de 20 % sur p95 reste inchangée** pour chaque recherche et le rejeu, avec un plancher
-de 5 ms (`margin_floor_ms`) : un cas échoue au-delà du plus grand de sa référence plus 20 % et de
-sa référence plus 5 ms. Le 4 novembre 2026, une exécution sans changement de code a mesuré le
-rejeu à 6,13 ms pour un profil correspondant de 4,36 ms ; 20 % de quelques millisecondes est
-inférieur à l'écart entre deux instances de runner, alors qu'un index perdu ou un parcours complet
-coûte des dizaines de millisecondes ou plus.
+de 10 ms (`margin_floor_ms`) : un cas échoue au-delà du plus grand de sa référence plus 20 % et de
+sa référence plus 10 ms. Chaque profil est la moyenne des exécutions CI de son modèle de
+processeur, listées dans `source.runs`, et non une seule exécution d'étalonnage. Deux exécutions
+sans changement de code l'ont montré : le 4 novembre 2026, le rejeu a mesuré 6,13 ms pour un
+profil de 4,36 ms tiré d'une seule exécution, et le 5 novembre la recherche des plus récents a
+mesuré 20,17 ms pour un profil de 15,08 ms, alors que la même recherche prend 19 à 22 ms sur les
+autres modèles. Quelques millisecondes varient de plus de 20 % entre deux instances de runner,
+alors qu'un index perdu ou un parcours complet coûte des dizaines de millisecondes ou plus. Les
+tableaux ci-dessous consignent les premières exécutions d'étalonnage ; les moyennes actuelles et
+les exécutions qui les fondent sont dans `docs/performance.json`.
 Le choix matériel est consigné dans [ADR-008](adr/008-hardware-matched-performance-baselines.md).
 
 Chaque exécution CI exige un profil comparable : processeur inconnu, volume ou nombre de

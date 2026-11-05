@@ -16,7 +16,7 @@ CI checks every pull request against them.
 | Studio stopped, within the Runtime's queue | no decision fails, no record lost |
 | Studio stopped, beyond the queue | no decision fails; dropped records are counted in the Runtime's log |
 | Studio decision-log search and replay | p95 1 s and 2 s on the documented sample |
-| Regression | Runtime maximum throughput more than 20% below the same CPU model's baseline, or Studio pooled p95 more than 20% (at least 5 ms) above its baseline, fails CI |
+| Regression | Runtime maximum throughput more than 20% below the same CPU model's baseline, or Studio pooled p95 more than 20% (at least 10 ms) above its baseline, fails CI |
 
 The latency is measured from when each request was due, not from when it left, so a slow
 Runtime cannot hide its own queueing.
@@ -131,10 +131,14 @@ for each measured CPU model. A comparison requires the same CPU model, virtual c
 architecture and Node major version, plus identical sample settings and corpus size. CPU names
 ignore case and extra spaces; Node updates within the same major remain comparable.
 The **20% p95 margin is unchanged** and applies to every search case and replay, with a floor of
-5 ms (`margin_floor_ms`): a case fails above the larger of its baseline plus 20% and its baseline
-plus 5 ms. On 4 November 2026 an unchanged-code run measured replay at 6.13 ms against the
-matching 4.36 ms profile; 20% of a few milliseconds is smaller than the variation between runner
-instances, while a lost index or a full scan costs tens of milliseconds or more.
+10 ms (`margin_floor_ms`): a case fails above the larger of its baseline plus 20% and its baseline
+plus 10 ms. Each profile is the mean of its CPU model's CI runs, listed in `source.runs`, not one
+calibration run. Two unchanged-code runs set these: on 4 November 2026 replay measured 6.13 ms
+against a single-run 4.36 ms profile, and on 5 November the newest-records search measured
+20.17 ms against a single-run 15.08 ms profile, while the same search takes 19 to 22 ms on the
+other models. A few milliseconds vary between runner instances by more than 20%, while a lost
+index or a full scan costs tens of milliseconds or more. The tables below record the first
+calibration runs; the current means and the runs behind them are in `docs/performance.json`.
 The hardware policy is recorded in [ADR-008](adr/008-hardware-matched-performance-baselines.md).
 
 Every CI run requires a comparable profile: an unknown CPU, different corpus/request count,
