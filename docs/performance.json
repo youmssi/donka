@@ -104,6 +104,45 @@
               }
             }
           }
+        },
+        {
+          "machine": {
+            "cpuModel": "AMD EPYC 9V74 80-Core Processor",
+            "cpus": 4,
+            "arch": "x86_64"
+          },
+          "source": {
+            "runs": [
+              42005577933
+            ]
+          },
+          "decisions": {
+            "kyc-risk-rating/risk-rating": {
+              "maximum": {
+                "throughput": 5596
+              }
+            },
+            "mobile-money-limits/transaction-limits": {
+              "maximum": {
+                "throughput": 10306
+              }
+            },
+            "retail-credit/credit-application": {
+              "maximum": {
+                "throughput": 3137
+              }
+            },
+            "retail-credit/scorecard": {
+              "maximum": {
+                "throughput": 4368
+              }
+            },
+            "sme-treasury/evaluation": {
+              "maximum": {
+                "throughput": 4342
+              }
+            }
+          }
         }
       ]
     },
