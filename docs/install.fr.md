@@ -237,7 +237,31 @@ connector_secrets:
   - CBS_CLIENT_CERT         # TLS mutuel, PEM
   - CBS_CLIENT_KEY
   - CBS_CA
+connector_hosts:            # où le Runtime peut envoyer chaque secret, et nulle part ailleurs
+  BUREAU_API_KEY: [api.bureau.cm]
+  CBS_CLIENT_SECRET: [cbs.bank.internal:8443, login.bank.internal]   # service et point de jeton
+  CBS_CLIENT_CERT: [cbs.bank.internal:8443, login.bank.internal]
+  CBS_CLIENT_KEY: [cbs.bank.internal:8443, login.bank.internal]
+  CBS_CA: [cbs.bank.internal:8443, login.bank.internal]
+connector_open_hosts:       # services appelés par des connecteurs sans secret
+  - rates.beac.int
 ```
+
+**Où les connecteurs peuvent appeler.** Le Runtime n'appelle que les hôtes de ces listes, et
+n'envoie un secret qu'aux hôtes listés pour lui, quelle que soit l'URL écrite par l'auteur d'une
+règle ; il ne suit jamais une redirection. Chaque secret de connecteur a besoin de ses hôtes :
+`init` refuse un secret sans liste. Un hôte est un nom (tout port) ou `hôte:port`. Un secret
+client OAuth2 va au point de jeton et au service : listez les deux. `init` écrit les listes pour
+le Runtime dans `CONNECTORS__ALLOWED_HOSTS` et `CONNECTORS__HOSTS__<NOM>`. Un appel vers un hôte
+non listé échoue, ou se replie, et sa trace nomme le paramètre à ajouter. La clé de la démo ne
+va qu'à son faux bureau.
+
+**Mettre à niveau une installation avec connecteurs.** Un Runtime de cette version refuse tout
+appel de connecteur tant qu'il n'a pas les listes. Juste après `donka-admin upgrade` vers cette
+version, ajoutez à `donka.yaml` `connector_hosts` pour chaque secret de `connector_secrets` (et
+`connector_open_hosts` si besoin), puis lancez `donka-admin init --config donka.yaml` de cette
+version et redémarrez le Runtime. Prévoyez la mise à niveau dans un créneau où les appels de
+connecteurs en préproduction peuvent échouer quelques minutes.
 
 Les paramètres de chaque méthode, et la façon dont les échecs sont signalés, sont dans le
 [guide des connecteurs](https://github.com/youmssi/donka-runtime/blob/develop/docs/connectors.md)

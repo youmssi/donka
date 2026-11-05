@@ -15,7 +15,7 @@ use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine as _;
 use donka_licence::Module;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
@@ -40,6 +40,8 @@ const EXPLAIN_API_KEY: &str = "explain_api_key";
 const LICENCE: &str = "licence.json";
 /// The demo's connector secret: the key the Runtime sends to the fake bureau.
 const DEMO_CONNECTOR_SECRET: &str = "BUREAU_API_KEY";
+/// The demo's fake bureau, the one host its connector secret may be sent to.
+const DEMO_CONNECTOR_HOST: &str = "demo-bureau";
 
 /// `donka.yaml`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -80,6 +82,14 @@ pub struct Installation {
     /// `secrets/connector_<name>`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub connector_secrets: Vec<String>,
+    /// For each connector secret, the hosts it may be sent to (`host` or `host:port`): the
+    /// Runtime sends it nowhere else (DNK-84). Every connector secret needs one.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub connector_hosts: BTreeMap<String, Vec<String>>,
+    /// Hosts connectors without a secret may call. With the hosts above, the only hosts any
+    /// connector may call.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub connector_open_hosts: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -195,6 +205,8 @@ impl Installation {
             auto_upgrade: None,
             modules: None,
             connector_secrets: Vec::new(),
+            connector_hosts: BTreeMap::new(),
+            connector_open_hosts: Vec::new(),
         }
     }
 
@@ -232,8 +244,55 @@ impl Installation {
             {
                 return Err(format!("connector secret `{name}`: use A-Z, 0-9 and _"));
             }
+            if self.connector_hosts.get(name).is_none_or(Vec::is_empty) {
+                return Err(format!(
+                    "connector secret `{name}` has no hosts: list where the Runtime may send it \
+                     under connector_hosts.{name}"
+                ));
+            }
+        }
+        if let Some(name) = self
+            .connector_hosts
+            .keys()
+            .find(|name| !self.connector_secrets.contains(name))
+        {
+            return Err(format!(
+                "connector_hosts.{name}: `{name}` is not in connector_secrets"
+            ));
+        }
+        for host in self
+            .connector_hosts
+            .values()
+            .flatten()
+            .chain(&self.connector_open_hosts)
+        {
+            if !valid_host(host) {
+                return Err(format!(
+                    "connector host `{host}`: write a host name, or host:port, without scheme or path"
+                ));
+            }
         }
         Ok(())
+    }
+
+    /// Each connector secret's hosts, the demo's included.
+    fn connector_hosts(&self) -> BTreeMap<String, Vec<String>> {
+        let mut hosts = self.connector_hosts.clone();
+        if self.demo {
+            hosts
+                .entry(DEMO_CONNECTOR_SECRET.to_owned())
+                .or_insert_with(|| vec![DEMO_CONNECTOR_HOST.to_owned()]);
+        }
+        hosts
+    }
+
+    /// Every host a connector may call: each secret's hosts, and the hosts without a secret.
+    fn connector_allowed_hosts(&self) -> BTreeSet<String> {
+        self.connector_hosts()
+            .into_values()
+            .flatten()
+            .chain(self.connector_open_hosts.iter().cloned())
+            .collect()
     }
 
     /// The connector secrets, the demo's included.
@@ -655,7 +714,29 @@ fn runtime_env(installation: &Installation) -> String {
             mounted(&connector_file(&name))
         ));
     }
+    // Where connectors may call, and where each secret may go (DNK-84).
+    let allowed = installation.connector_allowed_hosts();
+    if !allowed.is_empty() {
+        let hosts: Vec<String> = allowed.into_iter().collect();
+        lines.push(format!("CONNECTORS__ALLOWED_HOSTS={}", hosts.join(",")));
+    }
+    for (name, hosts) in installation.connector_hosts() {
+        lines.push(format!("CONNECTORS__HOSTS__{name}={}", hosts.join(",")));
+    }
     lines.join("\n") + "\n"
+}
+
+/// A host name, or `host:port`: no scheme, path, space or list separator.
+fn valid_host(host: &str) -> bool {
+    let (name, port) = match host.rsplit_once(':') {
+        Some((name, port)) => (name, Some(port)),
+        None => (host, None),
+    };
+    !name.is_empty()
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-')
+        && port.is_none_or(|port| port.parse::<u16>().is_ok_and(|port| port > 0))
 }
 
 /// The installation folder holds the secrets: only its owner may enter it.
