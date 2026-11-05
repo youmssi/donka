@@ -17,7 +17,7 @@
 # The results go to performance.json (or $DONKA_PERFORMANCE_OUT) and are checked against the
 # published targets (docs/performance.json) and the baseline measured on the reference machine:
 # a Runtime maximum throughput more than 20% below the baseline of the same CPU model, or Studio
-# pooled p95 more than 20% (at least 5 ms) above its baseline, fails. Runtime latency at the
+# pooled p95 more than 20% (at least 10 ms) above its baseline, fails. Runtime latency at the
 # target rate is held to the targets only: on a shared runner it moves between runs (2 to 20 ms
 # at p99) far more than a regression would. `full` runs longer, for the published figures; CI
 # runs the short version. The Studio image's donka-admin generates the load.
