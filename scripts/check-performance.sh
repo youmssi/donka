@@ -16,11 +16,11 @@
 #
 # The results go to performance.json (or $DONKA_PERFORMANCE_OUT) and are checked against the
 # published targets (docs/performance.json) and the baseline measured on the reference machine:
-# a Runtime maximum throughput more than 20% below its baseline or Studio pooled p95 more than
-# 20% above its baseline fails. Runtime latency at the target rate is held to the targets only:
-# on a shared runner it moves between runs (2 to 20 ms at p99) far more than a regression would.
-# `full` runs longer, for the published
-# figures; CI runs the short version. The Studio image's donka-admin generates the load.
+# a Runtime maximum throughput more than 20% below the baseline of the same CPU model, or Studio
+# pooled p95 more than 20% (at least 5 ms) above its baseline, fails. Runtime latency at the
+# target rate is held to the targets only: on a shared runner it moves between runs (2 to 20 ms
+# at p99) far more than a regression would. `full` runs longer, for the published figures; CI
+# runs the short version. The Studio image's donka-admin generates the load.
 set -euo pipefail
 
 dir="${1:?usage: scripts/check-performance.sh <installation folder> [full]}"
@@ -219,8 +219,9 @@ for target in "${measured[@]}"; do
     '.runtime[$t] = {connector: $c, atRate: $r, maximum: $m}' <<<"$results")
 done
 
-results=$(jq --arg m "$(uname -m)" --arg c "$(nproc)" --arg full "${full:-short}" \
-  '. + {machine: {cpus: ($c | tonumber), arch: $m}, run: $full}' <<<"$results")
+cpu_model=$(grep -m1 '^model name' /proc/cpuinfo | cut -d: -f2- | sed 's/^ *//')
+results=$(jq --arg m "$(uname -m)" --arg c "$(nproc)" --arg model "$cpu_model" --arg full "${full:-short}" \
+  '. + {machine: {cpuModel: $model, cpus: ($c | tonumber), arch: $m}, run: $full}' <<<"$results")
 echo "$results" > "$out"
 
 if [ "${GITHUB_ACTIONS:-}" = true ]; then
@@ -245,10 +246,26 @@ jq -e '.outage.withinQueue | .lost == 0 and .errors == 0' "$out" >/dev/null \
   || fail "records were lost, or decisions failed, while Studio was away: $(jq -c .outage.withinQueue "$out")"
 jq -e '.outage.beyondQueue.errors == 0' "$out" >/dev/null \
   || fail "decisions failed while the Runtime's queue was full: $(jq -c .outage.beyondQueue "$out")"
-jq -e --slurpfile t "$targets" '
-  ($t[0].margin) as $margin | ($t[0].baseline // {}) as $b
-  | [ .runtime | to_entries[] | select($b.runtime[.key]) | . as $e
-      | ($b.runtime[$e.key]) as $base
-      | $e.value.maximum.throughput >= $base.maximum.throughput * (1 - $margin) ] | all' \
-  "$out" >/dev/null || fail "a maximum throughput fell more than the margin below its baseline: $(jq -c .runtime "$out")"
+# Throughput is compared only with the profile of the same CPU model, core count and
+# architecture (ADR-008): GitHub assigns different processors, about twice as fast as each other.
+profile=$(jq -c --slurpfile t "$targets" '
+  def key: [(.cpuModel | ascii_downcase | gsub("\\s+"; " ") | ltrimstr(" ") | rtrimstr(" ")), .cpus, .arch];
+  (.machine | key) as $k
+  | [$t[0].baseline.runtime.profiles[]? | select(.machine | key == $k)]' "$out")
+case $(jq length <<<"$profile") in
+  1) ;;
+  0)
+    if [ "${GITHUB_ACTIONS:-}" = true ]; then
+      fail "no Runtime baseline for $(jq -c .machine "$out"); calibrate this hardware from the results above"
+    fi
+    echo "check-performance: the targets hold; no Runtime baseline for this machine, throughput not compared ($out)"
+    exit 0 ;;
+  *) fail "several Runtime baselines match $(jq -c .machine "$out"); remove the ambiguous profile" ;;
+esac
+jq -e --argjson p "$profile" --slurpfile t "$targets" '
+  ($t[0].margin) as $margin | $p[0].decisions as $base
+  | [ .runtime | to_entries[] | . as $e
+      | $base[$e.key] != null
+        and $e.value.maximum.throughput >= $base[$e.key].maximum.throughput * (1 - $margin) ] | all' \
+  "$out" >/dev/null || fail "a maximum throughput fell more than the margin below its baseline, or has none, on $(jq -r .machine.cpuModel "$out"): $(jq -c .runtime "$out")"
 echo "check-performance: the targets hold, and no throughput fell beyond the margin ($out)"
