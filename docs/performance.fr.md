@@ -16,7 +16,7 @@ le mesurer sur vos propres serveurs. Les objectifs et la référence sont dans
 | Studio arrêté, dans la file du Runtime | aucune décision en échec, aucun enregistrement perdu |
 | Studio arrêté, au-delà de la file | aucune décision en échec ; les enregistrements abandonnés sont comptés dans le journal du Runtime |
 | Recherche et rejeu du journal dans Studio | p95 1 s et 2 s sur l'échantillon documenté |
-| Régression | débit maximal Runtime inférieur de plus de 20 % à sa référence, ou p95 global Studio supérieur de plus de 20 %, fait échouer la CI |
+| Régression | débit maximal Runtime inférieur de plus de 20 % à la référence du même modèle de processeur, ou p95 global Studio supérieur de plus de 20 % (au moins 5 ms) à sa référence, fait échouer la CI |
 
 La latence est mesurée à partir du moment où chaque requête était prévue, pas de celui où elle
 est partie : un Runtime lent ne peut pas masquer sa propre file d'attente.
@@ -39,6 +39,17 @@ débit maximal avec 32 appelants simultanés. Les entrées sont les scénarios d
 Aucune requête n'a échoué. Sur un runner partagé, la latence à 100/s varie d'une exécution à
 l'autre (p99 de 3 à 20 ms pour la même décision), toujours bien en deçà de l'objectif : la CI la
 compare donc aux objectifs, et ne compare à la référence que le débit maximal.
+
+La référence de débit est tenue **par modèle de processeur**, comme pour Studio
+([ADR-008](adr/008-hardware-matched-performance-baselines.md)) : GitHub attribue des processeurs
+différents, et la même décision répond à environ 3 000/s sur l'un et 5 000/s sur un autre. Chaque
+profil de `baseline.runtime.profiles` est la moyenne des exécutions CI de ce modèle, listées dans
+`source.runs` ; une exécution n'est comparée qu'au profil de son modèle de processeur, de son
+nombre de cœurs et de son architecture. Le 5 novembre 2026, un changement de documentation seule a
+mesuré 3 020/s pour kyc-risk-rating sur un AMD EPYC 7763, face à l'ancienne référence unique de
+3 800/s ; les sept exécutions propres à ce modèle allaient de 3 020 à 3 956/s. En CI, un processeur
+sans profil fait échouer le contrôle après avoir enregistré ses résultats, d'où son profil est
+tiré ; en local, le débit n'est alors pas comparé.
 
 **Flux.** 1 500 décisions à 100/s : la dernière était dans le journal de Studio 1,1 s après la
 fin de la charge.
