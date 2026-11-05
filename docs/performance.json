@@ -17,33 +17,95 @@
   "margin": 0.2,
   "margin_floor_ms": 5,
   "baseline": {
-    "measured": "Runtime: 2026-10-30, mean of two CI runs",
+    "measured": "Runtime: CI runs from 2026-10-31 to 2026-11-05, per CPU model",
     "runtime": {
-      "kyc-risk-rating/risk-rating": {
-        "maximum": {
-          "throughput": 3800
+      "method": "mean maximum throughput of the CI runs on each CPU model; no averaging across models",
+      "profiles": [
+        {
+          "machine": {
+            "cpuModel": "AMD EPYC 7763 64-Core Processor",
+            "cpus": 4,
+            "arch": "x86_64"
+          },
+          "source": {
+            "runs": [
+              41185166791,
+              41188145193,
+              41855811359,
+              41921085046,
+              41965398095,
+              41969652954,
+              41969675926
+            ]
+          },
+          "decisions": {
+            "kyc-risk-rating/risk-rating": {
+              "maximum": {
+                "throughput": 3512
+              }
+            },
+            "mobile-money-limits/transaction-limits": {
+              "maximum": {
+                "throughput": 6558
+              }
+            },
+            "retail-credit/credit-application": {
+              "maximum": {
+                "throughput": 2138
+              }
+            },
+            "retail-credit/scorecard": {
+              "maximum": {
+                "throughput": 3017
+              }
+            },
+            "sme-treasury/evaluation": {
+              "maximum": {
+                "throughput": 3014
+              }
+            }
+          }
+        },
+        {
+          "machine": {
+            "cpuModel": "INTEL(R) XEON(R) PLATINUM 8573C",
+            "cpus": 4,
+            "arch": "x86_64"
+          },
+          "source": {
+            "runs": [
+              41914823350
+            ]
+          },
+          "decisions": {
+            "kyc-risk-rating/risk-rating": {
+              "maximum": {
+                "throughput": 4968
+              }
+            },
+            "mobile-money-limits/transaction-limits": {
+              "maximum": {
+                "throughput": 9668
+              }
+            },
+            "retail-credit/credit-application": {
+              "maximum": {
+                "throughput": 2973
+              }
+            },
+            "retail-credit/scorecard": {
+              "maximum": {
+                "throughput": 4119
+              }
+            },
+            "sme-treasury/evaluation": {
+              "maximum": {
+                "throughput": 4153
+              }
+            }
+          }
         }
-      },
-      "mobile-money-limits/transaction-limits": {
-        "maximum": {
-          "throughput": 6344
-        }
-      },
-      "retail-credit/credit-application": {
-        "maximum": {
-          "throughput": 2154
-        }
-      },
-      "retail-credit/scorecard": {
-        "maximum": {
-          "throughput": 2999
-        }
-      },
-      "sme-treasury/evaluation": {
-        "maximum": {
-          "throughput": 3143
-        }
-      }
+      ]
     },
     "studio": {
       "method": "pooled p95 of three 1000-request rounds per CPU profile; no averaging across hardware models",

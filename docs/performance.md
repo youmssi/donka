@@ -16,7 +16,7 @@ CI checks every pull request against them.
 | Studio stopped, within the Runtime's queue | no decision fails, no record lost |
 | Studio stopped, beyond the queue | no decision fails; dropped records are counted in the Runtime's log |
 | Studio decision-log search and replay | p95 1 s and 2 s on the documented sample |
-| Regression | Runtime maximum throughput more than 20% below baseline, or Studio pooled p95 more than 20% above baseline, fails CI |
+| Regression | Runtime maximum throughput more than 20% below the same CPU model's baseline, or Studio pooled p95 more than 20% (at least 5 ms) above its baseline, fails CI |
 
 The latency is measured from when each request was due, not from when it left, so a slow
 Runtime cannot hide its own queueing.
@@ -39,6 +39,16 @@ throughput with 32 concurrent callers. The inputs are each pack's own test scena
 No request failed. Latency at 100/s moves between runs on a shared runner (p99 from 3 to 20 ms
 for the same decision), always well within the target, so CI holds it to the targets and
 compares only the maximum throughput with the baseline.
+
+The throughput baseline is kept **per CPU model**, as for Studio
+([ADR-008](adr/008-hardware-matched-performance-baselines.md)): GitHub assigns different processors,
+and the same decision answers about 3,000/s on one and 5,000/s on another. Each profile in
+`baseline.runtime.profiles` is the mean of that model's CI runs, listed in `source.runs`; a run is
+compared only with the profile of its CPU model, core count and architecture. On 5 November 2026 a
+documentation-only change measured 3,020/s for kyc-risk-rating on an AMD EPYC 7763 against the
+former single baseline of 3,800/s; that model's own seven runs ranged from 3,020 to 3,956/s. In CI,
+a processor without a profile fails the check after saving its results, from which its profile is
+recorded; locally, throughput is then not compared.
 
 **Feed.** 1,500 decisions at 100/s: the last was in Studio's log 1.1 s after the load ended.
 

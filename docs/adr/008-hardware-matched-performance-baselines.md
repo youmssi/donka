@@ -42,7 +42,7 @@ comparable profile explicitly report that they checked only the absolute targets
 - Matching a CPU model does not eliminate host-load or scheduling variation. Revisit the
   reference runner if measurements on matching profiles still cannot support the 20% policy.
 - This decision changes the measurement gate; application APIs and database modules are
-  unaffected. Runtime throughput baselines retain their existing policy.
+  unaffected. Runtime throughput baselines retain their existing policy (amended below).
 
 ## Amendment, 2026-11-04 (DNK-67)
 
@@ -52,3 +52,13 @@ support a pure 20% margin on measures of a few milliseconds. With the owner's ag
 case now fails above the larger of its baseline plus 20% and its baseline plus 5 ms
 (`margin_floor_ms` in `docs/performance.json`). The margin, the profiles and the absolute
 targets are unchanged.
+
+## Amendment, 2026-11-05 (DNK-67)
+
+The Runtime's maximum-throughput baseline was one mean across whichever processors GitHub
+assigned. A documentation-only change measured 3,020/s for kyc-risk-rating on an AMD EPYC 7763
+against that 3,800/s mean, below its 20% margin, while the model's own seven runs ranged from
+3,020 to 3,956/s. With the owner's agreement, the Runtime follows this decision too: one
+throughput profile per CPU model, core count and architecture, each the mean of that model's CI
+runs (`baseline.runtime.profiles`, runs listed in `source.runs`). In CI, a processor without a
+profile fails after its results are saved; the margin and the targets are unchanged.
