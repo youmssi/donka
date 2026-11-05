@@ -62,3 +62,13 @@ against that 3,800/s mean, below its 20% margin, while the model's own seven run
 throughput profile per CPU model, core count and architecture, each the mean of that model's CI
 runs (`baseline.runtime.profiles`, runs listed in `source.runs`). In CI, a processor without a
 profile fails after its results are saved; the margin and the targets are unchanged.
+
+## Amendment, 2026-11-05: averaged profiles and a 10 ms floor (DNK-67)
+
+A second documentation-only change failed: the newest-records search measured 20.17 ms on an
+Intel Xeon 8573C against that model's 15.08 ms profile, taken from a single calibration run,
+while the same search measured 19 to 22 ms on every other model and on that model's later runs.
+With the owner's agreement, each Studio profile is now the mean of its CPU model's CI runs
+(`source.runs`), and the floor is 10 ms: a case fails above the larger of its baseline plus 20%
+and its baseline plus 10 ms. Every unchanged-code run recorded so far passes with at least 5% to
+spare; the absolute targets are unchanged.

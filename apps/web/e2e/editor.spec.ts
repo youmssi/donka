@@ -124,10 +124,17 @@ test('graph authoring, simulation, versions and scenarios persist through the li
   page = await openPage(context, page.url(), page);
   await page.getByRole('button', { name: 'Edit Expression', exact: true }).click();
   const expression = page.locator('.expression-list-item__value .cm-content');
-  // CodeMirror keeps its own document: replace through its keyboard commands.
-  await expression.click();
-  await expression.press('ControlOrMeta+A');
-  await page.keyboard.insertText('input * 3');
+  // CodeMirror keeps its own document: replace through its keyboard commands. As with the key
+  // above, an edit made while the reopened editor still loads the draft is overwritten; type it
+  // again until the saved draft holds it.
+  await expect(async () => {
+    await expression.click();
+    await expression.press('ControlOrMeta+A');
+    await page.keyboard.insertText('input * 3');
+    await expect
+      .poll(savedExpressions, { timeout: 3_000 })
+      .toContainEqual(expect.objectContaining({ key: 'output', value: 'input * 3' }));
+  }).toPass({ timeout: 20_000 });
   const second = await saveVersion(page, decisionPath, 'Triple input', m.versions);
   expect(second.number).toBe(2);
   expect(second.tests).toEqual({ passed: 0, failed: 1, errors: 0 });
