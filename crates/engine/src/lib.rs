@@ -20,12 +20,13 @@ use donka_connectors::{recorded_outputs, ConnectorAdapter};
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::thread::available_parallelism;
 use tokio_util::task::LocalPoolHandle;
 use zen_engine::loader::MemoryLoader;
 use zen_engine::model::DecisionContent;
-use zen_engine::{DecisionEngine, EvaluationSerializedOptions, EvaluationTraceKind};
+use zen_engine::{DecisionEngine, EvaluationSerializedOptions, EvaluationTraceKind, ZEN_CONFIG};
 
 /// Graph nesting limit, the same default the engine uses.
 const MAX_DEPTH: u8 = 10;
@@ -165,6 +166,10 @@ pub struct ZenRuntime {
 
 impl ZenRuntime {
     pub fn new(workers: usize) -> Self {
+        // Rules reach other systems only through connectors: function nodes get no HTTP client,
+        // and the engine attaches no cloud credentials (DNK-83). The setting is process-wide.
+        ZEN_CONFIG.http_native.store(false, Ordering::Relaxed);
+        ZEN_CONFIG.http_auth.store(false, Ordering::Relaxed);
         Self {
             pool: LocalPoolHandle::new(workers.max(1)),
             connectors: Arc::new(ConnectorAdapter::mock()),

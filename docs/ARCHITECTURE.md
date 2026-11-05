@@ -63,6 +63,10 @@ configuration and the **name** of a secret; values come from the Runtime's envir
 (`DONKA_SECRET_<NAME>`). Timeouts, retries and a circuit breaker are enforced by the handler, not
 by rule authors. The node format is in `docs/artifact-format.md`.
 
+Connectors are the only way a rule reaches another system. JavaScript function nodes have no
+network access in Studio or the Runtime: the engine's `http` module refuses every request
+(`HTTP requests from function nodes are disabled`) and attaches no cloud credentials (DNK-83).
+
 ## Input contracts
 
 A decision's input contract is the JSON Schema on its input node (draft-07, what zen-engine

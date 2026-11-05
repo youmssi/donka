@@ -1761,11 +1761,11 @@ Calls to outside services belong to connectors, which have secrets, timeouts and
 Confirmed 2026-11-04: fixed first, before the other threat-model items.
 
 #### Acceptance criteria
-- [ ] A function node that imports `http` and calls any address fails with a clear error, in Studio's simulator, test scenarios and replay, and on the Runtime
-- [ ] The engine never attaches cloud credentials to a request
-- [ ] Regression tests in both repositories call a local server and prove no request reaches it
-- [ ] Function nodes keep everything else they do today; the starter packs' tests pass unchanged
-- [ ] The rule-authoring guide says function nodes have no network access and points to connectors
+- [x] A function node that imports `http` and calls any address fails with a clear error, in Studio's simulator, test scenarios and replay, and on the Runtime
+- [x] The engine never attaches cloud credentials to a request
+- [x] Regression tests in both repositories call a local server and prove no request reaches it
+- [x] Function nodes keep everything else they do today; the starter packs' tests pass unchanged
+- [x] The rule-authoring guide says function nodes have no network access and points to connectors
 
 ---
 

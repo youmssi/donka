@@ -90,7 +90,7 @@ Status:
 
 | ID | STRIDE | Threat | Mitigation | Status |
 | --- | --- | --- | --- | --- |
-| RA-1 | I, E | **A JavaScript function node calls any address.** zen-engine 2.x gives function nodes an `http` module with a native client, and Donka does not turn it off. An editor can make Studio's simulator, or a released rule on the Runtime, fetch internal services (cloud credential endpoints, admin consoles) and return the response in the result. Reproduced on 4 November 2026 against a local server. The engine's `http_auth` default can also attach cloud credentials | **Open: DNK-83 (critical)** |
+| RA-1 | I, E | **A JavaScript function node calls any address.** zen-engine 2.x gives function nodes an `http` module with a native client, and Donka does not turn it off. An editor can make Studio's simulator, or a released rule on the Runtime, fetch internal services (cloud credential endpoints, admin consoles) and return the response in the result. Reproduced on 4 November 2026 against a local server. The engine's `http_auth` default can also attach cloud credentials | Mitigated (DNK-83): Studio and the Runtime turn off the engine's HTTP client and its credentials (`ZEN_CONFIG.http_native`, `http_auth` in [`crates/engine/src/lib.rs`](../../crates/engine/src/lib.rs)); tests in both repositories prove a local service receives nothing |
 | RA-2 | D | A rule that loops or allocates without end | The engine stops a function node after 5 s; the Runtime limits requests per token (`RATE_LIMIT__REQUESTS`, DNK-22); Studio runs simulations on a bounded worker pool | Accepted: editors are named staff and every change is versioned and audited (owner: Donka) |
 | RA-3 | T | A rule reads fields the contract does not declare, or a bad input reaches rules | Input contracts are enforced by every Runtime (`400` naming the field) and checked when a version is saved (DNK-37) | Mitigated |
 
@@ -163,7 +163,7 @@ penetration test, so the test sees the build that goes to the pilot:
 
 | Order | Story | Closes | Severity |
 | --- | --- | --- | --- |
-| 1 | DNK-83 Function nodes cannot reach the network | RA-1 | Critical |
+| 1 | DNK-83 Function nodes cannot reach the network | RA-1 | Critical, fixed |
 | 2 | DNK-84 Connector secrets go only where the installation allows | CN-1, CN-2 | High |
 | 3 | DNK-85 Browser security headers | ID-7 | Medium |
 | 4 | DNK-86 Studio and the Runtime listen on localhost by default | RT-5 | Medium |

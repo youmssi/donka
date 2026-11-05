@@ -371,3 +371,51 @@ fn a_graph_uses_connectors_only_with_a_connector_node() {
     assert!(!donka_engine::uses_connectors(&json!({ "nodes": [] })));
     assert!(!donka_engine::uses_connectors(&json!({})));
 }
+
+#[tokio::test]
+async fn function_nodes_cannot_reach_the_network() {
+    use std::io::{Read, Write};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+
+    // A local service that counts the connections it receives and answers like an internal API.
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}/internal", listener.local_addr().unwrap());
+    let hits = Arc::new(AtomicUsize::new(0));
+    let counted = hits.clone();
+    std::thread::spawn(move || {
+        for mut stream in listener.incoming().flatten() {
+            counted.fetch_add(1, Ordering::SeqCst);
+            let _ = stream.read(&mut [0; 1024]);
+            let _ = stream.write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}",
+            );
+        }
+    });
+    let source = format!(
+        "import http from 'http';\nexport const handler = async () => {{\n  const response = await http.get('{url}');\n  return {{ data: response.data }};\n}};"
+    );
+    let graph = json!({
+        "nodes": [
+            { "id": "i", "type": "inputNode", "name": "Request", "position": { "x": 0, "y": 0 } },
+            { "id": "f", "type": "functionNode", "name": "Call", "position": { "x": 1, "y": 0 }, "content": { "source": source } },
+            { "id": "o", "type": "outputNode", "name": "Response", "position": { "x": 2, "y": 0 } }
+        ],
+        "edges": [
+            { "id": "a", "sourceId": "i", "targetId": "f", "type": "edge" },
+            { "id": "b", "sourceId": "f", "targetId": "o", "type": "edge" }
+        ]
+    });
+    let bundle = Bundle::from_json(BTreeMap::from([("call".to_owned(), graph)])).unwrap();
+
+    let refused = ZenRuntime::new(1)
+        .evaluate(&bundle, "call", json!({}), EvaluateOptions::default())
+        .await
+        .unwrap_err();
+
+    assert!(
+        format!("{refused:?}").contains("HTTP requests from function nodes are disabled"),
+        "{refused:?}"
+    );
+    assert_eq!(hits.load(Ordering::SeqCst), 0);
+}

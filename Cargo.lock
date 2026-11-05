@@ -6545,7 +6545,7 @@ dependencies = [
 [[package]]
 name = "zen-engine"
 version = "2.1.6"
-source = "git+https://github.com/youmssi/zen?rev=04d835fb9c8bb2102244059bb1883e9dd162ede6#04d835fb9c8bb2102244059bb1883e9dd162ede6"
+source = "git+https://github.com/youmssi/zen?rev=295fdfac546bd01cf4cbbb2b64c5c0e17d7e2a15#295fdfac546bd01cf4cbbb2b64c5c0e17d7e2a15"
 dependencies = [
  "ahash",
  "anyhow",
@@ -6587,7 +6587,7 @@ dependencies = [
 [[package]]
 name = "zen-expression"
 version = "2.1.6"
-source = "git+https://github.com/youmssi/zen?rev=04d835fb9c8bb2102244059bb1883e9dd162ede6#04d835fb9c8bb2102244059bb1883e9dd162ede6"
+source = "git+https://github.com/youmssi/zen?rev=295fdfac546bd01cf4cbbb2b64c5c0e17d7e2a15#295fdfac546bd01cf4cbbb2b64c5c0e17d7e2a15"
 dependencies = [
  "ahash",
  "anyhow",
@@ -6617,7 +6617,7 @@ dependencies = [
 [[package]]
 name = "zen-macros"
 version = "2.1.6"
-source = "git+https://github.com/youmssi/zen?rev=04d835fb9c8bb2102244059bb1883e9dd162ede6#04d835fb9c8bb2102244059bb1883e9dd162ede6"
+source = "git+https://github.com/youmssi/zen?rev=295fdfac546bd01cf4cbbb2b64c5c0e17d7e2a15#295fdfac546bd01cf4cbbb2b64c5c0e17d7e2a15"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6628,7 +6628,7 @@ dependencies = [
 [[package]]
 name = "zen-tmpl"
 version = "2.1.6"
-source = "git+https://github.com/youmssi/zen?rev=04d835fb9c8bb2102244059bb1883e9dd162ede6#04d835fb9c8bb2102244059bb1883e9dd162ede6"
+source = "git+https://github.com/youmssi/zen?rev=295fdfac546bd01cf4cbbb2b64c5c0e17d7e2a15#295fdfac546bd01cf4cbbb2b64c5c0e17d7e2a15"
 dependencies = [
  "serde",
  "serde_json",
@@ -6639,7 +6639,7 @@ dependencies = [
 [[package]]
 name = "zen-types"
 version = "2.1.6"
-source = "git+https://github.com/youmssi/zen?rev=04d835fb9c8bb2102244059bb1883e9dd162ede6#04d835fb9c8bb2102244059bb1883e9dd162ede6"
+source = "git+https://github.com/youmssi/zen?rev=295fdfac546bd01cf4cbbb2b64c5c0e17d7e2a15#295fdfac546bd01cf4cbbb2b64c5c0e17d7e2a15"
 dependencies = [
  "ahash",
  "hipstr",
