@@ -535,3 +535,85 @@ async fn a_version_with_a_broken_contract_is_refused(db: PgPool) {
     let history = call(&app, "GET", &format!("{base}/versions"), None, &admin).await;
     assert_eq!(history.body["total"], 0);
 }
+
+/// A graph with one connector node calling `url`, with `secret` in a header when given.
+fn connector(url: &str, secret: Option<&str>) -> Value {
+    let auth = match secret {
+        Some(secret) => json!({ "type": "header", "header": "X-Api-Key", "secret": secret }),
+        None => json!({ "type": "none" }),
+    };
+    json!({
+        "nodes": [
+            { "id": "in", "name": "request", "type": "inputNode", "position": { "x": 0, "y": 0 } },
+            { "id": "bureau", "name": "Bureau", "type": "customNode", "position": { "x": 200, "y": 0 },
+              "content": { "kind": "donka.connector", "config": {
+                  "url": url, "auth": auth, "outputKey": "bureau", "mock": { "score": 700 }
+              }}
+            },
+            { "id": "out", "name": "response", "type": "outputNode", "position": { "x": 400, "y": 0 } }
+        ],
+        "edges": [
+            { "id": "e1", "type": "edge", "sourceId": "in", "targetId": "bureau" },
+            { "id": "e2", "type": "edge", "sourceId": "bureau", "targetId": "out" }
+        ]
+    })
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn saving_names_the_connectors_the_runtime_would_refuse(db: PgPool) {
+    let destinations = donka_engine::Destinations {
+        hosts: vec!["api.bureau.cm".to_owned()],
+        secrets: [(
+            "BUREAU_API_KEY".to_owned(),
+            vec!["api.bureau.cm".to_owned()],
+        )]
+        .into(),
+    };
+    let app = with_connector_hosts(db, destinations);
+    let admin = signed_in_admin(&app).await;
+    let p = project(&app, &admin, "credit").await;
+    let cases = [
+        (
+            "allowed",
+            connector("https://api.bureau.cm/score", Some("BUREAU_API_KEY")),
+            json!([]),
+        ),
+        (
+            "elsewhere",
+            connector("https://attacker.example/x", None),
+            json!([{ "node": "Bureau", "host": "attacker.example", "secret": null }]),
+        ),
+        (
+            "unlisted-secret",
+            connector("https://api.bureau.cm/score", Some("OTHER_KEY")),
+            json!([{ "node": "Bureau", "host": "api.bureau.cm", "secret": "OTHER_KEY" }]),
+        ),
+    ];
+    for (key, content, expected) in cases {
+        let d = decision(&app, &admin, &p, key, Some(content)).await;
+        let base = format!("/projects/{p}/decisions/{}", d["id"].as_str().unwrap());
+        let saved = save_version(&app, &admin, &base, 1, "Connector").await;
+        // A warning, never a refusal: the version is saved.
+        assert_eq!(saved.status, StatusCode::CREATED, "{}", saved.body);
+        assert_eq!(saved.body["connectors"], expected, "{key}");
+    }
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn without_the_installations_lists_saving_does_not_check_connectors(db: PgPool) {
+    let app = with_database(db);
+    let admin = signed_in_admin(&app).await;
+    let p = project(&app, &admin, "credit").await;
+    let d = decision(
+        &app,
+        &admin,
+        &p,
+        "elsewhere",
+        Some(connector("https://attacker.example/x", None)),
+    )
+    .await;
+    let base = format!("/projects/{p}/decisions/{}", d["id"].as_str().unwrap());
+    let saved = save_version(&app, &admin, &base, 1, "Connector").await;
+    assert_eq!(saved.status, StatusCode::CREATED, "{}", saved.body);
+    assert_eq!(saved.body["connectors"], json!([]));
+}

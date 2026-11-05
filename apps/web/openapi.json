@@ -2455,6 +2455,30 @@
         ],
         "type": "object"
       },
+      "RefusedConnectorResponse": {
+        "properties": {
+          "host": {
+            "description": "The host the Runtime would refuse.",
+            "type": "string"
+          },
+          "node": {
+            "description": "The connector node, as its author named it.",
+            "type": "string"
+          },
+          "secret": {
+            "description": "The secret that may not be sent to `host`; absent when no connector may call it.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "node",
+          "host"
+        ],
+        "type": "object"
+      },
       "RejectRequest": {
         "properties": {
           "reason": {
@@ -2889,6 +2913,13 @@
           },
           {
             "properties": {
+              "connectors": {
+                "description": "Connector nodes the installation's Runtime would refuse to call (DNK-84): a host no\nconnector may call, or a secret listed for other hosts. Empty when Studio is not told\nthe installation's lists. They warn and never block the save.",
+                "items": {
+                  "$ref": "#/components/schemas/RefusedConnectorResponse"
+                },
+                "type": "array"
+              },
               "findings": {
                 "description": "What the table checks find in the version: gaps, overlapping rows, conditions that never\nmatch (DNK-76). They warn and never block the save.",
                 "items": {
@@ -2906,7 +2937,8 @@
             },
             "required": [
               "warnings",
-              "findings"
+              "findings",
+              "connectors"
             ],
             "type": "object"
           }

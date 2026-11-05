@@ -9,6 +9,7 @@ export type SimulationResult = ApiSchemas['SimulateResponse'];
 export type Version = ApiSchemas['DecisionVersionResponse'];
 export type SavedVersion = ApiSchemas['SavedVersionResponse'];
 export type ContractWarning = ApiSchemas['ContractWarningResponse'];
+export type RefusedConnector = ApiSchemas['RefusedConnectorResponse'];
 export type TableFinding = ApiSchemas['TableFindingResponse'];
 export type VersionDetail = ApiSchemas['DecisionVersionDetailResponse'];
 export type VersionList = ApiSchemas['DecisionVersionListResponse'];

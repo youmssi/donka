@@ -1199,11 +1199,12 @@ dependencies = [
 [[package]]
 name = "donka-connectors"
 version = "0.1.0"
-source = "git+https://github.com/youmssi/donka-runtime?rev=9220ab7ac8fa1cf7cab1668e16287abbb5216883#9220ab7ac8fa1cf7cab1668e16287abbb5216883"
+source = "git+https://github.com/youmssi/donka-runtime?rev=70431161efecf28c32eefaf48a7ef7bca6baba9d#70431161efecf28c32eefaf48a7ef7bca6baba9d"
 dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.21",
+ "url",
  "zen-engine",
  "zen-tmpl",
 ]

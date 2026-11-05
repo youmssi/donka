@@ -91,7 +91,7 @@ it('shows where the draft stands in the history', () => {
 it('saves a version of what is on screen, with a required message', async () => {
   const user = userEvent.setup();
   const warnings = [{ kind: 'unread' as const, path: 'applicant.city' }];
-  const saved = { ...v2, number: 3, message: 'Add bureau score', warnings, findings: [] };
+  const saved = { ...v2, number: 3, message: 'Add bureau score', warnings, findings: [], connectors: [] };
   saveMock.mockResolvedValue({ ok: true, data: saved });
   const draft = fakeDraft();
   const onSaved = vi.fn();

@@ -668,6 +668,18 @@ fn env_file(installation: &Installation) -> String {
         let names: Vec<&str> = modules.iter().map(|module| module.as_str()).collect();
         lines.push(format!("DONKA_MODULES={}", names.join(",")));
     }
+    // The Runtime's connector destinations, so Studio warns about connectors it would refuse.
+    let allowed = i.connector_allowed_hosts();
+    if !allowed.is_empty() {
+        let hosts: Vec<String> = allowed.into_iter().collect();
+        lines.push(format!("DONKA_CONNECTOR_ALLOWED_HOSTS={}", hosts.join(",")));
+        let secrets: Vec<String> = i
+            .connector_hosts()
+            .into_iter()
+            .map(|(name, hosts)| format!("{name}={}", hosts.join(",")))
+            .collect();
+        lines.push(format!("DONKA_CONNECTOR_HOSTS={}", secrets.join(";")));
+    }
     lines.join("\n") + "\n"
 }
 

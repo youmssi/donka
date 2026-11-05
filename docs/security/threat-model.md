@@ -98,8 +98,8 @@ Status:
 
 | ID | STRIDE | Threat | Mitigation | Status |
 | --- | --- | --- | --- | --- |
-| CN-1 | I | **An editor sends a connector secret to an outside server.** A connector node names a secret and a URL. Nothing limits which URL a secret may be sent to, and staging releases need no approval, so an editor can point a node at their own server with the bureau's secret | **Open: DNK-84** |
-| CN-2 | I | A connector follows a redirect and sends its headers (e.g. `X-Api-Key`) to another host | The client follows redirects by default | **Open: DNK-84** |
+| CN-1 | I | **An editor sends a connector secret to an outside server.** A connector node names a secret and a URL. Nothing limits which URL a secret may be sent to, and staging releases need no approval, so an editor can point a node at their own server with the bureau's secret | Mitigated (DNK-84): `CONNECTORS__ALLOWED_HOSTS` and `CONNECTORS__HOSTS__<SECRET>`, checked before any secret is read ([`Destinations`](https://github.com/youmssi/donka-runtime/blob/develop/crates/connectors/src/lib.rs)); `donka-admin init` writes the lists; Studio warns when a version has a connector the Runtime would refuse, and `doctor` reports live ones |
+| CN-2 | I | A connector follows a redirect and sends its headers (e.g. `X-Api-Key`) to another host | Connectors do not follow redirects; a `3xx` is the connector's error (`redirect`) | Mitigated (DNK-84) |
 | CN-3 | I | Secrets in graphs, logs or Studio | Graphs store only a secret's name; values live in the Runtime's environment or `_FILE` files (DNK-65); Studio simulates connectors from mocks and never calls them ([`docs/ARCHITECTURE.md`](../ARCHITECTURE.md#connectors-bureau-kyc-aml)); live tests check no secret appears in answers | Mitigated |
 | CN-4 | D | A slow or failing service holds decisions | Per-attempt timeout (capped at 10 s), bounded retries and a circuit breaker per URL, enforced by the handler, not the rule ([`donka-runtime/crates/connectors/src/live.rs`](https://github.com/youmssi/donka-runtime/blob/develop/crates/connectors/src/live.rs)) | Mitigated |
 | CN-5 | S | A fake core banking endpoint | OAuth2 client credentials and mutual TLS (DNK-63); HTTPS verifies the server's certificate | Mitigated |
@@ -164,7 +164,7 @@ penetration test, so the test sees the build that goes to the pilot:
 | Order | Story | Closes | Severity |
 | --- | --- | --- | --- |
 | 1 | DNK-83 Function nodes cannot reach the network | RA-1 | Critical, fixed |
-| 2 | DNK-84 Connector secrets go only where the installation allows | CN-1, CN-2 | High |
+| 2 | DNK-84 Connector secrets go only where the installation allows | CN-1, CN-2 | High, fixed |
 | 3 | DNK-85 Browser security headers | ID-7 | Medium |
 | 4 | DNK-86 Studio and the Runtime listen on localhost by default | RT-5 | Medium |
 | 5 | DNK-87 Signed release artifacts | RT-3 | Medium |

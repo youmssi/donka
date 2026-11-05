@@ -1,6 +1,6 @@
 use donka_identity::Locale;
 use donka_licence::Module;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
@@ -86,6 +86,10 @@ pub struct Config {
     /// The optional modules the installation turns on (`DONKA_MODULES`, DNK-74), within what the
     /// licence includes; every module the licence includes when unset.
     pub modules: Option<BTreeSet<Module>>,
+    /// Where the installation's Runtime lets connectors call, as `donka-admin init` writes it
+    /// for both (DNK-84): `DONKA_CONNECTOR_ALLOWED_HOSTS` and `DONKA_CONNECTOR_HOSTS`
+    /// (`NAME=host,host;OTHER=host`). Unset: Studio does not know, and does not warn.
+    pub connector_destinations: Option<ConnectorHosts>,
     /// Where Studio writes, at first start, the decision-log token of the staging Runtime it
     /// is installed with (DNK-64). Unset: Runtimes get their token from an administrator.
     pub runtime_log_token_file: Option<PathBuf>,
@@ -315,6 +319,7 @@ impl Config {
                 .filter(|v| !v.trim().is_empty())
                 .map(PathBuf::from),
             modules: modules(&get)?,
+            connector_destinations: connector_destinations(&get)?,
             runtime_log_token_file: get("DONKA_RUNTIME_LOG_TOKEN_FILE")
                 .filter(|v| !v.trim().is_empty())
                 .map(PathBuf::from),
@@ -529,6 +534,62 @@ fn modules(get: &impl Fn(&str) -> Option<String>) -> Result<Option<BTreeSet<Modu
         })
         .collect::<Result<_, _>>()
         .map(Some)
+}
+
+/// The Runtime's connector destinations as Studio reads them (DNK-84).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConnectorHosts {
+    /// Every host a connector may call.
+    pub hosts: Vec<String>,
+    /// Per secret name (upper case), the hosts it may be sent to.
+    pub secrets: BTreeMap<String, Vec<String>>,
+}
+
+impl ConnectorHosts {
+    /// The check the Runtime makes before each call.
+    pub fn destinations(&self) -> donka_engine::Destinations {
+        donka_engine::Destinations {
+            hosts: self.hosts.clone(),
+            secrets: self.secrets.clone().into_iter().collect(),
+        }
+    }
+}
+
+/// `DONKA_CONNECTOR_ALLOWED_HOSTS` (hosts separated by commas) and `DONKA_CONNECTOR_HOSTS`
+/// (`NAME=host,host;OTHER=host`): the Runtime's connector destinations, known only when the first
+/// is set.
+fn connector_destinations(
+    get: &impl Fn(&str) -> Option<String>,
+) -> Result<Option<ConnectorHosts>, ConfigError> {
+    let hosts = |list: &str| -> Vec<String> {
+        list.split(',')
+            .map(str::trim)
+            .filter(|host| !host.is_empty())
+            .map(str::to_owned)
+            .collect()
+    };
+    let Some(allowed) = get("DONKA_CONNECTOR_ALLOWED_HOSTS") else {
+        return Ok(None);
+    };
+    let mut secrets = BTreeMap::new();
+    for entry in get("DONKA_CONNECTOR_HOSTS")
+        .unwrap_or_default()
+        .split(';')
+        .map(str::trim)
+        .filter(|entry| !entry.is_empty())
+    {
+        let (name, list) = entry.split_once('=').ok_or_else(|| {
+            invalid(
+                "DONKA_CONNECTOR_HOSTS",
+                "must read NAME=host,host;OTHER=host",
+            )
+        })?;
+        secrets.insert(name.trim().to_ascii_uppercase(), hosts(list));
+    }
+    Ok(Some(ConnectorHosts {
+        hosts: hosts(&allowed),
+        secrets,
+    }))
 }
 
 fn invalid(var: &'static str, reason: &str) -> ConfigError {
@@ -1093,6 +1154,41 @@ mod tests {
         assert_eq!(
             load(&[("DONKA_LISTEN", "8080")]).unwrap_err().var,
             "DONKA_LISTEN"
+        );
+    }
+
+    #[test]
+    fn connector_destinations_are_known_only_when_the_allowed_hosts_are_given() {
+        assert!(load(&[]).unwrap().connector_destinations.is_none());
+        let known = load(&[
+            (
+                "DONKA_CONNECTOR_ALLOWED_HOSTS",
+                "api.bureau.cm, cbs.bank:8443",
+            ),
+            (
+                "DONKA_CONNECTOR_HOSTS",
+                "bureau_api_key=api.bureau.cm;CBS_SECRET=cbs.bank:8443,login.bank",
+            ),
+        ])
+        .unwrap()
+        .connector_destinations
+        .unwrap();
+        assert_eq!(known.hosts, ["api.bureau.cm", "cbs.bank:8443"]);
+        assert_eq!(known.secrets["BUREAU_API_KEY"], ["api.bureau.cm"]);
+        assert_eq!(known.secrets["CBS_SECRET"], ["cbs.bank:8443", "login.bank"]);
+        let none = load(&[("DONKA_CONNECTOR_ALLOWED_HOSTS", "")])
+            .unwrap()
+            .connector_destinations
+            .unwrap();
+        assert!(none.hosts.is_empty() && none.secrets.is_empty());
+        assert_eq!(
+            load(&[
+                ("DONKA_CONNECTOR_ALLOWED_HOSTS", "x"),
+                ("DONKA_CONNECTOR_HOSTS", "no-equals-sign")
+            ])
+            .unwrap_err()
+            .var,
+            "DONKA_CONNECTOR_HOSTS"
         );
     }
 }

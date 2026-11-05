@@ -2535,6 +2535,14 @@ export interface components {
       /** @description Shown once; each works once instead of a code. */
       recoveryCodes: string[];
     };
+    RefusedConnectorResponse: {
+      /** @description The host the Runtime would refuse. */
+      host: string;
+      /** @description The connector node, as its author named it. */
+      node: string;
+      /** @description The secret that may not be sent to `host`; absent when no connector may call it. */
+      secret?: string | null;
+    };
     RejectRequest: {
       /** @description Why the release may not go to production. */
       reason: string;
@@ -2702,6 +2710,12 @@ export interface components {
     };
     /** @description A version just saved, with what its author should know about the input contract. */
     SavedVersionResponse: components['schemas']['DecisionVersionResponse'] & {
+      /**
+       * @description Connector nodes the installation's Runtime would refuse to call (DNK-84): a host no
+       *     connector may call, or a secret listed for other hosts. Empty when Studio is not told
+       *     the installation's lists. They warn and never block the save.
+       */
+      connectors: components['schemas']['RefusedConnectorResponse'][];
       /**
        * @description What the table checks find in the version: gaps, overlapping rows, conditions that never
        *     match (DNK-76). They warn and never block the save.

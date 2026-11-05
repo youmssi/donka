@@ -160,6 +160,7 @@ fn the_demo_turns_on_its_profile_and_its_connector_secret() {
     assert!(!env.contains("DONKA_UPDATE_CHECK"));
     assert!(!read(&plain, "runtime.env").contains("DONKA_SECRET_"));
     assert!(!read(&plain, "runtime.env").contains("CONNECTORS__"));
+    assert!(!env.contains("DONKA_CONNECTOR_"));
 
     let demo = dir("demo");
     let installation = Installation {
@@ -183,8 +184,13 @@ fn the_demo_turns_on_its_profile_and_its_connector_secret() {
         value(&runtime, "DONKA_SECRET_BUREAU_API_KEY_FILE"),
         "/run/secrets/connector_bureau_api_key"
     );
-    // The demo's key goes to its fake bureau only (DNK-84).
+    // The demo's key goes to its fake bureau only (DNK-84), and Studio knows it.
     assert_eq!(value(&runtime, "CONNECTORS__ALLOWED_HOSTS"), "demo-bureau");
+    assert_eq!(value(&env, "DONKA_CONNECTOR_ALLOWED_HOSTS"), "demo-bureau");
+    assert_eq!(
+        value(&env, "DONKA_CONNECTOR_HOSTS"),
+        "BUREAU_API_KEY=demo-bureau"
+    );
     assert_eq!(
         value(&runtime, "CONNECTORS__HOSTS__BUREAU_API_KEY"),
         "demo-bureau"
@@ -452,6 +458,10 @@ fn connector_secrets_go_only_to_the_hosts_donka_yaml_lists() {
     assert_eq!(
         value(&runtime, "CONNECTORS__HOSTS__BUREAU_API_KEY"),
         "api.bureau.cm"
+    );
+    assert_eq!(
+        value(&read(&dir, ".env"), "DONKA_CONNECTOR_HOSTS"),
+        "BUREAU_API_KEY=api.bureau.cm;CBS_CLIENT_SECRET=cbs.bank.internal:8443,login.bank.internal"
     );
     // donka.yaml keeps the lists, so a replay writes the same settings.
     let config = read(&dir, CONFIG);

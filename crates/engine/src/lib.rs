@@ -72,6 +72,55 @@ pub fn connector_endpoints(content: &Value) -> Vec<String> {
         .collect()
 }
 
+pub use donka_connectors::Destinations;
+
+/// A connector node the installation's Runtime would refuse to call (DNK-84).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RefusedConnector {
+    /// The node's name, as the author gave it.
+    pub node: String,
+    /// The host the Runtime would refuse.
+    pub host: String,
+    /// The secret that may not go there; `None` when no connector may call the host.
+    pub secret: Option<String>,
+}
+
+/// The connector nodes of a decision graph that `destinations` refuses, with the same check the
+/// Runtime makes before each call. Nodes whose settings are invalid are left out (validation
+/// reports them).
+pub fn refused_connectors(content: &Value, destinations: &Destinations) -> Vec<RefusedConnector> {
+    content
+        .get("nodes")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|node| {
+            node.get("type").and_then(Value::as_str) == Some("customNode")
+                && node.pointer("/content/kind").and_then(Value::as_str)
+                    == Some(donka_connectors::KIND)
+        })
+        .filter_map(|node| {
+            let config = donka_connectors::parse(node.pointer("/content/config")?).ok()?;
+            let (host, secret) = match destinations.check(&config) {
+                Err(donka_connectors::ConnectorError::HostNotAllowed(host)) => (host, None),
+                Err(donka_connectors::ConnectorError::SecretHostNotAllowed { secret, host }) => {
+                    (host, Some(secret))
+                }
+                _ => return None,
+            };
+            Some(RefusedConnector {
+                node: node
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_owned(),
+                host,
+                secret,
+            })
+        })
+        .collect()
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum RuntimeError {
     /// A decision in the bundle is not valid JDM; `key` names which one.

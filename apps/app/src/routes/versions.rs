@@ -46,6 +46,30 @@ pub struct SavedVersionResponse {
     /// What the table checks find in the version: gaps, overlapping rows, conditions that never
     /// match (DNK-76). They warn and never block the save.
     pub findings: Vec<TableFindingResponse>,
+    /// Connector nodes the installation's Runtime would refuse to call (DNK-84): a host no
+    /// connector may call, or a secret listed for other hosts. Empty when Studio is not told
+    /// the installation's lists. They warn and never block the save.
+    pub connectors: Vec<RefusedConnectorResponse>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct RefusedConnectorResponse {
+    /// The connector node, as its author named it.
+    pub node: String,
+    /// The host the Runtime would refuse.
+    pub host: String,
+    /// The secret that may not be sent to `host`; absent when no connector may call it.
+    pub secret: Option<String>,
+}
+
+impl From<donka_engine::RefusedConnector> for RefusedConnectorResponse {
+    fn from(refused: donka_engine::RefusedConnector) -> Self {
+        Self {
+            node: refused.node,
+            host: refused.host,
+            secret: refused.secret,
+        }
+    }
 }
 
 #[derive(Serialize, ToSchema)]
@@ -190,6 +214,14 @@ pub async fn save(
         let draft = state.decisions.get(&access, id).await?;
         connectors_licensed(&state, &draft.content)?;
     }
+    // The version saved is the draft: its connectors are checked as the Runtime would.
+    let refused = match &state.connector_destinations {
+        Some(destinations) => {
+            let draft = state.decisions.get(&access, id).await?;
+            donka_engine::refused_connectors(&draft.content, destinations)
+        }
+        None => Vec::new(),
+    };
     let saved = state
         .decisions
         .save_version(&access, id, req.revision, &req.message)
@@ -202,6 +234,7 @@ pub async fn save(
             version: response(&emails, saved.summary),
             warnings: saved.warnings.into_iter().map(Into::into).collect(),
             findings: findings::responses(&state, saved.findings).await?,
+            connectors: refused.into_iter().map(Into::into).collect(),
         }),
     ))
 }

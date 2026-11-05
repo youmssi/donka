@@ -297,6 +297,10 @@ async fn main() -> anyhow::Result<()> {
             licensing,
             updates,
             installation,
+            connector_destinations: config
+                .connector_destinations
+                .as_ref()
+                .map(|hosts| Arc::new(hosts.destinations())),
         },
         &config.api_base_path,
         config.web_dir.as_deref(),
