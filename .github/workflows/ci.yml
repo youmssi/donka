@@ -510,6 +510,9 @@ jobs:
           AWS_ACCESS_KEY_ID: donka
           AWS_SECRET_ACCESS_KEY: donka-secret
           DONKA_SECRET_BUREAU_API_KEY: e2e-bureau-secret
+          # The Runtime calls only the hosts listed here, and sends each secret only to its own (DNK-84).
+          CONNECTORS__ALLOWED_HOSTS: 127.0.0.1,demo-bureau
+          CONNECTORS__HOSTS__BUREAU_API_KEY: 127.0.0.1,demo-bureau
       - name: Logs
         if: failure()
         run: tail -n 100 studio.log runtime.log bureau.log demo-bureau.log
