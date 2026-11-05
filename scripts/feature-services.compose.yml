@@ -52,6 +52,11 @@ services:
         required: false
     environment:
       DONKA_SECRET_E2E_BUREAU_KEY: feature-test-secret
+      # The Runtime calls only listed hosts and sends each secret only to its own (DNK-84).
+      # E2E_UNCONFIGURED is listed so the test reaches the missing-secret error it checks.
+      CONNECTORS__ALLOWED_HOSTS: feature-bureau
+      CONNECTORS__HOSTS__E2E_BUREAU_KEY: feature-bureau
+      CONNECTORS__HOSTS__E2E_UNCONFIGURED: feature-bureau
   runtime-production:
     extends:
       file: docker-compose.yml
