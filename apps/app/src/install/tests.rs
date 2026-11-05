@@ -159,6 +159,7 @@ fn the_demo_turns_on_its_profile_and_its_connector_secret() {
     assert!(!env.contains("DONKA_DEMO") && !env.contains("COMPOSE_PROFILES"));
     assert!(!env.contains("DONKA_UPDATE_CHECK"));
     assert!(!read(&plain, "runtime.env").contains("DONKA_SECRET_"));
+    assert!(!read(&plain, "runtime.env").contains("CONNECTORS__"));
 
     let demo = dir("demo");
     let installation = Installation {
@@ -181,6 +182,12 @@ fn the_demo_turns_on_its_profile_and_its_connector_secret() {
     assert_eq!(
         value(&runtime, "DONKA_SECRET_BUREAU_API_KEY_FILE"),
         "/run/secrets/connector_bureau_api_key"
+    );
+    // The demo's key goes to its fake bureau only (DNK-84).
+    assert_eq!(value(&runtime, "CONNECTORS__ALLOWED_HOSTS"), "demo-bureau");
+    assert_eq!(
+        value(&runtime, "CONNECTORS__HOSTS__BUREAU_API_KEY"),
+        "demo-bureau"
     );
     let key = read_secret(&demo.join(SECRETS).join("connector_bureau_api_key")).unwrap();
     assert_eq!(key.len(), 48);
@@ -360,4 +367,94 @@ fn modules_are_turned_on_and_off_in_donka_yaml_only() {
     );
     assert!(after.contains("# the operator's note"));
     assert!(!read(&dir, ".env").contains("DONKA_MODULES"));
+}
+
+#[test]
+fn connector_secrets_go_only_to_the_hosts_donka_yaml_lists() {
+    let secrets = vec!["CBS_CLIENT_SECRET".to_owned(), "BUREAU_API_KEY".to_owned()];
+    let without_hosts = Installation {
+        connector_secrets: secrets.clone(),
+        ..Installation::for_version("1.4.0")
+    };
+    let refused = init(
+        &dir("connector-no-hosts"),
+        &without_hosts,
+        &Provided::default(),
+        system_random,
+    )
+    .unwrap_err();
+    assert!(
+        refused.contains("connector secret `CBS_CLIENT_SECRET` has no hosts"),
+        "{refused}"
+    );
+
+    for (hosts, message) in [
+        (
+            vec!["https://api.bureau.cm".to_owned()],
+            "connector host `https://api.bureau.cm`",
+        ),
+        (
+            vec!["api.bureau.cm,cbs".to_owned()],
+            "connector host `api.bureau.cm,cbs`",
+        ),
+        (vec!["cbs.bank:0".to_owned()], "connector host `cbs.bank:0`"),
+    ] {
+        let invalid = Installation {
+            connector_secrets: vec!["BUREAU_API_KEY".to_owned()],
+            connector_hosts: BTreeMap::from([("BUREAU_API_KEY".to_owned(), hosts)]),
+            ..Installation::for_version("1.4.0")
+        };
+        let refused = invalid.validate().unwrap_err();
+        assert!(refused.contains(message), "{refused}");
+    }
+    let unknown = Installation {
+        connector_hosts: BTreeMap::from([("OTHER".to_owned(), vec!["x.example".to_owned()])]),
+        ..Installation::for_version("1.4.0")
+    };
+    assert!(unknown
+        .validate()
+        .unwrap_err()
+        .contains("connector_hosts.OTHER: `OTHER` is not in connector_secrets"));
+
+    let dir = dir("connector-hosts");
+    for name in ["connector_cbs_client_secret", "connector_bureau_api_key"] {
+        std::fs::create_dir_all(dir.join(SECRETS)).unwrap();
+        std::fs::write(dir.join(SECRETS).join(name), "value").unwrap();
+    }
+    let installation = Installation {
+        connector_secrets: secrets,
+        connector_hosts: BTreeMap::from([
+            (
+                "CBS_CLIENT_SECRET".to_owned(),
+                vec![
+                    "cbs.bank.internal:8443".to_owned(),
+                    "login.bank.internal".to_owned(),
+                ],
+            ),
+            (
+                "BUREAU_API_KEY".to_owned(),
+                vec!["api.bureau.cm".to_owned()],
+            ),
+        ]),
+        connector_open_hosts: vec!["rates.beac.int".to_owned()],
+        ..Installation::for_version("1.4.0")
+    };
+    init(&dir, &installation, &Provided::default(), system_random).unwrap();
+    let runtime = read(&dir, "runtime.env");
+    assert_eq!(
+        value(&runtime, "CONNECTORS__ALLOWED_HOSTS"),
+        "api.bureau.cm,cbs.bank.internal:8443,login.bank.internal,rates.beac.int"
+    );
+    assert_eq!(
+        value(&runtime, "CONNECTORS__HOSTS__CBS_CLIENT_SECRET"),
+        "cbs.bank.internal:8443,login.bank.internal"
+    );
+    assert_eq!(
+        value(&runtime, "CONNECTORS__HOSTS__BUREAU_API_KEY"),
+        "api.bureau.cm"
+    );
+    // donka.yaml keeps the lists, so a replay writes the same settings.
+    let config = read(&dir, CONFIG);
+    assert!(config.contains("connector_hosts:") && config.contains("connector_open_hosts:"));
+    let _ = std::fs::remove_dir_all(&dir);
 }

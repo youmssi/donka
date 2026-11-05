@@ -221,7 +221,29 @@ connector_secrets:
   - CBS_CLIENT_CERT         # mutual TLS, PEM
   - CBS_CLIENT_KEY
   - CBS_CA
+connector_hosts:            # where the Runtime may send each secret, and nowhere else
+  BUREAU_API_KEY: [api.bureau.cm]
+  CBS_CLIENT_SECRET: [cbs.bank.internal:8443, login.bank.internal]   # service and token endpoint
+  CBS_CLIENT_CERT: [cbs.bank.internal:8443, login.bank.internal]
+  CBS_CLIENT_KEY: [cbs.bank.internal:8443, login.bank.internal]
+  CBS_CA: [cbs.bank.internal:8443, login.bank.internal]
+connector_open_hosts:       # services connectors call without a secret
+  - rates.beac.int
 ```
+
+**Where connectors may call.** The Runtime calls only the hosts these lists name, and sends a
+secret only to the hosts listed for it, whatever URL a rule author writes; it never follows a
+redirect. Every connector secret needs its hosts: `init` refuses one without. A host is a name
+(any port) or `host:port`. An OAuth2 client secret goes to the token endpoint and the service:
+list both. `init` writes the lists to the Runtime as `CONNECTORS__ALLOWED_HOSTS` and
+`CONNECTORS__HOSTS__<NAME>`. A call to a host not listed fails, or falls back, and its trace
+names the setting to add. The demo's key goes to its fake bureau only.
+
+**Upgrading an installation with connectors.** A Runtime of this version refuses every
+connector call until it has the lists. Right after `donka-admin upgrade` to this version, add
+`connector_hosts` for every secret in `connector_secrets` (and `connector_open_hosts` if needed)
+to `donka.yaml`, then run this version's `donka-admin init --config donka.yaml` and restart the
+Runtime. Plan the upgrade in a window where staging connector calls may fail for a few minutes.
 
 The settings each method takes, and how failures are reported, are in the Runtime's
 [connectors guide](https://github.com/youmssi/donka-runtime/blob/develop/docs/connectors.md).
