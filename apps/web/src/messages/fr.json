@@ -928,7 +928,12 @@
     "simulation": "Simulation",
     "mock": "Réponse simulée",
     "mockHint": "JSON que le simulateur et les scénarios de test utilisent comme réponse du service.",
-    "apply": "Appliquer"
+    "apply": "Appliquer",
+    "refusedTitle": "Version {number} : connecteurs que le Runtime refusera",
+    "refusedHost": "{node} appelle {host}, qu'aucun connecteur ne peut appeler.",
+    "refusedSecret": "{node} envoie le secret {secret} à {host}, où ce secret ne peut pas aller.",
+    "refusedFix": "La version est enregistrée, mais ces appels échoueront ou se replieront. Demandez à votre administrateur d'ajouter l'hôte aux hôtes de connecteurs de l'installation, ou modifiez le connecteur.",
+    "refusedDismiss": "Masquer"
   },
   "decisionLog": {
     "title": "Journal des décisions",

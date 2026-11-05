@@ -1778,12 +1778,19 @@ A connector node names a secret and a URL, and nothing limits where a secret may
 staging releases need no approval. An editor can send the bureau's key to their own server, and
 a redirect can carry it to another host (threat model CN-1, CN-2, high).
 
+#### Decisions
+Confirmed 2026-11-04:
+- A secret without a host list is refused; `donka-admin init` writes the lists from
+  `donka.yaml` (`connector_hosts`, `connector_open_hosts`).
+- One installation-wide list (`CONNECTORS__ALLOWED_HOSTS`) covers every connector call,
+  connectors without a secret included.
+
 #### Acceptance criteria
-- [ ] The Runtime's configuration lists, for each secret, the hosts it may be sent to; a call to another host with that secret is refused before anything is sent, and the trace says why
-- [ ] Connectors do not follow redirects; a redirect is reported as the connector's error
-- [ ] Studio warns, when a version is saved, about a connector whose host is not allowed for its secret, when the installation's list is known
-- [ ] `donka-admin init` and the demo write the allowed hosts; the configuration and connectors guides (EN/FR) explain it
-- [ ] Tests cover an allowed host, another host, a redirect, OAuth2 token URLs and mutual TLS
+- [x] The Runtime's configuration lists, for each secret, the hosts it may be sent to; a call to another host with that secret is refused before anything is sent, and the trace says why
+- [x] Connectors do not follow redirects; a redirect is reported as the connector's error
+- [x] Studio warns, when a version is saved, about a connector whose host is not allowed for its secret, when the installation's list is known
+- [x] `donka-admin init` and the demo write the allowed hosts; the configuration and connectors guides (EN/FR) explain it
+- [x] Tests cover an allowed host, another host, a redirect, OAuth2 token URLs and mutual TLS
 
 ---
 

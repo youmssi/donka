@@ -273,6 +273,23 @@ pub fn with_modules(db: PgPool, modules: &[Module]) -> TestApp {
     )
 }
 
+/// An app that knows where the installation's Runtime lets connectors call (DNK-84).
+pub fn with_connector_hosts(db: PgPool, destinations: donka_engine::Destinations) -> TestApp {
+    assemble_full(
+        db,
+        Arc::new(ZenRuntime::new(1)),
+        BASE,
+        None,
+        None,
+        generous_limits(),
+        Cipher::from_base64(DECISION_LOG_KEY).unwrap(),
+        SecondStep::default(),
+        Licensed::Modules(None),
+        Updates::new("1.4.0", None),
+        Some(destinations),
+    )
+}
+
 #[allow(clippy::too_many_arguments)]
 fn assemble_with_cipher(
     db: PgPool,
@@ -285,6 +302,35 @@ fn assemble_with_cipher(
     second_step: SecondStep,
     licensed: Licensed,
     updates: Updates,
+) -> TestApp {
+    assemble_full(
+        db,
+        runtime,
+        base,
+        web_dir,
+        explainer,
+        auth_limits,
+        cipher,
+        second_step,
+        licensed,
+        updates,
+        None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn assemble_full(
+    db: PgPool,
+    runtime: Arc<dyn DecisionRuntime>,
+    base: &str,
+    web_dir: Option<&std::path::Path>,
+    explainer: Option<donka_explain::Explainer>,
+    auth_limits: AuthLimits,
+    cipher: Cipher,
+    second_step: SecondStep,
+    licensed: Licensed,
+    updates: Updates,
+    connector_destinations: Option<donka_engine::Destinations>,
 ) -> TestApp {
     let clock = Arc::new(ManualClock::new(
         Utc.with_ymd_and_hms(2026, 9, 28, 9, 0, 0).unwrap(),
@@ -370,6 +416,7 @@ fn assemble_with_cipher(
             licensing: licensing.clone(),
             updates: updates.clone(),
             installation: installation.clone(),
+            connector_destinations: connector_destinations.map(Arc::new),
         },
         base,
         web_dir,

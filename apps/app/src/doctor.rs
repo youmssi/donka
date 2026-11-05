@@ -99,7 +99,11 @@ pub async fn run(
     checks.push(licence(&config, &key));
     checks.push(packs(&config));
     if let Some(pool) = pool {
-        checks.extend(connectors(&pool).await);
+        let destinations = config
+            .connector_destinations
+            .as_ref()
+            .map(crate::config::ConnectorHosts::destinations);
+        checks.extend(connectors(&pool, destinations.as_ref()).await);
     }
     checks
 }
@@ -342,7 +346,10 @@ fn packs(config: &Config) -> Check {
 /// accepts a connection. Nothing is sent: TLS, credentials and answers are the Runtime's to
 /// check at each call. From Studio's network, like the staging Runtime's; a production
 /// Runtime on another network may see them differently.
-pub async fn connectors(pool: &donka_db::PgPool) -> Vec<Check> {
+pub async fn connectors(
+    pool: &donka_db::PgPool,
+    destinations: Option<&donka_engine::Destinations>,
+) -> Vec<Check> {
     const NAME: &str = "connectors";
     let decisions = match donka_release::live_decisions(pool).await {
         Ok(decisions) => decisions,
@@ -356,20 +363,51 @@ pub async fn connectors(pool: &donka_db::PgPool) -> Vec<Check> {
     };
     // Each address once, with the decisions that call it.
     let mut endpoints: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    // Connectors the installation's Runtime would refuse (DNK-84), each with its decision.
+    let mut refused = Vec::new();
     for decision in &decisions {
+        let user = format!(
+            "{}/{} on {}",
+            decision.project_key,
+            decision.key,
+            decision.environment.as_str()
+        );
+        if let Some(destinations) = destinations {
+            for connector in donka_engine::refused_connectors(&decision.content, destinations) {
+                refused.push((connector, user.clone()));
+            }
+        }
         for url in donka_engine::connector_endpoints(&decision.content) {
-            endpoints.entry(url).or_default().push(format!(
-                "{}/{} on {}",
-                decision.project_key,
-                decision.key,
-                decision.environment.as_str()
-            ));
+            endpoints.entry(url).or_default().push(user.clone());
         }
     }
     if endpoints.is_empty() {
         return vec![Check::off(NAME, "no live decision calls a service")];
     }
-    let mut checks = Vec::with_capacity(endpoints.len());
+    let mut checks = Vec::with_capacity(endpoints.len() + refused.len());
+    for (connector, user) in refused {
+        let (reason, setting) = match &connector.secret {
+            Some(secret) => (
+                format!("secret {secret} may not be sent to {}", connector.host),
+                format!("connector_hosts.{secret}"),
+            ),
+            None => (
+                format!("no connector may call {}", connector.host),
+                "connector_hosts or connector_open_hosts".to_owned(),
+            ),
+        };
+        checks.push(Check::failing(
+            NAME,
+            format!(
+                "{reason}: the Runtime refuses connector \"{}\" in {user}",
+                connector.node
+            ),
+            format!(
+                "add {} to {setting} in donka.yaml, then donka-admin init --config donka.yaml",
+                connector.host
+            ),
+        ));
+    }
     for (url, users) in endpoints {
         let outcome = match reach(&url).await {
             Ok(()) => Outcome::Working(format!("{url} is reachable")),

@@ -8,10 +8,15 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
+import { RefusedConnectors } from '@/modules/decision';
 
 import { useStoryMessages } from './fixtures';
 
-function FeedbackPreview({ kind }: { kind: 'loading' | 'empty' | 'error' | 'success' | 'rate-limit' | 'pack-error' }) {
+function FeedbackPreview({
+  kind,
+}: {
+  kind: 'loading' | 'empty' | 'error' | 'success' | 'rate-limit' | 'pack-error' | 'refused-connectors';
+}) {
   const m = useStoryMessages();
   return (
     <div className="grid max-w-2xl gap-4">
@@ -44,6 +49,16 @@ function FeedbackPreview({ kind }: { kind: 'loading' | 'empty' | 'error' | 'succ
       ) : null}
       {kind === 'pack-error' ? (
         <ErrorAlert error={{ code: 'INVALID_PACK', details: { reason: 'decisions/order-discount.json' } }} />
+      ) : null}
+      {kind === 'refused-connectors' ? (
+        <RefusedConnectors
+          number={4}
+          connectors={[
+            { node: 'Bureau', host: 'attacker.example', secret: null },
+            { node: 'Core banking', host: 'cbs.bank.internal', secret: 'CBS_CLIENT_SECRET' },
+          ]}
+          onDismiss={() => undefined}
+        />
       ) : null}
       {kind === 'success' ? (
         <>
@@ -82,3 +97,4 @@ export const ErrorState: Story = { args: { kind: 'error' } };
 export const Success: Story = {};
 export const RateLimit: Story = { args: { kind: 'rate-limit' } };
 export const PackError: Story = { args: { kind: 'pack-error' } };
+export const RefusedConnectorsWarning: Story = { args: { kind: 'refused-connectors' } };

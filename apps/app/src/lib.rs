@@ -91,6 +91,9 @@ pub struct AppState {
     pub updates: updates::Updates,
     /// The organisation served and the first-run assistant (DNK-74).
     pub installation: donka_installation::Installation,
+    /// Where the installation's Runtime lets connectors call (DNK-84); `None` when Studio is
+    /// not told, and then saving a version does not check it.
+    pub connector_destinations: Option<Arc<donka_engine::Destinations>>,
 }
 
 #[derive(OpenApi)]

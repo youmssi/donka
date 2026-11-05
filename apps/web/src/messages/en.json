@@ -928,7 +928,12 @@
     "simulation": "Simulation",
     "mock": "Mock answer",
     "mockHint": "JSON the simulator and test scenarios use as the service's answer.",
-    "apply": "Apply"
+    "apply": "Apply",
+    "refusedTitle": "Version {number}: connectors the Runtime will refuse",
+    "refusedHost": "{node} calls {host}, where no connector may call.",
+    "refusedSecret": "{node} sends the secret {secret} to {host}, where that secret may not go.",
+    "refusedFix": "The version is saved, but these calls will fail or fall back. Ask your administrator to add the host to the installation's connector hosts, or change the connector.",
+    "refusedDismiss": "Dismiss"
   },
   "decisionLog": {
     "title": "Decision log",

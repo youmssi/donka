@@ -30,7 +30,15 @@ import { projectHome, ProjectFrame, type Project } from '@/modules/project';
 import { canEditDecisions } from './decisions-page';
 import { simulateDecision } from './decision.service';
 import { InputFieldsSheet } from './input-fields';
-import { splitKey, type ContractWarning, type Decision, type SavedVersion, type TableFinding } from './schema';
+import {
+  splitKey,
+  type ContractWarning,
+  type Decision,
+  type RefusedConnector,
+  type SavedVersion,
+  type TableFinding,
+} from './schema';
+import { RefusedConnectors } from './refused-connectors';
 import { openFindings, TableChecksSheet } from './table-findings';
 import { useDecision, useDecisionList, useDecisionSaved } from './useDecisions';
 import { useDraft, type DraftStatus } from './useDraft';
@@ -136,8 +144,11 @@ function Editor({ project, decision, others }: { project: Project; decision: Dec
   const statusAt = draft.status.kind === 'saved' ? draft.status.at : null;
   const [savedAt, setSavedAt] = useState<string | null>(null);
   if (statusAt && statusAt !== savedAt) setSavedAt(statusAt);
+  // Connectors the installation's Runtime would refuse to call, in the last saved version (DNK-84).
+  const [refused, setRefused] = useState<{ number: number; items: RefusedConnector[] } | null>(null);
   const onVersionSaved = useCallback((saved: SavedVersion) => {
     setWarnings(saved.warnings.length > 0 ? { number: saved.number, items: saved.warnings } : null);
+    setRefused(saved.connectors.length > 0 ? { number: saved.number, items: saved.connectors } : null);
     const open = openFindings(saved.findings);
     setFindings(open.length > 0 ? { number: saved.number, items: open } : null);
   }, []);
@@ -205,6 +216,9 @@ function Editor({ project, decision, others }: { project: Project; decision: Dec
           onReview={() => setFieldsOpen(true)}
           onDismiss={() => setWarnings(null)}
         />
+      ) : null}
+      {refused ? (
+        <RefusedConnectors number={refused.number} connectors={refused.items} onDismiss={() => setRefused(null)} />
       ) : null}
       {findings ? (
         <FindingsAlert
