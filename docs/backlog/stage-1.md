@@ -1537,12 +1537,21 @@ in writing before the pilot.
 
 [INTERACTIVE STEP] at story start: who performs the penetration test, and its budget.
 
+Confirmed 2026-11-04:
+- An independent security firm with certified testers runs the test. Donka writes the scope
+  first ([penetration-test-scope.md](../security/penetration-test-scope.md)); firms quote from
+  it and the budget follows.
+- Reports go through GitHub's private vulnerability reporting in each repository
+  (`SECURITY.md`); the owner enables it in each repository's settings.
+- The threat model's open items are fixed before the test, each as its own story, in this
+  order: DNK-83, DNK-84, DNK-85, DNK-86, DNK-87.
+
 #### Acceptance criteria
-- [ ] The threat model covers Studio, the Runtime, the CLI, storage, secrets, the decision log, connectors, identity and the language model endpoint, with each mitigation linked to code, configuration or a story
+- [x] The threat model covers Studio, the Runtime, the CLI, storage, secrets, the decision log, connectors, identity and the language model endpoint, with each mitigation linked to code, configuration or a story
 - [ ] An external penetration test runs against an installation built from the published images
 - [ ] Every high or critical finding is fixed and retested; others are fixed or accepted with a reason and an owner
 - [ ] The documentation's security section (DNK-66) publishes the threat model summary and the test's outcome
-- [ ] A security contact and disclosure policy exist in each repository
+- [x] A security contact and disclosure policy exist in each repository
 
 #### Out of scope
 Certification (SOC 2, ISO 27001), which stays in Phase 3.
@@ -1735,4 +1744,93 @@ and releases, and says why.
 - [x] Thirty days before expiry, administrators see a notice; after expiry Studio refuses new versions and releases, while reading, exporting and the Runtime keep working
 - [x] A tampered or foreign licence is refused and named in the log; replacing the file needs no restart beyond a reload
 - [x] A tool kept outside the customer installation issues licences; its signing key never ships
+
+---
+
+### DNK-83 — Function nodes cannot reach the network
+
+**Type:** fix · **Repos:** S, R · **Dependencies:** DNK-69 · **Size:** S
+
+#### Why
+zen-engine 2.x gives JavaScript function nodes an `http` module with its own client. Any
+project editor can make Studio's simulator, or a released rule on the Runtime, call internal
+services from inside the bank's network and read the answer (threat model RA-1, critical).
+Calls to outside services belong to connectors, which have secrets, timeouts and limits.
+
+#### Decisions
+Confirmed 2026-11-04: fixed first, before the other threat-model items.
+
+#### Acceptance criteria
+- [ ] A function node that imports `http` and calls any address fails with a clear error, in Studio's simulator, test scenarios and replay, and on the Runtime
+- [ ] The engine never attaches cloud credentials to a request
+- [ ] Regression tests in both repositories call a local server and prove no request reaches it
+- [ ] Function nodes keep everything else they do today; the starter packs' tests pass unchanged
+- [ ] The rule-authoring guide says function nodes have no network access and points to connectors
+
+---
+
+### DNK-84 — Connector secrets go only where the installation allows
+
+**Type:** fix · **Repos:** R, S · **Dependencies:** DNK-83 · **Size:** M
+
+#### Why
+A connector node names a secret and a URL, and nothing limits where a secret may be sent;
+staging releases need no approval. An editor can send the bureau's key to their own server, and
+a redirect can carry it to another host (threat model CN-1, CN-2, high).
+
+#### Acceptance criteria
+- [ ] The Runtime's configuration lists, for each secret, the hosts it may be sent to; a call to another host with that secret is refused before anything is sent, and the trace says why
+- [ ] Connectors do not follow redirects; a redirect is reported as the connector's error
+- [ ] Studio warns, when a version is saved, about a connector whose host is not allowed for its secret, when the installation's list is known
+- [ ] `donka-admin init` and the demo write the allowed hosts; the configuration and connectors guides (EN/FR) explain it
+- [ ] Tests cover an allowed host, another host, a redirect, OAuth2 token URLs and mutual TLS
+
+---
+
+### DNK-85 — Browser security headers
+
+**Type:** fix · **Repos:** S · **Dependencies:** DNK-69 · **Size:** S
+
+#### Why
+Studio sends no Content-Security-Policy, and no Strict-Transport-Security when it is served
+over HTTPS (threat model ID-7, medium).
+
+#### Acceptance criteria
+- [ ] Studio sends a Content-Security-Policy that allows only its own scripts, styles, fonts and API, with no inline script; the decision editor, Storybook previews and every live journey work under it
+- [ ] Strict-Transport-Security is sent when Studio's public URL is HTTPS
+- [ ] A test checks the headers on the web app and the API; a browser test fails on any CSP violation
+
+---
+
+### DNK-86 — Studio and the Runtime listen on localhost by default
+
+**Type:** fix · **Repos:** S · **Dependencies:** DNK-69 · **Size:** S
+
+#### Why
+The generated `docker-compose.yml` publishes Studio (8080) and the Runtime (8090) on every
+interface in plain HTTP, while the guide says to reach them only through the bank's TLS proxy
+(threat model RT-5, medium).
+
+#### Acceptance criteria
+- [ ] By default the ports are published on 127.0.0.1 only; `donka-admin init` asks which address to publish on, with localhost as the default, and `donka.yaml` keeps the answer
+- [ ] `donka-admin upgrade` keeps an existing installation's choice
+- [ ] `donka-admin doctor` warns when a port is published beyond localhost over plain HTTP
+- [ ] The install guides (EN/FR) show the reverse proxy in front
+
+---
+
+### DNK-87 — Signed release artifacts
+
+**Type:** feature · **Repos:** S, R · **Dependencies:** DNK-69 · **Size:** M
+
+#### Why
+The Runtime evaluates whatever artifact it reads, so whoever can write the releases volume or
+bucket changes decisions (threat model RT-3, medium).
+
+#### Acceptance criteria
+- [ ] Studio signs each artifact it publishes with a key of the installation; the signature travels with the artifact (additive to the artifact format, Runtime first)
+- [ ] The Runtime, given the installation's public key, refuses an unsigned or altered artifact, keeps serving the last valid one and logs why
+- [ ] Without a public key configured, the Runtime behaves as today and says so at start, so existing installations upgrade in order
+- [ ] `donka-admin init` creates the key pair; the key rotates without downtime; the guides (EN/FR) cover it
+- [ ] Tests cover a valid, an altered, an unsigned and a foreign-key artifact
 

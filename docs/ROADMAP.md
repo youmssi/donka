@@ -75,6 +75,11 @@ docker-compose for PostgreSQL, MinIO and Mailpit.
 | 42 | DNK-67 Measured performance with published targets | R S |
 | 43 | DNK-49 Enforce coverage, dependency and image security gates | S R C |
 | 44 | DNK-69 Security review before the pilot | S R C |
+| 44a | DNK-83 Function nodes cannot reach the network | S R |
+| 44a | DNK-84 Connector secrets go only where the installation allows | R S |
+| 44a | DNK-85 Browser security headers | S |
+| 44a | DNK-86 Studio and the Runtime listen on localhost by default | S |
+| 44a | DNK-87 Signed release artifacts | S R |
 | 44b | DNK-73 A trust dossier banks can verify | S R C |
 | 45 | DNK-50 Isolated backup, restore and upgrade rehearsal, with RPO/RTO and Runtime availability | S R C |
 | 46 | DNK-66 Product documentation for the organisations that run Donka | docs S R C |
