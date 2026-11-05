@@ -43,3 +43,12 @@ comparable profile explicitly report that they checked only the absolute targets
   reference runner if measurements on matching profiles still cannot support the 20% policy.
 - This decision changes the measurement gate; application APIs and database modules are
   unaffected. Runtime throughput baselines retain their existing policy.
+
+## Amendment, 2026-11-04 (DNK-67)
+
+A documentation-only change failed the gate: replay p95 6.13 ms against the matching
+4.36 ms profile, while the same code had passed on `develop`. Matching profiles did not
+support a pure 20% margin on measures of a few milliseconds. With the owner's agreement, a
+case now fails above the larger of its baseline plus 20% and its baseline plus 5 ms
+(`margin_floor_ms` in `docs/performance.json`). The margin, the profiles and the absolute
+targets are unchanged.

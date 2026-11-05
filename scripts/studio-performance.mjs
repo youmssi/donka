@@ -88,10 +88,14 @@ export function checkTargets(report, config, { requireBaseline = false } = {}) {
       previous && Number.isFinite(previous.p95_ms) && previous.p95_ms > 0,
       `${name}: comparable baseline is missing`,
     );
-    const ceiling = previous.p95_ms * (1 + config.margin);
+    // A few milliseconds vary between runner instances by more than 20%: the floor keeps that
+    // noise from failing CI, while a lost index or a full scan still costs far more.
+    const floor = config.margin_floor_ms ?? 0;
+    const ceiling = Math.max(previous.p95_ms * (1 + config.margin), previous.p95_ms + floor);
     assert.ok(
       measured.p95_ms <= ceiling,
-      `${name}: p95 ${measured.p95_ms} ms exceeds the baseline margin (${previous.p95_ms} ms + ${config.margin * 100}%)`,
+      `${name}: p95 ${measured.p95_ms} ms exceeds the baseline margin ` +
+        `(${previous.p95_ms} ms + ${config.margin * 100}%, at least + ${floor} ms)`,
     );
   }
   return true;

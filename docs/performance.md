@@ -120,7 +120,11 @@ Each case also retains its individual round summaries in `rounds`. Any error, se
 for each measured CPU model. A comparison requires the same CPU model, virtual core count,
 architecture and Node major version, plus identical sample settings and corpus size. CPU names
 ignore case and extra spaces; Node updates within the same major remain comparable.
-The **20% p95 margin is unchanged** and applies to every search case and replay.
+The **20% p95 margin is unchanged** and applies to every search case and replay, with a floor of
+5 ms (`margin_floor_ms`): a case fails above the larger of its baseline plus 20% and its baseline
+plus 5 ms. On 4 November 2026 an unchanged-code run measured replay at 6.13 ms against the
+matching 4.36 ms profile; 20% of a few milliseconds is smaller than the variation between runner
+instances, while a lost index or a full scan costs tens of milliseconds or more.
 The hardware policy is recorded in [ADR-008](adr/008-hardware-matched-performance-baselines.md).
 
 Every CI run requires a comparable profile: an unknown CPU, different corpus/request count,
