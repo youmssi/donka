@@ -377,3 +377,17 @@ test('all sixty months remain inside five-year retention at month end and after 
     }
   }
 });
+
+test('the margin allows at least the floor on a measure of a few milliseconds', () => {
+  const sample = { records: 100000, months: 60, samples: 1000, warmup: 50, rounds: 3 };
+  const corpus = { after: 100000 };
+  const profile = { machine, search: { newest: { p95_ms: 19.07 } }, replay: { p95_ms: 4.36 } };
+  const config = { ...targets, margin_floor_ms: 5, baseline: { studio: { sample, corpus, profiles: [profile] } } };
+  const report = { machine, sample, corpus, search: { newest: summary([19.07], 0) }, replay: summary([6.13], 0) };
+  assert.equal(checkTargets(report, config), true);
+  assert.equal(checkTargets({ ...report, replay: summary([9.36], 0) }, config), true);
+  assert.throws(() => checkTargets({ ...report, replay: summary([9.37], 0) }, config), /at least \+ 5 ms/);
+  assert.throws(() => checkTargets(report, { ...config, margin_floor_ms: undefined }), /baseline margin/);
+  assert.equal(checkTargets({ ...report, search: { newest: summary([24.07], 0) } }, config), true);
+  assert.throws(() => checkTargets({ ...report, search: { newest: summary([24.08], 0) } }, config), /baseline margin/);
+});

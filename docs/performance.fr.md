@@ -126,7 +126,12 @@ chaque modèle de processeur mesuré. Une comparaison exige le même modèle de 
 nombre de cœurs virtuels, architecture et version majeure de Node, ainsi que des réglages
 d'échantillon et volumes identiques. La casse et les espaces supplémentaires du nom de
 processeur sont ignorés ; les mises à jour mineures de Node restent comparables.
-La **limite de 20 % sur p95 reste inchangée** pour chaque recherche et le rejeu.
+La **limite de 20 % sur p95 reste inchangée** pour chaque recherche et le rejeu, avec un plancher
+de 5 ms (`margin_floor_ms`) : un cas échoue au-delà du plus grand de sa référence plus 20 % et de
+sa référence plus 5 ms. Le 4 novembre 2026, une exécution sans changement de code a mesuré le
+rejeu à 6,13 ms pour un profil correspondant de 4,36 ms ; 20 % de quelques millisecondes est
+inférieur à l'écart entre deux instances de runner, alors qu'un index perdu ou un parcours complet
+coûte des dizaines de millisecondes ou plus.
 Le choix matériel est consigné dans [ADR-008](adr/008-hardware-matched-performance-baselines.md).
 
 Chaque exécution CI exige un profil comparable : processeur inconnu, volume ou nombre de
