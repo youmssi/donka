@@ -74,7 +74,7 @@ Status:
 | ID-4 | T | Cross-site request forgery | State-changing API requests need the `x-donka-csrf` header (`require_csrf_header` in [`apps/app/src/auth.rs`](../../apps/app/src/auth.rs)); same-origin web app (ADR-002) | Mitigated |
 | ID-5 | I | Tokens in links leak through Referer or logs | `Referrer-Policy: same-origin`; spans record the route template, never the path or query ([`apps/app/src/lib.rs`](../../apps/app/src/lib.rs), [`telemetry.rs`](../../apps/app/src/telemetry.rs)); invitation and reset tokens are single-use and hashed | Mitigated |
 | ID-6 | S | Taking over an empty installation | The first administrator comes only from the one-time link printed in the server's logs (DNK-74) | Mitigated |
-| ID-7 | T, I | Script injection in the web app | React escaping; `X-Content-Type-Options: nosniff`; `X-Frame-Options: DENY`. No Content-Security-Policy, and no HSTS when served over HTTPS | **Open: DNK-85** |
+| ID-7 | T, I | Script injection in the web app | React escaping; `X-Content-Type-Options: nosniff`; `X-Frame-Options: DENY`; Content-Security-Policy allowing only Studio's own scripts, styles, fonts and API with no inline script, and `Strict-Transport-Security` when `DONKA_PUBLIC_URL` is HTTPS ([`apps/app/src/lib.rs`](../../apps/app/src/lib.rs), DNK-85); every live journey fails on a CSP violation | Mitigated (DNK-85) |
 
 ### Studio: authorisation and change control
 
@@ -165,7 +165,7 @@ penetration test, so the test sees the build that goes to the pilot:
 | --- | --- | --- | --- |
 | 1 | DNK-83 Function nodes cannot reach the network | RA-1 | Critical, fixed |
 | 2 | DNK-84 Connector secrets go only where the installation allows | CN-1, CN-2 | High, fixed |
-| 3 | DNK-85 Browser security headers | ID-7 | Medium |
+| 3 | DNK-85 Browser security headers | ID-7 | Medium, fixed |
 | 4 | DNK-86 Studio and the Runtime listen on localhost by default | RT-5 | Medium |
 | 5 | DNK-87 Signed release artifacts | RT-3 | Medium |
 

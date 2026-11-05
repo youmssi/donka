@@ -30,7 +30,8 @@ pub mod wiring;
 use auth::CookieSettings;
 use axum::extract::DefaultBodyLimit;
 use axum::http::header::{
-    HeaderName, HeaderValue, REFERRER_POLICY, X_CONTENT_TYPE_OPTIONS, X_FRAME_OPTIONS,
+    HeaderName, HeaderValue, CONTENT_SECURITY_POLICY as CONTENT_SECURITY_POLICY_HEADER,
+    REFERRER_POLICY, STRICT_TRANSPORT_SECURITY, X_CONTENT_TYPE_OPTIONS, X_FRAME_OPTIONS,
 };
 use axum::routing::get;
 use axum::{middleware, Json, Router};
@@ -65,6 +66,19 @@ pub const VERSION: &str = match option_env!("SERVICE_VERSION") {
 /// Decision models are JSON documents that can reach a few MB with large tables.
 const MAX_BODY_BYTES: usize = 16 * 1024 * 1024;
 
+/// Browser security policy for every Studio response (DNK-85): only Studio's own
+/// scripts, styles, fonts and API. No inline script; inline styles stay allowed
+/// because the component libraries set them at runtime. WASM compilation and
+/// blob workers are allowed only for the decision editor and Monaco.
+pub const CONTENT_SECURITY_POLICY: &str = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'";
+
+/// Sent only when the installation's public URL is HTTPS (DNK-85).
+const HSTS_VALUE: &str = "max-age=63072000; includeSubDomains";
+
+fn hsts_value(public_url: &str) -> Option<&'static str> {
+    public_url.starts_with("https://").then_some(HSTS_VALUE)
+}
+
 #[derive(Clone)]
 pub struct AppState {
     pub runtime: Arc<dyn DecisionRuntime>,
@@ -94,6 +108,9 @@ pub struct AppState {
     /// Where the installation's Runtime lets connectors call (DNK-84); `None` when Studio is
     /// not told, and then saving a version does not check it.
     pub connector_destinations: Option<Arc<donka_engine::Destinations>>,
+    /// The installation's public URL (`DONKA_PUBLIC_URL`); HSTS is sent only
+    /// when it is HTTPS (DNK-85).
+    pub public_url: String,
 }
 
 #[derive(OpenApi)]
@@ -108,6 +125,7 @@ struct ApiDoc;
 ///
 /// Deny by default: only the routes in `public` answer without a session.
 pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> Router {
+    let hsts = hsts_value(&state.public_url);
     let public = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .routes(routes!(routes::health::health))
         .routes(routes!(routes::health::ready))
@@ -262,27 +280,38 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
         Some(dir) => app.merge(web::routes(dir)),
         None => app,
     };
-    app.layer(security_header(X_CONTENT_TYPE_OPTIONS, "nosniff"))
+    let app = app
+        .layer(security_header(X_CONTENT_TYPE_OPTIONS, "nosniff"))
         .layer(security_header(X_FRAME_OPTIONS, "DENY"))
         // Setup links carry their token in the query string: never send it to another site.
         .layer(security_header(REFERRER_POLICY, "same-origin"))
-        .layer(
-            TraceLayer::new_for_http()
-                // Not the default span: it records the full URI, query string included, and a
-                // password-setup link carries its token there.
-                .make_span_with(|req: &axum::http::Request<_>| {
-                    tracing::info_span!(
-                        "http",
-                        method = %req.method(),
-                        route = %telemetry::route(req),
-                        request_id = %request_id::current().unwrap_or_default(),
-                    )
-                })
-                .on_response(DefaultOnResponse::new().level(Level::INFO)),
-        )
-        .layer(CompressionLayer::new())
-        .layer(middleware::from_fn(telemetry::record_request))
-        .layer(middleware::from_fn(request_id::middleware))
+        .layer(security_header(
+            CONTENT_SECURITY_POLICY_HEADER,
+            CONTENT_SECURITY_POLICY,
+        ));
+    // HSTS only over HTTPS: plain-HTTP local and demo installs must not pin
+    // browsers to HTTPS (DNK-85).
+    let app = match hsts {
+        Some(value) => app.layer(security_header(STRICT_TRANSPORT_SECURITY, value)),
+        None => app,
+    };
+    app.layer(
+        TraceLayer::new_for_http()
+            // Not the default span: it records the full URI, query string included, and a
+            // password-setup link carries its token there.
+            .make_span_with(|req: &axum::http::Request<_>| {
+                tracing::info_span!(
+                    "http",
+                    method = %req.method(),
+                    route = %telemetry::route(req),
+                    request_id = %request_id::current().unwrap_or_default(),
+                )
+            })
+            .on_response(DefaultOnResponse::new().level(Level::INFO)),
+    )
+    .layer(CompressionLayer::new())
+    .layer(middleware::from_fn(telemetry::record_request))
+    .layer(middleware::from_fn(request_id::middleware))
 }
 
 async fn openapi(doc: OpenApiDoc) -> Json<OpenApiDoc> {
@@ -295,4 +324,18 @@ async fn api_not_found() -> error::ApiError {
 
 fn security_header(name: HeaderName, value: &'static str) -> SetResponseHeaderLayer<HeaderValue> {
     SetResponseHeaderLayer::if_not_present(name, HeaderValue::from_static(value))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::hsts_value;
+
+    #[test]
+    fn hsts_is_sent_only_for_an_https_public_url() {
+        assert_eq!(
+            hsts_value("https://studio.bank.example"),
+            Some("max-age=63072000; includeSubDomains")
+        );
+        assert_eq!(hsts_value("http://localhost:8080"), None);
+    }
 }

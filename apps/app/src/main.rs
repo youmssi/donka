@@ -301,6 +301,7 @@ async fn main() -> anyhow::Result<()> {
                 .connector_destinations
                 .as_ref()
                 .map(|hosts| Arc::new(hosts.destinations())),
+            public_url: config.public_url.clone(),
         },
         &config.api_base_path,
         config.web_dir.as_deref(),

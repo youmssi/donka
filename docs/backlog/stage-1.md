@@ -1802,10 +1802,19 @@ Confirmed 2026-11-04:
 Studio sends no Content-Security-Policy, and no Strict-Transport-Security when it is served
 over HTTPS (threat model ID-7, medium).
 
+#### Decisions
+Confirmed 2026-11-05: a strict targeted policy (`'self'` for scripts, styles, fonts and the
+API, no inline script; `wasm-unsafe-eval` and blob workers only for the decision editor and
+Monaco; inline styles stay allowed because the component libraries set them at runtime).
+HSTS is sent only when `DONKA_PUBLIC_URL` is HTTPS (`max-age 63072000; includeSubDomains`,
+no preload), so plain-HTTP local and demo installs never pin a browser to HTTPS. The header
+test covers the web app and the API; the shared Playwright fixture fails every journey on a
+CSP violation (Chromium, EN/FR; Firefox and WebKit stay with the release matrix).
+
 #### Acceptance criteria
-- [ ] Studio sends a Content-Security-Policy that allows only its own scripts, styles, fonts and API, with no inline script; the decision editor, Storybook previews and every live journey work under it
-- [ ] Strict-Transport-Security is sent when Studio's public URL is HTTPS
-- [ ] A test checks the headers on the web app and the API; a browser test fails on any CSP violation
+- [x] Studio sends a Content-Security-Policy that allows only its own scripts, styles, fonts and API, with no inline script; the decision editor, Storybook previews and every live journey work under it
+- [x] Strict-Transport-Security is sent when Studio's public URL is HTTPS
+- [x] A test checks the headers on the web app and the API; a browser test fails on any CSP violation
 
 ---
 

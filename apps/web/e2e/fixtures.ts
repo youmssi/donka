@@ -34,7 +34,15 @@ async function appearance(context: BrowserContext, theme: UiOptions['theme'], st
 
 function pageErrors(context: BrowserContext) {
   const errors: string[] = [];
-  const listen = (page: Page) => page.on('pageerror', (error) => errors.push(error.stack ?? error.message));
+  const listen = (page: Page) => {
+    page.on('pageerror', (error) => errors.push(error.stack ?? error.message));
+    // Any Content-Security-Policy violation fails the journey (DNK-85).
+    page.on('console', (message) => {
+      if (message.type() === 'error' && message.text().includes('Content Security Policy')) {
+        errors.push(message.text());
+      }
+    });
+  };
   context.on('page', listen);
   context.pages().forEach(listen);
   return errors;
