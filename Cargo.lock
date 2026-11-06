@@ -1148,6 +1148,7 @@ dependencies = [
  "donka-release",
  "donka-shared",
  "donka-storage",
+ "ed25519-dalek",
  "flate2",
  "futures-util",
  "getrandom 0.3.4",
@@ -1408,6 +1409,7 @@ dependencies = [
 name = "donka-release"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "chrono",
  "donka-audit",
  "donka-db",
@@ -1417,6 +1419,7 @@ dependencies = [
  "donka-project",
  "donka-shared",
  "donka-storage",
+ "ed25519-dalek",
  "serde",
  "serde_json",
  "sha2 0.10.9",

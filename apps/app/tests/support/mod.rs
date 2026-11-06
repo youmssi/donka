@@ -373,6 +373,7 @@ fn assemble_full(
             publish_max_attempts: PUBLISH_MAX_ATTEMPTS,
             email_max_attempts: policy().email_max_attempts,
             public_url: PUBLIC_URL.into(),
+            signing: None,
         },
     );
     let audit = AuditLog::new(db.clone());

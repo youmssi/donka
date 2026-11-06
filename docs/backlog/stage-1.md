@@ -1853,10 +1853,18 @@ behind the HTTPS proxy.
 The Runtime evaluates whatever artifact it reads, so whoever can write the releases volume or
 bucket changes decisions (threat model RT-3, medium).
 
+#### Decisions
+Confirmed 2026-11-06: the signature travels inside the artifact as `.config/signature.json`
+(key id, SHA-256 digest of the canonical content, Ed25519 signature over the digest), so one
+object is published atomically and every provider is unchanged. The Runtime verifies first
+(Runtime PR), then Studio signs. Rotation accepts the current and previous public keys at
+once: `donka-admin rotate-signing-key` moves the current key to previous, writes a fresh
+one, and Studio signs with the new key while Runtimes verify with either.
+
 #### Acceptance criteria
-- [ ] Studio signs each artifact it publishes with a key of the installation; the signature travels with the artifact (additive to the artifact format, Runtime first)
-- [ ] The Runtime, given the installation's public key, refuses an unsigned or altered artifact, keeps serving the last valid one and logs why
-- [ ] Without a public key configured, the Runtime behaves as today and says so at start, so existing installations upgrade in order
-- [ ] `donka-admin init` creates the key pair; the key rotates without downtime; the guides (EN/FR) cover it
-- [ ] Tests cover a valid, an altered, an unsigned and a foreign-key artifact
+- [x] Studio signs each artifact it publishes with a key of the installation; the signature travels with the artifact (additive to the artifact format, Runtime first)
+- [x] The Runtime, given the installation's public key, refuses an unsigned or altered artifact, keeps serving the last valid one and logs why
+- [x] Without a public key configured, the Runtime behaves as today and says so at start, so existing installations upgrade in order
+- [x] `donka-admin init` creates the key pair; the key rotates without downtime; the guides (EN/FR) cover it
+- [x] Tests cover a valid, an altered, an unsigned and a foreign-key artifact
 

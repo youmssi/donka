@@ -100,6 +100,57 @@ fn the_same_input_gives_the_same_bytes() {
 }
 
 #[test]
+fn a_signed_artifact_verifies_and_names_its_key() {
+    use ed25519_dalek::{Verifier as _, VerifyingKey};
+    let signing = Signing {
+        key_id: "2026-01".to_owned(),
+        seed: [7; 32],
+    };
+    let bytes = build_signed(&input(), &signing).unwrap();
+    let mut zip = ZipArchive::new(Cursor::new(bytes)).unwrap();
+    let mut entries: Vec<(String, Vec<u8>)> = Vec::new();
+    let mut signature_file = String::new();
+    for name in zip
+        .file_names()
+        .map(|n| n.unwrap().into_owned())
+        .collect::<Vec<_>>()
+    {
+        let mut body = Vec::new();
+        zip.by_name(&name).unwrap().read_to_end(&mut body).unwrap();
+        if name == SIGNATURE_ENTRY {
+            signature_file = String::from_utf8(body).unwrap();
+        } else {
+            entries.push((name, body));
+        }
+    }
+    let file: Value = serde_json::from_str(&signature_file).unwrap();
+    assert_eq!(file["format"], "donka-artifact/1");
+    assert_eq!(file["keyId"], "2026-01");
+    assert_eq!(file["digest"], digest(&entries));
+    // The Runtime's check, restated: Ed25519 over the digest bytes.
+    let public = VerifyingKey::from_bytes(
+        &ed25519_dalek::SigningKey::from_bytes(&signing.seed)
+            .verifying_key()
+            .to_bytes(),
+    )
+    .unwrap();
+    let digest_bytes: Vec<u8> = (0..digest(&entries).len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&digest(&entries)[i..i + 2], 16).unwrap())
+        .collect();
+    let signature_bytes = base64::Engine::decode(
+        &base64::engine::general_purpose::URL_SAFE_NO_PAD,
+        file["signature"].as_str().unwrap(),
+    )
+    .unwrap();
+    let signature = ed25519_dalek::Signature::from_slice(&signature_bytes).unwrap();
+    public.verify(&digest_bytes, &signature).unwrap();
+    // Altering one entry breaks the digest the signature covers.
+    entries[0].1 = b"tampered".to_vec();
+    assert_ne!(file["digest"], digest(&entries));
+}
+
+#[test]
 fn a_release_on_its_own_has_no_environment_and_no_token() {
     let config = config(&ArtifactInput {
         deployment: None,

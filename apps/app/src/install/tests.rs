@@ -536,6 +536,49 @@ fn an_installation_written_before_the_answer_keeps_every_interface() {
 }
 
 #[test]
+fn init_creates_the_signing_pair_and_tells_the_runtime_the_public_half() {
+    let dir = dir("signing-pair");
+    init(
+        &dir,
+        &Installation::for_version("1.4.0"),
+        &Provided::default(),
+        system_random,
+    )
+    .unwrap();
+    let secret = read(&dir, "secrets/artifact_signing_key");
+    let (id, seed) = secret.split_once('=').unwrap();
+    assert_eq!(id.len(), 8, "{secret}");
+    assert!(seed.len() >= 40, "{secret}");
+    assert_eq!(
+        value(&read(&dir, ".env"), "DONKA_ARTIFACT_SIGNING_KEY_FILE"),
+        "/run/secrets/artifact_signing_key"
+    );
+    let runtime = read(&dir, "runtime.env");
+    let public = value(&runtime, "ARTIFACT__PUBLIC_KEY");
+    assert!(public.starts_with(&format!("{id}=")), "{runtime}");
+    assert!(!public.contains(seed), "the seed never leaves secrets/");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn rotating_the_signing_key_keeps_the_previous_one_trusted() {
+    let dir = dir("signing-rotate");
+    let installation = Installation::for_version("1.4.0");
+    init(&dir, &installation, &Provided::default(), system_random).unwrap();
+    let before = value(&read(&dir, "runtime.env"), "ARTIFACT__PUBLIC_KEY");
+    super::rotate_signing_key(&dir, &mut system_random).unwrap();
+    apply(&dir, &installation, &Provided::default(), system_random).unwrap();
+    let runtime = read(&dir, "runtime.env");
+    let now = value(&runtime, "ARTIFACT__PUBLIC_KEY");
+    let previous = value(&runtime, "ARTIFACT__PUBLIC_KEY_PREVIOUS");
+    assert_ne!(now, before);
+    assert_eq!(previous, before);
+    // Both key files exist; Studio signs with the new one only.
+    assert!(dir.join("secrets/artifact_signing_key_previous").exists());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn a_chosen_publish_address_is_kept_and_validated() {
     let mut installation = Installation::for_version("1.4.0");
     installation.publish_address = "192.0.2.10".to_owned();

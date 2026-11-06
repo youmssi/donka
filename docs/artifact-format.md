@@ -19,6 +19,25 @@ bureau/normalize                                   decisions in folders keep the
 An entry is named exactly by the decision key, so a decision node that calls `bureau/normalize`
 and a client that evaluates `/api/projects/<project>/evaluate/bureau/normalize` both find it.
 
+## Signature (DNK-87)
+
+Studio signs each artifact with the installation's Ed25519 key. One additive entry carries it:
+
+```
+.config/signature.json   { "format": "donka-artifact/1", "keyId": "…", "digest": "…", "signature": "…" }
+```
+
+`digest` is the SHA-256 (hex) of the canonical content: every entry except
+`.config/signature.json`, sorted by entry name, the name's bytes and the entry's bytes each
+followed by one zero byte. `signature` is Ed25519 over those digest bytes (URL-safe base64).
+`keyId` names the signing key (the first eight hex digits of its public key's SHA-256), so a
+Runtime holding the current and previous public keys verifies through a rotation.
+
+A Runtime given the keys refuses an artifact that is unsigned, altered, or signed by another
+key, keeps serving the last valid one, and logs why. Without keys it serves as before and says
+so at start, so existing installations upgrade in order. Runtimes that predate this entry skip
+everything under `.config/` when loading decisions, as they already did.
+
 ## `.config/project.json`
 
 Current version: **2**.
