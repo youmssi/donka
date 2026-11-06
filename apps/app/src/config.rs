@@ -98,6 +98,11 @@ pub struct Config {
     /// Where Studio writes, at first start, the decision-log token of the staging Runtime it
     /// is installed with (DNK-64). Unset: Runtimes get their token from an administrator.
     pub runtime_log_token_file: Option<PathBuf>,
+    /// The installation's artifact signing key (DNK-87), `keyId=<base64 seed>`
+    /// in `DONKA_ARTIFACT_SIGNING_KEY` (or its `_FILE`): Studio signs every
+    /// artifact it publishes, and the Runtime checks it against the matching
+    /// public key. A secret: never log it. Unset: artifacts stay unsigned.
+    pub artifact_signing: Option<donka_release::artifact::Signing>,
     /// Set by `donka-admin init --demo` (DNK-64): at the first start, the retail-credit pack is
     /// imported, released and deployed to staging as the first administrator.
     pub demo: bool,
@@ -117,7 +122,7 @@ pub enum MfaRequired {
 
 /// Settings that hold a secret, each with the setting naming a file that holds it instead
 /// (`X_FILE`): Docker and Kubernetes secrets, and vault agents, deliver secrets as files.
-pub const SECRET_SETTINGS: [(&str, &str); 10] = [
+pub const SECRET_SETTINGS: [(&str, &str); 11] = [
     ("DATABASE_URL", "DATABASE_URL_FILE"),
     ("DONKA_SMTP_URL", "DONKA_SMTP_URL_FILE"),
     (
@@ -140,6 +145,10 @@ pub const SECRET_SETTINGS: [(&str, &str); 10] = [
         "DONKA_SECOND_STEP_PREVIOUS_KEYS_FILE",
     ),
     ("DONKA_EXPLAIN_API_KEY", "DONKA_EXPLAIN_API_KEY_FILE"),
+    (
+        "DONKA_ARTIFACT_SIGNING_KEY",
+        "DONKA_ARTIFACT_SIGNING_KEY_FILE",
+    ),
 ];
 
 /// The web app calls the API here (apps/web `API_BASE`).
@@ -326,6 +335,7 @@ impl Config {
                 .map(PathBuf::from),
             modules: modules(&get)?,
             connector_destinations: connector_destinations(&get)?,
+            artifact_signing: artifact_signing(&get)?,
             runtime_log_token_file: get("DONKA_RUNTIME_LOG_TOKEN_FILE")
                 .filter(|v| !v.trim().is_empty())
                 .map(PathBuf::from),
@@ -341,6 +351,33 @@ impl Config {
             },
         })
     }
+}
+
+/// `DONKA_ARTIFACT_SIGNING_KEY`: `keyId=<base64 of the 32-byte Ed25519 seed>`
+/// (DNK-87); unset, artifacts are published unsigned.
+fn artifact_signing(
+    get: &impl Fn(&str) -> Option<String>,
+) -> Result<Option<donka_release::artifact::Signing>, ConfigError> {
+    use base64::Engine as _;
+    let Some(value) = get("DONKA_ARTIFACT_SIGNING_KEY").filter(|v| !v.trim().is_empty()) else {
+        return Ok(None);
+    };
+    let invalid_key = || {
+        invalid(
+            "DONKA_ARTIFACT_SIGNING_KEY",
+            "must name its key, e.g. DONKA_ARTIFACT_SIGNING_KEY=2026-01=<base64 seed>",
+        )
+    };
+    let (key_id, encoded) = value.split_once('=').ok_or_else(invalid_key)?;
+    let seed: [u8; 32] = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(encoded.trim())
+        .ok()
+        .and_then(|bytes| bytes.try_into().ok())
+        .ok_or_else(invalid_key)?;
+    Ok(Some(donka_release::artifact::Signing {
+        key_id: key_id.trim().to_owned(),
+        seed,
+    }))
 }
 
 /// Keys used before a rotation, separated by commas, spaces or new lines; each

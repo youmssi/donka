@@ -348,6 +348,9 @@ pub struct ReleaseSettings {
     pub email_max_attempts: u32,
     /// Studio's address, for the links in emails.
     pub public_url: String,
+    /// The installation's artifact signing key (DNK-87); without one,
+    /// artifacts are published unsigned, as before.
+    pub signing: Option<std::sync::Arc<artifact::Signing>>,
 }
 
 #[derive(Clone)]
@@ -904,7 +907,11 @@ impl Releases {
                 decisions,
             };
             let key = artifact::object_key(&due.environment, &due.project_key);
-            let written = match artifact::build(&input) {
+            let built = match &self.settings.signing {
+                Some(signing) => artifact::build_signed(&input, signing),
+                None => artifact::build(&input),
+            };
+            let written = match built {
                 Ok(bytes) => self
                     .store
                     .put(&key, bytes)

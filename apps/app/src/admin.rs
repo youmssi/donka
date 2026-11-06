@@ -59,6 +59,12 @@ const USAGE: &str = "usage:
       under a failing one, what to change. Run it where Studio runs:
         docker compose run --rm --no-deps app donka-admin doctor
       Exit status: 0 everything works, 1 a check failed.
+  donka-admin rotate-signing-key [--dir <dir>]
+      Rotates the key Studio signs release artifacts with (DNK-87), without downtime: the
+      current key becomes the previous one, a fresh key is written, and the files are
+      regenerated, so Runtimes verify with either key while Studio signs with the new one.
+      Restart Studio and the Runtime (docker compose up -d), republish, then the previous
+      key file (secrets/artifact_signing_key_previous) can be deleted.
   donka-admin modules [enable|disable <module>...] [--dir <dir>]
       Lists the optional modules (explain, connectors, analysis) and whether they are on, or
       turns them on or off in donka.yaml, within what the licence includes. Their data is kept.
@@ -88,6 +94,7 @@ fn main() {
         Some("upgrade") => run_upgrade(&args[1..]),
         Some("auto-upgrade") => auto_upgrade(&args[1..]),
         Some("doctor") if args.len() == 1 => doctor(),
+        Some("rotate-signing-key") => rotate_signing_key(&args[1..]),
         Some("modules") => modules(&args[1..]),
         Some("support-bundle") => support_bundle(&args[1..]),
         Some("load-test") => load_test(&args[1..]),
@@ -245,6 +252,30 @@ fn modules(args: &[String]) -> Result<(), String> {
         "{} {} in donka.yaml. Restart Studio to apply it: docker compose up -d app",
         if enable { "Turned on" } else { "Turned off" },
         names.join(", ")
+    );
+    Ok(())
+}
+
+/// `donka-admin rotate-signing-key [--dir <dir>]`: without downtime (DNK-87).
+fn rotate_signing_key(args: &[String]) -> Result<(), String> {
+    let mut dir = PathBuf::from(".");
+    let mut rest = args.iter();
+    while let Some(arg) = rest.next() {
+        match arg.as_str() {
+            "--dir" => dir = PathBuf::from(rest.next().ok_or("--dir needs a folder")?),
+            other => return Err(format!("unexpected `{other}`\n\n{USAGE}")),
+        }
+    }
+    let mut random = |buf: &mut [u8]| {
+        getrandom::fill(buf).map_err(|err| format!("no secure random source: {err}"))
+    };
+    let installation = install::rotate_signing_key(&dir, &mut random)?;
+    install::apply(&dir, &installation, &Provided::default(), &mut random)?;
+    println!(
+        "Signing key rotated in {}. The previous key stays trusted while Runtimes pick up \
+         the new files.\nNext:\n  docker compose up -d\nRepublish the active releases, then \
+         delete secrets/artifact_signing_key_previous and run it again.",
+        dir.display()
     );
     Ok(())
 }

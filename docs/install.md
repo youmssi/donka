@@ -85,6 +85,16 @@ Installations prepared before this question existed keep publishing on every
 interface, and an upgrade keeps that. `donka-admin doctor` warns when a port is
 published beyond this server while Studio's public URL is plain HTTP.
 
+**Signed releases.** `init` also creates the installation's artifact signing key in
+`secrets/artifact_signing_key`: Studio signs every release it publishes, and the staging
+Runtime verifies it (its public half is in `runtime.env`). For each other Runtime, set
+`ARTIFACT__PUBLIC_KEY` to that public half: the Runtime then refuses a release that is
+unsigned, altered, or signed by another key, and keeps serving the last valid one. A
+Runtime without the key serves as before and says so at start, so upgrade in this order:
+Runtime keys first, then Studio signs. To rotate the key without downtime, run
+`donka-admin rotate-signing-key`, restart (`docker compose up -d`), republish the active
+releases, then delete `secrets/artifact_signing_key_previous` and run it once more.
+
 **The demo.** `donka-admin init --demo` prepares the same installation with a project ready to
 call. At the first start, Studio imports the *Retail credit* pack, releases it and deploys it to
 staging, and a fake credit bureau answers its connector (`demo-bureau` service, key in

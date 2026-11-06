@@ -91,6 +91,18 @@ de publier sur toutes les interfaces, et une mise à niveau conserve ce comporte
 `donka-admin doctor` avertit quand un port est publié au-delà de ce serveur alors que
 l'adresse publique de Studio est en HTTP simple.
 
+**Versions signées.** `init` crée aussi la clé de signature des artefacts de
+l'installation dans `secrets/artifact_signing_key` : Studio signe chaque version qu'il
+publie, et le Runtime de préproduction la vérifie (sa moitié publique est dans
+`runtime.env`). Pour chaque autre Runtime, réglez `ARTIFACT__PUBLIC_KEY` sur cette
+moitié publique : le Runtime refuse alors une version non signée, altérée ou signée par
+une autre clé, et continue de servir la dernière valide. Un Runtime sans la clé sert
+comme avant et le dit au démarrage : mettez à niveau dans cet ordre, les clés du Runtime
+d'abord, puis Studio signe. Pour faire tourner la clé sans interruption, lancez
+`donka-admin rotate-signing-key`, redémarrez (`docker compose up -d`), republiez les
+versions actives, puis supprimez `secrets/artifact_signing_key_previous` et relancez la
+commande.
+
 **La démo.** `donka-admin init --demo` prépare la même installation avec un projet prêt à être
 appelé. Au premier démarrage, Studio importe le pack *Crédit aux particuliers*, le publie et le
 déploie en staging, et un faux bureau de crédit répond à son connecteur (service `demo-bureau`,
