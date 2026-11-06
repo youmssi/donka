@@ -1804,8 +1804,10 @@ over HTTPS (threat model ID-7, medium).
 
 #### Decisions
 Confirmed 2026-11-05: a strict targeted policy (`'self'` for scripts, styles, fonts and the
-API, no inline script; `wasm-unsafe-eval` and blob workers only for the decision editor and
+API; `wasm-unsafe-eval` and blob workers only for the decision editor and
 Monaco; inline styles stay allowed because the component libraries set them at runtime).
+The static export inlines its own bootstrap scripts in every page; Studio lists their
+SHA-256 hashes in the policy at startup, so any other inline script stays blocked.
 HSTS is sent only when `DONKA_PUBLIC_URL` is HTTPS (`max-age 63072000; includeSubDomains`,
 no preload), so plain-HTTP local and demo installs never pin a browser to HTTPS. The header
 test covers the web app and the API; the shared Playwright fixture fails every journey on a
