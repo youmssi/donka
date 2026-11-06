@@ -112,7 +112,7 @@ Status:
 | RT-2 | D | Flooding the Runtime | Per-token rate limit (DNK-22); measured headroom of 2,000 to 6,000 decisions/s against a 100/s target (DNK-67) | Mitigated; volumetric attacks are for the bank's network (accepted, owner: customer) |
 | RT-3 | T | **Changing what the Runtime evaluates by writing the bucket.** The Runtime trusts any artifact it can read; whoever can write the releases volume or bucket changes decisions | Bucket credentials only in Studio; the Runtime needs read access only | **Open: DNK-87** (signed artifacts) |
 | RT-4 | D | Studio down stops decisions | The Runtime answers from its loaded releases; the decision-log queue absorbs 100 s at 100/s, then drops and counts records (DNK-67) | Mitigated; queue size is the bank's choice (accepted, owner: customer) |
-| RT-5 | I | Plain HTTP exposure of Studio and the Runtime | The generated compose publishes 8080 and 8090 on every interface; the guide says to put them behind the bank's TLS proxy | **Open: DNK-86** |
+| RT-5 | I | Plain HTTP exposure of Studio and the Runtime | The generated compose publishes 8080 and 8090 on the address `donka.yaml` names (`publish_address`, DNK-86): `127.0.0.1` by default, behind the bank's TLS proxy; installations written before the answer keep every interface, and `donka-admin doctor` warns when a port reaches beyond localhost over plain HTTP | Mitigated (DNK-86) |
 
 ### Decision log and personal data
 
@@ -166,7 +166,7 @@ penetration test, so the test sees the build that goes to the pilot:
 | 1 | DNK-83 Function nodes cannot reach the network | RA-1 | Critical, fixed |
 | 2 | DNK-84 Connector secrets go only where the installation allows | CN-1, CN-2 | High, fixed |
 | 3 | DNK-85 Browser security headers | ID-7 | Medium, fixed |
-| 4 | DNK-86 Studio and the Runtime listen on localhost by default | RT-5 | Medium |
+| 4 | DNK-86 Studio and the Runtime listen on localhost by default | RT-5 | Medium, fixed |
 | 5 | DNK-87 Signed release artifacts | RT-3 | Medium |
 
 The penetration test's scope is in [`penetration-test-scope.md`](penetration-test-scope.md). Its

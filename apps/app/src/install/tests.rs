@@ -468,3 +468,91 @@ fn connector_secrets_go_only_to_the_hosts_donka_yaml_lists() {
     assert!(config.contains("connector_hosts:") && config.contains("connector_open_hosts:"));
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn a_new_installation_publishes_on_localhost_only() {
+    let dir = dir("publish-default");
+    init(
+        &dir,
+        &Installation::for_version("1.4.0"),
+        &Provided::default(),
+        system_random,
+    )
+    .unwrap();
+    assert_eq!(
+        value(&read(&dir, ".env"), "DONKA_PUBLISH_ADDRESS"),
+        "127.0.0.1"
+    );
+    assert!(read(&dir, CONFIG).contains("publish_address: 127.0.0.1"));
+    let compose = read(&dir, "docker-compose.yml");
+    assert!(
+        compose.contains("${DONKA_PUBLISH_ADDRESS:-127.0.0.1}:8080:8080"),
+        "{compose}"
+    );
+    assert!(
+        compose.contains("${DONKA_PUBLISH_ADDRESS:-127.0.0.1}:8090:8080"),
+        "{compose}"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn an_installation_written_before_the_answer_keeps_every_interface() {
+    let legacy_dir = dir("publish-legacy");
+    std::fs::create_dir_all(&legacy_dir).unwrap();
+    // Build the legacy file from a current one with the answer removed, so its
+    // spelling never has to be guessed.
+    let fresh = dir("publish-legacy-source");
+    init(
+        &fresh,
+        &Installation::for_version("1.4.0"),
+        &Provided::default(),
+        system_random,
+    )
+    .unwrap();
+    let current = read(&fresh, CONFIG);
+    let legacy: String = current
+        .lines()
+        .filter(|line| !line.starts_with("publish_address:"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    std::fs::write(legacy_dir.join(CONFIG), format!("{legacy}\n")).unwrap();
+    let installation = Installation::read(&legacy_dir).unwrap();
+    assert_eq!(installation.publish_address, "0.0.0.0");
+    // Applying it (an upgrade does) keeps every interface.
+    apply(
+        &legacy_dir,
+        &installation,
+        &Provided::default(),
+        system_random,
+    )
+    .unwrap();
+    assert_eq!(
+        value(&read(&legacy_dir, ".env"), "DONKA_PUBLISH_ADDRESS"),
+        "0.0.0.0"
+    );
+    let _ = std::fs::remove_dir_all(&legacy_dir);
+    let _ = std::fs::remove_dir_all(&fresh);
+}
+
+#[test]
+fn a_chosen_publish_address_is_kept_and_validated() {
+    let mut installation = Installation::for_version("1.4.0");
+    installation.publish_address = "192.0.2.10".to_owned();
+    let dir = dir("publish-chosen");
+    init(&dir, &installation, &Provided::default(), system_random).unwrap();
+    assert_eq!(
+        value(&read(&dir, ".env"), "DONKA_PUBLISH_ADDRESS"),
+        "192.0.2.10"
+    );
+    assert_eq!(
+        Installation::read(&dir).unwrap().publish_address,
+        "192.0.2.10"
+    );
+    installation.publish_address = "studio.bank.example".to_owned();
+    assert!(installation
+        .validate()
+        .unwrap_err()
+        .contains("publish_address"));
+    let _ = std::fs::remove_dir_all(&dir);
+}

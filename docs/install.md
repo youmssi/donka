@@ -76,6 +76,15 @@ The defaults set up a first look on this machine: http://localhost:8080 and
 `admin@donka.local`. `--studio-version` and `--runtime-version` pin other image tags;
 `--registry` takes the images from your own mirror of `ghcr.io/youmssi`.
 
+**Who can reach Studio and the Runtime.** By default both ports are published on
+`127.0.0.1` only: on the server itself, behind your reverse proxy (TLS), which is how
+people and your other systems should reach them. The assistant asks for the address to
+publish on (`publish_address` in `donka.yaml`, `--publish-address`); another address,
+for example one network card or `0.0.0.0` for every interface, is written the same way.
+Installations prepared before this question existed keep publishing on every
+interface, and an upgrade keeps that. `donka-admin doctor` warns when a port is
+published beyond this server while Studio's public URL is plain HTTP.
+
 **The demo.** `donka-admin init --demo` prepares the same installation with a project ready to
 call. At the first start, Studio imports the *Retail credit* pack, releases it and deploys it to
 staging, and a fake credit bureau answers its connector (`demo-bureau` service, key in

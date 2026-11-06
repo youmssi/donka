@@ -44,7 +44,7 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       mailpit: { condition: service_started }
-    ports: ["8080:8080"]
+    ports: ["${DONKA_PUBLISH_ADDRESS:-127.0.0.1}:8080:8080"]
     restart: unless-stopped
 
   # The staging Runtime, its settings in runtime.env. It restarts until Studio has written its
@@ -58,7 +58,7 @@ services:
       - ./secrets:/run/secrets:ro
     depends_on:
       app: { condition: service_started }
-    ports: ["8090:8080"]
+    ports: ["${DONKA_PUBLISH_ADDRESS:-127.0.0.1}:8090:8080"]
     restart: unless-stopped
 
   # Only with `donka-admin init --demo` (COMPOSE_PROFILES=demo in .env): the fake credit bureau

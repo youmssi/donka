@@ -90,6 +90,16 @@ pub struct Installation {
     /// connector may call.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub connector_open_hosts: Vec<String>,
+    /// The address Studio's (8080) and the Runtime's (8090) ports are published
+    /// on: `127.0.0.1` unless the operator chose otherwise, behind their TLS
+    /// proxy (DNK-86). Files written before this answer existed have no entry
+    /// and keep every interface, so an upgrade changes nothing for them.
+    #[serde(default = "every_interface")]
+    pub publish_address: String,
+}
+
+fn every_interface() -> String {
+    "0.0.0.0".to_owned()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -207,6 +217,7 @@ impl Installation {
             connector_secrets: Vec::new(),
             connector_hosts: BTreeMap::new(),
             connector_open_hosts: Vec::new(),
+            publish_address: "127.0.0.1".to_owned(),
         }
     }
 
@@ -234,6 +245,13 @@ impl Installation {
             return Err(format!(
                 "administrator `{}` is not an email",
                 self.administrator
+            ));
+        }
+        if self.publish_address.parse::<std::net::IpAddr>().is_err() {
+            return Err(format!(
+                "publish_address `{}` is not an IP address: use 127.0.0.1 to keep Studio and \
+                 the Runtime on this server, or the address to publish them on",
+                self.publish_address
             ));
         }
         for name in &self.connector_secrets {
@@ -568,6 +586,15 @@ fn mounted(name: &str) -> String {
     format!("{MOUNTED}/{name}")
 }
 
+/// How Compose writes the publish address: an IPv6 address needs its brackets
+/// (`[::1]:8080:8080`).
+fn publish_for_compose(address: &str) -> String {
+    match address.parse::<std::net::IpAddr>() {
+        Ok(ip) if ip.is_ipv6() => format!("[{ip}]"),
+        _ => address.to_owned(),
+    }
+}
+
 /// `.env`: what Compose interpolates and Studio reads. No secret, only the files holding them.
 fn env_file(installation: &Installation) -> String {
     let i = installation;
@@ -582,6 +609,12 @@ fn env_file(installation: &Installation) -> String {
         lines.push(format!("DONKA_REGISTRY={registry}"));
     }
     lines.push(format!("DONKA_INSTALLATION_ROLE={}", i.role.as_str()));
+    // Compose publishes Studio's and the Runtime's ports on this address, and
+    // `donka-admin doctor` reads it back to warn about plain HTTP (DNK-86).
+    lines.push(format!(
+        "DONKA_PUBLISH_ADDRESS={}",
+        publish_for_compose(&i.publish_address)
+    ));
     let profiles: Vec<&str> = [(i.demo, "demo"), (i.auto_upgrade.is_some(), UPGRADER)]
         .into_iter()
         .filter_map(|(on, profile)| on.then_some(profile))

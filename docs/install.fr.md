@@ -81,6 +81,16 @@ Les valeurs par défaut préparent un premier essai sur cette machine : http://l
 `admin@donka.local`. `--studio-version` et `--runtime-version` fixent d'autres versions
 d'images ; `--registry` prend les images dans votre propre miroir de `ghcr.io/youmssi`.
 
+**Qui peut atteindre Studio et le Runtime.** Par défaut, les deux ports ne sont publiés
+que sur `127.0.0.1` : sur le serveur lui-même, derrière votre proxy inverse (TLS), par
+lequel les personnes et vos autres systèmes doivent les atteindre. L'assistant demande
+l'adresse de publication (`publish_address` dans `donka.yaml`, `--publish-address`) ;
+une autre adresse, par exemple une carte réseau ou `0.0.0.0` pour toutes les interfaces,
+s'écrit de la même façon. Les installations préparées avant cette question continuent
+de publier sur toutes les interfaces, et une mise à niveau conserve ce comportement.
+`donka-admin doctor` avertit quand un port est publié au-delà de ce serveur alors que
+l'adresse publique de Studio est en HTTP simple.
+
 **La démo.** `donka-admin init --demo` prépare la même installation avec un projet prêt à être
 appelé. Au premier démarrage, Studio importe le pack *Crédit aux particuliers*, le publie et le
 déploie en staging, et un faux bureau de crédit répond à son connecteur (service `demo-bureau`,
