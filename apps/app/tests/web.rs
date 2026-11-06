@@ -122,6 +122,19 @@ async fn every_response_carries_the_security_headers() {
         assert_eq!(frames.as_deref(), Some("DENY"), "{path}");
         let (_, sniff) = header_of(&app, path, header::X_CONTENT_TYPE_OPTIONS).await;
         assert_eq!(sniff.as_deref(), Some("nosniff"), "{path}");
+        let (_, policy) = header_of(&app, path, header::CONTENT_SECURITY_POLICY).await;
+        assert_eq!(
+            policy.as_deref(),
+            Some(donka_app::CONTENT_SECURITY_POLICY),
+            "{path}"
+        );
+        // The test installation's public URL is HTTPS, so HSTS is sent (DNK-85).
+        let (_, hsts) = header_of(&app, path, header::STRICT_TRANSPORT_SECURITY).await;
+        assert_eq!(
+            hsts.as_deref(),
+            Some("max-age=63072000; includeSubDomains"),
+            "{path}"
+        );
     }
 }
 

@@ -417,6 +417,7 @@ fn assemble_full(
             updates: updates.clone(),
             installation: installation.clone(),
             connector_destinations: connector_destinations.map(Arc::new),
+            public_url: PUBLIC_URL.into(),
         },
         base,
         web_dir,

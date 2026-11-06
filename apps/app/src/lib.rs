@@ -30,7 +30,8 @@ pub mod wiring;
 use auth::CookieSettings;
 use axum::extract::DefaultBodyLimit;
 use axum::http::header::{
-    HeaderName, HeaderValue, REFERRER_POLICY, X_CONTENT_TYPE_OPTIONS, X_FRAME_OPTIONS,
+    HeaderName, HeaderValue, CONTENT_SECURITY_POLICY as CONTENT_SECURITY_POLICY_HEADER,
+    REFERRER_POLICY, STRICT_TRANSPORT_SECURITY, X_CONTENT_TYPE_OPTIONS, X_FRAME_OPTIONS,
 };
 use axum::routing::get;
 use axum::{middleware, Json, Router};
@@ -65,6 +66,107 @@ pub const VERSION: &str = match option_env!("SERVICE_VERSION") {
 /// Decision models are JSON documents that can reach a few MB with large tables.
 const MAX_BODY_BYTES: usize = 16 * 1024 * 1024;
 
+/// Browser security policy for every Studio response (DNK-85): only Studio's own
+/// scripts, styles, fonts and API. Inline styles stay allowed because the
+/// component libraries set them at runtime. WASM compilation and blob workers
+/// are allowed only for the decision editor and Monaco. The static export
+/// inlines its own bootstrap scripts in every page; `content_security_policy`
+/// lists their SHA-256 hashes, so any other inline script stays blocked.
+pub const CONTENT_SECURITY_POLICY: &str = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'";
+
+/// The policy actually sent: the base policy plus the hash of every inline
+/// script in the export Studio serves (DNK-85). Without an export (API-only
+/// tests) the base policy is sent as it is.
+fn content_security_policy(web_dir: Option<&Path>) -> String {
+    let Some(dir) = web_dir else {
+        return CONTENT_SECURITY_POLICY.to_owned();
+    };
+    let mut hashes = inline_script_hashes(dir);
+    hashes.sort();
+    hashes.dedup();
+    if hashes.is_empty() {
+        return CONTENT_SECURITY_POLICY.to_owned();
+    }
+    let listed = hashes
+        .iter()
+        .map(|hash| format!(" 'sha256-{hash}'"))
+        .collect::<String>();
+    CONTENT_SECURITY_POLICY.replacen(
+        "script-src 'self' 'wasm-unsafe-eval'",
+        &format!("script-src 'self' 'wasm-unsafe-eval'{listed}"),
+        1,
+    )
+}
+
+/// SHA-256 (base64) of the text of every `<script>` without a `src` in the
+/// export's HTML pages. The browser hashes the same text, so a script that is
+/// not part of the served export never matches.
+fn inline_script_hashes(dir: &Path) -> Vec<String> {
+    use base64::Engine;
+    use sha2::Digest;
+    let mut hashes = Vec::new();
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(path) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&path) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let entry_path = entry.path();
+            if entry_path.is_dir() {
+                stack.push(entry_path);
+            } else if entry_path.extension().is_some_and(|ext| ext == "html") {
+                let Ok(html) = std::fs::read(&entry_path) else {
+                    continue;
+                };
+                for script in inline_scripts(&html) {
+                    let digest = sha2::Sha256::digest(script);
+                    hashes.push(base64::engine::general_purpose::STANDARD.encode(digest));
+                }
+            }
+        }
+    }
+    hashes
+}
+
+/// The text between `>` and `</script>` of every script tag that loads no
+/// external file.
+fn inline_scripts(html: &[u8]) -> Vec<&[u8]> {
+    let mut scripts = Vec::new();
+    let mut rest = html;
+    while let Some(start) = find(rest, b"<script") {
+        let tag_and_after = &rest[start..];
+        let Some(tag_end) = tag_and_after.iter().position(|byte| *byte == b'>') else {
+            break;
+        };
+        let tag = &tag_and_after[..tag_end];
+        let body = &tag_and_after[tag_end + 1..];
+        let Some(body_end) = find(body, b"</script>") else {
+            break;
+        };
+        if !tag
+            .windows(5)
+            .any(|window| window == b" src=" || window == b"\tsrc=" || window == b"\nsrc=")
+        {
+            scripts.push(&body[..body_end]);
+        }
+        rest = &body[body_end + b"</script>".len()..];
+    }
+    scripts
+}
+
+fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    haystack
+        .windows(needle.len())
+        .position(|window| window == needle)
+}
+
+/// Sent only when the installation's public URL is HTTPS (DNK-85).
+const HSTS_VALUE: &str = "max-age=63072000; includeSubDomains";
+
+fn hsts_value(public_url: &str) -> Option<&'static str> {
+    public_url.starts_with("https://").then_some(HSTS_VALUE)
+}
+
 #[derive(Clone)]
 pub struct AppState {
     pub runtime: Arc<dyn DecisionRuntime>,
@@ -94,6 +196,9 @@ pub struct AppState {
     /// Where the installation's Runtime lets connectors call (DNK-84); `None` when Studio is
     /// not told, and then saving a version does not check it.
     pub connector_destinations: Option<Arc<donka_engine::Destinations>>,
+    /// The installation's public URL (`DONKA_PUBLIC_URL`); HSTS is sent only
+    /// when it is HTTPS (DNK-85).
+    pub public_url: String,
 }
 
 #[derive(OpenApi)]
@@ -108,6 +213,7 @@ struct ApiDoc;
 ///
 /// Deny by default: only the routes in `public` answer without a session.
 pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> Router {
+    let hsts = hsts_value(&state.public_url);
     let public = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .routes(routes!(routes::health::health))
         .routes(routes!(routes::health::ready))
@@ -262,27 +368,41 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
         Some(dir) => app.merge(web::routes(dir)),
         None => app,
     };
-    app.layer(security_header(X_CONTENT_TYPE_OPTIONS, "nosniff"))
+    // Built once here: it lists the served export's own inline scripts by hash.
+    let policy = HeaderValue::from_str(&content_security_policy(web_dir))
+        .unwrap_or_else(|_| HeaderValue::from_static(CONTENT_SECURITY_POLICY));
+    let app = app
+        .layer(security_header(X_CONTENT_TYPE_OPTIONS, "nosniff"))
         .layer(security_header(X_FRAME_OPTIONS, "DENY"))
         // Setup links carry their token in the query string: never send it to another site.
         .layer(security_header(REFERRER_POLICY, "same-origin"))
-        .layer(
-            TraceLayer::new_for_http()
-                // Not the default span: it records the full URI, query string included, and a
-                // password-setup link carries its token there.
-                .make_span_with(|req: &axum::http::Request<_>| {
-                    tracing::info_span!(
-                        "http",
-                        method = %req.method(),
-                        route = %telemetry::route(req),
-                        request_id = %request_id::current().unwrap_or_default(),
-                    )
-                })
-                .on_response(DefaultOnResponse::new().level(Level::INFO)),
-        )
-        .layer(CompressionLayer::new())
-        .layer(middleware::from_fn(telemetry::record_request))
-        .layer(middleware::from_fn(request_id::middleware))
+        .layer(SetResponseHeaderLayer::if_not_present(
+            CONTENT_SECURITY_POLICY_HEADER,
+            policy,
+        ));
+    // HSTS only over HTTPS: plain-HTTP local and demo installs must not pin
+    // browsers to HTTPS (DNK-85).
+    let app = match hsts {
+        Some(value) => app.layer(security_header(STRICT_TRANSPORT_SECURITY, value)),
+        None => app,
+    };
+    app.layer(
+        TraceLayer::new_for_http()
+            // Not the default span: it records the full URI, query string included, and a
+            // password-setup link carries its token there.
+            .make_span_with(|req: &axum::http::Request<_>| {
+                tracing::info_span!(
+                    "http",
+                    method = %req.method(),
+                    route = %telemetry::route(req),
+                    request_id = %request_id::current().unwrap_or_default(),
+                )
+            })
+            .on_response(DefaultOnResponse::new().level(Level::INFO)),
+    )
+    .layer(CompressionLayer::new())
+    .layer(middleware::from_fn(telemetry::record_request))
+    .layer(middleware::from_fn(request_id::middleware))
 }
 
 async fn openapi(doc: OpenApiDoc) -> Json<OpenApiDoc> {
@@ -295,4 +415,30 @@ async fn api_not_found() -> error::ApiError {
 
 fn security_header(name: HeaderName, value: &'static str) -> SetResponseHeaderLayer<HeaderValue> {
     SetResponseHeaderLayer::if_not_present(name, HeaderValue::from_static(value))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{content_security_policy, hsts_value, inline_scripts};
+
+    #[test]
+    fn hsts_is_sent_only_for_an_https_public_url() {
+        assert_eq!(
+            hsts_value("https://studio.bank.example"),
+            Some("max-age=63072000; includeSubDomains")
+        );
+        assert_eq!(hsts_value("http://localhost:8080"), None);
+    }
+
+    #[test]
+    fn only_inline_scripts_are_listed_by_hash() {
+        let html = b"<script src=\"/app.js\"></script><script>first</script><script id=\"x\">second</script>";
+        let scripts = inline_scripts(html);
+        assert_eq!(scripts, vec![b"first".as_slice(), b"second".as_slice()]);
+        // Without an export the base policy is sent unchanged.
+        assert_eq!(
+            content_security_policy(None),
+            super::CONTENT_SECURITY_POLICY
+        );
+    }
 }
