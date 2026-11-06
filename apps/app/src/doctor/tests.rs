@@ -259,6 +259,38 @@ async fn connector_endpoints_are_reached_without_a_request() {
 }
 
 #[test]
+fn published_ports_warn_only_beyond_localhost_over_plain_http() {
+    // No installation answer: nothing to check.
+    let unset = config(&[]);
+    assert!(matches!(published_ports(&unset).outcome, Outcome::Off(_)));
+    // Localhost only: fine, whatever the public URL.
+    let local = config(&[("DONKA_PUBLISH_ADDRESS", "127.0.0.1")]);
+    assert!(matches!(
+        published_ports(&local).outcome,
+        Outcome::Working(_)
+    ));
+    // Beyond localhost behind the HTTPS proxy: fine.
+    let proxied = config(&[
+        ("DONKA_PUBLISH_ADDRESS", "0.0.0.0"),
+        ("DONKA_PUBLIC_URL", "https://studio.bank.example"),
+    ]);
+    assert!(matches!(
+        published_ports(&proxied).outcome,
+        Outcome::Working(_)
+    ));
+    // Beyond localhost over plain HTTP: the warning names the fix.
+    let exposed = config(&[("DONKA_PUBLISH_ADDRESS", "192.0.2.10")]);
+    let Outcome::Failing { reason, fix } = &published_ports(&exposed).outcome else {
+        panic!("{:?}", published_ports(&exposed));
+    };
+    assert!(
+        reason.contains("192.0.2.10") && reason.contains("plain HTTP"),
+        "{reason}"
+    );
+    assert!(fix.contains("publish_address"), "{fix}");
+}
+
+#[test]
 fn the_report_puts_the_fix_under_a_failing_check() {
     let checks = [
         Check::working("database", "reachable, every migration applied"),

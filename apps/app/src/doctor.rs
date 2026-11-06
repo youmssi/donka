@@ -91,6 +91,7 @@ pub async fn run(
         }
     };
     let mut checks = vec![Check::working("settings", "Studio accepts them")];
+    checks.push(published_ports(&config));
     let pool = database(&config, &mut checks).await;
     checks.push(timed("storage", storage(&config)).await);
     checks.push(timed("mail", mail(&config)).await);
@@ -106,6 +107,45 @@ pub async fn run(
         checks.extend(connectors(&pool, destinations.as_ref()).await);
     }
     checks
+}
+
+/// Studio (8080) and the Runtime (8090) published beyond this server over
+/// plain HTTP are reachable by anyone who can route to it (DNK-86): the bank's
+/// TLS proxy belongs in front, or the ports stay on localhost.
+fn published_ports(config: &Config) -> Check {
+    const NAME: &str = "published ports";
+    let Some(address) = config.publish_address else {
+        return Check::off(
+            NAME,
+            "not an installation donka-admin init prepared (DONKA_PUBLISH_ADDRESS is unset)",
+        );
+    };
+    if address.is_loopback() {
+        return Check::working(
+            NAME,
+            format!("Studio 8080 and the Runtime 8090 are published on {address} only"),
+        );
+    }
+    if config.public_url.starts_with("https://") {
+        return Check::working(
+            NAME,
+            format!(
+                "Studio 8080 and the Runtime 8090 are published on {address}, behind the HTTPS proxy at {}",
+                config.public_url
+            ),
+        );
+    }
+    Check::failing(
+        NAME,
+        format!(
+            "Studio 8080 and the Runtime 8090 are published on {address} over plain HTTP ({}): anyone who can reach that address can use them",
+            config.public_url
+        ),
+        "set publish_address to 127.0.0.1 in donka.yaml and run donka-admin init --config \
+         donka.yaml, then put your TLS proxy in front; or give Studio an HTTPS public_url \
+         behind that proxy"
+            .to_owned(),
+    )
 }
 
 /// The report, one line per check and the fix under a failing one.

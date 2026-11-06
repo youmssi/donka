@@ -66,6 +66,9 @@ pub fn run(
     i.public_url = ask_valid(prompt, t.public_url, &i.public_url, |url| {
         url.starts_with("http://") || url.starts_with("https://")
     })?;
+    i.publish_address = ask_valid(prompt, t.publish_address, &i.publish_address, |address| {
+        address.parse::<std::net::IpAddr>().is_ok()
+    })?;
     i.administrator = ask_valid(prompt, t.administrator, &i.administrator, |email| {
         email.contains('@')
     })?;
@@ -206,6 +209,7 @@ fn ask_valid(
 struct Text {
     intro: &'static str,
     public_url: &'static str,
+    publish_address: &'static str,
     administrator: &'static str,
     role: &'static str,
     second_step: &'static str,
@@ -235,6 +239,7 @@ impl Text {
             Language::En => Self {
                 intro: "Prepare this Donka installation. Press Enter to keep the value in brackets.",
                 public_url: "Where people reach Studio (behind your HTTPS proxy)",
+                publish_address: "Address Studio (8080) and the Runtime (8090) are published on (127.0.0.1: this server only)",
                 administrator: "The first administrator's email",
                 role: "What this installation is (production, staging, demo)",
                 second_step: "Who signs in with a second step (none, privileged, all)",
@@ -260,6 +265,7 @@ impl Text {
             Language::Fr => Self {
                 intro: "Préparez cette installation de Donka. Entrée garde la valeur entre crochets.",
                 public_url: "Adresse de Studio pour ses utilisateurs (derrière votre proxy HTTPS)",
+                publish_address: "Adresse de publication de Studio (8080) et du Runtime (8090) (127.0.0.1 : ce serveur seulement)",
                 administrator: "Adresse e-mail du premier administrateur",
                 role: "Rôle de cette installation (production, staging, demo)",
                 second_step: "Qui se connecte avec une seconde étape (none, privileged, all)",
@@ -319,8 +325,8 @@ mod tests {
     #[test]
     fn enter_everywhere_keeps_every_default() {
         let defaults = Installation::for_version("1.5.0");
-        // language, URL, admin, role, second step, storage, mail, model, licence, internet, confirm
-        let mut script = Script::new(&[""; 11]);
+        // language, URL, publish, admin, role, second step, storage, mail, model, licence, internet, confirm
+        let mut script = Script::new(&[""; 12]);
         let (installation, provided) = run(&mut script, &defaults).unwrap();
         assert_eq!(installation, defaults);
         assert!(provided.smtp_url.is_none() && provided.explain_api_key.is_none());
@@ -333,6 +339,7 @@ mod tests {
         let mut script = Script::new(&[
             "fr",
             "https://donka.banque.example",
+            "",
             "ada@banque.example",
             "staging",
             "privileged",
@@ -413,6 +420,7 @@ mod tests {
             "",
             "",
             "",
+            "",
         ]);
         let (installation, _) = run(&mut script, &defaults).unwrap();
         assert_eq!(installation.public_url, "https://donka.example");
@@ -422,8 +430,8 @@ mod tests {
     #[test]
     fn saying_no_at_the_end_writes_nothing() {
         let defaults = Installation::for_version("1.5.0");
-        let mut answers = [""; 11];
-        answers[10] = "no";
+        let mut answers = [""; 12];
+        answers[11] = "no";
         let refused = run(&mut Script::new(&answers), &defaults).unwrap_err();
         assert!(refused.contains("nothing was written"), "{refused}");
     }

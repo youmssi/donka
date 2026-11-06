@@ -20,6 +20,11 @@ pub struct Config {
     pub public_url: String,
     /// Send the session cookie only over HTTPS. Turn off only for local HTTP.
     pub cookie_secure: bool,
+    /// The address Studio's and the Runtime's ports are published on, on an
+    /// installation `donka-admin init` prepared (`DONKA_PUBLISH_ADDRESS`,
+    /// DNK-86); `donka-admin doctor` warns when it reaches beyond this server
+    /// over plain HTTP. Unset outside such an installation.
+    pub publish_address: Option<std::net::IpAddr>,
     /// Export traces and request metrics over OTLP (`DONKA_OTEL_ENABLED`); off by default.
     pub otel_enabled: bool,
     pub session_idle_minutes: u32,
@@ -281,6 +286,7 @@ impl Config {
             db_max_connections: positive(&get, "DONKA_DB_MAX_CONNECTIONS")?.unwrap_or(10),
             public_url,
             cookie_secure: boolean(&get, "DONKA_COOKIE_SECURE", true)?,
+            publish_address: publish_address(&get)?,
             otel_enabled: boolean(&get, "DONKA_OTEL_ENABLED", false)?,
             session_idle_minutes: positive(&get, "DONKA_SESSION_IDLE_MINUTES")?.unwrap_or(480),
             sign_in_max_failures: positive(&get, "DONKA_SIGN_IN_MAX_FAILURES")?.unwrap_or(5),
@@ -459,6 +465,28 @@ where
             _ => Err(invalid(var, "must be a positive number")),
         })
         .transpose()
+}
+
+/// `DONKA_PUBLISH_ADDRESS`: where Compose publishes Studio's and the Runtime's
+/// ports (DNK-86), as `donka-admin init` wrote it (`[::1]` for IPv6); unset
+/// outside such an installation.
+fn publish_address(
+    get: &impl Fn(&str) -> Option<String>,
+) -> Result<Option<std::net::IpAddr>, ConfigError> {
+    let Some(value) = get("DONKA_PUBLISH_ADDRESS") else {
+        return Ok(None);
+    };
+    let bare = value
+        .trim()
+        .strip_prefix('[')
+        .and_then(|v| v.strip_suffix(']'))
+        .unwrap_or(value.trim());
+    bare.parse::<std::net::IpAddr>().map(Some).map_err(|_| {
+        invalid(
+            "DONKA_PUBLISH_ADDRESS",
+            "must be an IP address, e.g. 127.0.0.1",
+        )
+    })
 }
 
 /// `DONKA_TRUSTED_PROXIES`: comma-separated addresses or CIDR ranges; none by default.

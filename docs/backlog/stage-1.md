@@ -1829,11 +1829,19 @@ The generated `docker-compose.yml` publishes Studio (8080) and the Runtime (8090
 interface in plain HTTP, while the guide says to reach them only through the bank's TLS proxy
 (threat model RT-5, medium).
 
+#### Decisions
+Confirmed 2026-11-06: one `publish_address` answer for both ports, any valid IP address
+(`127.0.0.1` by default; hostnames refused). A `donka.yaml` written before this answer
+existed keeps every interface (`0.0.0.0`), so an upgrade changes nothing for it; only a
+new `init` starts on localhost. `donka-admin doctor` warns for each service when its port
+is published beyond localhost while Studio's public URL is plain HTTP, and stays silent
+behind the HTTPS proxy.
+
 #### Acceptance criteria
-- [ ] By default the ports are published on 127.0.0.1 only; `donka-admin init` asks which address to publish on, with localhost as the default, and `donka.yaml` keeps the answer
-- [ ] `donka-admin upgrade` keeps an existing installation's choice
-- [ ] `donka-admin doctor` warns when a port is published beyond localhost over plain HTTP
-- [ ] The install guides (EN/FR) show the reverse proxy in front
+- [x] By default the ports are published on 127.0.0.1 only; `donka-admin init` asks which address to publish on, with localhost as the default, and `donka.yaml` keeps the answer
+- [x] `donka-admin upgrade` keeps an existing installation's choice
+- [x] `donka-admin doctor` warns when a port is published beyond localhost over plain HTTP
+- [x] The install guides (EN/FR) show the reverse proxy in front
 
 ---
 

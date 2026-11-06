@@ -14,7 +14,7 @@ use std::io::IsTerminal as _;
 use std::path::PathBuf;
 
 const USAGE: &str = "usage:
-  donka-admin init [--dir <dir>] [--public-url <url>] [--admin-email <email>]
+  donka-admin init [--dir <dir>] [--public-url <url>] [--publish-address <ip>] [--admin-email <email>]
                    [--studio-version <tag>] [--runtime-version <tag>] [--registry <host/path>]
                    [--demo] [--offline] [--role production|staging|demo]
                    [--auto-upgrade \"<day> <HH:MM>-<HH:MM>\"] [--yes]
@@ -280,6 +280,7 @@ fn init(args: &[String]) -> Result<(), String> {
             "--dir" => dir = PathBuf::from(value),
             "--config" => config = Some(PathBuf::from(value)),
             "--public-url" => installation.public_url = value,
+            "--publish-address" => installation.publish_address = value,
             "--admin-email" => installation.administrator = value,
             "--studio-version" => installation.images.studio = value,
             "--runtime-version" => installation.images.runtime = value,
