@@ -111,6 +111,10 @@ pub enum DecisionError {
     /// The input contract (the input node's JSON Schema) cannot be used; why, in words.
     #[error("{0}")]
     InvalidContract(String),
+    /// The field holds or looks like a card number (DNK-73): Donka never takes
+    /// card data, so it stays outside PCI DSS scope.
+    #[error("field '{0}' holds or looks like a card number: Donka never takes card numbers, so remove that field")]
+    CardField(String),
     /// No such table finding in the decision's draft: it was fixed, or the table changed.
     #[error("no such finding in the draft")]
     FindingNotFound,
@@ -418,9 +422,26 @@ impl Decisions {
 pub fn check_decision(key: &str, content: &Value) -> Result<(), DecisionError> {
     let key = check_key(key)?;
     check_content(&key, content)?;
-    donka_engine::contract::input_schema(content)
+    let schema = donka_engine::contract::input_schema(content)
         .map_err(|err| DecisionError::InvalidContract(err.to_string()))?;
+    check_contract(&schema)?;
     Ok(())
+}
+
+/// Donka never takes card numbers (DNK-73): a contract that names one, or
+/// carries one in an example or a default, is refused, so Donka stays outside
+/// the bank's PCI DSS scope.
+pub fn check_contract(schema: &Option<Value>) -> Result<(), DecisionError> {
+    let Some(schema) = schema else {
+        return Ok(());
+    };
+    match donka_engine::contract::card_fields(schema)
+        .into_iter()
+        .next()
+    {
+        Some(path) => Err(DecisionError::CardField(path)),
+        None => Ok(()),
+    }
 }
 
 fn check_key(key: &str) -> Result<String, DecisionError> {

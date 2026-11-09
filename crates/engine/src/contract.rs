@@ -134,6 +134,109 @@ pub fn pii_fields(schema: &Value) -> Vec<String> {
         .collect()
 }
 
+/// Fields that hold or look like a card number (a primary account number,
+/// DNK-73): Donka needs no card data, so a contract naming one, or carrying
+/// one in an example or a default, is refused when it is saved, and Donka
+/// stays outside the bank's PCI DSS scope. Found by the field's name
+/// (`pan`, `cardNumber`, `numeroCarte`…) and by a Luhn-valid 13-to-19-digit
+/// value in its `default`, `examples` or `const`.
+pub fn card_fields(schema: &Value) -> Vec<String> {
+    declared_fields(schema)
+        .into_iter()
+        .filter(|field| card_like_name(&field.path) || card_like_values(&field.schema))
+        .map(|field| field.path)
+        .collect()
+}
+
+/// The name looks like a card number's: a `pan` word of its own, or a card
+/// number in any spelling. Ordinary words that contain those letters
+/// (`company`, `panelCode`, `cardStatus`) are not card numbers.
+fn card_like_name(path: &str) -> bool {
+    let Some(name) = path.rsplit('.').next() else {
+        return false;
+    };
+    let words = name_words(name);
+    if words.iter().any(|word| word == "pan") {
+        return true;
+    }
+    let squashed: String = words.concat();
+    squashed == "pan"
+        || squashed.contains("cardnumber")
+        || squashed.contains("cardno")
+        || squashed.contains("numerocarte")
+        || squashed.contains("numerodecarte")
+        || squashed.contains("primaryaccountnumber")
+}
+
+/// The words of a field name, split on separators and case changes, lowered.
+fn name_words(name: &str) -> Vec<String> {
+    let mut words = Vec::new();
+    let mut word = String::new();
+    let mut previous_lower = false;
+    for ch in name.chars() {
+        if !ch.is_alphanumeric() {
+            if !word.is_empty() {
+                words.push(std::mem::take(&mut word));
+            }
+            previous_lower = false;
+        } else if ch.is_uppercase() && previous_lower {
+            words.push(std::mem::take(&mut word));
+            word.push(ch.to_ascii_lowercase());
+            previous_lower = false;
+        } else {
+            previous_lower = ch.is_lowercase();
+            word.push(ch.to_ascii_lowercase());
+        }
+    }
+    if !word.is_empty() {
+        words.push(word);
+    }
+    words
+}
+
+fn card_like_values(schema: &Value) -> bool {
+    let mut values: Vec<&Value> = Vec::new();
+    for key in ["default", "const"] {
+        if let Some(value) = schema.get(key) {
+            values.push(value);
+        }
+    }
+    if let Some(examples) = schema.get("examples").and_then(Value::as_array) {
+        values.extend(examples);
+    }
+    values.into_iter().any(|value| match value {
+        Value::String(text) => looks_like_a_card(text),
+        Value::Number(number) => looks_like_a_card(&number.to_string()),
+        _ => false,
+    })
+}
+
+/// 13 to 19 digits (spaces and dashes aside) passing Luhn: a card number's
+/// shape. A longer, shorter or non-Luhn number is left alone.
+fn looks_like_a_card(text: &str) -> bool {
+    let digits: Vec<u32> = text
+        .chars()
+        .filter(|ch| !matches!(ch, ' ' | '-'))
+        .filter_map(|ch| ch.to_digit(10))
+        .collect();
+    let stripped: String = text.chars().filter(|ch| !matches!(ch, ' ' | '-')).collect();
+    if stripped.chars().any(|ch| !ch.is_ascii_digit()) || !(13..=19).contains(&digits.len()) {
+        return false;
+    }
+    let mut sum = 0u32;
+    for (index, digit) in digits.iter().rev().enumerate() {
+        let mut digit = *digit;
+        if index % 2 == 1 {
+            digit *= 2;
+            if digit > 9 {
+                digit -= 9;
+            }
+        }
+        sum += digit;
+    }
+    sum.is_multiple_of(10)
+}
+
 /// Paths of the fields marked `identifier`.
 pub fn identifier_fields(schema: &Value) -> Vec<String> {
     declared_fields(schema)
