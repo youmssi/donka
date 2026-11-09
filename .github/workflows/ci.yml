@@ -36,21 +36,21 @@ jobs:
       # sqlx::test creates a throwaway database per test from this server.
       DATABASE_URL: postgres://donka:donka@localhost:5432/donka
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           components: rustfmt, clippy, llvm-tools-preview
-      - uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2
         with:
           tool: cargo-llvm-cov@0.9.1,cargo-audit@0.22.2
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
       # The shared checker lives in public Runtime so its CI can run independently of Studio.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: youmssi/donka-runtime
           ref: 2a2c2eb1798b6ba3920d4ad85559a0610887d8f4
@@ -69,14 +69,14 @@ jobs:
           CARGO_BUILD_JOBS: '2'
       - run: node .quality-gates/scripts/check-rust-coverage.mjs coverage/rust.json scripts/rust-coverage.json
       - run: cargo audit
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: rust-coverage
           path: coverage/rust.json
           retention-days: 7
       # Compare against the runtime's next release so Studio and Runtime evaluate identically.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: youmssi/donka-runtime
           ref: develop
@@ -92,12 +92,12 @@ jobs:
       run:
         working-directory: apps/web
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           # The pnpm version comes from packageManager in the web app's package.json.
           package_json_file: apps/web/package.json
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: pnpm
@@ -108,7 +108,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test:coverage
       - run: pnpm audit:security
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: web-coverage
@@ -119,13 +119,13 @@ jobs:
       - run: pnpm api:generate && git diff --exit-code -- src/components/shared/api/schema.d.ts
       - run: pnpm build
       - run: pnpm build-storybook
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('apps/web/pnpm-lock.yaml') }}
       - run: pnpm exec playwright install --with-deps --only-shell chromium
       - run: pnpm test:storybook
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: storybook
           path: apps/web/storybook-static
@@ -149,13 +149,13 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
       - run: node --test scripts/studio-performance.test.mjs
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v6
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           file: apps/app/Dockerfile
@@ -176,7 +176,7 @@ jobs:
           exit-code: '1'
       # The installation from the images (DNK-64): donka-admin init, docker compose up, a
       # release the staging Runtime serves from the shared volume, its decision in Studio's log.
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: https://github.com/youmssi/donka-runtime.git#develop
           tags: ghcr.io/youmssi/donka-runtime:ci
@@ -190,7 +190,7 @@ jobs:
       # The offline bundle: signed with a throwaway key, every image removed, then checked with
       # the commands its README gives, loaded and installed without pulling anything.
       # The signature format donka-admin upgrade reads (classic .sig tags) is cosign 2's.
-      - uses: sigstore/cosign-installer@v3
+      - uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
         with:
           cosign-release: v2.5.2
       - name: Offline bundle
@@ -218,7 +218,7 @@ jobs:
       # published targets hold and no measure regressed beyond the margin.
       - run: scripts/check-performance.sh "$DONKA_INSTALL_DIR"
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: performance
           path: performance.json
@@ -231,7 +231,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: A test registry Docker reaches over HTTP
         run: |
           echo '127.0.0.1 registry.test' | sudo tee -a /etc/hosts
@@ -241,8 +241,8 @@ jobs:
           sudo cp "$RUNNER_TEMP/daemon.json" "$config"
           sudo systemctl restart docker
           docker info --format '{{json .RegistryConfig.IndexConfigs}}' | jq -e '."registry.test:5000".Secure == false'
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v6
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           file: apps/app/Dockerfile
@@ -251,14 +251,14 @@ jobs:
           load: true
           push: false
           cache-from: type=gha
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: https://github.com/youmssi/donka-runtime.git#develop
           tags: donka-runtime:ci
           load: true
           push: false
           cache-from: type=gha,scope=runtime
-      - uses: sigstore/cosign-installer@v3
+      - uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
         with:
           cosign-release: v2.5.2
       - run: scripts/install-images.sh ci ci | grep -v '/donka-' | xargs -n1 docker pull -q
@@ -271,9 +271,9 @@ jobs:
     env:
       COMPOSE_FILE: docker-compose.yml:scripts/feature-services.compose.yml
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/bake-action@v6
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/bake-action@5be5f02ff8819ecd3092ea6b2e6261c31774f2b4 # v6
         with:
           source: .
           files: docker-compose.yml
@@ -335,17 +335,17 @@ jobs:
           RUNTIME_URL: http://localhost:8090
           DONKA_SMOKE_EMAIL: admin@donka.local
           DONKA_SMOKE_PASSWORD: smoke test passphrase
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           package_json_file: apps/web/package.json
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: pnpm
           cache-dependency-path: apps/web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
         working-directory: apps/web
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: youmssi/donka-cli
           ref: 32ddc1105f5a6e7755975f0055da875c523d2b9f
@@ -359,7 +359,7 @@ jobs:
           pnpm format
           pnpm typecheck
           pnpm test
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('apps/web/pnpm-lock.yaml') }}
@@ -410,7 +410,7 @@ jobs:
           DONKA_E2E_SIGN_IN_RATE_LIMIT: "2"
           DONKA_E2E_PASSWORD_RESET_RATE_LIMIT: "1"
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-security
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: failure()
         with:
           name: feature-browser-failures
@@ -441,16 +441,16 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: youmssi/donka-runtime
           ref: develop
           path: donka-runtime
       # Next to Studio, as in development: inside it, Cargo would take it for a workspace member.
       - run: mv donka-runtime ../donka-runtime
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: |
             .
