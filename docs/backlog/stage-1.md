@@ -1571,8 +1571,10 @@ built and delivered, and whether it falls inside its regulated scopes.
 #### Decisions
 Confirmed 2026-10-25, before the pilot. Each item states its status exactly; a self-assessment
 is never presented as a certification:
-- **OWASP ASVS 5.0 level 2** self-assessment of Studio and the Runtime, with evidence per
-  requirement (test, configuration or document).
+- **OWASP ASVS 4.0.3 level 2** self-assessment of Studio and the Runtime, with evidence per
+  requirement (test, configuration or document). (Version confirmed 2026-11-09: 4.0.3 is the
+  stable, verifiable reference; ASVS 5.0 renumbers every chapter and is too recent for a bank
+  dossier.)
 - **NIST SSDF (SP 800-218)** mapping of the development practices.
 - **SLSA build level 3** provenance for the published images (DNK-64).
 - **OpenSSF Scorecard** and the **OpenSSF Best Practices badge** for the public repositories.
@@ -1600,8 +1602,8 @@ status stated (awaiting the first signed release, an owner release item), never 
 without evidence.
 
 #### Acceptance criteria
-- [ ] The ASVS level 2 self-assessment lists every applicable requirement with its evidence; failures become stories or written exceptions
-- [ ] The SSDF mapping links each practice to the repository's rules, CI and reviews
+- [x] The ASVS level 2 self-assessment lists every applicable requirement with its evidence; failures become stories or written exceptions
+- [x] The SSDF mapping links each practice to the repository's rules, CI and reviews
 - [ ] Published images carry SLSA level 3 provenance that a bank verifies offline with the documented commands
 - [ ] OpenSSF Scorecard runs on each public repository and the Best Practices badge is obtained; their results are linked
 - [ ] Images pass the applicable CIS Docker Benchmark checks or document each exception
