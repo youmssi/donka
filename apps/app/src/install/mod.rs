@@ -31,6 +31,10 @@ const MOUNTED: &str = "/run/secrets";
 pub const POSTGRES_PASSWORD: &str = "postgres_password";
 const DATABASE_URL: &str = "database_url";
 const DECISION_LOG_KEY: &str = "decision_log_key";
+/// Studio's artifact signing key (DNK-87), `keyId=<base64 seed>`; the previous
+/// one is kept next to it while a rotation completes.
+const ARTIFACT_SIGNING_KEY: &str = "artifact_signing_key";
+const ARTIFACT_SIGNING_KEY_PREVIOUS: &str = "artifact_signing_key_previous";
 const SECOND_STEP_KEY: &str = "second_step_key";
 const PERSON_INDEX_KEY: &str = "person_index_key";
 const SMTP_URL: &str = "smtp_url";
@@ -412,6 +416,16 @@ pub fn apply(
             Ok(B64.encode(bytes))
         })?;
     }
+    // The artifact signing pair (DNK-87): the seed stays in secrets/, only its
+    // public half ever leaves (runtime.env, and the guides for other Runtimes).
+    secret(ARTIFACT_SIGNING_KEY, &mut || {
+        use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64_URL;
+        use base64::Engine as _;
+        let mut seed = [0u8; 32];
+        random(&mut seed)?;
+        let id = artifact_key_id(&seed);
+        Ok(format!("{id}={}", B64_URL.encode(seed)))
+    })?;
     let operator = |value: &Option<String>, name: &str, what: &'static str| {
         from_operator(value.clone(), secrets.join(name), what)
     };
@@ -475,9 +489,25 @@ pub fn apply(
             }
         })?;
     }
+    // The staging Runtime verifies artifacts with the public half of the
+    // signing pair (DNK-87); the previous key is listed while a rotation lasts.
+    let signing_public = |name: &str| -> Result<Option<String>, String> {
+        let path = secrets.join(name);
+        if !path.exists() {
+            return Ok(None);
+        }
+        artifact_public(&read_secret(&path)?).map(Some)
+    };
     for (name, content) in [
         (".env", env_file(installation)),
-        ("runtime.env", runtime_env(installation)),
+        (
+            "runtime.env",
+            runtime_env(
+                installation,
+                signing_public(ARTIFACT_SIGNING_KEY)?.as_deref(),
+                signing_public(ARTIFACT_SIGNING_KEY_PREVIOUS)?.as_deref(),
+            ),
+        ),
         ("docker-compose.yml", COMPOSE.to_owned()),
     ] {
         let path = dir.join(name);
@@ -571,6 +601,70 @@ fn with_versions(text: &str, studio: &str, runtime: &str) -> String {
     lines.join("\n") + "\n"
 }
 
+/// A signing key's id: the first eight hex digits of its public key's
+/// SHA-256, so the id itself proves which key it names (DNK-87).
+pub fn artifact_key_id(seed: &[u8; 32]) -> String {
+    use sha2::Digest as _;
+    let key = ed25519_dalek::SigningKey::from_bytes(seed);
+    let digest = sha2::Sha256::digest(key.verifying_key().to_bytes());
+    digest[..4]
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+/// The public half of a signing secret file's content (`keyId=<base64 seed>`),
+/// as `ARTIFACT__PUBLIC_KEY` for a Runtime: `keyId=<base64 public key>`.
+/// Both sides of the wire are URL-safe base64, as Ed25519 tools write them.
+pub fn artifact_public(content: &str) -> Result<String, String> {
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64_URL;
+    use base64::Engine as _;
+    let (id, encoded) = content
+        .split_once('=')
+        .ok_or("the artifact signing key does not name its key")?;
+    let seed: [u8; 32] = B64_URL
+        .decode(encoded.trim())
+        .ok()
+        .or_else(|| B64.decode(encoded.trim()).ok())
+        .and_then(|bytes| bytes.try_into().ok())
+        .ok_or("the artifact signing key is not a 32-byte seed")?;
+    let key = ed25519_dalek::SigningKey::from_bytes(&seed);
+    Ok(format!(
+        "{id}={}",
+        B64_URL.encode(key.verifying_key().to_bytes())
+    ))
+}
+
+/// Rotates the artifact signing key without downtime (DNK-87): the current
+/// key becomes the previous one, a fresh key is generated, and the files are
+/// rewritten, so Runtimes verify with either key while Studio signs with the
+/// new one. The previous key file can be deleted once every Runtime and
+/// artifact has moved on.
+pub fn rotate_signing_key(
+    dir: &Path,
+    random: &mut dyn FnMut(&mut [u8]) -> Result<(), String>,
+) -> Result<Installation, String> {
+    let installation = Installation::read(dir)?;
+    let secrets = dir.join(SECRETS);
+    let current = read_secret(&secrets.join(ARTIFACT_SIGNING_KEY))?;
+    std::fs::write(
+        secrets.join(ARTIFACT_SIGNING_KEY_PREVIOUS),
+        format!("{current}\n"),
+    )
+    .map_err(|err| format!("cannot write the previous signing key: {err}"))?;
+    set_mode(&secrets.join(ARTIFACT_SIGNING_KEY_PREVIOUS), 0o600)?;
+    let mut seed = [0u8; 32];
+    random(&mut seed)?;
+    let id = artifact_key_id(&seed);
+    std::fs::write(
+        secrets.join(ARTIFACT_SIGNING_KEY),
+        format!("{id}={}\n", B64.encode(seed)),
+    )
+    .map_err(|err| format!("cannot write the new signing key: {err}"))?;
+    set_mode(&secrets.join(ARTIFACT_SIGNING_KEY), 0o600)?;
+    Ok(installation)
+}
+
 /// The value of a secret file, as the containers read it.
 pub fn read_secret(path: &Path) -> Result<String, String> {
     std::fs::read_to_string(path)
@@ -634,6 +728,10 @@ fn env_file(installation: &Installation) -> String {
         format!("DONKA_MFA_REQUIRED={}", i.second_step.as_str()),
         String::new(),
         format!("DATABASE_URL_FILE={}", mounted(DATABASE_URL)),
+        format!(
+            "DONKA_ARTIFACT_SIGNING_KEY_FILE={}",
+            mounted(ARTIFACT_SIGNING_KEY)
+        ),
         format!("DONKA_DECISION_LOG_KEY_FILE={}", mounted(DECISION_LOG_KEY)),
         format!("DONKA_SECOND_STEP_KEY_FILE={}", mounted(SECOND_STEP_KEY)),
         format!("DONKA_PERSON_INDEX_KEY_FILE={}", mounted(PERSON_INDEX_KEY)),
@@ -717,12 +815,24 @@ fn env_file(installation: &Installation) -> String {
 }
 
 /// `runtime.env`: the staging Runtime's settings, and the files holding its secrets.
-fn runtime_env(installation: &Installation) -> String {
+/// `signing` and `signing_previous` are the public halves (`keyId=<base64 key>`)
+/// of the artifact signing pair, when the secrets exist (DNK-87).
+fn runtime_env(
+    installation: &Installation,
+    signing: Option<&str>,
+    signing_previous: Option<&str>,
+) -> String {
     let mut lines = vec![
         "# Written by donka-admin init from donka.yaml: the staging Runtime's settings.".to_owned(),
         "DECISION_LOG__URL=http://app:8080/api/v1/decision-log/records".to_owned(),
         "DECISION_LOG__TOKEN_FILE=/var/lib/donka/wiring/staging-decision-log-token".to_owned(),
     ];
+    if let Some(public) = signing {
+        lines.push(format!("ARTIFACT__PUBLIC_KEY={public}"));
+    }
+    if let Some(previous) = signing_previous {
+        lines.push(format!("ARTIFACT__PUBLIC_KEY_PREVIOUS={previous}"));
+    }
     match &installation.storage {
         Storage::Disk => lines.extend([
             "PROVIDER__TYPE=Zip".to_owned(),

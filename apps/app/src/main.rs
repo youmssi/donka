@@ -102,6 +102,7 @@ async fn main() -> anyhow::Result<()> {
             publish_max_attempts: config.publish_max_attempts,
             email_max_attempts: config.email_max_attempts,
             public_url: config.public_url.clone(),
+            signing: config.artifact_signing.map(std::sync::Arc::new),
         },
     );
     let audit = AuditLog::new(db.clone());
