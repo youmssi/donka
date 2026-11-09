@@ -264,3 +264,42 @@ fn contract_changes_are_marked_breaking_or_compatible() {
         .all(|c| c.kind == ChangeKind::Added));
     assert!(diff(Some(&before), None).iter().all(|c| c.breaking));
 }
+
+#[test]
+fn card_fields_are_found_by_name_and_by_card_like_value() {
+    let schema = json!({
+        "type": "object",
+        "properties": {
+            "cardNumber": { "type": "string" },
+            "customer": {
+                "type": "object",
+                "properties": {
+                    "pan": { "type": "string" },
+                    "numeroCarte": { "type": "string" },
+                    "company": { "type": "string" },
+                    "panelCode": { "type": "string" },
+                    "cardStatus": { "type": "string" }
+                }
+            },
+            "payment": {
+                "type": "object",
+                "properties": {
+                    // 4242 4242 4242 4242 is the well-known test PAN (Luhn-valid).
+                    "reference": { "type": "string", "default": "4242 4242 4242 4242" },
+                    // A long account number that is not Luhn-valid is left alone.
+                    "account": { "type": "string", "examples": ["1234567890123456789"] },
+                    "amount": { "type": "number", "default": 1500 }
+                }
+            }
+        }
+    });
+    assert_eq!(
+        card_fields(&schema),
+        [
+            "cardNumber",
+            "customer.numeroCarte",
+            "customer.pan",
+            "payment.reference"
+        ]
+    );
+}

@@ -239,6 +239,7 @@ impl From<DecisionError> for ApiError {
             },
             DecisionError::ScenarioNameTaken => Self::ScenarioNameTaken,
             DecisionError::InvalidContract(reason) => Self::InvalidContract(reason),
+            DecisionError::CardField(_) => Self::InvalidContract(err.to_string()),
             DecisionError::InvalidScenario(field) => Self::InvalidField {
                 field,
                 message: match field {

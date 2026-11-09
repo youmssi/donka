@@ -82,6 +82,9 @@ impl Decisions {
             .await?;
         let schema = contract::input_schema(&content)
             .map_err(|err| DecisionError::InvalidContract(err.to_string()))?;
+        // A draft saved before the card refusal existed must not be versioned
+        // with a card number in it either (DNK-73).
+        crate::check_contract(&schema)?;
         let mut version = self
             .insert_version(&mut tx, access, &current, &content, &message, None)
             .await?;

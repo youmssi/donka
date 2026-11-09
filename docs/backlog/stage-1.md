@@ -1590,13 +1590,22 @@ is never presented as a certification:
   (for example Cameroon's law 2024/017). Each matrix starts from the strictest common rules
   and gains a country section when a customer there signs.
 
+#### Decisions
+Confirmed 2026-11-06: executed in parts, each its own PR — card refusal and the PCI DSS scope
+statement first (this part), then ASVS+SSDF, then compliance matrices, questionnaire and
+WCAG, then SLSA, Scorecard and CIS. A contract field is refused by its name (`pan`,
+`cardNumber`, `numeroCarte`…) or by a Luhn-valid 13-to-19-digit value in an example or a
+default. SLSA provenance is prepared with its offline verification commands and its exact
+status stated (awaiting the first signed release, an owner release item), never claimed
+without evidence.
+
 #### Acceptance criteria
 - [ ] The ASVS level 2 self-assessment lists every applicable requirement with its evidence; failures become stories or written exceptions
 - [ ] The SSDF mapping links each practice to the repository's rules, CI and reviews
 - [ ] Published images carry SLSA level 3 provenance that a bank verifies offline with the documented commands
 - [ ] OpenSSF Scorecard runs on each public repository and the Best Practices badge is obtained; their results are linked
 - [ ] Images pass the applicable CIS Docker Benchmark checks or document each exception
-- [ ] Saving a contract with a field that holds or looks like a card number is refused, and the PCI DSS scope statement is published
+- [x] Saving a contract with a field that holds or looks like a card number is refused, and the PCI DSS scope statement is published
 - [ ] Each compliance matrix lists every requirement with its evidence, its owner (Donka, customer, shared) and its status; gaps become stories or written exceptions; legal texts are cited from their official sources
 - [ ] A WCAG 2.2 AA self-assessment of Studio's screens is part of the dossier
 - [ ] The questionnaire answer pack (EN/FR) and the dossier appear on the Trust page (DNK-66)
