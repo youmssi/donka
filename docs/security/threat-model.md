@@ -147,7 +147,7 @@ Status:
 | --- | --- | --- | --- | --- |
 | SC-1 | T | A vulnerable dependency | `cargo audit` and `pnpm audit` fail CI on high or critical findings; images are scanned with Trivy before publication and the scanned digest is the one published (DNK-49, [`quality-gates.md`](../engineering/quality-gates.md)) | Mitigated |
 | SC-2 | T | A changed upstream engine | zen-engine pinned exactly, from Donka's fork at a fixed commit, the same in Studio and Runtime ([`scripts/check-engine-version.sh`](../../scripts/check-engine-version.sh), ADR-003) | Mitigated |
-| SC-3 | T | A compromised CI action | The image scanner is pinned to a commit SHA; GitHub's and Docker's own actions and `rust-cache` are pinned to a major version only | **Open: DNK-73** (OpenSSF Scorecard requires every action pinned to a SHA) |
+| SC-3 | T | A compromised CI action | Every CI action in Studio, Runtime and CLI is pinned to a full commit SHA (version kept as a comment); Dependabot opens one grouped weekly update so the pins stay fresh; Scorecard runs weekly on each public repository (DNK-73, [`supply-chain.md`](supply-chain.md)) | Mitigated |
 
 ### Access to the database and the server
 

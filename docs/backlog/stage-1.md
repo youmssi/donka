@@ -1608,12 +1608,18 @@ completeness. The security questionnaire is a separate pre-filled pack under
 which asks the bank questions instead of answering them. The version choice for the ASVS
 page is 4.0.3 (see the Decisions above).
 
+Confirmed 2026-11-09 (part 4): OpenSSF Scorecard runs as a weekly workflow in each public
+repository (results in its Security tab), with every CI action pinned to a commit SHA.
+The Best Practices badge answers are prepared from the dossier; registering the projects
+on bestpractices.dev is the owner's action, and until then the badge is stated exactly as
+not obtained.
+
 #### Acceptance criteria
 - [x] The ASVS level 2 self-assessment lists every applicable requirement with its evidence; failures become stories or written exceptions
 - [x] The SSDF mapping links each practice to the repository's rules, CI and reviews
-- [ ] Published images carry SLSA level 3 provenance that a bank verifies offline with the documented commands
-- [ ] OpenSSF Scorecard runs on each public repository and the Best Practices badge is obtained; their results are linked
-- [ ] Images pass the applicable CIS Docker Benchmark checks or document each exception
+- [ ] Published images carry SLSA level 3 provenance that a bank verifies offline with the documented commands — prepared with its verification commands and its exact status (awaiting the first signed release, an owner release item) in `docs/security/supply-chain.md`
+- [ ] OpenSSF Scorecard runs on each public repository and the Best Practices badge is obtained; their results are linked — Scorecard runs weekly in Studio, Runtime and CLI; badge answers are prepared and registration is the owner's (confirmed 2026-11-09)
+- [x] Images pass the applicable CIS Docker Benchmark checks or document each exception
 - [x] Saving a contract with a field that holds or looks like a card number is refused, and the PCI DSS scope statement is published
 - [x] Each compliance matrix lists every requirement with its evidence, its owner (Donka, customer, shared) and its status; gaps become stories or written exceptions; legal texts are cited from their official sources
 - [x] A WCAG 2.2 AA self-assessment of Studio's screens is part of the dossier
