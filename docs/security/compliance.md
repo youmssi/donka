@@ -45,12 +45,12 @@ the software rows state what Donka provides toward them.
 | A.5.21 ICT supply chain | Donka | Covered | Locked dependencies, audits, signed artifacts (DNK-87) |
 | A.5.22 Monitoring of supplier services | Customer | Customer | Bank monitors its deployment (doctor, audit log) |
 | A.5.23 Cloud services | Shared | N/A | On-premise software; cloud use is the bank's choice and policy |
-| A.5.24 Incident management planning | Shared | Partial | `SECURITY.md` + runbooks; rehearsal is DNK-50 (ASVS EX-2) |
+| A.5.24 Incident management planning | Shared | Partial | `SECURITY.md` + runbooks; recovery rehearsal run end to end (DNK-50; ASVS EX-2 closed) |
 | A.5.25 Assessment of security events | Customer | Customer | Bank SOC process; audit log is the software input |
 | A.5.26 Response to incidents | Shared | Partial | Same as A.5.24 |
 | A.5.27 Learning from incidents | Customer | Customer | — |
 | A.5.28 Collection of evidence | Shared | Covered | Immutable audit log, sealed decision log (DNK-54) |
-| A.5.29 Continuity during disruption | Shared | Partial | Backup/upgrade rehearsal DNK-50 sets RPO/RTO |
+| A.5.29 Continuity during disruption | Shared | Partial | Rehearsal run (DNK-50): recovery point 24 h (daily backup), recovery time target 1 h, measured 24 s on a demonstration-sized install |
 | A.5.30 ICT readiness for continuity | Shared | Partial | Same as A.5.29; see ISO 22301 matrix |
 | A.5.31 Legal and regulatory requirements | Shared | Covered | This page; bank's counsel confirms its own duties |
 | A.5.32 Intellectual property | Donka | Covered | Licences inventoried in `docs/engineering/references.md` |
@@ -96,8 +96,8 @@ guides.
 | A.8.10 Information deletion | Shared | Covered | Retention jobs; person deletion (DNK-51/75) |
 | A.8.11 Data masking | Donka | Covered | PII redaction in feed, replay, explanations (DNK-54/88) |
 | A.8.12 Data leakage prevention | Shared | Covered | PII redaction, no secrets in support bundle/logs, export controls by role |
-| A.8.13 Information backup | Shared | Partial | Backup exists; restore rehearsal is DNK-50 |
-| A.8.14 Redundancy of information processing facilities | Customer | Partial | Two-Runtime topology is DNK-50's rehearsal scope |
+| A.8.13 Information backup | Shared | Partial | Backup and restore rehearsed end to end (DNK-50); recovery values in the install guides |
+| A.8.14 Redundancy of information processing facilities | Customer | Partial | Two-Runtime topology rehearsed (DNK-50) and documented; the bank runs the second Runtime |
 | A.8.15 Logging | Donka | Covered | Structured logs; immutable audit; no secrets logged |
 | A.8.16 Monitoring activities | Shared | Covered | Health/readiness, audit; bank SIEM consumes exports |
 | A.8.17 Clock synchronisation | Customer | Customer | Host NTP; timestamps are host-provided |
@@ -132,10 +132,10 @@ SOC 2 reports examine the operating company over time; Donka the company holds n
 | CC4 Monitoring of controls | Shared | Partial | CI gates cover the code; operating monitoring is the bank's |
 | CC5 Control activities | Shared | Covered | Deny-by-default, approvals, segregation in product |
 | CC6 Logical and physical access | Shared | Covered | ASVS V2–V4; physical stays Customer |
-| CC7 System operations | Shared | Covered | Doctor, health/readiness, immutable logs; incident process EX-2 |
+| CC7 System operations | Shared | Covered | Doctor, health/readiness, immutable logs; incident process EX-2 (closed by DNK-50's rehearsal) |
 | CC8 Change management | Shared | Covered | Versioned releases, rollback, signed artifacts |
 | CC9 Risk mitigation | Shared | Partial | Vendor risk is this dossier; pentest DNK-69 part 2 pending |
-| A1–A3 Availability | Shared | Partial | Backup/restore rehearsal + RPO/RTO are DNK-50 |
+| A1–A3 Availability | Shared | Partial | Backup/restore rehearsal run (DNK-50); recovery values published in the install guides |
 | C1 Confidentiality | Donka | Covered | Encryption, redaction, secret files; classification EX-1 |
 | PI1 Processing integrity | Donka | Covered | Contract validation, immutable results, replay (DNK-52/54) |
 | P1–P8 Privacy | Shared | Covered | People-rights features (DNK-75); notices are the bank's text |
@@ -158,7 +158,7 @@ tooling, the bank is controller.
 | Art. 28 processor terms | Customer | Customer | Contractual; sub-processor list is the deployment's |
 | Art. 30 records of processing | Shared | Partial | Audit log supports it; the register document is the bank's |
 | Art. 32 security of processing | Shared | Covered | ASVS matrix; encryption and access control rows |
-| Art. 33/34 breach notification | Shared | Partial | Detection inputs (logs, audit); notification duty is the bank's; rehearsal DNK-50 |
+| Art. 33/34 breach notification | Shared | Partial | Detection inputs (logs, audit); notification duty is the bank's; recovery rehearsed (DNK-50) |
 | Art. 35 DPIA | Shared | Partial | This dossier + people-rights pages are inputs; the DPIA is the bank's |
 | Art. 44+ transfers | Customer | Covered | On-premise; no Donka-side transfer exists to restrict |
 
@@ -168,10 +168,10 @@ Continuity is operated by the bank; the software rows are the recovery propertie
 
 | Clause theme | Owner | Status | Evidence / note |
 | --- | --- | --- | --- |
-| Business impact analysis, recovery objectives | Shared | Partial | RPO/RTO measured in DNK-50's rehearsal, then published |
-| Backup and restore | Shared | Partial | Backup shipped; restore/reseal rehearsal is DNK-50 |
-| Redundancy of decision service | Shared | Partial | Two-Runtime topology rehearsed in DNK-50 |
-| Incident response structure | Shared | Partial | Runbooks exist; exercise is DNK-50 (ASVS EX-2) |
+| Business impact analysis, recovery objectives | Shared | Partial | Recovery point 24 h and recovery time 1 h published in the install guides; measured 24 s with no record lost in DNK-50's rehearsal |
+| Backup and restore | Shared | Partial | Shipped and rehearsed end to end (DNK-50), including a sign-in with a second step on restored data |
+| Redundancy of decision service | Shared | Partial | Two-Runtime topology rehearsed (DNK-50): decisions keep answering with one Runtime or Studio stopped |
+| Incident response structure | Shared | Partial | Runbooks exist; recovery exercise run (DNK-50; ASVS EX-2 closed) |
 | Exercising and testing the plan | Customer | Partial | Bank exercises its plan; Donka supplies the rehearsal script |
 
 ## EU AI Act (Regulation (EU) 2024/1689)

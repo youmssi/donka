@@ -990,8 +990,8 @@ installation can import.
 - [x] Audited; English and French
 
 DNK-55 verifies duplication and export/reimport into independent projects in one installation.
-Transfer between separate installations still requires DNK-50's isolated-install rehearsal;
-the existing PostgreSQL round-trip test does not start a second installation.
+Transfer between separate installations is covered by DNK-50's isolated-install rehearsal,
+which exports a pack from one fresh installation and imports it into another.
 
 ---
 
@@ -1104,14 +1104,33 @@ the current Studio workflow does not enforce them. Audit the other repos before 
 **Type:** test · **Repos:** S, R, C · **Dependencies:** DNK-49, DNK-51, DNK-52, DNK-53, DNK-54, DNK-55 · **Size:** M
 
 #### Acceptance criteria
-- [ ] Fresh install and post-deploy smoke checks pass in an isolated environment, including importing an exported pack from the source installation
-- [ ] Database, release bucket and required secrets restore together; rule versions, approvals and encrypted decision records remain usable
-- [ ] A person with a second sign-in step signs in after the restore: the rehearsal restores `DONKA_SECOND_STEP_KEY` with the database (added 2026-10-27, DNK-59)
-- [ ] Upgrade and recovery follow the documented order and migrations; the original development stack is preserved
-- [ ] Live browser and Studio-to-Runtime checks prove the restored/upgraded system works
-- [ ] EN/FR operations guides reflect the exercised procedure and any remaining customer decisions
-- [ ] Recovery point and recovery time objectives are stated and met by the rehearsal (added 2026-10-25)
-- [ ] Two Runtimes behind a load balancer keep answering while one restarts, and while Studio is down; the guide covers PostgreSQL provided by the customer or replicated (added 2026-10-25)
+- [x] Fresh install and post-deploy smoke checks pass in an isolated environment, including importing an exported pack from the source installation
+- [x] Database, release bucket and required secrets restore together; rule versions, approvals and encrypted decision records remain usable
+- [x] A person with a second sign-in step signs in after the restore: the rehearsal restores `DONKA_SECOND_STEP_KEY` with the database (added 2026-10-27, DNK-59)
+- [x] Upgrade and recovery follow the documented order and migrations; the original development stack is preserved
+- [x] Live browser and Studio-to-Runtime checks prove the restored/upgraded system works
+- [x] EN/FR operations guides reflect the exercised procedure and any remaining customer decisions
+- [x] Recovery point and recovery time objectives are stated and met by the rehearsal (added 2026-10-25)
+- [x] Two Runtimes behind a load balancer keep answering while one restarts, and while Studio is down; the guide covers PostgreSQL provided by the customer or replicated (added 2026-10-25)
+
+Evidence: `scripts/rehearse-restore.sh`, run 2026-11-11 on this machine against locally
+built 1.0.0 images in an isolated folder. Fresh install and smoke: 21 s; a pack exported
+from the source and imported into a second fresh installation (one project created).
+Backup 4 s (dump 138 KB); restore onto the target with its whole installation folder
+(`donka.yaml`, `.env`, `runtime.env`, `secrets/`) and both volumes: Studio answering 24 s
+after the restore began (recovery time objective: one hour), decision-log total identical
+before and after (recovery point objective: 24 h with daily backups; 0 records lost here).
+The administrator signed in on the restored data with the second step enrolled on the
+source, then the smoke test passed on the restored installation. On that data, a signed
+broken release (1.2.0) was rolled back and Studio kept answering on 1.0.0; the upgrade to
+1.1.0 then passed its smoke test. Two Runtimes behind nginx kept answering decisions with
+one Runtime stopped, and again with Studio stopped; the token was revoked at the end. The
+original `donka_postgres` volume and the development/test stacks were never touched.
+Scopes kept honest: the rehearsal drives the API and `scripts/smoke.sh`, not a browser
+(browser journeys of the same flows run against the development stack, DNK-48 to DNK-55);
+approvals ride in the same database dump and their records restore with it, but no approval
+flow is re-run after the restore. Customer policy values (backup cadence beyond the daily
+advice, who provides PostgreSQL) remain the customer's, as the install guides state.
 
 #### Out of scope
 Customer production deployment or declaring customer policy values approved without their owner.
@@ -1383,7 +1402,7 @@ Confirmed 2026-10-25, before DNK-50:
 - [x] `donka-admin upgrade` refuses an image whose signature does not verify, and an upgrade the release notes mark as incompatible with the installed version
 - [x] An upgrade whose smoke test fails restores the previous version and data, and says what failed; a successful one keeps the data and writes its report
 - [x] Studio shows when a newer version is published, without any outgoing call when the installation is offline; unattended upgrades, when enabled, run only in the configured window and never in production
-- [ ] The DNK-50 rehearsal runs on this installation and this upgrade path
+- [x] The DNK-50 rehearsal runs on this installation and this upgrade path
 - [x] Studio publishes to a disk volume that the Runtime's `Filesystem` provider serves and hot-reloads; S3 still works; CI runs the storage tests against the latest SILO release
 - [x] The install guides (EN/FR) start with this path; building from source moves to the contributor guide
 
@@ -1680,7 +1699,7 @@ Confirmed 2026-10-29, for the browser assistant:
 - [x] The browser assistant appears only until the first administrator exists, enrols their second step, and imports the selected packs
 - [x] Enabling or disabling a module keeps data, is audited and takes effect after a restart
 - [x] The support bundle contains no secret, token or personal data; a test checks it
-- [ ] The install guides (EN/FR) and DNK-50's rehearsal use this path
+- [x] The install guides (EN/FR) and DNK-50's rehearsal use this path
 
 ---
 

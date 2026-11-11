@@ -375,7 +375,10 @@ de test dans Studio.
 ## 3. Sauvegarder
 
 Sauvegardez trois choses, ensemble : la base de données, le volume des versions et le dossier
-de l'installation (`donka.yaml` et `secrets/`).
+de l'installation (`donka.yaml`, `.env`, `runtime.env` et `secrets/`). Les fichiers comptent,
+pas seulement les secrets : `runtime.env` contient la moitié publique de la clé de signature
+des artefacts, et une restauration qui associe la base de la source aux paramètres d'une autre
+installation ne peut pas vérifier ce que la source a publié.
 
 ```bash
 mkdir -p backups
@@ -408,6 +411,24 @@ docker run --rm -v donka_releases:/releases -v "$PWD/backups:/backups" alpine \
   sh -c "rm -rf /releases/* && tar -xzf /backups/releases-<stamp>.tar.gz -C /releases"
 docker compose up -d app runtime
 ```
+
+Sur un serveur de remplacement, partez du dossier d'installation sauvegardé (avec ses
+`secrets/`), laissez `docker compose up` créer des volumes vides, puis restaurez la base et
+le volume des versions comme ci-dessus.
+
+**Point de reprise et temps de reprise.** Avec une sauvegarde par jour, le pire cas perd les
+décisions d'une journée : l'objectif de point de reprise est de **24 heures**, et chaque
+enregistrement de la sauvegarde revient — dans la répétition de cette procédure par Donka,
+aucun ne manquait. Visez un objectif de temps de reprise d'**une heure**, du début de la
+restauration jusqu'au test de fumée (section 2) vert ; la part qu'il vous faut grandit avec
+le journal des décisions. Donka répète toute la procédure sur une installation isolée avant
+de la publier (`scripts/rehearse-restore.sh` : installation neuve, un pack transféré vers une
+seconde installation, sauvegarde, restauration, connexion avec une seconde étape sur les
+données restaurées, montée de version, version cassée qui se replie, deux Runtimes derrière
+un répartiteur). Mesuré là, sur une installation de démonstration : sauvegarde 4 secondes,
+Studio qui répond 24 secondes après le début de la restauration, le reste de l'heure en
+contrôles. Répétez la vôtre une fois et écrivez vos chiffres à côté de ceux-ci : ce sont les
+vôtres, pas ceux-ci, que votre direction vous demandera de tenir.
 
 ## 4. Mettre à jour
 
@@ -599,6 +620,85 @@ application d'authentification (codes de six chiffres renouvelés toutes les 30 
 personne qui a perdu son téléphone se connecte avec un de ses codes de secours ; s'il ne lui en
 reste plus, un autre administrateur réinitialise sa seconde étape dans *Personnes*, puis elle la
 configure à nouveau. Chaque changement est audité et la personne est prévenue par e-mail.
+
+## 6. Deux Runtimes ou plus, et un PostgreSQL à vous
+
+**Les décisions n'ont pas besoin de Studio.** Un Runtime sert ses versions sans Studio et
+envoie ses enregistrements quand Studio répond de nouveau : le trafic de décisions survit à
+un redémarrage de Studio, à une montée de version ou à une restauration.
+
+**Plus de Runtimes derrière un répartiteur.** Les décisions comptent d'ordinaire plus que
+les écrans qui les gèrent. Faites tourner chaque Runtime supplémentaire comme le premier —
+même `runtime.env`, mêmes versions (le volume partagé sur un serveur, le magasin S3 entre
+serveurs), `ARTIFACT__PUBLIC_KEY` posé — et placez votre répartiteur devant, avec
+`GET /api/health` comme contrôle de santé. Chaque Runtime sert les mêmes versions et accepte
+les mêmes jetons ; un jeton émis par Studio les atteint avec le prochain artefact publié,
+alors laissez un moment à un jeton neuf avant de le juger. Sur un seul serveur :
+
+```yaml
+# docker-compose.override.yml (extrait)
+services:
+  runtime2:
+    image: ${DONKA_REGISTRY:-ghcr.io/youmssi}/donka-runtime:${DONKA_RUNTIME_VERSION}
+    restart: unless-stopped
+    env_file: [runtime.env]
+    volumes:
+      - releases:/var/lib/donka/releases:ro
+      - wiring:/var/lib/donka/wiring:ro
+      - ./secrets:/run/secrets:ro
+  lb:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports: ["127.0.0.1:8091:80"]
+    volumes:
+      - ./lb-nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on: [runtime, runtime2]
+```
+
+avec `lb-nginx.conf` nommant les deux Runtimes comme son amont et transmettant l'en-tête du
+jeton de l'appelant :
+
+```nginx
+upstream donka_runtime {
+    least_conn;
+    server runtime:8080;
+    server runtime2:8080;
+}
+server {
+    listen 80;
+    location / {
+        proxy_pass http://donka_runtime;
+        proxy_set_header X-Access-Token $http_x_access_token;
+        proxy_set_header Content-Type $content_type;
+    }
+}
+```
+
+Dans la répétition de la section 3, cette topologie a continué à répondre aux décisions avec
+l'un des deux Runtimes arrêté, puis de nouveau avec Studio arrêté.
+
+**Un PostgreSQL à vous.** Le service `postgres` livré est un défaut, pas une obligation :
+`DATABASE_URL` peut nommer un PostgreSQL 16 que vous opérez — géré, ou répliqué quand le
+point de reprise de la section 3 ne suffit pas (la bascule remplace alors la restauration, et
+le point de reprise devient votre retard de réplication). Écrivez son URL dans
+`secrets/database_url` (section 5), gardez le service livré à l'écart dans le fichier de
+surcharge :
+
+```yaml
+# docker-compose.override.yml (extrait)
+services:
+  app:
+    depends_on: !override
+      mailpit:
+        condition: service_started
+  postgres:
+    profiles: [bundled-db]
+```
+
+et confiez dès lors la sauvegarde de la base à votre plateforme ; le dossier et le volume
+des versions restent dans la section 3. Que les données vivent dans la base de Donka ou la
+vôtre ne change rien d'autre : les migrations s'appliquent au démarrage de Studio dans les
+deux cas.
 
 ## Dépannage
 
