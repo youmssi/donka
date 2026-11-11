@@ -41,7 +41,7 @@ control exists with a named limit), **N/A** (the situation does not arise, with 
 | 1.6.3 | Inventory of sensitive data lifetimes | Partial | Retention documented for the decision log (5 y default) and audit; not for every store — EX-1 |
 | 1.6.4 | Clients told minimum data to send | Met | Contracts declare inputs; PAN refusal (DNK-73 part 1, [`pci-dss-scope.md`](pci-dss-scope.md)) |
 | 1.7.1 | Errors logged centrally, no sensitive data in logs | Met | Structured tracing; decision-log key never logged (`crates/decision-log`) |
-| 1.7.2 | Security incidents process | Partial | `SECURITY.md` reporting + runbooks (DNK-50 pending rehearsal) — EX-2 |
+| 1.7.2 | Security incidents process | Partial | `SECURITY.md` reporting + runbooks; backup/restore/upgrade rehearsal run with measured recovery values (DNK-50) — EX-2 closed |
 | 1.8.1 | Sensitive data identified/protected | Met | `pii` annotations drive redaction in feed, replay and explanations |
 | 1.8.2 | Data protection technical measures | Met | AES-256-GCM sealing, hashed lookup keys (`crates/decision-log`) |
 | 1.9.1 | Identity of communication endpoints verified | Met | TLS at proxy; S3/MinIO endpoints configured, connector hosts allowlist (DNK-84) |
@@ -217,7 +217,7 @@ control exists with a named limit), **N/A** (the situation does not arise, with 
 | ID | Requirement | Exception and reason | Owner / next step |
 | --- | --- | --- | --- |
 | EX-1 | 1.1.8, 1.5.3, 1.6.1/6.1 | No single written data-classification/cryptography policy document; controls exist per feature. Accepted for the pilot; one policy page is a Phase-2 story candidate. | Product owner |
-| EX-2 | 1.7.2 | Incident rehearsal not yet run (backup/restore/upgrade rehearsal is DNK-50). | DNK-50 |
+| EX-2 | 1.7.2 | Closed: the backup/restore/upgrade rehearsal ran end to end on an isolated installation (DNK-50, 2026-11-11): restore answered in 24 s with no record lost, a broken signed release rolled back, decisions kept answering behind a load balancer. The incident process itself stays the operator's runbook. | DNK-50 |
 | EX-3 | 1.14.5 | Dependency end-of-life watched by triage, not a scheduled report. | Maintainer, monthly triage |
 | EX-4 | 2.1.7 | Passwords not screened against breach corpora (offline deployment must not call a breach service). Accepted; length+MFA policy compensates. | Product owner |
 | EX-5 | 2.3.3, 3.3.3, 3.7.1 | No absolute session cap or fresh-password prompt for sensitive actions; idle timeout + second step by policy instead. Revisit if a customer requires it. | Product owner |

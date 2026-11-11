@@ -353,7 +353,10 @@ deployments need an approval: approve the smoke project's release once in Studio
 ## 3. Back up
 
 Back up three things, together: the database, the release volume and the installation folder
-(`donka.yaml` and `secrets/`).
+(`donka.yaml`, `.env`, `runtime.env` and `secrets/`). The files matter, not only the secrets:
+`runtime.env` carries the public half of the artifact signing key, and a restore that pairs
+the source's database with another installation's settings cannot verify what the source
+published.
 
 ```bash
 mkdir -p backups
@@ -384,6 +387,23 @@ docker run --rm -v donka_releases:/releases -v "$PWD/backups:/backups" alpine \
   sh -c "rm -rf /releases/* && tar -xzf /backups/releases-<stamp>.tar.gz -C /releases"
 docker compose up -d app runtime
 ```
+
+Onto a replacement server, start from the backed-up installation folder (with its
+`secrets/`), let `docker compose up` create empty volumes, then restore the database and the
+release volume as above.
+
+**Recovery point and recovery time.** Take the backup once a day and the worst case loses
+the decisions of one day: the recovery point objective is **24 hours**, and every record the
+backup holds comes back — in Donka's own rehearsal of this procedure, none was missing. Work
+to a recovery time objective of **one hour**, from starting the restore to the smoke test
+(section 2) passing; the share of it your restore needs grows with the decision log. Donka
+rehearses the whole procedure on an isolated installation before it is published
+(`scripts/rehearse-restore.sh`: fresh install, a pack carried to a second installation,
+backup, restore, a sign-in with a second step on the restored data, an upgrade, a broken
+release rolling back, two Runtimes behind a load balancer). Measured there, on a
+demonstration-sized installation: backup 4 seconds, Studio answering 24 seconds after the
+restore began, the rest of the hour spent on checks. Rehearse yours once and write your own
+numbers next to these: they, not these, are the ones your management will hold you to.
 
 ## 4. Upgrade
 
@@ -553,6 +573,83 @@ instance administrators and project owners, `all` of everyone; they set it up ri
 password at their next sign-in. A person who lost their phone signs in with one of their
 recovery codes; if they have none left, another administrator resets their second step in
 *People*, and they set it up again. Each change is audited and the person is told by email.
+
+## 6. Two Runtimes or more, and a PostgreSQL of your own
+
+**Decisions do not need Studio.** A Runtime serves its releases without Studio and sends its
+records when Studio answers again, so decision traffic survives a Studio restart, an upgrade
+or a restore.
+
+**More Runtimes behind a load balancer.** Decisions usually matter more than the screens
+that manage them. Run each extra Runtime like the first one — same `runtime.env`, same
+releases (the shared volume on one server, the S3 store across servers), `ARTIFACT__PUBLIC_KEY`
+set — and put your load balancer in front, health-checking `GET /api/health`. Every Runtime
+serves the same releases and accepts the same tokens; a token Studio issues reaches them with
+the next artifact it publishes, so give a new token a moment before judging it. On one
+server:
+
+```yaml
+# docker-compose.override.yml (excerpt)
+services:
+  runtime2:
+    image: ${DONKA_REGISTRY:-ghcr.io/youmssi}/donka-runtime:${DONKA_RUNTIME_VERSION}
+    restart: unless-stopped
+    env_file: [runtime.env]
+    volumes:
+      - releases:/var/lib/donka/releases:ro
+      - wiring:/var/lib/donka/wiring:ro
+      - ./secrets:/run/secrets:ro
+  lb:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports: ["127.0.0.1:8091:80"]
+    volumes:
+      - ./lb-nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on: [runtime, runtime2]
+```
+
+with `lb-nginx.conf` naming both Runtimes as its upstream and passing the caller's token
+header through:
+
+```nginx
+upstream donka_runtime {
+    least_conn;
+    server runtime:8080;
+    server runtime2:8080;
+}
+server {
+    listen 80;
+    location / {
+        proxy_pass http://donka_runtime;
+        proxy_set_header X-Access-Token $http_x_access_token;
+        proxy_set_header Content-Type $content_type;
+    }
+}
+```
+
+In the rehearsal of section 3, this topology kept answering decisions with one of the two
+Runtimes stopped, and again with Studio stopped.
+
+**A PostgreSQL of your own.** The bundled `postgres` service is a default, not a requirement:
+`DATABASE_URL` can name a PostgreSQL 16 you operate — managed, or replicated when the
+recovery point of section 3 is not enough (failover then replaces the restore, and the
+recovery point becomes your replication lag). Write its URL to `secrets/database_url`
+(section 5), keep the bundled service out of the way in the override file:
+
+```yaml
+# docker-compose.override.yml (excerpt)
+services:
+  app:
+    depends_on: !override
+      mailpit:
+        condition: service_started
+  postgres:
+    profiles: [bundled-db]
+```
+
+and take the database backup with your own platform from then on; the folder and the release
+volume stay in section 3. Whether Donka's database or yours holds the data changes nothing
+else: migrations run at Studio's start either way.
 
 ## Troubleshooting
 
