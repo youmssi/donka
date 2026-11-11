@@ -1434,6 +1434,24 @@ Confirmed 2026-10-25, before the pilot:
 - Every story updates the pages it changes as part of being done (AGENTS.md).
 - No wiki server: team wikis are not versioned with the code.
 
+Confirmed 2026-11-11, at DNK-66 entry:
+- **The story proceeds although DNK-64's five-minute criterion is still open**: that
+  criterion waits for the published-images measurement and the owner's registry
+  visibility change; the site describes the installation path as it exists and claims
+  nothing the evidence does not cover (the Trust page states each status exactly).
+- **Build without deploying**: the static export is built and link-checked in CI on
+  every change; where it is hosted, and on which domain, is decided when the owner
+  names the target. Nothing goes public before that.
+- **Content is assembled at build time** from the three repositories (guides, security
+  dossier, performance results), as decided on 2026-10-25: one source of truth, no
+  hand-kept copies in `donka-docs`. Pages written for the site itself (discover, get
+  started) live in `donka-docs`.
+- The story runs in three parts, each its own pull request: (1) the Fumadocs site
+  skeleton with internationalisation, the home-page architecture diagram and the CI
+  build/link check; (2) the written content, including the Trust and Performance pages;
+  (3) the generated references at tagged releases, Scalar at `/api/docs` in Studio, and
+  the documentation rule in the three repositories' AGENTS.md files.
+
 #### Acceptance criteria
 - [ ] The site builds in CI from tagged releases of the three repositories and fails on a broken link or an unpublished change to a generated reference
 - [ ] Discover: what Donka does, the architecture diagrams, the four packs as use cases, the architecture decisions that matter to a customer
