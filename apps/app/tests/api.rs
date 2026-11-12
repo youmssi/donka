@@ -387,7 +387,11 @@ async fn scalar_reference_serves_the_installation_openapi_document() {
 
     assert_eq!(reply.status, StatusCode::OK);
     assert!(reply.body.as_str().unwrap().contains("Donka Studio API"));
-    assert!(reply.body.as_str().unwrap().contains("/scalar-api-reference.js"));
+    assert!(reply
+        .body
+        .as_str()
+        .unwrap()
+        .contains("/scalar-api-reference.js"));
 }
 
 /// The web app's typed client is generated from `apps/web/openapi.json`; this keeps

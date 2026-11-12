@@ -356,12 +356,10 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
     doc.merge(feed_doc);
     doc.servers = Some(vec![Server::new(api_base_path)]);
     doc.info.version = VERSION.to_owned();
-    let scalar_html = utoipa_scalar::Scalar::new(doc.clone())
-        .to_html()
-        .replace(
-            "https://cdn.jsdelivr.net/npm/@scalar/api-reference",
-            "/scalar-api-reference.js",
-        );
+    let scalar_html = utoipa_scalar::Scalar::new(doc.clone()).to_html().replace(
+        "https://cdn.jsdelivr.net/npm/@scalar/api-reference",
+        "/scalar-api-reference.js",
+    );
     let scalar = utoipa_scalar::Scalar::with_url("/api/docs", doc.clone()).custom_html(scalar_html);
 
     let api = api
@@ -371,9 +369,7 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
         .fallback(api_not_found)
         .layer(DefaultBodyLimit::max(MAX_BODY_BYTES));
 
-    let app = Router::new()
-        .merge(scalar)
-        .nest(api_base_path, api);
+    let app = Router::new().merge(scalar).nest(api_base_path, api);
     let app = match web_dir {
         Some(dir) => app.merge(web::routes(dir)),
         None => app,
