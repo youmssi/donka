@@ -356,10 +356,20 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
     doc.merge(feed_doc);
     doc.servers = Some(vec![Server::new(api_base_path)]);
     doc.info.version = VERSION.to_owned();
-    let scalar_html = utoipa_scalar::Scalar::new(doc.clone()).to_html().replace(
-        "https://cdn.jsdelivr.net/npm/@scalar/api-reference",
-        "/scalar-api-reference.js",
-    );
+    let scalar_html = r#"<!doctype html>
+<html>
+<head>
+    <title>Donka Studio API</title>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+</head>
+<body>
+<script id="api-reference" type="application/json">
+{"url":"/api/v1/openapi.json","agent":{"disabled":true},"showDeveloperTools":"never"}
+</script>
+<script src="/scalar-api-reference.js"></script>
+</body>
+</html>"#;
     let scalar = utoipa_scalar::Scalar::with_url("/api/docs", doc.clone()).custom_html(scalar_html);
 
     let api = api
