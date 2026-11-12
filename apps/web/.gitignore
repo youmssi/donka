@@ -3,6 +3,7 @@
 /out/
 /coverage
 /storybook-static
+/public/scalar-api-reference.js
 *.tsbuildinfo
 next-env.d.ts
 .env*

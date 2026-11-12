@@ -50,6 +50,7 @@ opentelemetry-otlp = { version = "0.32", default-features = false, features = ["
 tracing-opentelemetry = "0.33"
 utoipa = { workspace = true }
 utoipa-axum = { workspace = true }
+utoipa-scalar = { version = "0.3", features = ["axum"] }
 uuid = { workspace = true }
 thiserror = { workspace = true }
 # donka-admin upgrade (DNK-64): the Docker Engine API, the registry, cosign signatures.

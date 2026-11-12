@@ -380,6 +380,16 @@ async fn openapi_document_describes_the_endpoints() {
     assert_eq!(reply.body["info"]["version"], donka_app::VERSION);
 }
 
+#[tokio::test]
+async fn scalar_reference_serves_the_installation_openapi_document() {
+    let app = without_database();
+    let reply = send(&app.router, get("/api/docs", None)).await;
+
+    assert_eq!(reply.status, StatusCode::OK);
+    assert!(reply.body.as_str().unwrap().contains("Donka Studio API"));
+    assert!(reply.body.as_str().unwrap().contains("/scalar-api-reference.js"));
+}
+
 /// The web app's typed client is generated from `apps/web/openapi.json`; this keeps
 /// that copy in step with the handlers. Refresh it with
 /// `DONKA_UPDATE_OPENAPI=1 cargo test -p donka-app --test api`, then
