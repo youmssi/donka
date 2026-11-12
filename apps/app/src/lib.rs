@@ -364,8 +364,8 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
 </head>
 <body>
-<script id="api-reference" type="application/json">
-{"url":"/api/v1/openapi.json","agent":{"disabled":true},"showDeveloperTools":"never"}
+<script id="api-reference" type="application/json" data-configuration='{"agent":{"disabled":true},"showDeveloperTools":"never","withDefaultFonts":false}'>
+$spec
 </script>
 <script src="/scalar-api-reference.js"></script>
 </body>
