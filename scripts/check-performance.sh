@@ -217,7 +217,7 @@ for target in "${measured[@]}"; do
     sample_report=$(load "$pack" "$decision" "$pack-$decision.json" --concurrency 32 "$max_seconds")
     maximum_samples+=("$sample_report")
   done
-  maximum=$(printf '%s\n' "${maximum_samples[@]}" | node scripts/performance-throughput.mjs)
+  maximum=$(printf '%s\n' "${maximum_samples[@]}" | node "$root/scripts/performance-throughput.mjs")
   connector=$(grep -q '"donka.connector"' "$root/packs/$pack/decisions/$decision.json" && echo true || echo false)
   echo "check-performance: $target at $rate/s: $at_rate; maximum median: $maximum"
   results=$(jq --arg t "$target" --argjson r "$at_rate" --argjson m "$maximum" --argjson c "$connector" \
