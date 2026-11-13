@@ -19,7 +19,7 @@
   "baseline": {
     "measured": "Runtime: CI runs from 2026-10-31 to 2026-11-05, per CPU model",
     "runtime": {
-      "method": "mean maximum throughput of the CI runs on each CPU model; no averaging across models",
+      "method": "mean of historical one-window maxima per CPU model; compare current three-window medians; no cross-model averaging",
       "profiles": [
         {
           "machine": {
