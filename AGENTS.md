@@ -93,8 +93,9 @@ file and add what is specific to that tool.
   Storybook is component evidence; full business journeys need their own tests. API/CLI and
   operational changes retain the appropriate command/integration tests.
 - **Documentation.** A change a customer or integrator would notice updates its page in the same
-  story: the guide in this repository, assembled into the product site (DNK-66). Generated
-  references (API, CLI) are never edited by hand.
+  story: the guide in this repository, assembled into the product site (DNK-66). Before opening
+  a pull request, verify the assembled site and regenerate affected references from the exact
+  product release set. Generated references (API, CLI) are never edited by hand.
 - **Phase alignment.** Agree the phase, then proceed one story at a time. Ask interactive
   questions with options and a recommendation before implementing unclear requirements or
   material scope changes. The approved phase boundaries are in `docs/delivery-plan.md`.
@@ -134,6 +135,9 @@ pnpm --dir apps/web test:e2e           # isolated stack/env: docs/engineering/li
 # After changing an endpoint: refresh the contract the web client is generated from
 DONKA_UPDATE_OPENAPI=1 cargo test -p donka-app --test api && pnpm --dir apps/web api:generate
 ```
+
+Before opening a pull request, verify the assembled documentation site and any generated
+reference changed by the story. Never edit generated references by hand.
 
 CI (`.github/workflows/ci.yml`) runs the same commands and blocks the merge when one fails.
 The coverage commands run the full test suites. See [quality gates](docs/engineering/quality-gates.md)

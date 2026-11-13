@@ -54,6 +54,7 @@ use utoipa::openapi::{OpenApi as OpenApiDoc, Server};
 use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
+use utoipa_scalar::Servable;
 
 /// Set by the `SERVICE_VERSION` build argument of the container image. Read at
 /// compile time so the binary reports what it was built from, whatever its
@@ -355,6 +356,21 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
     doc.merge(feed_doc);
     doc.servers = Some(vec![Server::new(api_base_path)]);
     doc.info.version = VERSION.to_owned();
+    let scalar_html = r#"<!doctype html>
+<html>
+<head>
+    <title>Donka Studio API</title>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+</head>
+<body>
+<script id="api-reference" type="application/json" data-configuration='{"agent":{"disabled":true},"showDeveloperTools":"never","withDefaultFonts":false}'>
+$spec
+</script>
+<script src="/scalar-api-reference.js"></script>
+</body>
+</html>"#;
+    let scalar = utoipa_scalar::Scalar::with_url("/api/docs", doc.clone()).custom_html(scalar_html);
 
     let api = api
         .layer(middleware::from_fn(auth::require_csrf_header))
@@ -363,7 +379,7 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
         .fallback(api_not_found)
         .layer(DefaultBodyLimit::max(MAX_BODY_BYTES));
 
-    let app = Router::new().nest(api_base_path, api);
+    let app = Router::new().merge(scalar).nest(api_base_path, api);
     let app = match web_dir {
         Some(dir) => app.merge(web::routes(dir)),
         None => app,
