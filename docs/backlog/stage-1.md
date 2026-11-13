@@ -1520,6 +1520,12 @@ Confirmed 2026-10-31 after the three larger-sample runs:
 - Validate the matching-hardware gate independently in CI before merging. The owner authorized
   the CPU-specific implementation and the merge after the required checks pass.
 
+Confirmed 2026-11-13 after a single-window KYC throughput outlier on unchanged application
+source:
+- Keep the existing numeric baselines and 20% margin. Short CI measures each decision's maximum
+  throughput in three independent windows and compares their median; retain every window in the
+  artifact and fail if any request errors or goes unanswered.
+
 #### Acceptance criteria
 - [x] A repeatable load test (scripted, in the repository) measures the Runtime's p50/p95/p99 and maximum throughput on each starter pack, without connectors and with mocked ones
 - [x] The decision-log feed keeps up with the target throughput; back-pressure and loss behaviour under Studio outage are measured
