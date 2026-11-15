@@ -40,6 +40,13 @@ Aucune requête n'a échoué. Sur un runner partagé, la latence à 100/s varie 
 l'autre (p99 de 3 à 20 ms pour la même décision), toujours bien en deçà de l'objectif : la CI la
 compare donc aux objectifs, et ne compare à la référence que le débit maximal.
 
+La CI courte mesure désormais le débit maximal dans **trois fenêtres distinctes de 10 secondes**,
+chacune précédée de 3 secondes de chauffe et utilisant 32 appelants simultanés.
+`maximum.throughput` est la médiane des trois débits ; tous les rapports restent dans l'artefact
+`performance.json`. Toute erreur ou requête sans réponse dans une fenêtre fait échouer le contrôle.
+Les références numériques par processeur et la marge de 20 % restent inchangées ; les anciennes
+mesures de référence utilisaient une seule fenêtre de débit maximal.
+
 La référence de débit est tenue **par modèle de processeur**, comme pour Studio
 ([ADR-008](adr/008-hardware-matched-performance-baselines.md)) : GitHub attribue des processeurs
 différents, et la même décision répond à environ 3 000/s sur l'un et 5 000/s sur un autre. Chaque
@@ -75,7 +82,7 @@ charge. Utilisez un serveur dédié, pas votre installation de production.
 
 ```bash
 DONKA_INSTALL_DIR=/opt/donka scripts/check-install.sh <tag studio> <tag runtime> demo
-scripts/check-performance.sh /opt/donka full     # 60 s à 100/s, 30 s au maximum
+scripts/check-performance.sh /opt/donka full     # 60 s à 100/s, 3 x 30 s au maximum par décision
 ```
 
 Les résultats vont dans `performance.json` à la racine du dépôt et sont vérifiés par rapport aux

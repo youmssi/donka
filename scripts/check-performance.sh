@@ -212,9 +212,14 @@ for target in "${measured[@]}"; do
   [ "$(jq length "$work/$pack-$decision.json")" -gt 0 ] || fail "$target has no scenario to send"
   ready "$pack" "$decision"
   at_rate=$(load "$pack" "$decision" "$pack-$decision.json" --rate "$rate" "$seconds")
-  maximum=$(load "$pack" "$decision" "$pack-$decision.json" --concurrency 32 "$max_seconds")
+  maximum_samples=()
+  for _ in 1 2 3; do
+    sample_report=$(load "$pack" "$decision" "$pack-$decision.json" --concurrency 32 "$max_seconds")
+    maximum_samples+=("$sample_report")
+  done
+  maximum=$(printf '%s\n' "${maximum_samples[@]}" | node "$root/scripts/performance-throughput.mjs")
   connector=$(grep -q '"donka.connector"' "$root/packs/$pack/decisions/$decision.json" && echo true || echo false)
-  echo "check-performance: $target at $rate/s: $at_rate; maximum: $maximum"
+  echo "check-performance: $target at $rate/s: $at_rate; maximum median: $maximum"
   results=$(jq --arg t "$target" --argjson r "$at_rate" --argjson m "$maximum" --argjson c "$connector" \
     '.runtime[$t] = {connector: $c, atRate: $r, maximum: $m}' <<<"$results")
 done
@@ -230,7 +235,8 @@ if [ "${GITHUB_ACTIONS:-}" = true ]; then
     outage: (.outage | map_values({sent, answered, errors, p95_ms, p99_ms, lost, droppedLogged})),
     runtime: (.runtime | map_values({connector,
       atRate: (.atRate | {sent, answered, errors, p95_ms, p99_ms, throughput}),
-      maximum: (.maximum | {sent, answered, errors, throughput})}))}' "$out")
+      maximum: (.maximum | {sent, answered, errors, throughput, sampleCount,
+        sampleThroughputs: [.samples[].throughput]})}))}' "$out")
   notice="${notice//%/%25}"
   echo "::notice title=Runtime performance::$notice"
 fi
@@ -266,6 +272,9 @@ jq -e --argjson p "$profile" --slurpfile t "$targets" '
   ($t[0].margin) as $margin | $p[0].decisions as $base
   | [ .runtime | to_entries[] | . as $e
       | $base[$e.key] != null
+        and $e.value.maximum.sampleCount == 3
+        and $e.value.maximum.errors == 0
+        and $e.value.maximum.sent == $e.value.maximum.answered
         and $e.value.maximum.throughput >= $base[$e.key].maximum.throughput * (1 - $margin) ] | all' \
-  "$out" >/dev/null || fail "a maximum throughput fell more than the margin below its baseline, or has none, on $(jq -r .machine.cpuModel "$out"): $(jq -c .runtime "$out")"
+  "$out" >/dev/null || fail "a maximum-throughput sample has errors or the median fell more than the margin below its baseline, on $(jq -r .machine.cpuModel "$out"): $(jq -c .runtime "$out")"
 echo "check-performance: the targets hold, and no throughput fell beyond the margin ($out)"

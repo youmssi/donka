@@ -40,6 +40,12 @@ No request failed. Latency at 100/s moves between runs on a shared runner (p99 f
 for the same decision), always well within the target, so CI holds it to the targets and
 compares only the maximum throughput with the baseline.
 
+Short CI now measures maximum throughput in **three separate 10-second windows**, each after
+its own 3-second warm-up and using 32 concurrent callers. `maximum.throughput` is the median of
+the three rates; all window reports stay in the `performance.json` artifact. Any error or
+unanswered request in a window fails the gate. The existing hardware-specific numeric baselines
+and 20% margin remain unchanged; historical baseline runs used one maximum window each.
+
 The throughput baseline is kept **per CPU model**, as for Studio
 ([ADR-008](adr/008-hardware-matched-performance-baselines.md)): GitHub assigns different processors,
 and the same decision answers about 3,000/s on one and 5,000/s on another. Each profile in
@@ -72,7 +78,7 @@ loads it. Use a server of its own, not your production installation.
 
 ```bash
 DONKA_INSTALL_DIR=/opt/donka scripts/check-install.sh <studio tag> <runtime tag> demo
-scripts/check-performance.sh /opt/donka full     # 60 s at 100/s, 30 s at maximum
+scripts/check-performance.sh /opt/donka full     # 60 s at 100/s, 3 x 30 s at maximum per decision
 ```
 
 The results go to `performance.json` in the repository folder and are checked against the
