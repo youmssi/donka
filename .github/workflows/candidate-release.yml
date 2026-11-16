@@ -200,4 +200,3 @@ jobs:
             -F draft=false -F prerelease=true -f make_latest=false >/dev/null
           gh release view "$RELEASE_TAG" --json isImmutable,isPrerelease,tagName \
             | jq -e --arg tag "$RELEASE_TAG" '.isImmutable == true and .isPrerelease == true and .tagName == $tag'
-

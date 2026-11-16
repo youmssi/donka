@@ -34,12 +34,12 @@ on:
       runtime_version:
         description: Runtime candidate version required for an isolated candidate install check.
         required: false
-        default: ''
+        default: ""
         type: string
       runtime_digest:
         description: Verified Runtime candidate digest used by the isolated install check.
         required: false
-        default: ''
+        default: ""
         type: string
     outputs:
       digest:
@@ -160,7 +160,7 @@ jobs:
           scanners: vuln
           severity: HIGH,CRITICAL
           ignore-unfixed: true
-          exit-code: '1'
+          exit-code: "1"
 
       - name: Publish the scanned index with its attestations
         env:
