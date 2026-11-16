@@ -308,12 +308,14 @@ docker buildx imagetools inspect ghcr.io/youmssi/donka-studio:1.5.0 --format '{{
 ### Versions candidates signées
 
 Les versions candidates sont des préversions signées et distinctes, réservées à la préproduction
-isolée. L'opérateur lance d'abord le workflow du Runtime, puis celui de Studio avec la version
-candidate du Runtime, puis celui du CLI ; chaque workflow part de la branche `develop` validée et
+isolée. L'opérateur promeut d'abord le code Phase 1 validé vers `main`, avec la pull request de
+promotion habituelle : GitHub n'expose le lancement manuel d'un workflow qu'après l'arrivée de son
+fichier sur la branche par défaut. Lancez ensuite le workflow Runtime sur `develop`, puis Studio
+sur `develop` avec cette version candidate du Runtime, puis le CLI sur `develop` ; chaque dépôt
 utilise sa propre version `X.Y.Z-rc.N`. Le workflow Studio teste l'installation avec les condensats
 exacts des images Studio et Runtime et les consigne dans son manifeste. Vérifiez une image par son
 condensat avec le `cosign.pub` de son dépôt ; vérifiez le paquet CLI avec le `cosign.pub` du dépôt
-CLI et le fichier `.sig` joint. Les candidates ne modifient ni `edge`, ni `latest`, ni les alias
+CLI et le fichier `.sig` joint. Les versions candidates ne modifient ni `edge`, ni `latest`, ni les alias
 des versions stables et ne sont pas des versions de production. Si un workflow échoue après la
 création de son brouillon ou de son tag, corrigez la cause et utilisez le numéro `-rc.N` suivant ;
 ne réutilisez jamais ce tag. Les versions immuables GitHub doivent être activées dans les trois

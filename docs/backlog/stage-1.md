@@ -1987,6 +1987,7 @@ Do not publish a candidate as part of this implementation story.
 - [ ] Tests exercise invalid version/ref, duplicate candidate, signing verification, the exact candidate tag set, and the invariant that stable aliases remain untouched.
 - [ ] A candidate installation/upgrade smoke run uses the selected Runtime and Studio RC digests and passes before the candidate is declared ready for staging.
 - [ ] CI and documentation describe dispatch, verification, retry/failure behavior, key separation, and the owner settings required for immutable releases.
+- [ ] The operator guide explains that GitHub exposes manual workflows only after they reach the default branch; promote the reviewed Phase 1 source to `main` first, then dispatch each candidate workflow from `develop`.
 
 #### Out of scope
 
