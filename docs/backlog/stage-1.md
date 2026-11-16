@@ -1462,7 +1462,7 @@ Confirmed 2026-11-11, at DNK-66 entry:
 - [ ] Security and compliance: encryption and keys, access control and audit, personal data, and answers to a typical bank security questionnaire
 - [ ] Reference: generated API and CLI pages, every configuration variable, the artifact format, release notes
 - [ ] English and French; a version selector per release; a PDF export of a chosen version
-- [ ] A public **Trust** page publishes the trust dossier (DNK-73): each standard with its exact status (self-assessed or third-party verified), the penetration test attestation summary (DNK-69), SBOMs, the signing public key and the disclosure policy; nothing is claimed without its evidence
+- [ ] A public **Trust** page publishes the Phase 1 trust dossier (DNK-73), states that the external penetration test has not yet occurred, and does not claim third-party verification; add the owner-approved sanitized test attestation after DNK-69 in Phase 3
 - [ ] A public **Performance** page publishes the load-test targets and results (DNK-67) with the method and scripts to reproduce them
 - [ ] Studio serves an interactive API reference (Scalar, through `utoipa-scalar`) at `/api/docs` from its own OpenAPI document, so each installation shows the API of its installed version
 - [ ] AGENTS.md in the three repositories adds the documentation rule to the checks before a pull request
@@ -1565,9 +1565,9 @@ Archiving to cold storage; partitioning other tables.
 
 ---
 
-### DNK-69 — Security review before the pilot
+### DNK-69 — External security test before the pilot (Phase 3)
 
-**Type:** chore · **Repos:** S, R, C · **Dependencies:** DNK-64 · **Size:** M
+**Type:** chore · **Repos:** S, R, C · **Phase:** 3 · **Dependencies:** DNK-64, Phase 2 scope · **Size:** M
 
 #### Why
 A bank's security officer asks for the threats considered, an independent test and how
@@ -1589,6 +1589,12 @@ Confirmed 2026-11-04:
 - The threat model's open items are fixed before the test, each as its own story, in this
   order: DNK-83, DNK-84, DNK-85, DNK-86, DNK-87.
 
+Confirmed 2026-11-16 by the owner: defer vendor sourcing and the external assessment to Phase 3
+to allow time to collect vendor information. The assessment remains a hard gate before any
+customer pilot or production deployment. Do not contact suppliers until the owner resumes
+sourcing. Refresh the scope after Phase 2 architecture is established so the test covers the
+actual pre-pilot product and installation path.
+
 #### Acceptance criteria
 - [x] The threat model covers Studio, the Runtime, the CLI, storage, secrets, the decision log, connectors, identity and the language model endpoint, with each mitigation linked to code, configuration or a story
 - [ ] An external penetration test runs against an installation built from the published images
@@ -1603,7 +1609,7 @@ Certification (SOC 2, ISO 27001), which stays in Phase 3.
 
 ### DNK-73 — A trust dossier banks can verify
 
-**Type:** chore · **Repos:** S, R, C · **Dependencies:** DNK-69, DNK-64 · **Size:** M
+**Type:** chore · **Repos:** S, R, C · **Dependencies:** DNK-64 · **Size:** M
 
 #### Why
 Banks select suppliers against international security standards. Most certifications
@@ -1656,6 +1662,11 @@ repository (results in its Security tab), with every CI action pinned to a commi
 The Best Practices badge answers are prepared from the dossier; registering the projects
 on bestpractices.dev is the owner's action, and until then the badge is stated exactly as
 not obtained.
+
+Confirmed 2026-11-16 by the owner: DNK-69 vendor sourcing, test report and external attestation
+are deferred to Phase 3. The Phase 1 dossier and Trust page must state that no external test has
+yet taken place; add the owner-approved sanitized attestation after DNK-69 completes. This
+deferral does not authorize a pilot or production deployment.
 
 #### Acceptance criteria
 - [x] The ASVS level 2 self-assessment lists every applicable requirement with its evidence; failures become stories or written exceptions
