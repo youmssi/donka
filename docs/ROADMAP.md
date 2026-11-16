@@ -74,7 +74,6 @@ docker-compose for PostgreSQL, MinIO and Mailpit.
 | 41c | DNK-74 Guided setup with chosen modules | S R |
 | 42 | DNK-67 Measured performance with published targets | R S |
 | 43 | DNK-49 Enforce coverage, dependency and image security gates | S R C |
-| 44 | DNK-69 Security review before the pilot | S R C |
 | 44a | DNK-83 Function nodes cannot reach the network | S R |
 | 44a | DNK-84 Connector secrets go only where the installation allows | R S |
 | 44a | DNK-85 Browser security headers | S |
@@ -106,3 +105,7 @@ story order at phase entry; see the [approved scope](delivery-plan.md#phase-2--a
 ## Stage 3: enterprise
 Global roles, path coverage, policy-document editor, MCP bridge in Studio, ISO/IEC 27001 and SOC 2
 program, Case Tracker, optional multi-tenant SaaS.
+By owner decision on 2026-11-16, DNK-69's independent penetration test, vendor selection,
+remediation/retest and approved sanitized attestation are also scheduled for Phase 3. This stays
+a hard gate before any customer pilot or production deployment; refresh its test scope after
+Phase 2 architecture is established.

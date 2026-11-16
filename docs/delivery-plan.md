@@ -31,25 +31,28 @@ Remaining order:
    browser setup with chosen modules, `donka-admin doctor` and a support bundle, after DNK-64.
 5. **DNK-49:** enforce the coverage and dependency-security gates already required by the
    engineering guides, plus image scanning. See [quality gates](engineering/quality-gates.md)
-   for the measured scope, local commands and checks required to merge. **DNK-69** follows: a
-   threat model and an external penetration test. The threat model's open items are fixed before
-   the test (confirmed 2026-11-04): DNK-83 function nodes without network access, DNK-84
-   connector secrets limited to allowed hosts, DNK-85 browser security headers, DNK-86 ports on
-   localhost by default and DNK-87 signed release artifacts. Then **DNK-73**, a
-   trust dossier (OWASP ASVS level 2 self-assessment, NIST SSDF, SLSA level 3, OpenSSF, CIS,
-   PCI DSS out of scope by design, and compliance matrices for ISO/IEC 27001, SOC 2, GDPR,
-   ISO 22301, the EU AI Act, WCAG 2.2, the Malabo Convention and the CEMAC, UEMOA and Guinea
-   rules) published with the load-test results on the documentation site.
+   for the measured scope, local commands and checks required to merge. Complete the threat
+   model's open security fixes (confirmed 2026-11-04): DNK-83 function nodes without network
+   access, DNK-84 connector secrets limited to allowed hosts, DNK-85 browser security headers,
+   DNK-86 ports on localhost by default and DNK-87 signed release artifacts. Then **DNK-73**,
+   the software trust dossier: OWASP ASVS level 2 self-assessment, NIST SSDF, SLSA level 3,
+   OpenSSF, CIS, PCI DSS out of scope by design, and the compliance matrices. The dossier must
+   state that the external test has not yet occurred; its report and attestation are deferred
+   to DNK-69 in Phase 3.
 6. **DNK-50:** rehearse installation, database/bucket/secret backup and restore, upgrade and
    recovery in isolation; verify the restored system through the full smoke journey; state and
    meet recovery point and time objectives; keep Runtimes answering during restarts.
 7. **DNK-66** (confirmed 2026-10-25): the product documentation site, built from the
    repositories, versioned in English and French, covering integration, operations and security.
-8. Close every applicable feature-test gap, confirm customer policy values and the pilot target,
-   then obtain the deployment decision and follow the release workflow.
+8. Close every applicable feature-test gap and agree customer policy values and the pilot
+   target. Phase 1 may close as an implementation phase without a pilot deployment. The owner
+   must explicitly approve production deployment after the Phase 3 DNK-69 external test,
+   remediation/retest and release evidence are complete.
 
-Phase exit: acceptance evidence is current, business journeys pass against running services,
-all required CI gates pass, recovery is demonstrated, and pilot acceptance criteria are agreed.
+Phase exit: Phase 1 acceptance evidence is current, business journeys pass against running
+services, all required CI gates pass, recovery is demonstrated, and pilot acceptance criteria
+are agreed. By owner decision on 2026-11-16, DNK-69 and its external-test evidence move to
+Phase 3; this does not remove the pre-pilot deployment gate.
 The component-preview suite supports this evidence; it does not cover the full application.
 
 ## Phase 2 — assisted creation, Fieldkit and governance
@@ -106,6 +109,10 @@ when Donka operates a hosted service or a customer requires it, with third-party
 of the ASVS assessment) and optional multi-tenant SaaS remain here.
 These are roadmap themes requiring their own acceptance criteria and phase-entry agreement.
 Document ingestion for Phase 2 authoring does not imply delivery of the Phase 3 policy editor.
+By owner decision on 2026-11-16, Phase 3 also includes DNK-69's independent penetration test,
+vendor selection, remediation/retest and approved sanitized attestation. Refresh the test scope
+to cover the actual pre-pilot product and deployment path after Phase 2 architecture is known.
+Complete the test and handle findings before any customer pilot or production deployment.
 
 ## Alignment and verification for every story
 
