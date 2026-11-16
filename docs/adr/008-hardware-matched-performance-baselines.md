@@ -15,7 +15,7 @@ processor models comparable. The measured values and sources are in [the perform
 ## Options considered
 
 1. **A baseline per CPU model** — retain standard GitHub runners and compare matching hardware.
-   New hardware requires a measured profile before CI can pass.
+   New hardware requires a measured profile before CI can run a relative comparison.
 2. **One fixed reference runner** — control the hardware, with a dedicated runner to provision
    and maintain.
 3. **One mean across the assigned models** — would make the agreed gate reject observed normal
@@ -28,15 +28,17 @@ core count, architecture and Node major version, as well as sample settings and 
 size. CPU names ignore case and redundant whitespace. Each recorded model uses the pooled
 p95 of its own three 1,000-request rounds, not a mean with other hardware models.
 
-Always enforce zero errors and the absolute targets, including individual rounds. CI also
-requires one complete comparable profile. An unknown model, different sample, missing metric
-or duplicate matching profile fails after the report is saved. Local measurements without a
-comparable profile explicitly report that they checked only the absolute targets.
+Always enforce zero errors and the absolute targets, including individual rounds. When exactly
+one complete profile matches the hardware and sample, CI applies the relative regression gate.
+Unknown hardware reports that the relative comparison was skipped after enforcing the absolute
+targets. A known hardware profile with a different sample, missing metric or duplicate matching
+profile fails. Local measurements without a comparable profile report that they checked only
+the absolute targets.
 
 ## Consequences
 
-- A CPU assigned by GitHub cannot silently borrow another model's baseline or skip CI's
-  regression comparison.
+- A CPU assigned by GitHub cannot silently borrow another model's baseline. New hardware is
+  visible in the check notice and artifact, and remains subject to all absolute targets.
 - Adding a model requires reviewing its complete measurement and provenance, recording a
   profile, and validating through CI. Existing values are not raised to conceal a regression.
 - Matching a CPU model does not eliminate host-load or scheduling variation. Revisit the
@@ -72,3 +74,15 @@ With the owner's agreement, each Studio profile is now the mean of its CPU model
 (`source.runs`), and the floor is 10 ms: a case fails above the larger of its baseline plus 20%
 and its baseline plus 10 ms. Every unchanged-code run recorded so far passes with at least 5% to
 spare; the absolute targets are unchanged.
+
+## Amendment, 2026-11-16 (DNK-88)
+
+GitHub's `ubuntu-latest` pool assigned an Intel Xeon 8370C and, on rerun, an Intel Xeon 6975P-C;
+neither had a matching Studio or Runtime profile. These runs met the absolute performance
+targets, but CI failed before it could make a valid relative comparison. The owner chose to keep
+the standard runner and skip only the relative comparison when no hardware profile matches.
+Studio and Runtime now emit an explicit CI notice and preserve the full report artifact for an
+unprofiled machine. All absolute targets and error checks still apply. A matching profile still
+uses the existing 20% regression margin (and Studio's 10 ms floor); known hardware with a
+different sample or an incomplete or ambiguous profile still fails closed. No baseline values or
+margins were changed.

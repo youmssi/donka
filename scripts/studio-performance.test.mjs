@@ -82,8 +82,11 @@ test('targets and comparable baselines fail on errors, latency and regression', 
     },
   };
   assert.throws(() => checkTargets(report, config), /baseline margin/);
-  checkTargets({ ...report, sample: { records: 1000 } }, config);
-  checkTargets({ ...report, sample: { ...report.sample, rounds: 3 } }, config);
+  assert.throws(() => checkTargets({ ...report, sample: { records: 1000 } }, config), /sample or corpus does not match/);
+  assert.throws(
+    () => checkTargets({ ...report, sample: { ...report.sample, rounds: 3 } }, config),
+    /sample or corpus does not match/,
+  );
   assert.throws(
     () => checkTargets({ ...report, replay: { ...report.replay, rounds: [summary([2001], 0)] } }, targets),
     /replay round 1.*exceeds target/,
@@ -109,7 +112,7 @@ test('the 20 percent gate selects the matching CPU instead of the first availabl
     search: { newest: summary([500], 0) },
     replay: summary([1000], 0),
   };
-  assert.equal(checkTargets(report, config, { requireBaseline: true }), true);
+  assert.equal(checkTargets(report, config), true);
   assert.throws(
     () => checkTargets({ ...report, machine: { ...machine, cpuModel: 'Fast CPU' } }, config),
     /baseline margin/,
@@ -121,7 +124,7 @@ test('the 20 percent gate selects the matching CPU instead of the first availabl
   assert.throws(() => checkTargets({ ...fast, replay: summary([1200.01], 0) }, config), /baseline margin/);
 });
 
-test('CI rejects unknown hardware, client major versions, sample sizes and incomplete baselines', () => {
+test('unknown hardware keeps absolute gates while matching hardware enforces sample and regression gates', () => {
   const sample = { records: 100000, months: 60, samples: 1000, warmup: 50, rounds: 3 };
   const corpus = { after: 100000 };
   const profile = { machine, search: { newest: { p95_ms: 500 } }, replay: { p95_ms: 1000 } };
@@ -132,14 +135,19 @@ test('CI rejects unknown hardware, client major versions, sample sizes and incom
     { machine: { ...machine, cpus: 8 } },
     { machine: { ...machine, arch: 'arm64' } },
     { machine: { ...machine, node: '24.1.0' } },
-    { sample: { ...sample, samples: 50 } },
-    { corpus: { after: 200000 } },
   ]) {
     const different = { ...report, ...change };
-    assert.throws(() => checkTargets(different, config, { requireBaseline: true }), /No comparable Studio baseline/);
-    assert.equal(checkTargets(different, config), false, 'local measurements still enforce absolute targets');
+    assert.equal(checkTargets(different, config), false, 'unknown hardware skips only relative comparison');
     assert.throws(() => checkTargets({ ...different, replay: summary([2001], 0) }, config), /exceeds target/);
   }
+  assert.throws(
+    () => checkTargets({ ...report, sample: { ...sample, samples: 50 } }, config),
+    /sample or corpus does not match/,
+  );
+  assert.throws(
+    () => checkTargets({ ...report, corpus: { after: 200000 } }, config),
+    /sample or corpus does not match/,
+  );
   assert.equal(
     checkTargets({ ...report, machine: { ...machine, cpuModel: '  SYNTHETIC   CPU ', node: '22.99.0' } }, config),
     true,
@@ -241,7 +249,7 @@ async function studio(t, { rejectFeed = false, wrongReplay = false, wrongReplayA
   };
 }
 
-test('the real command rejects missing CI calibration, preserves its result and reports local absolute-only checks', async (t) => {
+test('the real command reports uncalibrated CI hardware, preserves results and enforces absolute-only checks', async (t) => {
   const app = await studio(t);
   const dir = await mkdtemp(join(tmpdir(), 'donka-performance-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
@@ -281,21 +289,18 @@ test('the real command rejects missing CI calibration, preserves its result and 
     DONKA_PERFORMANCE_FIXTURE: fixture,
     DONKA_PERFORMANCE_STUDIO_OUT: out,
   };
-  await assert.rejects(promisify(execFile)(process.execPath, [script, '--disposable'], { env }), (error) => {
-    assert.equal(error.code, 1);
-    assert.match(error.stderr, /No comparable Studio baseline/);
-    assert.match(error.stdout, /::error title=Studio performance gate::/);
-    return true;
-  });
+  const { stdout } = await promisify(execFile)(process.execPath, [script, '--disposable'], { env });
+  assert.match(stdout, /absolute targets passed; uncalibrated hardware, relative comparison skipped/);
+  assert.match(stdout, /::notice title=Studio performance baseline::/);
   const saved = JSON.parse(await readFile(out, 'utf8')).studio;
   assert.equal(saved.corpus.after, 600);
   assert.equal(saved.replay.requests, 6);
   assert.equal(saved.replay.errors, 0);
   assert.equal(app.cleanup.length, 2);
-  const { stdout } = await promisify(execFile)(process.execPath, [script, '--disposable'], {
+  const local = await promisify(execFile)(process.execPath, [script, '--disposable'], {
     env: { ...env, GITHUB_ACTIONS: 'false' },
   });
-  assert.match(stdout, /absolute targets passed; no comparable hardware\/sample baseline/);
+  assert.match(local.stdout, /absolute targets passed; uncalibrated hardware, relative comparison skipped/);
 });
 
 test('seed, filtered searches and replay exercise all monthly partitions and revoke credentials', async (t) => {

@@ -49,8 +49,8 @@ function machineKey(machine) {
   ]);
 }
 
-/** Always enforce absolute targets; CI additionally requires a comparable hardware baseline. */
-export function checkTargets(report, config, { requireBaseline = false } = {}) {
+/** Always enforce absolute targets; compare relative performance when hardware is calibrated. */
+export function checkTargets(report, config) {
   const targets = config.targets.studio;
   const measurements = Object.entries({ ...report.search, replay: report.replay });
   for (const [name, measured] of measurements) {
@@ -63,25 +63,22 @@ export function checkTargets(report, config, { requireBaseline = false } = {}) {
   }
   const baseline = config.baseline?.studio;
   const key = machineKey(report.machine);
+  const machineProfiles =
+    key ? (baseline?.profiles ?? []).filter((profile) => machineKey(profile.machine) === key) : [];
+  assert.ok(machineProfiles.length <= 1, 'Multiple comparable Studio baselines; remove the ambiguous profile');
+  if (machineProfiles.length === 0) return false;
+
   const sameSample =
     baseline &&
     ['records', 'months', 'samples', 'warmup', 'rounds'].every(
       (name) => baseline.sample?.[name] === report.sample[name],
     ) &&
     baseline.corpus?.after === report.corpus.after;
-  const profiles =
-    sameSample && key ? (baseline.profiles ?? []).filter((profile) => machineKey(profile.machine) === key) : [];
-  assert.ok(profiles.length <= 1, 'Multiple comparable Studio baselines; remove the ambiguous profile');
-  const profile = profiles[0];
-  if (!profile) {
-    assert.ok(
-      !requireBaseline,
-      `No comparable Studio baseline for ${report.machine?.cpuModel ?? 'unknown CPU'} ` +
-        `(${report.machine?.cpus ?? '?'} CPUs, ${report.machine?.arch ?? '?'}, Node ${report.machine?.node ?? '?'}); ` +
-        'calibrate this hardware and sample before CI can pass',
-    );
-    return false;
-  }
+  assert.ok(
+    sameSample,
+    `Studio sample or corpus does not match its calibrated hardware baseline for ${report.machine.cpuModel}`,
+  );
+  const [profile] = machineProfiles;
   for (const [name, measured] of measurements) {
     const previous = name === 'replay' ? profile.replay : profile.search?.[name];
     assert.ok(
@@ -312,12 +309,20 @@ async function main() {
     console.log(`::notice title=Studio performance::${notice}`);
   }
   try {
-    const compared = checkTargets(report, config, { requireBaseline: process.env.GITHUB_ACTIONS === 'true' });
+    const compared = checkTargets(report, config);
     console.log(
       compared
         ? 'studio-performance: absolute targets and matching hardware baseline passed'
-        : 'studio-performance: absolute targets passed; no comparable hardware/sample baseline',
+        : 'studio-performance: absolute targets passed; uncalibrated hardware, relative comparison skipped',
     );
+    if (!compared && process.env.GITHUB_ACTIONS === 'true') {
+      const model = report.machine?.cpuModel ?? 'unknown CPU';
+      const message = `No Studio baseline for ${model}; absolute targets passed and relative comparison was skipped.`
+        .replaceAll('%', '%25')
+        .replaceAll('\r', '%0D')
+        .replaceAll('\n', '%0A');
+      console.log(`::notice title=Studio performance baseline::${message}`);
+    }
   } catch (error) {
     if (process.env.GITHUB_ACTIONS === 'true') {
       const message = error.message.replaceAll('%', '%25').replaceAll('\r', '%0D').replaceAll('\n', '%0A');
