@@ -1946,3 +1946,51 @@ one, and Studio signs with the new key while Runtimes verify with either.
 - [x] `donka-admin init` creates the key pair; the key rotates without downtime; the guides (EN/FR) cover it
 - [x] Tests cover a valid, an altered, an unsigned and a foreign-key artifact
 
+---
+
+### DNK-88 — Signed immutable release candidates
+
+**Type:** feature · **Repos:** S, R, C · **Dependencies:** DNK-64, DNK-87 (merged) · **Size:** L
+
+#### Why
+
+Phase 1 needs a versioned candidate path to rehearse installation and upgrades before stable
+promotion. The current image workflows publish mutable development aliases or stable aliases;
+the CLI workflow only creates stable GitHub releases. Reusing either path for a candidate could
+move `edge`, `latest`, or a stable SemVer image tag.
+
+#### Decision
+
+Confirmed by the owner on 2026-11-16: implement a dedicated, manually dispatched signed release
+candidate path across Studio, Runtime, and CLI. Each repository keeps its independent version
+stream. A candidate uses strict `X.Y.Z-rc.N` SemVer, identifies an exact reviewed `develop`
+commit, and is published as a prerelease. Candidate publication never updates stable SemVer,
+`latest`, `edge`, or other stable aliases. Build each repository's candidate in its own workflow;
+release order is Runtime, then Studio, then CLI. Use a distinct signing key for every repository.
+Do not publish a candidate as part of this implementation story.
+
+#### Behaviour
+
+| Where | Before | After |
+|---|---|---|
+| Studio and Runtime image workflows | Publish mutable `edge`/SHA development tags or stable SemVer/`latest` release tags | A dedicated manual candidate run publishes only its exact `-rc.N` image reference, records the immutable digest, signs it and verifies it with that repository's public key |
+| CLI release workflow | Build and attach an unsigned package only for a stable release | A dedicated manual candidate run builds a tarball from its selected `develop` commit, signs and verifies it with the CLI key, and attaches it to a prerelease |
+| GitHub release | Stable Release Please workflow publishes releases from `main` | Candidate workflow creates a draft prerelease, adds all assets, then publishes it; existing tag/release names are rejected |
+
+#### Acceptance criteria
+
+- [ ] Candidate runs are manually dispatched from `develop` and are bound to the exact reviewed commit; invalid refs and versions outside `X.Y.Z-rc.N` fail before publishing.
+- [ ] Studio and Runtime candidate image tags contain only the requested `-rc.N` version. Candidate jobs never write `edge`, `latest`, stable SemVer tags, or stable minor aliases; a pre-existing candidate tag or registry reference fails closed.
+- [ ] Both candidate images include SBOM and provenance, are signed by their repository-specific Cosign key, and verify against the public key from the same tagged commit. The run records image digests for staging.
+- [ ] CLI candidate tarballs are signed and verified with a distinct CLI key and public key; no npm publication occurs.
+- [ ] Each GitHub candidate release is a prerelease tied to the exact reviewed commit. Assets are complete before publication; published release assets and tags are protected by GitHub immutable releases, and `-rc` tags cannot be updated or deleted by the workflow.
+- [ ] Tests exercise invalid version/ref, duplicate candidate, signing verification, the exact candidate tag set, and the invariant that stable aliases remain untouched.
+- [ ] A candidate installation/upgrade smoke run uses the selected Runtime and Studio RC digests and passes before the candidate is declared ready for staging.
+- [ ] CI and documentation describe dispatch, verification, retry/failure behavior, key separation, and the owner settings required for immutable releases.
+
+#### Out of scope
+
+- Creating or publishing an actual candidate, stable release, or production deployment.
+- Coordinating the three independent version numbers into one product version.
+- Changing Release Please's stable promotion path or moving any stable alias.
+

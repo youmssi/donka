@@ -61,6 +61,7 @@ jobs:
           sparse-checkout-cone-mode: false
           persist-credentials: false
       - run: node --test .quality-gates/scripts/check-rust-coverage.test.mjs
+      - run: node --test scripts/candidate-release.test.mjs
       - run: mkdir -p coverage && cargo llvm-cov --workspace --locked --json --output-path coverage/rust.json
         env:
           CARGO_PROFILE_DEV_DEBUG: '0'

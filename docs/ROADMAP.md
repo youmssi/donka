@@ -6,8 +6,8 @@ merged before the next.
 
 Phase scope, owner decisions and exit gates: [Delivery plan](delivery-plan.md). Every rules-platform
 and credit-scoring capability, and where it stands: [Capability map](capability-map.md).
-Phase 1 is Studio + Runtime + CLI with a second sign-in step; Fieldkit, AI authoring and SSO are
-Phase 2; global roles are Phase 3.
+Phase 1 is Studio + Runtime + CLI with a second sign-in step and a signed immutable candidate
+release path (DNK-88); Fieldkit, AI authoring and SSO are Phase 2; global roles are Phase 3.
 
 Already on `develop` before the playbook was adopted: Cargo workspace, `crates/engine`
 (`DecisionRuntime` + `ZenRuntime` on zen-engine 2.0.1), `apps/app` with health and simulate, CI,

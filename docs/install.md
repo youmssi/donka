@@ -284,6 +284,18 @@ cosign verify --key cosign.pub --insecure-ignore-tlog ghcr.io/youmssi/donka-runt
 docker buildx imagetools inspect ghcr.io/youmssi/donka-studio:1.5.0 --format '{{ json .SBOM }}'
 ```
 
+### Signed release candidates
+
+Release candidates are separate, signed prereleases for isolated staging. A release operator
+dispatches the Runtime workflow first, then Studio with that Runtime candidate version, then the
+CLI workflow, each from the reviewed `develop` branch with its own `X.Y.Z-rc.N` version. The
+Studio run tests installation using the exact Studio and Runtime image digests and records them
+in its candidate manifest. Verify an image by digest with that repository's `cosign.pub`; verify
+the CLI package with the CLI repository's `cosign.pub` and its attached `.sig` file. Candidates
+do not update `edge`, `latest`, or stable version aliases and are not production releases. If a
+run fails after creating its draft/tag, correct the cause and use the next `-rc.N` number; never
+reuse that candidate tag. GitHub immutable releases must be enabled in all three repositories.
+
 ### Without internet access
 
 Each release also comes as an offline bundle, `donka-<version>-offline.tar`, attached to the
