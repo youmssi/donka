@@ -1595,11 +1595,16 @@ customer pilot or production deployment. Do not contact suppliers until the owne
 sourcing. Refresh the scope after Phase 2 architecture is established so the test covers the
 actual pre-pilot product and installation path.
 
+Confirmed 2026-11-16 by the owner: defer agreement on customer policy values, the named pilot
+target, and pilot acceptance/stop criteria to the end of Phase 3. These decisions do not block
+Phase 1 implementation exit, but no pilot may begin until the customer agreement is recorded.
+
 #### Acceptance criteria
 - [x] The threat model covers Studio, the Runtime, the CLI, storage, secrets, the decision log, connectors, identity and the language model endpoint, with each mitigation linked to code, configuration or a story
 - [ ] An external penetration test runs against an installation built from the published images
 - [ ] Every high or critical finding is fixed and retested; others are fixed or accepted with a reason and an owner
 - [ ] The documentation's security section (DNK-66) publishes the threat model summary and the test's outcome
+- [ ] At the end of Phase 3, record customer-approved policy values, the named pilot target, and pilot acceptance/stop criteria before any pilot
 - [x] A security contact and disclosure policy exist in each repository
 
 #### Out of scope

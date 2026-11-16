@@ -106,6 +106,8 @@ story order at phase entry; see the [approved scope](delivery-plan.md#phase-2--a
 Global roles, path coverage, policy-document editor, MCP bridge in Studio, ISO/IEC 27001 and SOC 2
 program, Case Tracker, optional multi-tenant SaaS.
 By owner decision on 2026-11-16, DNK-69's independent penetration test, vendor selection,
-remediation/retest and approved sanitized attestation are also scheduled for Phase 3. This stays
-a hard gate before any customer pilot or production deployment; refresh its test scope after
-Phase 2 architecture is established.
+remediation/retest and approved sanitized attestation are also scheduled for Phase 3. Customer
+policy values, the named pilot target and pilot acceptance/stop criteria are deferred to the end
+of Phase 3. Complete the test and record those customer decisions before any pilot; production
+deployment also requires explicit owner approval. Refresh the test scope after Phase 2
+architecture is established.
