@@ -21,7 +21,8 @@ Nothing is committed directly to `main` or `develop`.
   branches".
 - **Branches → rulesets** for `main` and `develop`: require a pull request, require the `CI`
   status check to pass, block force pushes, block deletion.
-- **Default branch:** `develop` (pull requests target it by default).
+- **GitHub default branch:** `main`. Story PRs must still target `develop` as described below;
+  select that base explicitly because GitHub may default a new PR to `main`.
 
 ## 2. One story, one branch, merged before the next
 

@@ -31,11 +31,12 @@ any published artifact whose Ed25519 signature does not match the installation k
 ## OpenSSF Scorecard — running weekly
 
 Scorecard analyses each public repository (Studio, Runtime, CLI) on a weekly schedule
-and on every push to `develop`/`main`; results land in each repository's Security tab
-(code scanning). Scores appear there after the first runs; this page does not quote a
-score that has not been produced. The workflows themselves follow the rules they check:
-read-only default permissions, all actions pinned to commit SHAs, Dependabot keeping the
-pins fresh weekly (`.github/dependabot.yml`, `.github/workflows/scorecard.yml`).
+and on pushes to the repository's GitHub default branch (`main`). Results land in the
+repository's Security tab (code scanning). Scores appear there after the first runs; this
+page does not quote a score that has not been produced. The workflows themselves follow the
+rules they check: read-only default permissions, all actions pinned to commit SHAs, and
+Dependabot keeping the pins fresh weekly (`.github/dependabot.yml`,
+`.github/workflows/scorecard.yml`).
 
 ## OpenSSF Best Practices badge — prepared, registration is the owner's
 
