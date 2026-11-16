@@ -48,6 +48,9 @@ Remaining order:
    target. Phase 1 may close as an implementation phase without a pilot deployment. The owner
    must explicitly approve production deployment after the Phase 3 DNK-69 external test,
    remediation/retest and release evidence are complete.
+9. **DNK-88:** implement and verify signed immutable `-rc.N` candidates in Studio, Runtime and
+   CLI. Candidate images/packages are for isolated staging; this does not publish or approve a
+   stable release. Do not move `edge`, `latest` or stable SemVer aliases from a candidate run.
 
 Phase exit: Phase 1 acceptance evidence is current, business journeys pass against running
 services, all required CI gates pass, recovery is demonstrated, and pilot acceptance criteria

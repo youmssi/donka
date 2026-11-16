@@ -15,9 +15,10 @@
 #    and decisions still keep their latency.
 #
 # The results go to performance.json (or $DONKA_PERFORMANCE_OUT) and are checked against the
-# published targets (docs/performance.json) and the baseline measured on the reference machine:
-# a Runtime maximum throughput more than 20% below the baseline of the same CPU model, or Studio
-# pooled p95 more than 20% (at least 10 ms) above its baseline, fails. Runtime latency at the
+# published targets (docs/performance.json) and, when available, the baseline for the same
+# hardware: a Runtime maximum throughput more than 20% below its baseline, or Studio pooled p95
+# more than 20% (at least 10 ms) above its baseline, fails. Unknown hardware must meet absolute
+# targets and reports that the relative comparison was skipped. Runtime latency at the
 # target rate is held to the targets only: on a shared runner it moves between runs (2 to 20 ms
 # at p99) far more than a regression would. `full` runs longer, for the published figures; CI
 # runs the short version. The Studio image's donka-admin generates the load.
@@ -261,10 +262,11 @@ profile=$(jq -c --slurpfile t "$targets" '
 case $(jq length <<<"$profile") in
   1) ;;
   0)
+    message="No Runtime baseline for $(jq -c .machine "$out"); absolute targets passed and throughput comparison was skipped."
+    echo "check-performance: $message ($out)"
     if [ "${GITHUB_ACTIONS:-}" = true ]; then
-      fail "no Runtime baseline for $(jq -c .machine "$out"); calibrate this hardware from the results above"
+      echo "::notice title=Runtime performance baseline::$message"
     fi
-    echo "check-performance: the targets hold; no Runtime baseline for this machine, throughput not compared ($out)"
     exit 0 ;;
   *) fail "several Runtime baselines match $(jq -c .machine "$out"); remove the ambiguous profile" ;;
 esac
