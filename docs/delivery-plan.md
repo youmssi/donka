@@ -44,18 +44,22 @@ Remaining order:
    meet recovery point and time objectives; keep Runtimes answering during restarts.
 7. **DNK-66** (confirmed 2026-10-25): the product documentation site, built from the
    repositories, versioned in English and French, covering integration, operations and security.
-8. Close every applicable feature-test gap and agree customer policy values and the pilot
-   target. Phase 1 may close as an implementation phase without a pilot deployment. The owner
-   must explicitly approve production deployment after the Phase 3 DNK-69 external test,
-   remediation/retest and release evidence are complete.
+8. Close every applicable feature-test gap. Phase 1 may close as an implementation phase without
+   a pilot deployment. By owner decision on 2026-11-16, customer policy values, the named pilot
+   target and pilot acceptance/stop criteria are deferred to the end of Phase 3. Until that
+   customer agreement is recorded, no pilot is approved. The owner must separately approve
+   production deployment after the Phase 3 DNK-69 external test, remediation/retest and release
+   evidence are complete.
 9. **DNK-88:** implement and verify signed immutable `-rc.N` candidates in Studio, Runtime and
    CLI. Candidate images/packages are for isolated staging; this does not publish or approve a
    stable release. Do not move `edge`, `latest` or stable SemVer aliases from a candidate run.
 
-Phase exit: Phase 1 acceptance evidence is current, business journeys pass against running
-services, all required CI gates pass, recovery is demonstrated, and pilot acceptance criteria
-are agreed. By owner decision on 2026-11-16, DNK-69 and its external-test evidence move to
-Phase 3; this does not remove the pre-pilot deployment gate.
+Phase exit: Phase 1 technical acceptance evidence is current, business journeys pass against
+running services, all required CI gates pass, recovery is demonstrated and the signed candidate
+install/upgrade smoke passes. By owner decision on 2026-11-16, DNK-69 and its external-test
+evidence move to Phase 3; customer policy values, the named pilot target and pilot
+acceptance/stop criteria are also deferred to the end of Phase 3. Neither deferral approves a
+pilot or production deployment.
 The component-preview suite supports this evidence; it does not cover the full application.
 
 ## Phase 2 — assisted creation, Fieldkit and governance
@@ -115,7 +119,10 @@ Document ingestion for Phase 2 authoring does not imply delivery of the Phase 3 
 By owner decision on 2026-11-16, Phase 3 also includes DNK-69's independent penetration test,
 vendor selection, remediation/retest and approved sanitized attestation. Refresh the test scope
 to cover the actual pre-pilot product and deployment path after Phase 2 architecture is known.
-Complete the test and handle findings before any customer pilot or production deployment.
+At the end of Phase 3, agree and record the customer policy values, named pilot target, and pilot
+acceptance/stop criteria with the pilot customer. Complete the test, handle findings, and record
+those customer decisions before any pilot or production deployment. Production deployment still
+requires separate explicit owner approval.
 
 ## Alignment and verification for every story
 
