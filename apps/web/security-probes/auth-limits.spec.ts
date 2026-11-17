@@ -1,4 +1,5 @@
 import type { APIRequestContext } from '@playwright/test';
+import { randomUUID } from 'node:crypto';
 import { createTranslator } from 'next-intl';
 import { test, expect, unique } from '../e2e/fixtures';
 import { openPage } from '../e2e/navigation';
@@ -6,9 +7,18 @@ import { assertLimited, budget } from './limits';
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
-async function exhaust(api: APIRequestContext, path: string, data: object, count: number): Promise<void> {
+async function exhaust(
+  api: APIRequestContext,
+  path: string,
+  data: object,
+  count: number,
+  clientIp: string,
+): Promise<void> {
   for (let attempt = 0; attempt <= count; attempt++) {
-    const reply = await api.post(path, { data, headers: { 'x-donka-csrf': '1' } });
+    const reply = await api.post(path, {
+      data,
+      headers: { 'x-donka-csrf': '1', 'x-forwarded-for': clientIp },
+    });
     if (reply.status() === 429) return;
     expect(reply.status()).toBe(path.endsWith('sign-in') ? 401 : 202);
   }
@@ -23,12 +33,16 @@ test('configured sign-in and reset limits return Retry-After and translated guid
   const signInBudget = budget('DONKA_E2E_SIGN_IN_RATE_LIMIT');
   const resetBudget = budget('DONKA_E2E_PASSWORD_RESET_RATE_LIMIT');
   const email = `${unique('rate-probe')}@donka.local`;
+  const probeId = randomUUID().replaceAll('-', '').slice(0, 6);
+  const octets = [0, 2, 4].map((offset) => Number.parseInt(probeId.slice(offset, offset + 2), 16));
+  const clientIp = `10.${octets.join('.')}`;
+  await context.setExtraHTTPHeaders({ 'x-forwarded-for': clientIp });
   const password = 'disposable rate probe passphrase';
   const errors = createTranslator({ locale: appLocale, messages: m.errors });
   let page = await openPage(context, `/${appLocale}/sign-in`);
   await page.getByLabel(m.signIn.email, { exact: true }).fill(email);
   await page.getByLabel(m.signIn.password, { exact: true }).fill(password);
-  await exhaust(context.request, '/api/v1/auth/sign-in', { email, password }, signInBudget);
+  await exhaust(context.request, '/api/v1/auth/sign-in', { email, password }, signInBudget, clientIp);
   let response = page.waitForResponse((reply) => reply.url().endsWith('/auth/sign-in'));
   await page.getByRole('button', { name: m.signIn.submit, exact: true }).click();
   let seconds = await assertLimited(await response);
@@ -37,7 +51,7 @@ test('configured sign-in and reset limits return Retry-After and translated guid
   expect((await context.request.get('/api/v1/auth/me')).status()).toBe(401);
   page = await openPage(context, `/${appLocale}/forgot-password`, page);
   await page.getByLabel(m.forgotPassword.email, { exact: true }).fill(email);
-  await exhaust(context.request, '/api/v1/auth/password-reset', { email }, resetBudget);
+  await exhaust(context.request, '/api/v1/auth/password-reset', { email }, resetBudget, clientIp);
   response = page.waitForResponse((reply) => reply.url().endsWith('/auth/password-reset'));
   await page.getByRole('button', { name: m.forgotPassword.submit, exact: true }).click();
   seconds = await assertLimited(await response);

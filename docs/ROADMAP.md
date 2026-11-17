@@ -83,6 +83,7 @@ docker-compose for PostgreSQL, MinIO and Mailpit.
 | 45 | DNK-50 Isolated backup, restore and upgrade rehearsal, with RPO/RTO and Runtime availability | S R C |
 | 46 | DNK-66 Product documentation for the organisations that run Donka | docs S R C |
 | 47 | DNK-89 Repair the full release browser matrix | S |
+| 48 | DNK-90 Isolate authentication rate-limit probes | S |
 
 Practices from the upstream codebases, scheduled next to the stories that need them:
 DNK-26 `/version` (after DNK-4), DNK-28 container builds (before DNK-23), DNK-27 OpenTelemetry

@@ -2041,3 +2041,41 @@ affected JavaScript chunk returned with `Content-Encoding: zstd` and failed at l
 - [ ] The full 672-case release suite passes without retries or skips; the independent security
   suite remains unchanged.
 
+---
+
+### DNK-90 — Isolate authentication rate-limit probes
+
+**Type:** fix · **Repos:** S · **Dependencies:** DNK-32, DNK-89 (merged) · **Size:** S
+
+#### Why
+
+The live authentication security suite runs browser projects against one isolated Studio
+instance. They share its Docker client address, so a later project can inherit an earlier
+project's nearly expired rate-limit window and lose the intended UI 429 assertion.
+
+#### Decision
+
+Give every browser probe a unique forwarded client address, and trust forwarded addresses only
+from the disposable CI Docker bridge for the isolated rate-limit run. Keep the production
+trusted-proxy default and the live 429 assertions unchanged.
+
+#### Behaviour
+
+| Where | Before | After |
+|---|---|---|
+| CI authentication security probes | All projects share one limiter identity | Each project uses its own client identity for both API setup and real UI requests |
+| Isolated CI Studio process | Forwarded client addresses are ignored | The Docker bridge may supply test identities to the limiter |
+
+#### Acceptance criteria
+
+- [ ] Each security probe's API requests and browser UI requests use the same unique client identity.
+- [ ] The CI-only proxy trust setting is scoped to the isolated rate-limit service and Docker bridge.
+- [ ] Sign-in and password-reset probes still assert the real 429 response, Retry-After header, and translated UI guidance.
+- [ ] Production proxy trust remains empty unless an installation explicitly configures it.
+- [ ] The release security suite passes in Chromium, Firefox and WebKit without retries or skipped cases.
+
+#### Out of scope
+
+- Changing production rate-limit behavior or trusting forwarded addresses by default.
+- Changing the browser matrix, rate-limit budgets, or security assertions.
+
