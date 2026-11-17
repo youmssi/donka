@@ -9,6 +9,7 @@ use donka_engine::{Bundle, DecisionRuntime, EvaluateOptions, Evaluation, Runtime
 use serde_json::{json, Value};
 use std::sync::Arc;
 use support::*;
+use tower::ServiceExt;
 
 fn fixture(name: &str) -> Value {
     let path = format!(
@@ -26,6 +27,31 @@ async fn health_lives_under_the_base_path() {
     let reply = send(&app.router, get("/api/v1/health", None)).await;
     assert_eq!(reply.status, StatusCode::OK);
     assert_eq!(reply.body, Value::String("ok".into()));
+}
+
+#[tokio::test]
+async fn zstd_only_clients_receive_uncompressed_responses() {
+    let app = without_database();
+    let response = app
+        .router
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/openapi.json")
+                .header("accept-encoding", "zstd")
+                .body(axum::body::Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_ne!(
+        response
+            .headers()
+            .get("content-encoding")
+            .and_then(|value| value.to_str().ok()),
+        Some("zstd")
+    );
 }
 
 #[sqlx::test(migrator = "donka_db::MIGRATOR")]

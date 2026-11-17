@@ -416,7 +416,11 @@ $spec
             })
             .on_response(DefaultOnResponse::new().level(Level::INFO)),
     )
-    .layer(CompressionLayer::new())
+    // Firefox's release browser in the current Playwright runner advertises zstd but
+    // executes the compressed static export as JavaScript, producing U+FFFD syntax errors.
+    // Keep broadly supported gzip, deflate and Brotli negotiation; serve uncompressed when
+    // a client only asks for zstd until that runner/client path is reliable.
+    .layer(CompressionLayer::new().no_zstd())
     .layer(middleware::from_fn(telemetry::record_request))
     .layer(middleware::from_fn(request_id::middleware))
 }

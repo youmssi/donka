@@ -49,6 +49,10 @@ test('graph authoring, simulation, versions and scenarios persist through the li
       await expect(nodes).toHaveCount(index + 1, { timeout: 1_000 });
     }).toPass({ timeout: 15_000 });
   }
+  // Adding the last node can leave it under the graph tabs at narrow viewports. Use the real
+  // editor control to bring every node into the visible canvas before connecting their handles.
+  await page.getByRole('button', { name: 'fit view', exact: true }).click();
+  await expect(page.locator('.react-flow__node-outputNode')).toBeInViewport();
   for (const [from, to] of [
     ['inputNode', 'expressionNode'],
     ['expressionNode', 'outputNode'],
