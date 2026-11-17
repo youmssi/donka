@@ -127,9 +127,9 @@ export const test = base.extend<Fixtures>({
 export { expect };
 
 export function unique(prefix: string): string {
-  const suffix = randomUUID().replaceAll('-', '');
-  // Project keys are limited to 40 characters, so retain the full UUID entropy
-  // while keeping generated fixture identifiers valid as keys.
+  const suffix = randomUUID().replaceAll('-', '').slice(0, 16);
+  // Project keys are limited to 40 characters. A 64-bit random suffix keeps
+  // fixture keys collision resistant without making record references too wide on mobile.
   const prefixLimit = 40 - suffix.length - 1;
   return `${prefix.slice(0, prefixLimit).replace(/-+$/, '')}-${suffix}`;
 }
