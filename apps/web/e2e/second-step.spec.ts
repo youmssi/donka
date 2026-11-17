@@ -61,9 +61,19 @@ test('a person turns on two-step sign-in, signs in with a recovery code and is r
   }
 
   // Lost device: an administrator resets it; the person signs in with the password only.
-  const people = await admin.get('/api/v1/users?limit=100');
-  await expect(people).toBeOK();
-  const person = (await people.json()).items.find((account: { email: string }) => account.email === email);
+  const pageSize = 100;
+  let person: { id: string; secondStep: boolean } | undefined;
+  let offset = 0;
+  let total = 0;
+  do {
+    const people = await admin.get(`/api/v1/users?limit=${pageSize}&offset=${offset}`);
+    await expect(people).toBeOK();
+    const page: { items: { id: string; email: string; secondStep: boolean }[]; total: number } = await people.json();
+    total = page.total;
+    person = page.items.find((account) => account.email === email);
+    offset += page.items.length;
+  } while (!person && offset < total);
+  if (!person) throw new Error(`The created account ${email} is missing from the paginated people list`);
   expect(person.secondStep).toBe(true);
   await expect(await admin.post(`/api/v1/users/${person.id}/second-step/reset`)).toBeOK();
   await page.reload();

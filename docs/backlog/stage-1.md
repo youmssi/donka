@@ -2000,3 +2000,44 @@ Do not publish a candidate as part of this implementation story.
 - Coordinating the three independent version numbers into one product version.
 - Changing Release Please's stable promotion path or moving any stable alias.
 
+---
+
+### DNK-89 — Repair the full release browser matrix
+
+**Type:** fix · **Repos:** S · **Dependencies:** DNK-48, DNK-51, DNK-52, DNK-55, DNK-88 (merged) · **Size:** M
+
+#### Why
+
+The promotion-to-main CI run exercises 672 live journeys across Chromium, Firefox and WebKit,
+English and French, light and dark themes, and desktop and 390 px viewports. The latest Studio
+run exposed failures that the Chromium push run did not: account lookup stopped at the first
+100 rows, the editor connection journey could target a node obscured at narrow widths, and
+Firefox executed Zstandard-compressed JavaScript as text. Playwright's trace showed each
+affected JavaScript chunk returned with `Content-Encoding: zstd` and failed at line 0, column 1.
+
+#### Decisions
+
+- Keep the complete three-engine matrix, real UI interactions, page-error checks, and current
+  timeout. Do not skip engines, filter browser errors, increase timeouts, or quarantine journeys.
+- Disable Zstandard response negotiation while retaining Brotli, gzip and deflate; assert that
+  a Zstandard-only request receives a valid uncompressed response.
+- Locate created accounts by following the API's real pagination and use collision-resistant
+  IDs for data shared across the release matrix.
+- Use the editor's visible fit-view control before connecting newly authored nodes, then assert
+  the target is in view. Diagnose any remaining Firefox/WebKit page errors from the resulting
+  CI evidence before considering this story complete.
+
+#### Acceptance criteria
+
+- [ ] Firefox does not execute compressed bytes as JavaScript; the app has a regression proving
+  a Zstandard-only client receives an uncompressed response.
+- [ ] The second-step journey finds its own account regardless of its position in the paginated
+  people list.
+- [ ] Synthetic project and account identifiers are collision-resistant across the full matrix.
+- [ ] The editor journey connects all three nodes through real pointer interactions at 390 px
+  and desktop widths in all three engines.
+- [ ] Firefox onboarding completes with no invalid-character JavaScript errors, closed-page
+  timeouts, or unexplained browser renderer failures.
+- [ ] The full 672-case release suite passes without retries or skips; the independent security
+  suite remains unchanged.
+

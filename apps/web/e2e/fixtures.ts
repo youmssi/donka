@@ -127,7 +127,7 @@ export const test = base.extend<Fixtures>({
 export { expect };
 
 export function unique(prefix: string): string {
-  return `${prefix}-${randomUUID().slice(0, 8)}`;
+  return `${prefix}-${randomUUID()}`;
 }
 
 /** Invited/activated account fixture; the journey signs in through the real UI. */
