@@ -127,7 +127,11 @@ export const test = base.extend<Fixtures>({
 export { expect };
 
 export function unique(prefix: string): string {
-  return `${prefix}-${randomUUID()}`;
+  const suffix = randomUUID().replaceAll('-', '');
+  // Project keys are limited to 40 characters, so retain the full UUID entropy
+  // while keeping generated fixture identifiers valid as keys.
+  const prefixLimit = 40 - suffix.length - 1;
+  return `${prefix.slice(0, prefixLimit).replace(/-+$/, '')}-${suffix}`;
 }
 
 /** Invited/activated account fixture; the journey signs in through the real UI. */
