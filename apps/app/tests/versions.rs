@@ -481,8 +481,8 @@ async fn saving_a_version_reports_fields_the_contract_and_the_rules_disagree_on(
     assert_eq!(
         saved.body["warnings"],
         json!([
-            { "kind": "undeclared", "path": "input" },
-            { "kind": "unread", "path": "region" }
+            { "kind": "undeclared", "node": null, "path": "input" },
+            { "kind": "unread", "node": null, "path": "region" }
         ])
     );
 
