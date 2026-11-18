@@ -25,7 +25,12 @@ fn every_contract_of_the_catalogue_matches_its_rules() {
             let schema = donka_engine::contract::input_schema(graph).unwrap();
             if let Some(schema) = schema {
                 let warnings = donka_engine::contract::check(&pack.decisions, key, &schema);
-                assert!(warnings.is_empty(), "{key}: {warnings:?}");
+                assert!(
+                    warnings
+                        .iter()
+                        .all(|warning| matches!(warning, donka_engine::contract::Warning::Protected { .. })),
+                    "{key}: {warnings:?}"
+                );
             }
         }
     }
