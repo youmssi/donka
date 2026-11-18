@@ -23,6 +23,7 @@ use serde_json::json;
 use uuid::Uuid;
 
 pub const MAX_REASON_CHARS: usize = 1000;
+pub const MAX_JUSTIFICATION_CHARS: usize = 1000;
 /// Emails handled per call to [`Releases::deliver_due_emails`].
 const EMAIL_BATCH: usize = 20;
 
@@ -65,6 +66,8 @@ pub struct Approval {
     pub release_created_by: Uuid,
     pub requested_by: Uuid,
     pub requested_at: DateTime<Utc>,
+    /// Why the requester says protected fields are needed by this release.
+    pub justification: Option<String>,
     pub status: ApprovalStatus,
     pub decided_by: Option<Uuid>,
     pub decided_at: Option<DateTime<Utc>>,
@@ -164,6 +167,7 @@ struct ApprovalRow {
     release_created_by: Uuid,
     requested_by: Uuid,
     requested_at: DateTime<Utc>,
+    justification: Option<String>,
     status: String,
     decided_by: Option<Uuid>,
     decided_at: Option<DateTime<Utc>>,
@@ -181,6 +185,7 @@ impl From<ApprovalRow> for Approval {
             release_created_by: row.release_created_by,
             requested_by: row.requested_by,
             requested_at: row.requested_at,
+            justification: row.justification,
             // The table only holds the four statuses (CHECK constraint).
             status: ApprovalStatus::parse(&row.status).unwrap_or(ApprovalStatus::Pending),
             decided_by: row.decided_by,
@@ -193,7 +198,7 @@ impl From<ApprovalRow> for Approval {
 
 /// An approval with its release (`$1` is the project).
 const APPROVALS: &str = "SELECT a.id, a.release_id, r.major, r.minor, r.patch, r.notes, \
-     r.created_by AS release_created_by, a.requested_by, a.requested_at, a.status, a.decided_by, \
+     r.created_by AS release_created_by, a.requested_by, a.requested_at, a.justification, a.status, a.decided_by, \
      a.decided_at, a.reason, a.deployment_id \
      FROM approvals a JOIN releases r ON r.id = a.release_id WHERE a.project_id = $1";
 
@@ -231,6 +236,7 @@ impl Releases {
         &self,
         access: &Access,
         release_id: Uuid,
+        justification: Option<&str>,
         owners: Vec<Approver>,
     ) -> Result<Approval, ReleaseError> {
         let project = self.projects.get(access).await?;
@@ -259,16 +265,42 @@ impl Releases {
             return Err(ReleaseError::NoApprover);
         }
 
+        let justification = justification.map(str::trim).filter(|text| !text.is_empty());
+        if justification.is_some_and(|text| text.chars().count() > MAX_JUSTIFICATION_CHARS) {
+            return Err(ReleaseError::InvalidJustification);
+        }
+        let frozen_decisions = frozen(&mut *tx, release_id).await?;
+        let contents: std::collections::BTreeMap<String, serde_json::Value> = frozen_decisions
+            .iter()
+            .map(|decision| (decision.key.clone(), decision.content.clone()))
+            .collect();
+        let mut protected_fields = std::collections::BTreeSet::new();
+        for decision in &frozen_decisions {
+            if let Some(schema) = decision.schema() {
+                protected_fields.extend(contract::protected_reads(
+                    &contents,
+                    &decision.key,
+                    &schema,
+                ));
+            }
+        }
+        if !protected_fields.is_empty() && justification.is_none() {
+            return Err(ReleaseError::ProtectedFieldJustificationRequired(
+                protected_fields.into_iter().collect(),
+            ));
+        }
+
         let id = Uuid::new_v4();
         sqlx::query(
-            "INSERT INTO approvals (id, project_id, release_id, requested_by, requested_at, status) \
-             VALUES ($1, $2, $3, $4, $5, 'pending')",
+            "INSERT INTO approvals (id, project_id, release_id, requested_by, requested_at, justification, status) \
+             VALUES ($1, $2, $3, $4, $5, $6, 'pending')",
         )
         .bind(id)
         .bind(access.project_id())
         .bind(release_id)
         .bind(access.user_id())
         .bind(now)
+        .bind(justification)
         .execute(&mut *tx)
         .await
         .map_err(|err| unique_or(err, ReleaseError::ApprovalPending))?;
@@ -302,7 +334,11 @@ impl Releases {
             &mut tx,
             Event::new(now, Some(access.user_id()), Action::ApprovalRequested)
                 .in_project(access.project_id())
-                .with_details(json!({ "version": version.to_string() })),
+                .with_details(json!({
+                    "version": version.to_string(),
+                    "justification": justification,
+                    "protectedFields": protected_fields,
+                })),
         )
         .await?;
         let approval = load(&mut tx, access.project_id(), id).await?;

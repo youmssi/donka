@@ -121,7 +121,8 @@ fn an_identifier_is_personal_data_and_finds_the_person() {
 
 #[test]
 fn the_retail_scorecard_reads_its_request_fields_and_not_what_it_computes() {
-    let reads = fields_read(&pack("retail-credit"), "scorecard");
+    let decisions = pack("retail-credit");
+    let reads = fields_read(&decisions, "scorecard");
     assert!(!reads.opaque);
     let fields: Vec<&str> = reads.fields.iter().map(String::as_str).collect();
     assert_eq!(
@@ -140,6 +141,10 @@ fn the_retail_scorecard_reads_its_request_fields_and_not_what_it_computes() {
             "loan.termMonths",
         ]
     );
+    let schema = input_schema(&decisions["scorecard"]).unwrap().unwrap();
+    assert!(declared_fields(&schema)
+        .iter()
+        .any(|field| field.path == "applicant.age" && field.protected));
 }
 
 #[test]
@@ -188,6 +193,34 @@ fn saving_warns_about_undeclared_reads_and_required_fields_nobody_reads() {
 }
 
 #[test]
+fn saving_names_each_node_that_reads_a_protected_field() {
+    let mut schema = contract();
+    schema["properties"]["applicant"]["properties"]["age"]["x-donka"]["protected"] = json!(true);
+    let mut decisions = BTreeMap::new();
+    decisions.insert(
+        "score".to_owned(),
+        json!({
+            "nodes": [
+                { "id": "in", "type": "inputNode", "name": "Request" },
+                { "id": "age-table", "type": "decisionTableNode", "name": "Age points", "content": {
+                    "inputs": [{ "id": "age", "field": "applicant.age" }],
+                    "outputs": [{ "id": "points", "field": "points.age" }],
+                    "rules": [{ "_id": "r", "age": ">= 18", "points": "10" }]
+                }},
+                { "id": "out", "type": "outputNode", "name": "Response" }
+            ]
+        }),
+    );
+
+    assert!(
+        check(&decisions, "score", &schema).contains(&Warning::Protected {
+            node: "Age points".into(),
+            path: "applicant.age".into(),
+        })
+    );
+}
+
+#[test]
 fn connector_placeholders_count_as_reads() {
     let mut decisions = BTreeMap::new();
     decisions.insert(
@@ -211,6 +244,7 @@ fn contract_changes_are_marked_breaking_or_compatible() {
     let applicant = &mut after["properties"]["applicant"];
     // Narrower: a higher minimum, one allowed value fewer.
     applicant["properties"]["age"]["minimum"] = json!(21);
+    applicant["properties"]["age"]["x-donka"]["protected"] = json!(true);
     applicant["properties"]["employment"]["enum"] = json!(["public"]);
     // Removed and added (required): breaking.
     applicant["properties"]
@@ -233,6 +267,7 @@ fn contract_changes_are_marked_breaking_or_compatible() {
         [
             ("applicant.nationalId".into(), ChangeKind::Removed, true),
             ("applicant.age".into(), ChangeKind::Narrowed, true),
+            ("applicant.age".into(), ChangeKind::Presentation, false),
             ("applicant.employment".into(), ChangeKind::Narrowed, true),
             ("applicant.income".into(), ChangeKind::Added, true),
             ("loan.amount".into(), ChangeKind::Presentation, false),

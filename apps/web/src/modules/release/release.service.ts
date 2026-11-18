@@ -178,9 +178,13 @@ export function cancelAnalysis(projectId: string, jobId: string): Promise<Action
 }
 
 /** Asks for the release live on staging to go to production; owners are emailed. */
-export function requestApproval(projectId: string, releaseId: string): Promise<ActionResult<Approval>> {
+export function requestApproval(
+  projectId: string,
+  releaseId: string,
+  justification?: string,
+): Promise<ActionResult<Approval>> {
   return attempt(async () => {
-    const response = await http.post(approvals(projectId), { json: { releaseId } });
+    const response = await http.post(approvals(projectId), { json: { releaseId, justification } });
     return response.ok ? success(await response.json<Approval>()) : failure(response);
   });
 }

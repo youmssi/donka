@@ -1890,6 +1890,8 @@ export interface components {
       deploymentId?: string | null;
       /** Format: uuid */
       id: string;
+      /** @description Why the requester says protected fields are needed by this release. */
+      justification?: string | null;
       /** @description Why it was rejected. */
       reason?: string | null;
       /** @description Who made the release: they cannot approve it. */
@@ -2012,9 +2014,11 @@ export interface components {
       path: string;
     };
     /** @enum {string} */
-    ContractWarningKind: 'undeclared' | 'unread';
+    ContractWarningKind: 'undeclared' | 'unread' | 'protected';
     ContractWarningResponse: {
       kind: components['schemas']['ContractWarningKind'];
+      /** @description The graph node that reads a protected field. */
+      node?: string | null;
       /** @description The field, as a dotted path (`customer.age`). */
       path: string;
     };
@@ -2735,6 +2739,8 @@ export interface components {
       language: components['schemas']['ExplainLanguage'];
     };
     RequestApprovalRequest: {
+      /** @description Why the production release reads protected fields. */
+      justification?: string;
       /**
        * Format: uuid
        * @description The release live on staging.
@@ -4770,7 +4776,7 @@ export interface operations {
           'application/json': components['schemas']['ErrorBody'];
         };
       };
-      /** @description NOT_ON_STAGING or NO_APPROVER (no other owner) */
+      /** @description NOT_ON_STAGING or NO_APPROVER (no other owner), PROTECTED_FIELD_JUSTIFICATION_REQUIRED (the release reads protected fields) */
       422: {
         headers: {
           [name: string]: unknown;

@@ -28,6 +28,8 @@ export type AnalysisJob = ApiSchemas['Job'];
 export const NOTES_MAX = openapi.components.schemas.CreateReleaseRequest.properties.notes.maxLength;
 export const TOKEN_NAME_MAX = openapi.components.schemas.IssueTokenRequest.properties.name.maxLength;
 export const REASON_MAX = openapi.components.schemas.RejectRequest.properties.reason.maxLength;
+export const MAX_JUSTIFICATION_CHARS =
+  openapi.components.schemas.RequestApprovalRequest.properties.justification.maxLength;
 
 export const releaseSchema = z.object({
   bump: z.enum(['major', 'minor', 'patch']),

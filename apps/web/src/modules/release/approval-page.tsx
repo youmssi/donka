@@ -187,6 +187,12 @@ function ReviewBody({ project, review }: { project: Project; review: ApprovalRev
                 <dd>
                   <When value={review.requestedAt} as="dateTime" />
                 </dd>
+                {review.justification ? (
+                  <>
+                    <dt className="text-muted-foreground">{t('justification')}</dt>
+                    <dd className="min-w-0 break-words whitespace-pre-line">{review.justification}</dd>
+                  </>
+                ) : null}
                 {review.decidedBy && review.decidedAt ? (
                   <>
                     <dt className="text-muted-foreground">{t('decidedBy')}</dt>

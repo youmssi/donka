@@ -16,7 +16,7 @@ use donka_identity::IdentityError;
 use donka_installation::InstallationError;
 use donka_pack::PackError;
 use donka_project::ProjectError;
-use donka_release::{ReleaseError, MAX_NOTES_CHARS, MAX_TOKEN_NAME_CHARS};
+use donka_release::{ReleaseError, MAX_JUSTIFICATION_CHARS, MAX_NOTES_CHARS, MAX_TOKEN_NAME_CHARS};
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -99,6 +99,8 @@ pub enum ApiError {
     NotOnStaging,
     #[error("no owner can approve")]
     NoApprover,
+    #[error("protected fields need a production justification")]
+    ProtectedFieldsNeedJustification(Vec<String>),
     #[error("an approval is pending")]
     ApprovalPending,
     #[error("self approval")]
@@ -283,6 +285,13 @@ impl From<ReleaseError> for ApiError {
             ReleaseError::ApprovalNotFound => Self::ApprovalNotFound,
             ReleaseError::NotOnStaging => Self::NotOnStaging,
             ReleaseError::NoApprover => Self::NoApprover,
+            ReleaseError::ProtectedFieldJustificationRequired(fields) => {
+                Self::ProtectedFieldsNeedJustification(fields)
+            }
+            ReleaseError::InvalidJustification => Self::InvalidField {
+                field: "justification",
+                message: format!("Use 1 to {MAX_JUSTIFICATION_CHARS} characters."),
+            },
             ReleaseError::ApprovalPending => Self::ApprovalPending,
             ReleaseError::SelfApproval => Self::SelfApproval,
             ReleaseError::AlreadyDecided => Self::AlreadyDecided,
@@ -680,6 +689,14 @@ impl IntoResponse for ApiError {
                     .to_owned(),
                 None,
                 None,
+            ),
+            Self::ProtectedFieldsNeedJustification(fields) => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "PROTECTED_FIELD_JUSTIFICATION_REQUIRED",
+                "This release reads protected fields. Add a justification for the approval request."
+                    .to_owned(),
+                None,
+                Some(serde_json::json!({ "fields": fields })),
             ),
             Self::ApprovalPending => (
                 StatusCode::CONFLICT,

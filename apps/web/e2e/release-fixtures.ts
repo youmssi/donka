@@ -13,10 +13,16 @@ export async function ruleProject(admin: APIRequestContext, prefix: string) {
   return { ...project, path: `/api/v1/projects/${project.id}` };
 }
 
-export function expressionGraph(factor: number) {
+export function expressionGraph(factor: number, inputSchema?: Record<string, unknown>) {
   return {
     nodes: [
-      { id: 'input', name: 'Request', type: 'inputNode', position: { x: 0, y: 0 } },
+      {
+        id: 'input',
+        name: 'Request',
+        type: 'inputNode',
+        position: { x: 0, y: 0 },
+        ...(inputSchema ? { content: { schema: JSON.stringify(inputSchema) } } : {}),
+      },
       {
         id: 'calculate',
         name: 'Calculate',
@@ -40,11 +46,17 @@ export async function snapshot(admin: APIRequestContext, path: string, notes: st
   return release;
 }
 
-export async function version(admin: APIRequestContext, path: string, message: string) {
+export async function version(
+  admin: APIRequestContext,
+  path: string,
+  message: string,
+): Promise<ApiSchemas['SavedVersionResponse']> {
   const current = await admin.get(path);
   await expect(current).toBeOK();
   const decision: ApiSchemas['DecisionResponse'] = await current.json();
-  await expect(await admin.post(`${path}/versions`, { data: { message, revision: decision.revision } })).toBeOK();
+  const saved = await admin.post(`${path}/versions`, { data: { message, revision: decision.revision } });
+  await expect(saved).toBeOK();
+  return saved.json();
 }
 
 export async function waitLive(

@@ -15,7 +15,8 @@ use donka_engine::contract;
 use donka_identity::Locale;
 use donka_project::Role;
 use donka_release::{
-    Approval, ApprovalStatus, Approver, Change, DecisionChange, Language, MAX_REASON_CHARS,
+    Approval, ApprovalStatus, Approver, Change, DecisionChange, Language, MAX_JUSTIFICATION_CHARS,
+    MAX_REASON_CHARS,
 };
 use donka_shared::page::PageRequest;
 use serde::{Deserialize, Serialize};
@@ -60,6 +61,8 @@ pub struct ApprovalResponse {
     /// Who asked for production: they cannot approve it either.
     pub requested_by: PersonRef,
     pub requested_at: DateTime<Utc>,
+    /// Why the requester says protected fields are needed by this release.
+    pub justification: Option<String>,
     pub status: ApprovalStatusResponse,
     pub decided_by: Option<PersonRef>,
     pub decided_at: Option<DateTime<Utc>>,
@@ -180,6 +183,17 @@ pub struct ApprovalReviewResponse {
 pub struct RequestApprovalRequest {
     /// The release live on staging.
     pub release_id: Uuid,
+    /// Required when this release reads fields marked protected.
+    #[schema(schema_with = justification_schema)]
+    pub justification: Option<String>,
+}
+
+fn justification_schema() -> impl Into<RefOr<Schema>> {
+    ObjectBuilder::new()
+        .schema_type(Type::String)
+        .min_length(Some(1))
+        .max_length(Some(MAX_JUSTIFICATION_CHARS))
+        .description(Some("Why the production release reads protected fields."))
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -240,7 +254,7 @@ pub async fn list(
         (status = 403, description = "Viewers cannot ask (FORBIDDEN); evaluation, without a licence, stops at staging (PRODUCTION_NEEDS_LICENCE)", body = ErrorBody),
         (status = 404, description = "PROJECT_NOT_FOUND or RELEASE_NOT_FOUND", body = ErrorBody),
         (status = 409, description = "APPROVAL_PENDING (another request waits) or PROJECT_ARCHIVED", body = ErrorBody),
-        (status = 422, description = "NOT_ON_STAGING or NO_APPROVER (no other owner)", body = ErrorBody),
+        (status = 422, description = "NOT_ON_STAGING or NO_APPROVER (no other owner), PROTECTED_FIELD_JUSTIFICATION_REQUIRED (the release reads protected fields)", body = ErrorBody),
     )
 )]
 pub async fn request(
@@ -273,7 +287,12 @@ pub async fn request(
         .collect();
     let requested = state
         .releases
-        .request_approval(&access, req.release_id, owners)
+        .request_approval(
+            &access,
+            req.release_id,
+            req.justification.as_deref(),
+            owners,
+        )
         .await?;
     Ok((StatusCode::CREATED, Json(one(&state, requested).await?)))
 }
@@ -407,6 +426,7 @@ fn approval(emails: &HashMap<Uuid, String>, a: Approval) -> ApprovalResponse {
         release_created_by: known_person(emails, a.release_created_by),
         requested_by: known_person(emails, a.requested_by),
         requested_at: a.requested_at,
+        justification: a.justification,
         status: a.status.into(),
         decided_by: person(emails, a.decided_by),
         decided_at: a.decided_at,

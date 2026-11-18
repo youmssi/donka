@@ -45,6 +45,7 @@ import {
 } from '@/components/ui/item';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { Link, useRouter } from '@/i18n/navigation';
@@ -56,6 +57,7 @@ import { deployRelease, issueToken, requestApproval, retryDeployment, revokeToke
 import {
   inFlight,
   TOKEN_NAME_MAX,
+  MAX_JUSTIFICATION_CHARS,
   tokenSchema,
   type Deployment,
   type EnvironmentName,
@@ -187,6 +189,13 @@ function EnvironmentCard({
  * Production is published through an approval: the request waiting for one,
  * or a way to ask for the release live on staging.
  */
+function protectedFieldsFrom(error: ActionError): string[] {
+  const details = error.details;
+  if (typeof details !== 'object' || details === null || !('fields' in details)) return [];
+  const fields = details.fields;
+  return Array.isArray(fields) ? fields.filter((field): field is string => typeof field === 'string') : [];
+}
+
 function ProductionRequest({
   project,
   staging,
@@ -207,6 +216,9 @@ function ProductionRequest({
   const approvals = useApprovals(project.id, 0).data;
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [protectedFields, setProtectedFields] = useState<string[] | null>(null);
+  const [justification, setJustification] = useState('');
+  const justificationId = useId();
   const pending = approvals?.ok ? approvals.data.items.find((approval) => approval.status === 'pending') : undefined;
 
   if (pending) {
@@ -241,13 +253,22 @@ function ProductionRequest({
   async function onRequest() {
     if (!staging) return;
     setBusy(true);
-    const result = await requestApproval(project.id, staging.releaseId);
+    const result = await requestApproval(
+      project.id,
+      staging.releaseId,
+      protectedFields ? justification.trim() : undefined,
+    );
     setBusy(false);
     changed();
     if (result.ok) {
+      setConfirming(false);
       toast.success(t('requested', { version: result.data.releaseVersion }));
       router.push(approvalHref(project.key, result.data.id));
     } else {
+      if (result.error.code === 'PROTECTED_FIELD_JUSTIFICATION_REQUIRED') {
+        setProtectedFields(protectedFieldsFrom(result.error));
+        return;
+      }
       toast.error(errors(result.error.code));
     }
   }
@@ -265,15 +286,56 @@ function ProductionRequest({
         </Button>
         {actions}
       </div>
-      <AlertDialog open={confirming} onOpenChange={setConfirming}>
+      <AlertDialog
+        open={confirming}
+        onOpenChange={(open) => {
+          setConfirming(open);
+          if (!open) {
+            setProtectedFields(null);
+            setJustification('');
+          }
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t('requestTitle', { version: staging.releaseVersion })}</AlertDialogTitle>
             <AlertDialogDescription>{t('requestConfirm')}</AlertDialogDescription>
           </AlertDialogHeader>
+          {protectedFields ? (
+            <div className="grid gap-3">
+              <p className="text-sm">{t('protectedFieldsRequired')}</p>
+              <ul className="list-disc ps-5 text-sm text-muted-foreground">
+                {protectedFields.map((field) => (
+                  <li key={field}>{field}</li>
+                ))}
+              </ul>
+              <Field>
+                <FieldLabel htmlFor={justificationId}>{t('protectedJustification')}</FieldLabel>
+                <Textarea
+                  id={justificationId}
+                  value={justification}
+                  maxLength={MAX_JUSTIFICATION_CHARS}
+                  onChange={(event) => setJustification(event.target.value)}
+                  aria-describedby={`${justificationId}-hint`}
+                />
+                <p id={`${justificationId}-hint`} className="text-sm text-muted-foreground">
+                  {t('protectedJustificationHint', { max: MAX_JUSTIFICATION_CHARS })}
+                </p>
+              </Field>
+            </div>
+          ) : null}
           <AlertDialogFooter>
             <AlertDialogCancel>{common('cancel')}</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void onRequest()}>{t('requestAction')}</AlertDialogAction>
+            <AlertDialogAction
+              disabled={Boolean(protectedFields && !justification.trim()) || busy}
+              onClick={(event) => {
+                event.preventDefault();
+                void onRequest();
+              }}
+            >
+              {busy ? <Spinner /> : null}
+              {t('requestAction')}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

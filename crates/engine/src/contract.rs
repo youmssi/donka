@@ -86,6 +86,8 @@ pub struct Field {
     /// Identifies the person a decision is about (national ID, phone, customer number): their
     /// records are found by it (DNK-75).
     pub identifier: bool,
+    /// The project owner marked this field as protected for decision governance.
+    pub protected: bool,
     /// The field's own schema (type, limits, allowed values, hints).
     pub schema: Value,
     /// An object whose properties are listed (its fields come after it).
@@ -123,11 +125,16 @@ fn collect_fields(schema: &Value, prefix: &str, parent_required: bool, out: &mut
                 .unwrap_or(false)
         };
         let identifier = hint("identifier");
+        let protected = property
+            .pointer(&format!("/{HINTS}/protected"))
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
         out.push(Field {
             path: path.clone(),
             required: is_required,
             pii: identifier || hint("pii"),
             identifier,
+            protected,
             schema: property.clone(),
             has_properties,
         });
@@ -261,6 +268,8 @@ pub fn identifier_fields(schema: &Value) -> Vec<String> {
 pub struct Reads {
     /// Dotted paths read and not computed anywhere in the graph (or its sub-decisions).
     pub fields: BTreeSet<String>,
+    /// Request fields grouped by the named graph node that reads them.
+    pub nodes: BTreeMap<String, BTreeSet<String>>,
     /// A function node reads fields no analysis can see: "nobody reads it" cannot be claimed.
     pub opaque: bool,
 }
@@ -268,6 +277,7 @@ pub struct Reads {
 /// The request fields the graph `key` reads, following its sub-decisions in `decisions`.
 pub fn fields_read(decisions: &BTreeMap<String, Value>, key: &str) -> Reads {
     let mut reads = BTreeSet::new();
+    let mut reads_by_node = BTreeMap::new();
     let mut produced = BTreeSet::new();
     let mut opaque = false;
     let mut seen = BTreeSet::new();
@@ -276,14 +286,30 @@ pub fn fields_read(decisions: &BTreeMap<String, Value>, key: &str) -> Reads {
         key,
         &mut seen,
         &mut reads,
+        &mut reads_by_node,
         &mut produced,
         &mut opaque,
     );
-    let fields = reads
+    let fields: BTreeSet<String> = reads
         .into_iter()
         .filter(|path| !produced.iter().any(|made| related(made, path)))
         .collect();
-    Reads { fields, opaque }
+    let nodes = reads_by_node
+        .into_iter()
+        .map(|(node, paths)| {
+            let paths: BTreeSet<String> = paths
+                .into_iter()
+                .filter(|path| !produced.iter().any(|made| related(made, path)))
+                .collect();
+            (node, paths)
+        })
+        .filter(|(_, paths)| !paths.is_empty())
+        .collect();
+    Reads {
+        fields,
+        nodes,
+        opaque,
+    }
 }
 
 fn walk_graph(
@@ -291,6 +317,7 @@ fn walk_graph(
     key: &str,
     seen: &mut BTreeSet<String>,
     reads: &mut BTreeSet<String>,
+    reads_by_node: &mut BTreeMap<String, BTreeSet<String>>,
     produced: &mut BTreeSet<String>,
     opaque: &mut bool,
 ) {
@@ -305,6 +332,13 @@ fn walk_graph(
         return;
     };
     for node in nodes {
+        let mut node_reads = BTreeSet::new();
+        let node_name = node
+            .get("name")
+            .and_then(Value::as_str)
+            .or_else(|| node.get("id").and_then(Value::as_str))
+            .unwrap_or("Unnamed node")
+            .to_owned();
         let content = node.get("content").unwrap_or(&Value::Null);
         let prefix = content
             .get("outputPath")
@@ -320,7 +354,7 @@ fn walk_graph(
             Some("decisionTableNode") => {
                 let inputs = strings(content, "inputs", "id");
                 for (id, field) in inputs.iter().zip(strings(content, "inputs", "field")) {
-                    standard(&field, reads);
+                    standard(&field, &mut node_reads);
                     for rule in content
                         .get("rules")
                         .and_then(Value::as_array)
@@ -328,7 +362,7 @@ fn walk_graph(
                         .flatten()
                     {
                         if let Some(cell) = rule.get(id).and_then(Value::as_str) {
-                            unary(cell, reads);
+                            unary(cell, &mut node_reads);
                         }
                     }
                 }
@@ -344,7 +378,7 @@ fn walk_graph(
                         .flatten()
                     {
                         if let Some(cell) = rule.get(id).and_then(Value::as_str) {
-                            standard(cell, reads);
+                            standard(cell, &mut node_reads);
                         }
                     }
                 }
@@ -355,17 +389,25 @@ fn walk_graph(
                     .zip(strings(content, "expressions", "value"))
                 {
                     produce(&key);
-                    standard(&value, reads);
+                    standard(&value, &mut node_reads);
                 }
             }
             Some("switchNode") => {
                 for condition in strings(content, "statements", "condition") {
-                    standard(&condition, reads);
+                    standard(&condition, &mut node_reads);
                 }
             }
             Some("decisionNode") => {
                 if let Some(child) = content.get("key").and_then(Value::as_str) {
-                    walk_graph(decisions, child, seen, reads, produced, opaque);
+                    walk_graph(
+                        decisions,
+                        child,
+                        seen,
+                        reads,
+                        reads_by_node,
+                        produced,
+                        opaque,
+                    );
                 }
                 if let Some(prefix) = prefix {
                     produced.insert(prefix.to_owned());
@@ -374,7 +416,7 @@ fn walk_graph(
             Some("customNode") => {
                 // Connectors: `{{ field }}` placeholders in their request, and their answer.
                 let config = content.get("config").unwrap_or(&Value::Null);
-                templates(config, reads);
+                templates(config, &mut node_reads);
                 if let Some(output) = config.get("outputKey").and_then(Value::as_str) {
                     produced.insert(output.to_owned());
                 }
@@ -382,6 +424,11 @@ fn walk_graph(
             Some("functionNode") => *opaque = true,
             _ => {}
         }
+        reads.extend(node_reads.iter().cloned());
+        reads_by_node
+            .entry(node_name)
+            .or_default()
+            .extend(node_reads);
     }
 }
 
@@ -544,6 +591,8 @@ pub enum Warning {
     Undeclared { path: String },
     /// The contract requires a field no rule reads: callers send it for nothing.
     Unread { path: String },
+    /// A named rule node reads a field the project marked protected.
+    Protected { node: String, path: String },
 }
 
 /// Compares what the graph `key` reads with its contract. No contract, no warnings.
@@ -556,6 +605,16 @@ pub fn check(decisions: &BTreeMap<String, Value>, key: &str, schema: &Value) -> 
         .filter(|path| !is_declared(&declared, path))
         .map(|path| Warning::Undeclared { path: path.clone() })
         .collect();
+    for field in declared.iter().filter(|field| field.protected) {
+        for (node, paths) in &reads.nodes {
+            if paths.iter().any(|path| related(path, &field.path)) {
+                warnings.push(Warning::Protected {
+                    node: node.clone(),
+                    path: field.path.clone(),
+                });
+            }
+        }
+    }
     if !reads.opaque {
         warnings.extend(
             declared
@@ -568,6 +627,29 @@ pub fn check(decisions: &BTreeMap<String, Value>, key: &str, schema: &Value) -> 
         );
     }
     warnings
+}
+
+/// Protected contract paths a decision's named rule nodes read, with decision and node names.
+pub fn protected_reads(
+    decisions: &BTreeMap<String, Value>,
+    key: &str,
+    schema: &Value,
+) -> Vec<String> {
+    let protected: Vec<String> = declared_fields(schema)
+        .into_iter()
+        .filter(|field| field.protected)
+        .map(|field| field.path)
+        .collect();
+    let reads = fields_read(decisions, key);
+    let mut findings = BTreeSet::new();
+    for path in protected {
+        for (node, paths) in &reads.nodes {
+            if paths.iter().any(|read| related(read, &path)) {
+                findings.insert(format!("{key}: {node} ({path})"));
+            }
+        }
+    }
+    findings.into_iter().collect()
 }
 
 /// Declared as such, inside an object the contract leaves open, or a parent of declared fields.
@@ -603,7 +685,7 @@ pub enum ChangeKind {
     Narrowed,
     /// More values accepted.
     Widened,
-    /// Labels, help or the `pii` and `identifier` marks: what callers send is unchanged.
+    /// Labels, help or the `pii`, `identifier` and `protected` marks: what callers send is unchanged.
     Presentation,
 }
 

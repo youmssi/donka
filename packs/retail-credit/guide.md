@@ -41,6 +41,10 @@ These fields are the scorecard's input contract (**Input fields** in the editor)
 request that lacks one or breaks its limits with `400`, naming the field, and forms can be built
 from the same definition.
 
+This synthetic pack marks `applicant.age` as protected because the sample scorecard reads it. The
+mark is governance metadata for the project owner to review; it does not decide the field's legal
+status or make this example suitable for lending.
+
 The `bureau` fields are filled by your system from the source you consult (a private credit
 bureau or the central bank's risk register). To have the Runtime call the bureau instead, call
 **credit-application**: it takes the same fields without `bureau`, plus `applicant.nationalId`,
