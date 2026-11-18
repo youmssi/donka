@@ -184,6 +184,7 @@ pub struct SettingsChange {
 #[derive(Debug, Clone, Default)]
 pub struct Filter {
     pub reference: Option<String>,
+    pub batch_id: Option<Uuid>,
     pub decision_key: Option<String>,
     pub outcome: Option<String>,
     pub environment: Option<Environment>,
@@ -201,6 +202,7 @@ pub struct RecordSummary {
     pub environment: EnvironmentName,
     pub decision_key: String,
     pub reference: Option<String>,
+    pub batch_id: Option<Uuid>,
     pub status: Status,
     pub outcome: Option<String>,
     pub evaluated_at: DateTime<Utc>,
@@ -240,7 +242,7 @@ struct StoredRecord {
 }
 
 const SUMMARY_COLUMNS: &str =
-    "id, release_id, environment, decision_key, reference, status, outcome, evaluated_at, duration_us";
+    "id, release_id, environment, decision_key, reference, batch_id, status, outcome, evaluated_at, duration_us";
 const TOKEN_COLUMNS: &str =
     "id, environment, name, hint, created_by, created_at, revoked_by, revoked_at";
 
@@ -481,6 +483,7 @@ impl DecisionLog {
                 record.evaluated_at,
                 i64::try_from(record.duration_us).unwrap_or(i64::MAX),
             );
+            let batch_id = record.batch_id;
             let identifier_paths = self
                 .contract_fields(
                     &mut identifiers,
@@ -496,9 +499,9 @@ impl DecisionLog {
             // A record sent twice is stored once, whatever time it carries the second time.
             let inserted = sqlx::query(
                 "INSERT INTO decision_records \
-                 (id, project_id, release_id, environment, decision_key, reference, status, outcome, \
+                 (id, project_id, release_id, environment, decision_key, reference, batch_id, status, outcome, \
                   evaluated_at, duration_us, received_at, token_id, key_id, nonce, payload) \
-                 SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15 \
+                 SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16 \
                  WHERE NOT EXISTS (SELECT 1 FROM decision_records WHERE id = $1) \
                  ON CONFLICT (id, evaluated_at) DO NOTHING",
             )
@@ -508,6 +511,7 @@ impl DecisionLog {
             .bind(environment.as_str())
             .bind(&decision_key)
             .bind(&reference)
+            .bind(batch_id)
             .bind(status)
             .bind(&outcome)
             .bind(evaluated_at)
@@ -1049,6 +1053,9 @@ fn push_filter(query: &mut sqlx::QueryBuilder<sqlx::Postgres>, access: &Access, 
     query.push_bind(access.project_id());
     if let Some(reference) = &filter.reference {
         query.push(" AND reference = ").push_bind(reference.clone());
+    }
+    if let Some(batch_id) = filter.batch_id {
+        query.push(" AND batch_id = ").push_bind(batch_id);
     }
     if let Some(key) = &filter.decision_key {
         query.push(" AND decision_key = ").push_bind(key.clone());

@@ -22,8 +22,16 @@ fn record(extra: Value) -> Value {
 
 #[test]
 fn a_record_in_the_feed_format_is_read() {
-    let parsed = FeedRecord::parse(record(json!({ "reference": "APP-1" }))).unwrap();
+    let parsed = FeedRecord::parse(record(json!({
+        "reference": "APP-1",
+        "batchId": "2b5a7ac0-e9ce-4d93-b923-37c718b220b6"
+    })))
+    .unwrap();
     assert_eq!(parsed.reference.as_deref(), Some("APP-1"));
+    assert_eq!(
+        parsed.batch_id.unwrap().to_string(),
+        "2b5a7ac0-e9ce-4d93-b923-37c718b220b6"
+    );
     assert_eq!(parsed.environment(), Some(Environment::Production));
 }
 

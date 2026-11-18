@@ -171,6 +171,7 @@ async fn a_runtime_sends_records_that_members_search_open_and_replay(db: PgPool)
     let (admin, p, rid) = released(&app).await;
     let token = staging_token(&app, &admin).await;
     let at = now(&app);
+    let batch_id = Uuid::new_v4();
 
     // The project reads its outcome from the `output` field of each answer.
     let settings = call(
@@ -184,12 +185,17 @@ async fn a_runtime_sends_records_that_members_search_open_and_replay(db: PgPool)
     assert_eq!(settings.status, StatusCode::OK, "{}", settings.body);
     assert_eq!(settings.body["outcomeField"], "output");
 
-    let approved = record(&p, &rid, at, json!({ "reference": "APP-2026-0042" }));
+    let approved = record(
+        &p,
+        &rid,
+        at,
+        json!({ "reference": "APP-2026-0042", "batchId": batch_id }),
+    );
     let failed = record(
         &p,
         &rid,
         at + Duration::seconds(1),
-        json!({ "status": "failed", "output": null, "error": { "message": "boom" }, "reference": "APP-2026-0043" }),
+        json!({ "status": "failed", "output": null, "error": { "message": "boom" }, "reference": "APP-2026-0043", "batchId": batch_id }),
     );
     let production = record(&p, &rid, at, json!({ "environment": "production" }));
     let unknown_release = record(&p, &Uuid::new_v4().to_string(), at, json!({}));
@@ -242,7 +248,7 @@ async fn a_runtime_sends_records_that_members_search_open_and_replay(db: PgPool)
             .unwrap();
     assert!(!String::from_utf8_lossy(&payload).contains("CM-1984-0042"));
 
-    // Search by reference, decision, outcome, status, environment and date.
+    // Search by batch, reference, decision, outcome, status, environment and date.
     let search = |query: &str| {
         let path = format!("/projects/{p}/decision-log?{query}");
         let app = &app;
@@ -257,6 +263,14 @@ async fn a_runtime_sends_records_that_members_search_open_and_replay(db: PgPool)
             .map(|r| r["id"].clone())
             .collect()
     };
+    assert_eq!(
+        ids(search(&format!("batchId={batch_id}")).await),
+        vec![failed["id"].clone(), approved["id"].clone()]
+    );
+    assert_eq!(
+        ids(search(&format!("batchId={}", Uuid::new_v4())).await),
+        Vec::<Value>::new()
+    );
     assert_eq!(
         ids(search("reference=APP-2026-0042").await),
         vec![approved["id"].clone()]

@@ -348,6 +348,8 @@ impl From<RecordStatus> for Status {
 pub struct RecordQuery {
     /// The caller's reference (`X-Donka-Reference`), exactly.
     pub reference: Option<String>,
+    /// All records evaluated in this Runtime batch.
+    pub batch_id: Option<Uuid>,
     /// Only this decision, by key.
     pub decision_key: Option<String>,
     /// Only this outcome, exactly (`error` for failed evaluations).
@@ -369,6 +371,8 @@ pub struct RecordSummaryResponse {
     pub id: Uuid,
     pub decision_key: String,
     pub reference: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub batch_id: Option<Uuid>,
     pub environment: EnvironmentName,
     pub status: RecordStatus,
     /// The project's outcome field when the record arrived; `error` for failures.
@@ -449,6 +453,7 @@ pub async fn search(
     };
     let filter = Filter {
         reference: text(query.reference, "reference")?,
+        batch_id: query.batch_id,
         decision_key: text(query.decision_key, "decisionKey")?,
         outcome: text(query.outcome, "outcome")?,
         environment: query.environment.map(environment),
@@ -617,6 +622,7 @@ pub(crate) fn summary(record: RecordSummary) -> RecordSummaryResponse {
         id: record.id,
         decision_key: record.decision_key,
         reference: record.reference,
+        batch_id: record.batch_id,
         environment: record.environment.0.into(),
         status: record.status.into(),
         outcome: record.outcome,

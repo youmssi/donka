@@ -940,6 +940,7 @@
     "when": "When",
     "decision": "Decision",
     "reference": "Reference",
+    "batchId": "Batch ID",
     "outcome": "Outcome",
     "environment": "Environment",
     "duration": "Duration",

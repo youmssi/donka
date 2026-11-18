@@ -18,8 +18,9 @@ test('real Runtime records are paginated and searchable; replay uses recorded co
     const failed = await fixture.emit('failed');
     await fixture.received(answered.reference);
     await fixture.received(failed.reference);
+    const batch = await fixture.emitBatch(['portfolio-row-1', 'portfolio-row-2']);
     expect(answered.body.result.bureau).toMatchObject({ score: 712, available: true });
-    expect(await fixture.calls()).toHaveLength(1);
+    expect(await fixture.calls()).toHaveLength(3);
     expect(await fixture.calls('failed')).toHaveLength(1);
     // Deliberately change the editable draft: replay must still load the record's frozen release.
     const current = await admin.get(`${path}/decisions/${fixture.decision.id}`);
@@ -31,13 +32,13 @@ test('real Runtime records are paginated and searchable; replay uses recorded co
     ).toBeOK();
     // Extra records exercise actual UI pagination; none are injected into Studio's feed.
     await Promise.all(Array.from({ length: 51 }, (_, i) => fixture.emit('plain', unique('page'), { input: i })));
-    await expect.poll(async () => (await (await admin.get(`${path}/decision-log`)).json()).total).toBe(53);
+    await expect.poll(async () => (await (await admin.get(`${path}/decision-log`)).json()).total).toBe(55);
     let page = await openPage(context, `/${appLocale}/projects/decision-log?p=${key}`);
     const table = () => page.getByRole('table', { name: m.decisionLog.title, exact: true });
     await expect(table().getByRole('row')).toHaveCount(51);
     await page.getByRole('link', { name: m.common.next, exact: true }).click();
     await expect(page).toHaveURL(/offset=50/);
-    await expect(table().getByRole('row')).toHaveCount(4);
+    await expect(table().getByRole('row')).toHaveCount(6);
     await expect(table().getByRole('link').filter({ hasText: answered.reference })).toBeVisible();
     await page.getByRole('link', { name: m.common.previous, exact: true }).click();
     await expect(table().getByRole('row')).toHaveCount(51);
@@ -46,6 +47,16 @@ test('real Runtime records are paginated and searchable; replay uses recorded co
     await page.getByRole('search').getByLabel(m.decisionLog.outcome, { exact: true }).fill('712');
     await page.getByRole('button', { name: m.decisionLog.search, exact: true }).click();
     await expect(table().getByRole('row')).toHaveCount(2);
+    page = await openPage(context, `/${appLocale}/projects/decision-log?p=${key}`, page);
+    await page.getByRole('search').getByLabel(m.decisionLog.batchId, { exact: true }).fill(batch.batchId);
+    await page.getByRole('button', { name: m.decisionLog.search, exact: true }).click();
+    await expect(table().getByRole('row')).toHaveCount(3);
+    await expect(table().getByRole('link').filter({ hasText: 'portfolio-row-1' })).toBeVisible();
+    page = await openPage(
+      context,
+      `/${appLocale}/projects/decision-log?p=${key}&reference=${encodeURIComponent(answered.reference)}&decision=score&outcome=712`,
+      page,
+    );
     await page.getByRole('combobox', { name: m.decisionLog.environment, exact: true }).click();
     await page.getByRole('option', { name: m.environments.production, exact: true }).click();
     await expect(page.getByText(m.decisionLog.emptyFilteredTitle, { exact: true })).toBeVisible();
@@ -70,7 +81,7 @@ test('real Runtime records are paginated and searchable; replay uses recorded co
     await expect(page.locator('details pre')).toContainText('live');
     await page.getByRole('button', { name: m.decisionLog.replay, exact: true }).click();
     await expect(page.getByText(m.decisionLog.identicalTitle, { exact: true })).toBeVisible();
-    expect(await fixture.calls()).toHaveLength(1);
+    expect(await fixture.calls()).toHaveLength(3);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     const payload = page.locator('pre').filter({ hasText: fixture.input.note }).first();
     await expect(payload).toContainText(fixture.input.note);
