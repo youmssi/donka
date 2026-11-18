@@ -269,7 +269,7 @@ impl Releases {
         if justification.is_some_and(|text| text.chars().count() > MAX_JUSTIFICATION_CHARS) {
             return Err(ReleaseError::InvalidJustification);
         }
-        let frozen_decisions = frozen(&mut *tx, release_id).await?;
+        let frozen_decisions = frozen(&mut tx, release_id).await?;
         let contents: std::collections::BTreeMap<String, serde_json::Value> = frozen_decisions
             .iter()
             .map(|decision| (decision.key.clone(), decision.content.clone()))
