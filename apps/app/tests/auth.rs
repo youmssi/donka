@@ -31,6 +31,117 @@ async fn the_first_administrator_is_created_only_on_an_empty_database(db: PgPool
 }
 
 #[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn oidc_links_an_invited_account_by_subject_and_tracks_email_and_group_role(db: PgPool) {
+    let app = with_database(db.clone());
+    app.identity
+        .bootstrap_admin(ADMIN_EMAIL, Locale::En)
+        .await
+        .unwrap();
+
+    let (first_session, first_user) = app
+        .identity
+        .sign_in_oidc(
+            "https://idp.bank.example",
+            "provider-subject-1",
+            ADMIN_EMAIL,
+            Some(false),
+        )
+        .await
+        .unwrap();
+    assert!(!first_user.is_admin);
+    assert_eq!(
+        app.identity
+            .authenticate(first_session.expose())
+            .await
+            .unwrap(),
+        first_user
+    );
+
+    let (second_session, renamed_user) = app
+        .identity
+        .sign_in_oidc(
+            "https://idp.bank.example",
+            "provider-subject-1",
+            "renamed@bank.example",
+            Some(true),
+        )
+        .await
+        .unwrap();
+    assert_eq!(renamed_user.id, first_user.id);
+    assert_eq!(renamed_user.email, "renamed@bank.example");
+    assert!(renamed_user.is_admin);
+    assert_eq!(
+        app.identity
+            .authenticate(second_session.expose())
+            .await
+            .unwrap()
+            .id,
+        first_user.id
+    );
+    let same_subject_from_another_issuer = app
+        .identity
+        .sign_in_oidc(
+            "https://another-idp.example",
+            "provider-subject-1",
+            "renamed@bank.example",
+            Some(true),
+        )
+        .await;
+    assert!(matches!(
+        same_subject_from_another_issuer,
+        Err(donka_identity::IdentityError::OidcIdentityNotInvited)
+    ));
+    let user_count: i64 = sqlx::query_scalar("SELECT count(*) FROM users")
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(user_count, 1);
+    let role_changes: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM audit_events WHERE action = 'user.admin_role_changed'",
+    )
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!(role_changes, 2);
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn oidc_does_not_create_an_account_without_a_studio_invitation(db: PgPool) {
+    let app = with_database(db.clone());
+    let result = app
+        .identity
+        .sign_in_oidc(
+            "https://idp.bank.example",
+            "uninvited-subject",
+            "new@bank.example",
+            None,
+        )
+        .await;
+    assert!(matches!(
+        result,
+        Err(donka_identity::IdentityError::OidcIdentityNotInvited)
+    ));
+    let same_subject_from_another_issuer = app
+        .identity
+        .sign_in_oidc(
+            "https://another-idp.example",
+            "provider-subject-1",
+            "renamed@bank.example",
+            Some(true),
+        )
+        .await;
+    assert!(matches!(
+        same_subject_from_another_issuer,
+        Err(donka_identity::IdentityError::OidcIdentityNotInvited)
+    ));
+    let user_count: i64 = sqlx::query_scalar("SELECT count(*) FROM users")
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(user_count, 0);
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
 async fn a_setup_link_works_once(db: PgPool) {
     let app = with_database(db);
     let token = app

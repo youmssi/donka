@@ -1,6 +1,28 @@
 # Disposable services for the live feature suite. Use with docker-compose.yml.
 # Never add this override to a customer installation.
 services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.2
+    command: [start-dev, --import-realm, --http-port=8180]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: feature-keycloak-admin
+      KC_HOSTNAME: http://keycloak:8180
+      KC_HOSTNAME_STRICT: 'false'
+      KC_HEALTH_ENABLED: 'true'
+    volumes: ['./scripts/keycloak:/opt/keycloak/data/import:ro']
+    ports: ['127.0.0.1:8180:8180']
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          bash -c 'exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf "GET /health/ready HTTP/1.0\r\n\r\n" >&3 &&
+          read -r response <&3 && [[ "$$response" == *"200 OK"* ]]'
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
   app:
     # Trusts the development licence key; CI issues the licence (scripts/dev-licence.sh). A
     # release version, so that the disposable feed's 99.0.0 is newer (CI sets the same in bake).
@@ -14,6 +36,24 @@ services:
     volumes: ['./.feature-licence.json:/etc/donka/licence.json:ro']
     depends_on:
       feature-releases: { condition: service_started }
+      keycloak: { condition: service_healthy }
+  app-oidc:
+    # Isolate the provider-enabled application from workflows that exercise local admin login.
+    profiles: [oidc]
+    extends:
+      file: docker-compose.yml
+      service: app
+    environment:
+      DONKA_PUBLIC_URL: http://localhost:8084
+      DONKA_OIDC_ISSUER: http://keycloak:8180/realms/donka
+      DONKA_OIDC_CLIENT_ID: donka-studio
+      DONKA_OIDC_CLIENT_SECRET: feature-oidc-client-secret
+      DONKA_OIDC_ADMIN_GROUP: studio-admins
+      DONKA_OIDC_ALLOW_HTTP: 'true'
+    ports: !override ['127.0.0.1:8084:8080']
+    depends_on:
+      app: { condition: service_started }
+      keycloak: { condition: service_healthy }
   # The release feed Studio checks for a newer Donka (DNK-64), announcing 99.0.0.
   feature-releases:
     image: python:3.13-alpine

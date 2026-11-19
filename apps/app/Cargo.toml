@@ -37,6 +37,7 @@ base64 = { workspace = true }
 ed25519-dalek = { workspace = true }
 getrandom = { workspace = true }
 ipnet = "2.12"
+openidconnect = "4.1"
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }

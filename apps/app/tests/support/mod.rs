@@ -397,6 +397,8 @@ fn assemble_full(
     let installation = donka_installation::Installation::new(db.clone(), clock.clone());
     let router = router(
         AppState {
+            oidc: None,
+            local_sign_in_allowlist: Vec::new(),
             runtime,
             db,
             identity: identity.clone(),

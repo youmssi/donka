@@ -1,8 +1,9 @@
 'use client';
 
 import { CircleCheck } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 
 import type { ActionError } from '@/components/shared/api';
@@ -31,6 +32,7 @@ type Step =
 
 export function SignInForm() {
   const t = useTranslations('signIn');
+  const locale = useLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = safeNext(searchParams.get('next'));
@@ -38,6 +40,16 @@ export function SignInForm() {
   const signIn = useSignIn();
   const [error, setError] = useState<ActionError | null>(null);
   const [step, setStep] = useState<Step>({ kind: 'password' });
+  const oidcStatus = useQuery({
+    queryKey: ['oidc-status'],
+    queryFn: async () => {
+      const response = await fetch('/api/v1/auth/oidc/status');
+      if (!response.ok) return false;
+      const body = (await response.json()) as { enabled?: boolean };
+      return body.enabled === true;
+    },
+    staleTime: 60_000,
+  });
 
   const signedIn = session.data?.ok === true && session.data.data !== null;
   useEffect(() => {
@@ -81,6 +93,19 @@ export function SignInForm() {
               </Alert>
             ) : null}
             {error ? <ErrorAlert error={error} /> : null}
+            {searchParams.get('oidc') === 'error' ? (
+              <Alert variant="destructive">
+                <AlertDescription>{t('providerError')}</AlertDescription>
+              </Alert>
+            ) : null}
+            {oidcStatus.data ? (
+              <a
+                className="inline-flex h-9 w-full items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
+                href={`/api/v1/auth/oidc/start?locale=${locale}`}
+              >
+                {t('organisationSignIn')}
+              </a>
+            ) : null}
             <form.AppField name="email">
               {(field) => (
                 <field.TextField label={t('email')} type="email" autoComplete="username" required autoFocus />

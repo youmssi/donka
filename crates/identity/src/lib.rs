@@ -195,6 +195,8 @@ pub enum IdentityError {
     SecondStepOff,
     #[error("two-step sign-in is required for this account")]
     SecondStepRequired,
+    #[error("no invited Studio account matches this identity")]
+    OidcIdentityNotInvited,
     #[error(transparent)]
     Database(#[from] sqlx::Error),
     #[error("internal error: {0}")]
@@ -738,6 +740,105 @@ impl Identity {
                 .fetch_optional(&self.pool)
                 .await?,
         )
+    }
+
+    /// Opens a Studio session for an OIDC subject. First sign-in links only an
+    /// existing invitation; later sign-ins follow the issuer and immutable subject even if
+    /// the provider changes the person's email address.
+    pub async fn sign_in_oidc(
+        &self,
+        issuer: &str,
+        subject: &str,
+        email: &str,
+        is_admin: Option<bool>,
+    ) -> Result<(IssuedToken, User), IdentityError> {
+        if issuer.trim().is_empty()
+            || issuer.len() > 2048
+            || subject.trim().is_empty()
+            || subject.len() > 512
+        {
+            return Err(IdentityError::OidcIdentityNotInvited);
+        }
+        let email = normalize_email(email)?;
+        let now = self.clock.now();
+        let mut tx = self.pool.begin().await?;
+        let linked: Option<(Uuid, bool)> = sqlx::query_as(
+            "SELECT i.user_id, u.is_admin FROM oidc_identities i \
+             JOIN users u ON u.id = i.user_id WHERE i.issuer = $1 AND i.subject = $2 FOR UPDATE OF i, u",
+        )
+        .bind(issuer)
+        .bind(subject)
+        .fetch_optional(&mut *tx)
+        .await?;
+        let (user_id, previous_admin) = if let Some((user_id, previous_admin)) = linked {
+            let updated = sqlx::query(
+                "UPDATE users SET email = $2, is_admin = COALESCE($3, is_admin) WHERE id = $1",
+            )
+            .bind(user_id)
+            .bind(&email)
+            .bind(is_admin)
+            .execute(&mut *tx)
+            .await;
+            match updated {
+                Ok(_) => (user_id, previous_admin),
+                Err(sqlx::Error::Database(error)) if error.is_unique_violation() => {
+                    return Err(IdentityError::OidcIdentityNotInvited);
+                }
+                Err(error) => return Err(error.into()),
+            }
+        } else {
+            let invited: Option<(Uuid, bool)> =
+                sqlx::query_as("SELECT id, is_admin FROM users WHERE email = $1 FOR UPDATE")
+                    .bind(&email)
+                    .fetch_optional(&mut *tx)
+                    .await?;
+            let Some((user_id, previous_admin)) = invited else {
+                return Err(IdentityError::OidcIdentityNotInvited);
+            };
+            let inserted = sqlx::query(
+                "INSERT INTO oidc_identities (issuer, subject, user_id, linked_at) VALUES ($1, $2, $3, $4)",
+            )
+            .bind(issuer)
+            .bind(subject)
+            .bind(user_id)
+            .bind(now)
+            .execute(&mut *tx)
+            .await;
+            match inserted {
+                Ok(_) => {}
+                Err(sqlx::Error::Database(error)) if error.is_unique_violation() => {
+                    return Err(IdentityError::OidcIdentityNotInvited);
+                }
+                Err(error) => return Err(error.into()),
+            }
+            if let Some(is_admin) = is_admin {
+                sqlx::query("UPDATE users SET is_admin = $2 WHERE id = $1")
+                    .bind(user_id)
+                    .bind(is_admin)
+                    .execute(&mut *tx)
+                    .await?;
+            }
+            (user_id, previous_admin)
+        };
+        if let Some(is_admin) = is_admin.filter(|role| *role != previous_admin) {
+            donka_audit::record(
+                &mut tx,
+                Event::new(now, Some(user_id), Action::UserAdminRoleChanged).with_details(
+                    json!({ "provider": "oidc", "from": previous_admin, "to": is_admin }),
+                ),
+            )
+            .await?;
+        }
+        let user: User =
+            sqlx::query_as("SELECT id, email, is_admin, locale FROM users WHERE id = $1")
+                .bind(user_id)
+                .fetch_one(&mut *tx)
+                .await?;
+        let token = self
+            .open_session(&mut tx, user_id, now, json!({ "provider": "oidc" }))
+            .await?;
+        tx.commit().await?;
+        Ok((token, user))
     }
 
     /// The users with these ids, in no particular order; unknown ids are skipped.

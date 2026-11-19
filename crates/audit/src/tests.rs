@@ -4,6 +4,7 @@ use super::*;
 fn stored_names_match_the_serialized_ones() {
     for action in [
         Action::UserSignedIn,
+        Action::UserAdminRoleChanged,
         Action::UserSignInFailed,
         Action::UserSignedOut,
         Action::UserPasswordSet,

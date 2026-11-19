@@ -589,6 +589,25 @@ password at their next sign-in. A person who lost their phone signs in with one 
 recovery codes; if they have none left, another administrator resets their second step in
 *People*, and they set it up again. Each change is audited and the person is told by email.
 
+**Organisation sign-in (OIDC)**: configure `DONKA_OIDC_ISSUER`, `DONKA_OIDC_CLIENT_ID` and
+`DONKA_OIDC_CLIENT_SECRET` together. Store the client secret in a secret file and set
+`DONKA_OIDC_CLIENT_SECRET_FILE` in a container installation. Startup discovers the issuer and
+refuses to start if it cannot verify the provider metadata. Register this callback:
+`<DONKA_PUBLIC_URL><DONKA_API_BASE_PATH>/auth/oidc/callback` (normally
+`https://studio.example.com/api/v1/auth/oidc/callback`). Default scopes are
+`openid,profile,email`; configure `DONKA_OIDC_SCOPES` or `DONKA_OIDC_GROUP_CLAIM` for the
+provider. Set `DONKA_OIDC_ADMIN_GROUP` to map one provider group to the Studio instance
+administrator role. First sign-in links only an invited Studio account; later sign-ins follow
+the immutable provider subject if the email changes. Studio does not create accounts for other
+provider identities. Configured group membership grants or removes instance administrator at
+sign-in, and each change is audited. Project roles remain managed in Studio; the provider
+controls its own second-factor policy.
+
+To keep named break-glass password access, set `DONKA_LOCAL_SIGN_IN_ALLOWLIST` to their
+comma-separated email addresses. With OIDC configured, an empty list disables password sign-in
+for all accounts. Each listed account must complete Studio's second step even when
+`DONKA_MFA_REQUIRED` is `none`. Keep the list short and protect it as installation configuration.
+Provider errors do not expose tokens or protocol details to the sign-in page.
 ## 6. Two Runtimes or more, and a PostgreSQL of your own
 
 **Decisions do not need Studio.** A Runtime serves its releases without Studio and sends its

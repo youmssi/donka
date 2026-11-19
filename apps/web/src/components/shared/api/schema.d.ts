@@ -106,6 +106,57 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/auth/oidc/callback': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Completes OIDC after checking the one-time state, PKCE verifier and ID-token nonce. */
+    get: operations['oidc_callback'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/auth/oidc/start': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Starts an OIDC authorization-code flow with state, nonce and PKCE. */
+    get: operations['oidc_start'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/auth/oidc/status': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Whether the optional organisation sign-in is configured. */
+    get: operations['oidc_status'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/auth/password-reset': {
     parameters: {
       query?: never;
@@ -1699,6 +1750,7 @@ export interface components {
      */
     Action:
       | 'user.signed_in'
+      | 'user.admin_role_changed'
       | 'user.sign_in_failed'
       | 'user.signed_out'
       | 'user.password_set'
@@ -2373,6 +2425,9 @@ export interface components {
       major: string;
       minor: string;
       patch: string;
+    };
+    OidcStatusResponse: {
+      enabled: boolean;
     };
     OnboardingResponse: {
       /** @description Every step is done: the checklist is not shown again. */
@@ -3282,6 +3337,63 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  oidc_callback: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Redirects to Studio after sign-in */
+      303: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  oidc_start: {
+    parameters: {
+      query?: {
+        locale?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Redirects to the organisation identity provider */
+      303: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  oidc_status: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['OidcStatusResponse'];
         };
       };
     };

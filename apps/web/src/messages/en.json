@@ -139,7 +139,9 @@
     "submit": "Sign in",
     "submitting": "Signing in…",
     "forgotPassword": "Forgot your password?",
-    "signedOut": "You are signed out."
+    "signedOut": "You are signed out.",
+    "organisationSignIn": "Continue with your organisation",
+    "providerError": "Your organisation sign-in could not be completed. Try again or use an eligible local account."
   },
   "secondStep": {
     "title": "Two-step sign-in",
@@ -400,6 +402,7 @@
   "auditActions": {
     "user": {
       "signed_in": "Signed in",
+      "admin_role_changed": "Instance administrator role changed by the identity provider",
       "sign_in_failed": "Sign-in failed",
       "signed_out": "Signed out",
       "password_set": "Password set",

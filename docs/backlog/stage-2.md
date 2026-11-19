@@ -32,8 +32,8 @@ remain Phase 3). No identity provider ships with Donka; CI tests against a Keycl
 which is also the documented choice for a customer without one. Local accounts remain for a
 break-glass administrator with a second step (DNK-59).
 
-[INTERACTIVE STEP] at story start: create accounts on first sign-in from the provider, or only
-for people already invited in Studio.
+Confirmed 2026-11-19: first provider sign-in links only an account already invited in Studio.
+The provider does not provision new Studio accounts.
 
 #### Acceptance criteria
 - [ ] Issuer, client, secret, scopes and the group claim come from `DONKA_OIDC_*` configuration; a wrong issuer fails at start
