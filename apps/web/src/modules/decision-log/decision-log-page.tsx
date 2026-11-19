@@ -167,18 +167,21 @@ function TextFilters({ filters, onApply }: { filters: LogFilters; onApply: (chan
   const form = useAppForm({
     defaultValues: {
       reference: filters.reference ?? '',
+      batchId: filters.batchId ?? '',
       decision: filters.decision ?? '',
       outcome: filters.outcome ?? '',
     },
     onSubmit: ({ value }) =>
       onApply({
         reference: value.reference.trim() || undefined,
+        batchId: value.batchId.trim() || undefined,
         decision: value.decision.trim() || undefined,
         outcome: value.outcome.trim() || undefined,
       }),
   });
   const fields = [
     { name: 'reference', label: t('reference'), className: 'w-48' },
+    { name: 'batchId', label: t('batchId'), className: 'w-64' },
     { name: 'decision', label: t('decision'), className: 'w-40' },
     { name: 'outcome', label: t('outcome'), className: 'w-32' },
   ] as const;

@@ -21,6 +21,8 @@ pub(crate) struct FeedRecord {
     pub decision_key: String,
     #[serde(default)]
     pub reference: Option<String>,
+    #[serde(default)]
+    pub batch_id: Option<Uuid>,
     pub evaluated_at: DateTime<Utc>,
     pub duration_us: u64,
     pub status: Status,

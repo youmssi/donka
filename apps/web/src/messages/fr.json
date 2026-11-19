@@ -940,6 +940,7 @@
     "when": "Date",
     "decision": "Décision",
     "reference": "Référence",
+    "batchId": "ID du lot",
     "outcome": "Résultat",
     "environment": "Environnement",
     "duration": "Durée",

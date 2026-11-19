@@ -2513,6 +2513,8 @@ export interface components {
      */
     RecordStatus: 'succeeded' | 'failed';
     RecordSummaryResponse: {
+      /** Format: uuid */
+      batchId?: string | null;
       decisionKey: string;
       /**
        * Format: int64
@@ -5054,6 +5056,8 @@ export interface operations {
       query?: {
         /** @description The caller's reference (`X-Donka-Reference`), exactly. */
         reference?: string;
+        /** @description All records evaluated in this Runtime batch. */
+        batchId?: string;
         /** @description Only this decision, by key. */
         decisionKey?: string;
         /** @description Only this outcome, exactly (`error` for failed evaluations). */

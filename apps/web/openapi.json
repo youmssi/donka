@@ -2389,6 +2389,13 @@
       },
       "RecordSummaryResponse": {
         "properties": {
+          "batchId": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "decisionKey": {
             "type": "string"
           },
@@ -6568,6 +6575,16 @@
             "name": "reference",
             "required": false,
             "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "All records evaluated in this Runtime batch.",
+            "in": "query",
+            "name": "batchId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
               "type": "string"
             }
           },

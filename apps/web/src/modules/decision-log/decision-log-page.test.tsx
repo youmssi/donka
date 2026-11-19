@@ -86,15 +86,16 @@ it('lists the decisions the Runtimes made, newest first, to any member', async (
   );
 });
 
-it('searches by reference, decision and outcome through the address', async () => {
+it('searches by reference, batch, decision and outcome through the address', async () => {
   search.params = new URLSearchParams({ p: 'retail', offset: '50' });
   await renderLog();
   await screen.findByText('APP-2026-0043');
   const user = userEvent.setup();
   await user.type(screen.getByRole('textbox', { name: 'Reference' }), 'APP-2026-0043');
+  await user.type(screen.getByRole('textbox', { name: 'Batch ID' }), '2b5a7ac0-e9ce-4d93-b923-37c718b220b6');
   await user.type(screen.getByRole('textbox', { name: 'Outcome' }), 'approve{Enter}');
   expect(router.replace).toHaveBeenLastCalledWith(
-    '/projects/decision-log?p=retail&reference=APP-2026-0043&outcome=approve',
+    '/projects/decision-log?p=retail&reference=APP-2026-0043&batchId=2b5a7ac0-e9ce-4d93-b923-37c718b220b6&outcome=approve',
   );
 });
 

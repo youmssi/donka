@@ -34,6 +34,7 @@ const STATUSES: readonly RecordStatus[] = ['succeeded', 'failed'];
 /** The filters as the page's address holds them: dates are days in the viewer's time zone. */
 export interface LogFilters {
   reference?: string;
+  batchId?: string;
   decision?: string;
   outcome?: string;
   environment?: EnvironmentName;
@@ -47,6 +48,7 @@ export interface LogFilters {
 /** The API query for these filters. */
 export interface LogQuery {
   reference?: string;
+  batchId?: string;
   decisionKey?: string;
   outcome?: string;
   environment?: EnvironmentName;
@@ -58,6 +60,7 @@ export interface LogQuery {
 export function toQuery(filters: LogFilters): LogQuery {
   return {
     reference: filters.reference,
+    batchId: filters.batchId,
     decisionKey: filters.decision,
     outcome: filters.outcome,
     environment: filters.environment,
@@ -78,6 +81,7 @@ export function readFilters(params: URLSearchParams): LogFilters {
   };
   return {
     reference: text('reference'),
+    batchId: uuid(params.get('batchId')),
     decision: text('decision'),
     outcome: text('outcome'),
     environment: oneOf('environment', ENVIRONMENTS),
@@ -85,6 +89,13 @@ export function readFilters(params: URLSearchParams): LogFilters {
     from: readDay(params.get('from')),
     to: readDay(params.get('to')),
   };
+}
+
+function uuid(value: string | null): string | undefined {
+  const candidate = value?.trim();
+  return candidate && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(candidate)
+    ? candidate
+    : undefined;
 }
 
 export function isFiltered(filters: LogFilters): boolean {

@@ -30,6 +30,7 @@ Each record:
 | `environment` | `staging` \| `production` | `environment.key` of the artifact. |
 | `decisionKey` | string, 1–200 | The decision evaluated (`person-score`, `bureau/normalize`). |
 | `reference` | string, 1–200, optional | The caller's `X-Donka-Reference` (an application or customer number). |
+| `batchId` | uuid, optional | Shared by evaluations made in one Runtime batch request; Studio can filter the decision log by it. |
 | `evaluatedAt` | ISO-8601 | When the evaluation started. |
 | `durationUs` | integer | How long it took, in microseconds. |
 | `status` | `succeeded` \| `failed` | |

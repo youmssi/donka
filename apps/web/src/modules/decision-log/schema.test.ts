@@ -3,6 +3,7 @@ import { duration, fieldLines, isEmptyRange, readFilters, settingsSchema, toQuer
 it('reads the filters from the address and drops what the API would refuse', () => {
   const params = new URLSearchParams({
     reference: ' APP-1 ',
+    batchId: '2b5a7ac0-e9ce-4d93-b923-37c718b220b6',
     decision: 'person-score',
     outcome: 'approve',
     environment: 'production',
@@ -12,6 +13,7 @@ it('reads the filters from the address and drops what the API would refuse', () 
   });
   expect(readFilters(params)).toEqual({
     reference: 'APP-1',
+    batchId: '2b5a7ac0-e9ce-4d93-b923-37c718b220b6',
     decision: 'person-score',
     outcome: 'approve',
     environment: 'production',
@@ -19,8 +21,9 @@ it('reads the filters from the address and drops what the API would refuse', () 
     from: '2026-09-01',
     to: undefined,
   });
-  expect(readFilters(new URLSearchParams({ environment: 'qa', status: 'maybe' }))).toEqual({
+  expect(readFilters(new URLSearchParams({ environment: 'qa', status: 'maybe', batchId: 'nope' }))).toEqual({
     reference: undefined,
+    batchId: undefined,
     decision: undefined,
     outcome: undefined,
     environment: undefined,
@@ -34,6 +37,7 @@ it('asks the API for whole days, the last one included', () => {
   const query = toQuery({ decision: 'limit', from: '2026-09-01', to: '2026-09-02' });
   expect(query).toEqual({
     reference: undefined,
+    batchId: undefined,
     decisionKey: 'limit',
     outcome: undefined,
     environment: undefined,

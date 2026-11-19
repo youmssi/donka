@@ -113,6 +113,23 @@ export async function recordProject(admin: APIRequestContext, services: APIReque
       )
       .toBe(1);
   }
+  async function emitBatch(references: [string, string]) {
+    const response = await services.post(`${settings().runtime}/api/projects/${key}/evaluate-batch/score`, {
+      headers: { 'X-Access-Token': token.token },
+      data: { inputs: references.map((reference) => ({ input, reference })) },
+    });
+    await expect(response).toBeOK();
+    const body: { batchId: string; items: { index: number; status: number; decisionId?: string }[] } =
+      await response.json();
+    expect(body.batchId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(body.items).toMatchObject([
+      { index: 0, status: 200 },
+      { index: 1, status: 200 },
+    ]);
+    expect(body.items.every((item) => /^[0-9a-f-]{36}$/.test(item.decisionId ?? ''))).toBe(true);
+    await Promise.all(references.map(received));
+    return body;
+  }
   async function calls(decision: 'score' | 'failed' = 'score') {
     const response = await services.get(
       `${origin('DONKA_E2E_BUREAU_URL')}/calls/${key}-${decision === 'failed' ? 'failed' : 'record'}`,
@@ -126,6 +143,7 @@ export async function recordProject(admin: APIRequestContext, services: APIReque
     input,
     decision,
     emit,
+    emitBatch,
     received,
     calls,
     cleanup: async () => expect(await admin.delete(`${path}/environments/staging/tokens/${token.id}`)).toBeOK(),
