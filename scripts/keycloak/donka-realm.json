@@ -17,8 +17,8 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
-      "redirectUris": ["http://localhost:8080/api/v1/auth/oidc/callback"],
-      "webOrigins": ["http://localhost:8080"],
+      "redirectUris": ["http://localhost:8080/api/v1/auth/oidc/callback", "http://localhost:8084/api/v1/auth/oidc/callback"],
+      "webOrigins": ["http://localhost:8080", "http://localhost:8084"],
       "attributes": { "pkce.code.challenge.method": "S256" },
       "protocolMappers": [
         {
