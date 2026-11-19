@@ -50,7 +50,9 @@
           "value": "feature sso passphrase",
           "temporary": false
         }
-      ]
+      ],
+      "firstName": "Donka",
+      "lastName": "SSO"
     }
   ]
 }
