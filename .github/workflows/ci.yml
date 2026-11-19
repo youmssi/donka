@@ -292,6 +292,7 @@ jobs:
       - name: Isolated browser-test configuration
         run: |
           printf '%s\n' 'DONKA_SIGN_IN_RATE_LIMIT=100' 'DONKA_PASSWORD_RESET_RATE_LIMIT=100' > .env
+          echo '127.0.0.1 keycloak' | sudo tee -a /etc/hosts
       # Every module, valid a year, signed with the development key the CI build trusts.
       - run: scripts/dev-licence.sh .feature-licence.json
       - run: docker compose --profile full up -d
@@ -384,6 +385,7 @@ jobs:
           DONKA_E2E_ADMIN_EMAIL: admin@donka.local
           DONKA_E2E_ADMIN_PASSWORD: smoke test passphrase
           DONKA_E2E_CLI_DIR: ${{ github.workspace }}/.feature-cli
+          DONKA_E2E_OIDC: 'true'
       - name: Packaged CLI templates against real Studio
         run: node scripts/test-cli-templates.mjs
         env:

@@ -277,6 +277,21 @@ async fn main() -> anyhow::Result<()> {
     }
     let app = router(
         AppState {
+            oidc: match &config.oidc {
+                Some(settings) => {
+                    let callback = format!(
+                        "{}{}/auth/oidc/callback",
+                        config.public_url, config.api_base_path
+                    );
+                    Some(
+                        donka_app::oidc::OidcProvider::discover(settings, &callback)
+                            .await
+                            .unwrap_or_else(|_| exit_with("DONKA_OIDC_ISSUER: discovery failed")),
+                    )
+                }
+                None => None,
+            },
+            local_sign_in_allowlist: config.local_sign_in_allowlist.clone(),
             runtime,
             db,
             identity,

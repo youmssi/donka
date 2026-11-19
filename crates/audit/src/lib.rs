@@ -26,6 +26,10 @@ pub enum Action {
     #[serde(rename = "user.signed_in")]
     #[sqlx(rename = "user.signed_in")]
     UserSignedIn,
+    /// The organisation identity provider changed a person's instance role.
+    #[serde(rename = "user.admin_role_changed")]
+    #[sqlx(rename = "user.admin_role_changed")]
+    UserAdminRoleChanged,
     /// A wrong password for an existing account; `details.locked` when it locked the account.
     #[serde(rename = "user.sign_in_failed")]
     #[sqlx(rename = "user.sign_in_failed")]
@@ -230,6 +234,7 @@ impl Action {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::UserSignedIn => "user.signed_in",
+            Self::UserAdminRoleChanged => "user.admin_role_changed",
             Self::UserSignInFailed => "user.sign_in_failed",
             Self::UserSignedOut => "user.signed_out",
             Self::UserPasswordSet => "user.password_set",

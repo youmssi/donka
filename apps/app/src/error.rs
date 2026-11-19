@@ -385,6 +385,7 @@ impl From<IdentityError> for ApiError {
     fn from(err: IdentityError) -> Self {
         match err {
             IdentityError::InvalidCredentials => Self::InvalidCredentials,
+            IdentityError::OidcIdentityNotInvited => Self::InvalidCredentials,
             IdentityError::Unauthenticated => Self::Unauthenticated,
             IdentityError::InvalidSetupLink => Self::InvalidSetupLink,
             IdentityError::Forbidden => Self::Forbidden,

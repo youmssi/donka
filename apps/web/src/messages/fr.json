@@ -139,7 +139,9 @@
     "submit": "Se connecter",
     "submitting": "Connexion…",
     "forgotPassword": "Mot de passe oublié ?",
-    "signedOut": "Vous êtes déconnecté(e)."
+    "signedOut": "Vous êtes déconnecté(e).",
+    "organisationSignIn": "Continuer avec votre organisation",
+    "providerError": "La connexion de votre organisation a échoué. Réessayez ou utilisez un compte local autorisé."
   },
   "secondStep": {
     "title": "Connexion en deux étapes",
@@ -400,6 +402,7 @@
   "auditActions": {
     "user": {
       "signed_in": "Connexion",
+      "admin_role_changed": "Rôle d’administrateur de l’instance modifié par le fournisseur d’identité",
       "sign_in_failed": "Échec de connexion",
       "signed_out": "Déconnexion",
       "password_set": "Mot de passe défini",

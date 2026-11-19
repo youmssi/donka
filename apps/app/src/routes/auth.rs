@@ -4,14 +4,48 @@ use crate::error::{ApiError, ErrorBody};
 use crate::extract::ApiJson;
 use crate::rate_limit::ClientAddr;
 use crate::AppState;
-use axum::extract::State;
-use axum::http::{header, HeaderMap, StatusCode};
+use axum::extract::{Query, State};
+use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::{AppendHeaders, IntoResponse, Response};
 use axum::{Extension, Json};
 use donka_identity::{Locale, SignIn, User, MAX_PASSWORD_CHARS, MIN_PASSWORD_CHARS};
 use serde::{Deserialize, Serialize};
+use sha2::Digest;
 use utoipa::ToSchema;
 use uuid::Uuid;
+
+#[derive(Deserialize)]
+pub struct OidcStartQuery {
+    locale: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct OidcCallbackQuery {
+    code: Option<String>,
+    state: Option<String>,
+    error: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct OidcFlowCookie {
+    state: String,
+    nonce: String,
+    verifier: String,
+    locale: String,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct OidcStatusResponse {
+    pub enabled: bool,
+}
+
+/// Whether the optional organisation sign-in is configured.
+#[utoipa::path(get, path = "/auth/oidc/status", tag = "identity", responses((status = 200, body = OidcStatusResponse)))]
+pub async fn oidc_status(State(state): State<AppState>) -> Json<OidcStatusResponse> {
+    Json(OidcStatusResponse {
+        enabled: state.oidc.is_some(),
+    })
+}
 
 #[derive(Deserialize, ToSchema)]
 pub struct SignInRequest {
@@ -131,10 +165,24 @@ pub async fn sign_in(
     ApiJson(req): ApiJson<SignInRequest>,
 ) -> Result<Response, ApiError> {
     client.check(&state.auth_limits.sign_in)?;
+    if !local_sign_in_allowed(
+        state.oidc.is_some(),
+        &state.local_sign_in_allowlist,
+        &req.email,
+    ) {
+        return Err(donka_identity::IdentityError::InvalidCredentials.into());
+    }
     // Known before the password is checked, from the account the email names; an
     // unknown or malformed email takes the same path as a wrong password.
     let required = match state.identity.find_by_email(&req.email).await {
-        Ok(Some(user)) => second_step_required(&state, &user).await?,
+        Ok(Some(user)) => {
+            let break_glass = state.oidc.is_some()
+                && state
+                    .local_sign_in_allowlist
+                    .iter()
+                    .any(|email| email == &req.email.trim().to_ascii_lowercase());
+            break_glass || second_step_required(&state, &user).await?
+        }
         _ => false,
     };
     let outcome = state
@@ -152,6 +200,168 @@ pub async fn sign_in(
     })
 }
 
+/// Starts an OIDC authorization-code flow with state, nonce and PKCE.
+#[utoipa::path(get, path = "/auth/oidc/start", tag = "identity", params(("locale" = Option<String>, Query)), responses((status = 303, description = "Redirects to the organisation identity provider")))]
+pub async fn oidc_start(
+    State(state): State<AppState>,
+    client: ClientAddr,
+    Query(query): Query<OidcStartQuery>,
+) -> Result<Response, ApiError> {
+    client.check(&state.auth_limits.sign_in)?;
+    let provider = state.oidc.as_ref().ok_or(ApiError::InvalidRequest(
+        "organisation sign-in is not configured".to_owned(),
+    ))?;
+    let locale = match query.locale.as_deref() {
+        Some("fr") => "fr",
+        _ => "en",
+    };
+    let (url, csrf, nonce, verifier) = provider.authorization();
+    let cookie = OidcFlowCookie {
+        state: csrf.clone(),
+        nonce,
+        verifier,
+        locale: locale.to_owned(),
+    };
+    let value = serde_json::to_vec(&cookie).map_err(|_| ApiError::Internal("OIDC state".into()))?;
+    use base64::Engine;
+    let encoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(value);
+    let hash = sha2::Sha256::digest(csrf.as_bytes());
+    let expires = chrono::Utc::now() + chrono::Duration::minutes(5);
+    sqlx::query("DELETE FROM oidc_login_states WHERE expires_at <= $1")
+        .bind(chrono::Utc::now())
+        .execute(&state.db)
+        .await
+        .map_err(|_| ApiError::Internal("OIDC state".into()))?;
+    sqlx::query("INSERT INTO oidc_login_states (state_hash, expires_at) VALUES ($1, $2)")
+        .bind(hash.as_slice())
+        .bind(expires)
+        .execute(&state.db)
+        .await
+        .map_err(|_| ApiError::Internal("OIDC state".into()))?;
+    let secure = if state.cookies.secure { "; Secure" } else { "" };
+    let set_cookie =
+        format!("DonkaOidcFlow={encoded}; HttpOnly; SameSite=Lax; Path=/; Max-Age=300{secure}");
+    Ok((
+        StatusCode::SEE_OTHER,
+        [(header::LOCATION, url), (header::SET_COOKIE, set_cookie)],
+    )
+        .into_response())
+}
+
+/// Completes OIDC after checking the one-time state, PKCE verifier and ID-token nonce.
+#[utoipa::path(get, path = "/auth/oidc/callback", tag = "identity", responses((status = 303, description = "Redirects to Studio after sign-in")))]
+pub async fn oidc_callback(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<OidcCallbackQuery>,
+) -> Response {
+    let cookie_value = headers
+        .get(header::COOKIE)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|cookies| {
+            cookies
+                .split(';')
+                .map(str::trim)
+                .find_map(|cookie| cookie.strip_prefix("DonkaOidcFlow="))
+        });
+    let flow = cookie_value
+        .and_then(|value| {
+            use base64::Engine;
+            base64::engine::general_purpose::URL_SAFE_NO_PAD
+                .decode(value)
+                .ok()
+        })
+        .and_then(|bytes| serde_json::from_slice::<OidcFlowCookie>(&bytes).ok());
+    let locale = flow
+        .as_ref()
+        .map(|flow| if flow.locale == "fr" { "fr" } else { "en" })
+        .unwrap_or("en")
+        .to_owned();
+    let failure = || oidc_redirect(&locale, true, state.cookies.secure);
+    let (Some(flow), Some(returned_state), Some(code), Some(provider)) =
+        (flow, query.state, query.code, state.oidc.as_ref())
+    else {
+        tracing::warn!("OIDC callback could not be completed");
+        return failure();
+    };
+    if query.error.is_some() || returned_state != flow.state {
+        tracing::warn!("OIDC provider rejected or mismatched the sign-in flow");
+        return failure();
+    }
+    let hash = sha2::Sha256::digest(returned_state.as_bytes());
+    let consumed = sqlx::query_scalar::<_, Vec<u8>>(
+        "DELETE FROM oidc_login_states WHERE state_hash = $1 AND expires_at > $2 RETURNING state_hash",
+    )
+    .bind(hash.as_slice())
+    .bind(chrono::Utc::now())
+    .fetch_optional(&state.db)
+    .await;
+    if !matches!(consumed, Ok(Some(_))) {
+        tracing::warn!("OIDC callback state was expired or already used");
+        return failure();
+    }
+    let person = match provider.authenticate(code, flow.nonce, flow.verifier).await {
+        Ok(person) => person,
+        Err(_) => {
+            tracing::warn!("OIDC provider response could not be verified");
+            return failure();
+        }
+    };
+    let admin = provider.administrator_role(&person.groups);
+    let (token, _) = match state
+        .identity
+        .sign_in_oidc(&person.issuer, &person.subject, &person.email, admin)
+        .await
+    {
+        Ok(session) => session,
+        Err(_) => {
+            tracing::warn!("OIDC identity has no eligible invited Studio account");
+            return failure();
+        }
+    };
+    let secure = if state.cookies.secure { "; Secure" } else { "" };
+    let session_cookie = state.cookies.session(token.expose());
+    let clear_flow = format!("DonkaOidcFlow=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0{secure}");
+    let mut response = (
+        StatusCode::SEE_OTHER,
+        [(header::LOCATION, format!("/{locale}/"))],
+    )
+        .into_response();
+    let Ok(clear_flow) = HeaderValue::from_str(&clear_flow) else {
+        return failure();
+    };
+    response
+        .headers_mut()
+        .append(header::SET_COOKIE, session_cookie);
+    response
+        .headers_mut()
+        .append(header::SET_COOKIE, clear_flow);
+    response
+}
+
+fn oidc_redirect(locale: &str, failed: bool, secure: bool) -> Response {
+    let suffix = if failed { "?oidc=error" } else { "" };
+    let secure = if secure { "; Secure" } else { "" };
+    let clear = format!("DonkaOidcFlow=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0{secure}");
+    let mut response = (
+        StatusCode::SEE_OTHER,
+        [(header::LOCATION, format!("/{locale}/sign-in{suffix}"))],
+    )
+        .into_response();
+    if let Ok(value) = HeaderValue::from_str(&clear) {
+        response.headers_mut().append(header::SET_COOKIE, value);
+    }
+    response
+}
+
+fn local_sign_in_allowed(oidc_configured: bool, allowlist: &[String], email: &str) -> bool {
+    if allowlist.is_empty() {
+        return !oidc_configured;
+    }
+    allowlist
+        .iter()
+        .any(|allowed| allowed == &email.trim().to_ascii_lowercase())
+}
 fn second_step(
     state: &AppState,
     pending: &donka_identity::IssuedToken,
@@ -344,4 +554,26 @@ pub async fn password_reset(
     client.check(&state.auth_limits.password_reset)?;
     state.identity.request_password_reset(&req.email).await?;
     Ok(StatusCode::ACCEPTED)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::local_sign_in_allowed;
+
+    #[test]
+    fn local_password_sign_in_is_closed_by_default_when_oidc_is_configured() {
+        assert!(local_sign_in_allowed(false, &[], "owner@example.test"));
+        assert!(!local_sign_in_allowed(true, &[], "owner@example.test"));
+        let allowlist = vec!["owner@example.test".to_owned()];
+        assert!(local_sign_in_allowed(
+            true,
+            &allowlist,
+            " OWNER@example.test "
+        ));
+        assert!(!local_sign_in_allowed(
+            true,
+            &allowlist,
+            "other@example.test"
+        ));
+    }
 }

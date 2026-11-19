@@ -109,6 +109,33 @@ pub struct Config {
     /// The release feed Studio checks once a day for a newer Donka (DNK-64); `None` with
     /// `DONKA_UPDATE_CHECK=false`, for installations without internet access.
     pub update_check_url: Option<String>,
+    /// Optional organisation OpenID Connect provider (DNK-60).
+    pub oidc: Option<OidcSettings>,
+    /// When set, only these accounts may use local password sign-in (break-glass access).
+    pub local_sign_in_allowlist: Vec<String>,
+}
+
+#[derive(Clone, PartialEq)]
+pub struct OidcSettings {
+    pub issuer_url: String,
+    pub client_id: String,
+    pub client_secret: String,
+    pub scopes: Vec<String>,
+    pub group_claim: String,
+    pub administrator_group: Option<String>,
+}
+
+impl std::fmt::Debug for OidcSettings {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OidcSettings")
+            .field("issuer_url", &self.issuer_url)
+            .field("client_id", &self.client_id)
+            .field("client_secret", &"[redacted]")
+            .field("scopes", &self.scopes)
+            .field("group_claim", &self.group_claim)
+            .field("administrator_group", &self.administrator_group)
+            .finish()
+    }
 }
 
 /// Who must sign in with a second step (DNK-59). Anyone may turn one on.
@@ -122,7 +149,7 @@ pub enum MfaRequired {
 
 /// Settings that hold a secret, each with the setting naming a file that holds it instead
 /// (`X_FILE`): Docker and Kubernetes secrets, and vault agents, deliver secrets as files.
-pub const SECRET_SETTINGS: [(&str, &str); 11] = [
+pub const SECRET_SETTINGS: [(&str, &str); 12] = [
     ("DATABASE_URL", "DATABASE_URL_FILE"),
     ("DONKA_SMTP_URL", "DONKA_SMTP_URL_FILE"),
     (
@@ -140,6 +167,7 @@ pub const SECRET_SETTINGS: [(&str, &str); 11] = [
     ),
     ("DONKA_PERSON_INDEX_KEY", "DONKA_PERSON_INDEX_KEY_FILE"),
     ("DONKA_SECOND_STEP_KEY", "DONKA_SECOND_STEP_KEY_FILE"),
+    ("DONKA_OIDC_CLIENT_SECRET", "DONKA_OIDC_CLIENT_SECRET_FILE"),
     (
         "DONKA_SECOND_STEP_PREVIOUS_KEYS",
         "DONKA_SECOND_STEP_PREVIOUS_KEYS_FILE",
@@ -285,6 +313,13 @@ impl Config {
         };
 
         let explain = explain_settings(&get)?;
+        let oidc = oidc_settings(&get)?;
+        let local_sign_in_allowlist = get("DONKA_LOCAL_SIGN_IN_ALLOWLIST")
+            .unwrap_or_default()
+            .split(',')
+            .map(|email| email.trim().to_ascii_lowercase())
+            .filter(|email| !email.is_empty())
+            .collect();
 
         Ok(Self {
             listen,
@@ -349,8 +384,61 @@ impl Config {
             } else {
                 None
             },
+            oidc,
+            local_sign_in_allowlist,
         })
     }
+}
+
+fn oidc_settings(
+    get: &impl Fn(&str) -> Option<String>,
+) -> Result<Option<OidcSettings>, ConfigError> {
+    let issuer = get("DONKA_OIDC_ISSUER").filter(|value| !value.trim().is_empty());
+    let client_id = get("DONKA_OIDC_CLIENT_ID").filter(|value| !value.trim().is_empty());
+    let client_secret = get("DONKA_OIDC_CLIENT_SECRET").filter(|value| !value.trim().is_empty());
+    if issuer.is_none() && client_id.is_none() && client_secret.is_none() {
+        return Ok(None);
+    }
+    let issuer_url = issuer
+        .ok_or_else(|| invalid("DONKA_OIDC_ISSUER", "is required when OIDC is configured"))?;
+    let client_id = client_id.ok_or_else(|| {
+        invalid(
+            "DONKA_OIDC_CLIENT_ID",
+            "is required when OIDC is configured",
+        )
+    })?;
+    let client_secret = client_secret.ok_or_else(|| {
+        invalid(
+            "DONKA_OIDC_CLIENT_SECRET",
+            "is required when OIDC is configured",
+        )
+    })?;
+    let parsed = reqwest::Url::parse(&issuer_url)
+        .map_err(|_| invalid("DONKA_OIDC_ISSUER", "must be a valid HTTPS issuer URL"))?;
+    let allow_http = boolean(get, "DONKA_OIDC_ALLOW_HTTP", false)?;
+    if parsed.scheme() != "https" && parsed.host_str() != Some("localhost") && !allow_http {
+        return Err(invalid(
+            "DONKA_OIDC_ISSUER",
+            "must use HTTPS (HTTP is allowed for localhost or explicit development configuration)",
+        ));
+    }
+    let scopes = get("DONKA_OIDC_SCOPES")
+        .unwrap_or_else(|| "openid,profile,email".to_owned())
+        .split(',')
+        .map(str::trim)
+        .filter(|scope| !scope.is_empty())
+        .map(str::to_owned)
+        .collect();
+    Ok(Some(OidcSettings {
+        issuer_url,
+        client_id,
+        client_secret,
+        scopes,
+        group_claim: get("DONKA_OIDC_GROUP_CLAIM")
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| "groups".to_owned()),
+        administrator_group: get("DONKA_OIDC_ADMIN_GROUP").filter(|value| !value.trim().is_empty()),
+    }))
 }
 
 /// `DONKA_ARTIFACT_SIGNING_KEY`: `keyId=<base64 of the 32-byte Ed25519 seed>`
@@ -719,6 +807,34 @@ mod tests {
         assert_eq!(config.email_max_attempts, 10);
         assert_eq!(config.web_dir, None);
         assert_eq!(config.decision_log_retention_days, 1825);
+        assert!(config.oidc.is_none());
+        assert!(config.local_sign_in_allowlist.is_empty());
+    }
+
+    #[test]
+    fn oidc_requires_complete_credentials_and_redacts_its_secret() {
+        assert_eq!(
+            load(&[("DONKA_OIDC_ISSUER", "https://id.example.test")])
+                .unwrap_err()
+                .var,
+            "DONKA_OIDC_CLIENT_ID"
+        );
+        let config = load(&[
+            ("DONKA_OIDC_ISSUER", "https://id.example.test/realm"),
+            ("DONKA_OIDC_CLIENT_ID", "donka"),
+            ("DONKA_OIDC_CLIENT_SECRET", "never-print-this"),
+            ("DONKA_OIDC_ADMIN_GROUP", "studio-admins"),
+            ("DONKA_LOCAL_SIGN_IN_ALLOWLIST", " Admin@bank.example, "),
+        ])
+        .unwrap();
+        let oidc = config.oidc.unwrap();
+        assert_eq!(oidc.scopes, vec!["openid", "profile", "email"]);
+        assert_eq!(oidc.administrator_group.as_deref(), Some("studio-admins"));
+        assert!(!format!("{oidc:?}").contains("never-print-this"));
+        assert_eq!(
+            config.local_sign_in_allowlist,
+            vec!["admin@bank.example".to_owned()]
+        );
     }
 
     #[test]

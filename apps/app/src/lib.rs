@@ -14,6 +14,7 @@ pub mod index_people;
 pub mod install;
 pub mod licence;
 pub mod load;
+pub mod oidc;
 pub mod publish_worker;
 pub mod purge_worker;
 pub mod rate_limit;
@@ -200,6 +201,10 @@ pub struct AppState {
     /// The installation's public URL (`DONKA_PUBLIC_URL`); HSTS is sent only
     /// when it is HTTPS (DNK-85).
     pub public_url: String,
+    /// Discovered organisation OIDC provider, when configured (DNK-60).
+    pub oidc: Option<oidc::OidcProvider>,
+    /// Named accounts allowed to use local passwords when the list is configured.
+    pub local_sign_in_allowlist: Vec<String>,
 }
 
 #[derive(OpenApi)]
@@ -220,6 +225,9 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
         .routes(routes!(routes::health::ready))
         .routes(routes!(routes::health::version))
         .routes(routes!(routes::auth::sign_in))
+        .routes(routes!(routes::auth::oidc_start))
+        .routes(routes!(routes::auth::oidc_callback))
+        .routes(routes!(routes::auth::oidc_status))
         .routes(routes!(routes::auth::sign_in_code))
         .routes(routes!(routes::auth::sign_in_enrolment))
         .routes(routes!(routes::auth::sign_in_enrolment_confirm))

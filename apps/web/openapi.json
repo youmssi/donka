@@ -98,6 +98,7 @@
         "description": "Every kind of state change. The stored text is part of the audit record:\nnever rename a value, only add new ones.",
         "enum": [
           "user.signed_in",
+          "user.admin_role_changed",
           "user.sign_in_failed",
           "user.signed_out",
           "user.password_set",
@@ -1974,6 +1975,17 @@
           "major",
           "minor",
           "patch"
+        ],
+        "type": "object"
+      },
+      "OidcStatusResponse": {
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
         ],
         "type": "object"
       },
@@ -4195,6 +4207,65 @@
           }
         },
         "summary": "The signed-in user.",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/auth/oidc/callback": {
+      "get": {
+        "operationId": "oidc_callback",
+        "responses": {
+          "303": {
+            "description": "Redirects to Studio after sign-in"
+          }
+        },
+        "summary": "Completes OIDC after checking the one-time state, PKCE verifier and ID-token nonce.",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/auth/oidc/start": {
+      "get": {
+        "operationId": "oidc_start",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "locale",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "Redirects to the organisation identity provider"
+          }
+        },
+        "summary": "Starts an OIDC authorization-code flow with state, nonce and PKCE.",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/auth/oidc/status": {
+      "get": {
+        "operationId": "oidc_status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OidcStatusResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Whether the optional organisation sign-in is configured.",
         "tags": [
           "identity"
         ]
