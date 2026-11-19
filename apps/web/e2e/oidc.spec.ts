@@ -27,7 +27,7 @@ test('an invited person signs in through Keycloak and receives an ordinary Studi
   await page.getByRole('link', { name: m.signIn.organisationSignIn, exact: true }).click();
   await expect(page).toHaveURL(/keycloak:8180\/realms\/donka\/protocol\/openid-connect\/auth/);
   await page.getByLabel('Username or email').fill(email);
-  await page.getByLabel('Password').fill('feature sso passphrase');
+  await page.locator('#password').fill('feature sso passphrase');
   await page.getByRole('button', { name: 'Sign In', exact: true }).click();
 
   await expect(page).toHaveURL(new RegExp(`/${appLocale}/?$`));
