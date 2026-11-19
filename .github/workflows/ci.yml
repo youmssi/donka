@@ -307,6 +307,8 @@ jobs:
           curl -sS --fail-with-body -X POST localhost:8080/api/v1/auth/password-setup \
             -H 'content-type: application/json' -H 'x-donka-csrf: 1' \
             --data "{\"token\": \"$token\", \"password\": \"smoke test passphrase\"}"
+      - name: Start isolated OIDC Studio
+        run: docker compose --profile full --profile oidc up -d --wait app-oidc
       - name: Disposable Runtime feed and explanation instance
         run: |
           bash scripts/configure-feature-runtime.sh
@@ -386,6 +388,7 @@ jobs:
           DONKA_E2E_ADMIN_PASSWORD: smoke test passphrase
           DONKA_E2E_CLI_DIR: ${{ github.workspace }}/.feature-cli
           DONKA_E2E_OIDC: 'true'
+          DONKA_E2E_OIDC_BASE_URL: http://localhost:8084
       - name: Packaged CLI templates against real Studio
         run: node scripts/test-cli-templates.mjs
         env:

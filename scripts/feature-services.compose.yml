@@ -33,14 +33,26 @@ services:
     environment:
       DONKA_LICENCE_FILE: /etc/donka/licence.json
       DONKA_UPDATE_CHECK_URL: http://feature-releases:8101/releases/latest
+    volumes: ['./.feature-licence.json:/etc/donka/licence.json:ro']
+    depends_on:
+      feature-releases: { condition: service_started }
+      keycloak: { condition: service_healthy }
+  app-oidc:
+    # Isolate the provider-enabled application from workflows that exercise local admin login.
+    profiles: [oidc]
+    extends:
+      file: docker-compose.yml
+      service: app
+    environment:
+      DONKA_PUBLIC_URL: http://localhost:8084
       DONKA_OIDC_ISSUER: http://keycloak:8180/realms/donka
       DONKA_OIDC_CLIENT_ID: donka-studio
       DONKA_OIDC_CLIENT_SECRET: feature-oidc-client-secret
       DONKA_OIDC_ADMIN_GROUP: studio-admins
       DONKA_OIDC_ALLOW_HTTP: 'true'
-    volumes: ['./.feature-licence.json:/etc/donka/licence.json:ro']
+    ports: !override ['127.0.0.1:8084:8080']
     depends_on:
-      feature-releases: { condition: service_started }
+      app: { condition: service_started }
       keycloak: { condition: service_healthy }
   # The release feed Studio checks for a newer Donka (DNK-64), announcing 99.0.0.
   feature-releases:
