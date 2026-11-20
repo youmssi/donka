@@ -19,7 +19,8 @@
   "baseline": {
     "measured": "Runtime: CI runs from 2026-11-05 to 2026-11-20 for the Intel 8573C, AMD 9V74 and AMD 9V45 profiles, each a mean over every collected run on that model; AMD 7763 from 2026-10-31 to 2026-11-05, independently confirmed within 3.2% of its 30-run mean on 2026-11-20",
     "runtime": {
-      "method": "mean of the historical maximum-throughput result of each CI run on the CPU model, over every run whose samples had no request errors; compare current three-window medians; no cross-model averaging. Run-to-run spread on one model is 3-12% relative standard deviation, so a single observation is not a baseline",
+      "margin": 0.3,
+      "method": "mean of the historical maximum-throughput result of each CI run on the CPU model, over every run whose samples had no request errors; compare current three-window medians; no cross-model averaging. Measured run-to-run spread on one model is 3 to 12% relative standard deviation: a single observation is not a baseline, and a 20% floor sat under two standard deviations and failed runs that had no error, so the throughput margin here is 30%. Studio latency keeps the shared 20% margin in the top-level margin field",
       "profiles": [
         {
           "machine": {

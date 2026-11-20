@@ -16,7 +16,7 @@ le mesurer sur vos propres serveurs. Les objectifs et la référence sont dans
 | Studio arrêté, dans la file du Runtime | aucune décision en échec, aucun enregistrement perdu |
 | Studio arrêté, au-delà de la file | aucune décision en échec ; les enregistrements abandonnés sont comptés dans le journal du Runtime |
 | Recherche et rejeu du journal dans Studio | p95 1 s et 2 s sur l'échantillon documenté |
-| Régression | débit maximal Runtime inférieur de plus de 20 % à la référence du même modèle de processeur, ou p95 global Studio supérieur de plus de 20 % (au moins 10 ms) à sa référence, fait échouer la CI |
+| Régression | débit maximal Runtime inférieur de plus de 30 % à la référence du même modèle de processeur, ou p95 global Studio supérieur de plus de 20 % (au moins 10 ms) à sa référence, fait échouer la CI |
 
 La latence est mesurée à partir du moment où chaque requête était prévue, pas de celui où elle
 est partie : un Runtime lent ne peut pas masquer sa propre file d'attente.
@@ -44,7 +44,14 @@ La CI courte mesure désormais le débit maximal dans **trois fenêtres distinct
 chacune précédée de 3 secondes de chauffe et utilisant 32 appelants simultanés.
 `maximum.throughput` est la médiane des trois débits ; tous les rapports restent dans l'artefact
 `performance.json`. Toute erreur ou requête sans réponse dans une fenêtre fait échouer le contrôle.
-La marge de 20 % reste inchangée.
+
+La marge de débit est de **30 %**, dans `baseline.runtime.margin` ; la latence Studio conserve
+les 20 % du champ `margin` de premier niveau. L'écart mesuré d'une exécution à l'autre sur un même
+modèle de processeur est de 3 à 12 % d'écart-type relatif : un plancher à 20 % restait donc sous
+deux écarts-types. Rejoué sur les 70 exécutions enregistrées sur un processeur profilé, 20 % en
+faisait échouer quatre, chacune **sans aucune** erreur de requête, alors que 30 % est la plus
+petite marge où les 70 passent (25 % en laisse une). Une erreur, une requête sans réponse ou un
+nombre de fenêtres différent de trois fait toujours échouer le contrôle, quelle que soit la marge.
 
 Le 20 novembre 2026, les références des Intel 8573C, AMD 9V74 et AMD 9V45 ont été reconstruites
 comme la moyenne de toutes les exécutions CI enregistrées sur chaque modèle, car chacune reposait
