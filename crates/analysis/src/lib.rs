@@ -174,6 +174,16 @@ pub struct Analysis {
     max_records: usize,
 }
 
+struct JobExecution {
+    id: Uuid,
+    access: Access,
+    release_id: Uuid,
+    production_id: Option<Uuid>,
+    decision_key: String,
+    from: DateTime<Utc>,
+    until: DateTime<Utc>,
+}
+
 impl Analysis {
     pub fn new(
         pool: PgPool,
@@ -246,18 +256,17 @@ impl Analysis {
         tx.commit().await?;
 
         let this = self.clone();
-        let access = *access;
+        let execution = JobExecution {
+            id,
+            access: *access,
+            release_id: review.approval.release_id,
+            production_id: production,
+            decision_key,
+            from,
+            until,
+        };
         task::spawn(async move {
-            this.execute(
-                id,
-                access,
-                review.approval.release_id,
-                production,
-                decision_key,
-                from,
-                until,
-            )
-            .await;
+            this.execute(execution).await;
         });
         Ok(Job {
             id,
@@ -334,35 +343,16 @@ impl Analysis {
         self.get(access, id).await
     }
 
-    async fn execute(
-        &self,
-        id: Uuid,
-        access: Access,
-        release_id: Uuid,
-        production_id: Option<Uuid>,
-        decision_key: String,
-        from: DateTime<Utc>,
-        until: DateTime<Utc>,
-    ) {
-        let result = self
-            .execute_inner(
-                id,
-                &access,
-                release_id,
-                production_id,
-                &decision_key,
-                from,
-                until,
-            )
-            .await;
+    async fn execute(&self, execution: JobExecution) {
+        let result = self.execute_inner(&execution).await;
         if let Err(error) = result {
-            tracing::error!(job_id=%id, error=%error, "decision analysis job failed");
+            tracing::error!(job_id=%execution.id, error=%error, "decision analysis job failed");
             if let Ok(mut tx) = self.pool.begin().await {
                 let records_read = sqlx::query_scalar::<_, i32>(
                     "UPDATE analysis_jobs SET status='failed', finished_at=now() \
                      WHERE id=$1 AND status IN ('queued','running') RETURNING records_read",
                 )
-                .bind(id)
+                .bind(execution.id)
                 .fetch_optional(&mut *tx)
                 .await;
                 if let Ok(Some(records_read)) = records_read {
@@ -370,12 +360,12 @@ impl Analysis {
                         &mut tx,
                         Event::new(
                             Utc::now(),
-                            Some(access.user_id()),
+                            Some(execution.access.user_id()),
                             Action::AnalysisRunCompleted,
                         )
-                        .in_project(access.project_id())
+                        .in_project(execution.access.project_id())
                         .with_details(
-                            json!({"jobId":id,"recordsRead":records_read,"status":"failed"}),
+                            json!({"jobId":execution.id,"recordsRead":records_read,"status":"failed"}),
                         ),
                     )
                     .await;
@@ -385,16 +375,9 @@ impl Analysis {
         }
     }
 
-    async fn execute_inner(
-        &self,
-        id: Uuid,
-        access: &Access,
-        release_id: Uuid,
-        production_id: Option<Uuid>,
-        decision_key: &str,
-        from: DateTime<Utc>,
-        until: DateTime<Utc>,
-    ) -> Result<(), AnalysisError> {
+    async fn execute_inner(&self, execution: &JobExecution) -> Result<(), AnalysisError> {
+        let id = execution.id;
+        let access = &execution.access;
         loop {
             if is_cancelled(&self.pool, id).await? {
                 let mut tx = self.pool.begin().await?;
@@ -426,16 +409,7 @@ impl Analysis {
             }
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         }
-        self.execute_claimed(
-            id,
-            access,
-            release_id,
-            production_id,
-            decision_key,
-            from,
-            until,
-        )
-        .await
+        self.execute_claimed(execution).await
     }
 
     /// Claims the project's single analysis slot without holding a database connection while
@@ -490,16 +464,14 @@ impl Analysis {
         Ok(claimed.rows_affected() > 0)
     }
 
-    async fn execute_claimed(
-        &self,
-        id: Uuid,
-        access: &Access,
-        release_id: Uuid,
-        production_id: Option<Uuid>,
-        decision_key: &str,
-        from: DateTime<Utc>,
-        until: DateTime<Utc>,
-    ) -> Result<(), AnalysisError> {
+    async fn execute_claimed(&self, execution: &JobExecution) -> Result<(), AnalysisError> {
+        let id = execution.id;
+        let access = &execution.access;
+        let release_id = execution.release_id;
+        let production_id = execution.production_id;
+        let decision_key = execution.decision_key.as_str();
+        let from = execution.from;
+        let until = execution.until;
         let contents = self.releases.contents(access, release_id).await?;
         let candidate = contents
             .get(decision_key)
