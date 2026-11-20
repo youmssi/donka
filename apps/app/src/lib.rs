@@ -36,6 +36,7 @@ use axum::http::header::{
 };
 use axum::routing::get;
 use axum::{middleware, Json, Router};
+use donka_analysis::Analysis;
 use donka_audit::AuditLog;
 use donka_db::PgPool;
 use donka_decision::Decisions;
@@ -178,6 +179,7 @@ pub struct AppState {
     pub decisions: Decisions,
     pub releases: Releases,
     pub decision_log: DecisionLog,
+    pub analysis: Analysis,
     /// Explains logged decisions; `None` when the installation does not (DNK-19).
     pub explainer: Option<donka_explain::Explainer>,
     pub audit: AuditLog,
@@ -328,6 +330,11 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
         .routes(routes!(routes::decision_log::get))
         .routes(routes!(routes::decision_log::replay))
         .routes(routes!(routes::decision_log::explain))
+        .routes(routes!(
+            routes::analysis::start,
+            routes::analysis::latest_for_approval
+        ))
+        .routes(routes!(routes::analysis::get, routes::analysis::cancel))
         .routes(routes!(routes::rights::search))
         .routes(routes!(routes::rights::report))
         .routes(routes!(routes::rights::anonymise))

@@ -386,6 +386,14 @@ fn assemble_full(
         runtime.clone(),
         chrono::Duration::days(RETENTION_DAYS),
     );
+    let analysis = donka_analysis::Analysis::new(
+        db.clone(),
+        decision_log.clone(),
+        releases.clone(),
+        runtime.clone(),
+        true,
+        10_000,
+    );
     let packs = donka_pack::Packs::new(
         db.clone(),
         clock.clone(),
@@ -406,6 +414,7 @@ fn assemble_full(
             decisions,
             releases: releases.clone(),
             decision_log: decision_log.clone(),
+            analysis,
             explainer,
             audit,
             packs: packs.clone(),

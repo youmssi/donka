@@ -810,6 +810,19 @@ impl DecisionLog {
             .bind(before.to_rfc3339())
             .execute(&mut *tx)
             .await?;
+        // Analysis results retain changed record IDs only. Remove those references before a
+        // partition is dropped or its boundary records are deleted.
+        sqlx::query(
+            "DELETE FROM analysis_jobs jobs WHERE jobs.id IN ( \
+                 SELECT refs.job_id FROM analysis_job_records refs \
+                 JOIN decision_records records ON records.id = refs.record_id \
+                    AND records.evaluated_at = refs.evaluated_at \
+                 WHERE records.evaluated_at < $1 \
+             )",
+        )
+        .bind(before)
+        .execute(&mut *tx)
+        .await?;
         // What belongs to the records going goes with them: their people index rows and
         // contests (neither references the partitioned table).
         for table in ["decision_record_people", "decision_contests"] {

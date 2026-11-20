@@ -155,7 +155,9 @@
           "ci_token.revoked",
           "installation.set_up",
           "installation.organisation_renamed",
-          "installation.modules_changed"
+          "installation.modules_changed",
+          "analysis.run_started",
+          "analysis.run_completed"
         ],
         "type": "string"
       },
@@ -1616,6 +1618,37 @@
           }
         ]
       },
+      "Job": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "recordsRead": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "result": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ResultSummary"
+              }
+            ]
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "recordsRead"
+        ],
+        "type": "object"
+      },
       "LicenceRefusal": {
         "description": "Why a licence file was refused.",
         "enum": [
@@ -2746,6 +2779,80 @@
         ],
         "type": "object"
       },
+      "ResultSummary": {
+        "description": "Persistable result. Record identifiers are the only record-level data retained.",
+        "properties": {
+          "after": {
+            "additionalProperties": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "before": {
+            "additionalProperties": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "recordsAvailable": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "recordsCompared": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "recordsRead": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "transitions": {
+            "items": {
+              "$ref": "#/components/schemas/TransitionCell"
+            },
+            "type": "array"
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "uncomparable": {
+            "additionalProperties": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "propertyNames": {
+              "description": "Why a production record could not be compared.",
+              "enum": [
+                "connectorNotPreviouslyCalled",
+                "contractRejected",
+                "evaluationError",
+                "timeDependentExpression"
+              ],
+              "type": "string"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "recordsRead",
+          "recordsAvailable",
+          "truncated",
+          "recordsCompared",
+          "before",
+          "after",
+          "transitions",
+          "uncomparable"
+        ],
+        "type": "object"
+      },
       "RetentionRuleListResponse": {
         "properties": {
           "items": {
@@ -3144,6 +3251,27 @@
           "result",
           "trace",
           "performance"
+        ],
+        "type": "object"
+      },
+      "StartAnalysisBody": {
+        "properties": {
+          "decisionKey": {
+            "type": "string"
+          },
+          "from": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "until": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decisionKey",
+          "from",
+          "until"
         ],
         "type": "object"
       },
@@ -3805,6 +3933,35 @@
         },
         "required": [
           "seen"
+        ],
+        "type": "object"
+      },
+      "TransitionCell": {
+        "description": "One table cell and the records that moved through it.",
+        "properties": {
+          "after": {
+            "type": "string"
+          },
+          "before": {
+            "type": "string"
+          },
+          "count": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "records": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "before",
+          "after",
+          "count",
+          "records"
         ],
         "type": "object"
       },
@@ -5627,6 +5784,108 @@
         ]
       }
     },
+    "/projects/{project_id}/analysis/{job_id}": {
+      "get": {
+        "operationId": "get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Reads progress and aggregates for an analysis in this project.",
+        "tags": [
+          "analysis"
+        ]
+      }
+    },
+    "/projects/{project_id}/analysis/{job_id}/cancel": {
+      "post": {
+        "operationId": "cancel",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": ""
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "summary": "Requests cancellation of a queued or running analysis.",
+        "tags": [
+          "analysis"
+        ]
+      }
+    },
     "/projects/{project_id}/approvals": {
       "get": {
         "operationId": "list",
@@ -5818,6 +6077,143 @@
         "summary": "One request with what it would change in production and its test results (any member).",
         "tags": [
           "approvals"
+        ]
+      }
+    },
+    "/projects/{project_id}/approvals/{approval_id}/analysis": {
+      "get": {
+        "operationId": "latest_for_approval",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "approval_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Job"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Only project owners may view results"
+          }
+        },
+        "summary": "Returns the most recent run for an approval, if one exists.",
+        "tags": [
+          "analysis"
+        ]
+      },
+      "post": {
+        "operationId": "start",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "approval_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartAnalysisBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Only project owners can start analyses"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Approval or decision not found"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Analysis is disabled"
+          }
+        },
+        "summary": "Queues a bounded comparison of production records against a pending approval's release.",
+        "tags": [
+          "analysis"
         ]
       }
     },

@@ -101,7 +101,9 @@
     "CONTEST_REVIEWED": "This contest has already been reviewed.",
     "ALREADY_SET_UP": "This installation is already set up.",
     "NOT_SET_UP": "Finish setting up the installation first.",
-    "MODULE_OFF": "This module is turned off on this installation. An operator can turn it on again; its data is kept."
+    "MODULE_OFF": "This module is turned off on this installation. An operator can turn it on again; its data is kept.",
+    "ANALYSIS_DISABLED": "Decision analysis is disabled on this installation.",
+    "ANALYSIS_OUTCOME_UNCONFIGURED": "Choose an outcome field in decision-log settings before running an analysis."
   },
   "validation": {
     "email": "Enter a valid email address.",
@@ -453,6 +455,10 @@
       "approved": "Production approved",
       "rejected": "Production rejected",
       "withdrawn": "Request withdrawn"
+    },
+    "analysis": {
+      "run_started": "Outcome analysis started",
+      "run_completed": "Outcome analysis completed"
     },
     "decision_record": {
       "viewed": "Decision record opened",
@@ -854,6 +860,40 @@
       "narrowed": "accepts fewer values",
       "widened": "accepts more values",
       "presentation": "label, help or personal-data mark changed"
+    },
+    "analysis": {
+      "title": "Recorded decisions analysis",
+      "description": "Compare production decisions with this proposed release over a date range.",
+      "limitation": "Past declines have no repayment history here. This summary measures volume and outcome mix; it does not measure risk or prove fairness.",
+      "decision": "Decision",
+      "from": "From",
+      "until": "Until",
+      "run": "Run analysis",
+      "cancel": "Cancel analysis",
+      "result": "Analysis result",
+      "status": {
+        "queued": "Queued",
+        "running": "Running",
+        "succeeded": "Complete",
+        "cancelled": "Cancelled",
+        "failed": "Failed"
+      },
+      "recordsRead": "{count} production records read",
+      "recordsCompared": "{count} decisions compared",
+      "limitReached": "The configured record limit was reached; results are partial.",
+      "empty": "No production records matched this period.",
+      "before": "Production outcome mix",
+      "after": "Proposed outcome mix",
+      "transitionTable": "Outcome transitions",
+      "count": "Count",
+      "changedRecords": "Changed record IDs",
+      "uncomparable": "Could not compare",
+      "reason": {
+        "connectorNotPreviouslyCalled": "The proposed release needs a connector that was not called in the recorded decision.",
+        "contractRejected": "The proposed release rejected the recorded input contract.",
+        "evaluationError": "The proposed release could not evaluate the recorded input.",
+        "timeDependentExpression": "The decision uses a time-dependent expression."
+      }
     }
   },
   "rollback": {

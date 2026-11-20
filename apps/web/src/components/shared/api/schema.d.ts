@@ -613,6 +613,40 @@ export interface paths {
     patch: operations['update'];
     trace?: never;
   };
+  '/projects/{project_id}/analysis/{job_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Reads progress and aggregates for an analysis in this project. */
+    get: operations['get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/analysis/{job_id}/cancel': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Requests cancellation of a queued or running analysis. */
+    post: operations['cancel'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/projects/{project_id}/approvals': {
     parameters: {
       query?: never;
@@ -645,6 +679,24 @@ export interface paths {
     get: operations['get'];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/projects/{project_id}/approvals/{approval_id}/analysis': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Returns the most recent run for an approval, if one exists. */
+    get: operations['latest_for_approval'];
+    put?: never;
+    /** Queues a bounded comparison of production records against a pending approval's release. */
+    post: operations['start'];
     delete?: never;
     options?: never;
     head?: never;
@@ -1807,7 +1859,9 @@ export interface components {
       | 'ci_token.revoked'
       | 'installation.set_up'
       | 'installation.organisation_renamed'
-      | 'installation.modules_changed';
+      | 'installation.modules_changed'
+      | 'analysis.run_started'
+      | 'analysis.run_completed';
     AddMemberRequest: {
       /** @description Email of an existing Studio account. */
       email: string;
@@ -2289,6 +2343,13 @@ export interface components {
       /** @description The token. Shown this once: Studio keeps only its hash. */
       token: string;
     };
+    Job: {
+      /** Format: uuid */
+      id: string;
+      recordsRead: number;
+      result?: null | components['schemas']['ResultSummary'];
+      status: string;
+    };
     /**
      * @description Why a licence file was refused.
      * @enum {string}
@@ -2693,6 +2754,23 @@ export interface components {
       /** @description The new version the restore created. */
       version: components['schemas']['DecisionVersionResponse'];
     };
+    /** @description Persistable result. Record identifiers are the only record-level data retained. */
+    ResultSummary: {
+      after: {
+        [key: string]: number;
+      };
+      before: {
+        [key: string]: number;
+      };
+      recordsAvailable: number;
+      recordsCompared: number;
+      recordsRead: number;
+      transitions: components['schemas']['TransitionCell'][];
+      truncated: boolean;
+      uncomparable: {
+        [key: string]: number;
+      };
+    };
     RetentionRuleListResponse: {
       items: components['schemas']['RetentionRuleResponse'][];
     };
@@ -2855,6 +2933,13 @@ export interface components {
       result: Record<string, never>;
       /** @description Per-node trace: inputs, outputs and timing of each node. */
       trace: Record<string, never>;
+    };
+    StartAnalysisBody: {
+      decisionKey: string;
+      /** Format: date-time */
+      from: string;
+      /** Format: date-time */
+      until: string;
     };
     /**
      * @description A step from an empty Studio to a decision a Runtime answers, in order.
@@ -3051,6 +3136,13 @@ export interface components {
     ToursResponse: {
       /** @description Tours the user saw or skipped, which do not start on their own again. */
       seen: components['schemas']['Tour'][];
+    };
+    /** @description One table cell and the records that moved through it. */
+    TransitionCell: {
+      after: string;
+      before: string;
+      count: number;
+      records: string[];
     };
     UpdateProjectRequest: {
       description?: string;
@@ -4516,6 +4608,66 @@ export interface operations {
       };
     };
   };
+  get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        job_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Job'];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  cancel: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        job_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Job'];
+        };
+      };
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
   list: {
     parameters: {
       query?: {
@@ -4633,6 +4785,90 @@ export interface operations {
       };
       /** @description PROJECT_NOT_FOUND or APPROVAL_NOT_FOUND */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  latest_for_approval: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        approval_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': null | components['schemas']['Job'];
+        };
+      };
+      /** @description Only project owners may view results */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  start: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        approval_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['StartAnalysisBody'];
+      };
+    };
+    responses: {
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Job'];
+        };
+      };
+      /** @description Only project owners can start analyses */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Approval or decision not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Analysis is disabled */
+      503: {
         headers: {
           [name: string]: unknown;
         };

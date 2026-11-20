@@ -50,6 +50,7 @@ import { useCurrentUser } from '@/modules/identity';
 import { decisionHref, projectHref, ProjectFrame, type Project } from '@/modules/project';
 
 import { ApprovalBadge } from './approvals-page';
+import { AnalysisPanel } from './analysis-panel';
 import { approve, reject, withdraw } from './release.service';
 import { REASON_MAX, rejectSchema, type ApprovalReview, type DecisionChange, type RejectValues } from './schema';
 import { useApproval, useReleasesChanged } from './useReleases';
@@ -133,6 +134,7 @@ function ReviewBody({ project, review }: { project: Project; review: ApprovalRev
         }
       />
       <Outcome project={project} review={review} />
+      <AnalysisPanel project={project} review={review} />
       {pending && !review.canDecide ? (
         <Alert>
           <Info aria-hidden />

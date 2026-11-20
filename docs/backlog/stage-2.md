@@ -73,8 +73,9 @@ Confirmed 2026-10-25:
 - The screen states what the analysis cannot say: past declines have no repayment history, so
   it measures volume and mix, not risk.
 
-[INTERACTIVE STEP] at story start, with the pilot's volumes in hand: the maximum records per
-run, and whether editors may start a run or only owners.
+Confirmed 2026-11-19:
+- A run reads at most 10,000 records; the limit is configurable.
+- Only project owners may start and inspect a run.
 
 #### Behaviour
 | Where | Before | After |

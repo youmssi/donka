@@ -89,6 +89,12 @@ pub enum ApiError {
     NotRetryable,
     #[error("approval not found")]
     ApprovalNotFound,
+    #[error("analysis job not found")]
+    AnalysisNotFound,
+    #[error("analysis is disabled")]
+    AnalysisDisabled,
+    #[error("analysis needs an outcome field")]
+    AnalysisOutcomeUnconfigured,
     #[error("release not live on staging")]
     NotOnStaging,
     #[error("no owner can approve")]
@@ -291,6 +297,27 @@ impl From<ReleaseError> for ApiError {
             ReleaseError::Project(err) => err.into(),
             ReleaseError::Decision(err) => err.into(),
             ReleaseError::Database(err) => Self::Internal(err.to_string()),
+        }
+    }
+}
+
+impl From<donka_analysis::AnalysisError> for ApiError {
+    fn from(error: donka_analysis::AnalysisError) -> Self {
+        match error {
+            donka_analysis::AnalysisError::Disabled => Self::AnalysisDisabled,
+            donka_analysis::AnalysisError::OutcomeNotConfigured => {
+                Self::AnalysisOutcomeUnconfigured
+            }
+            donka_analysis::AnalysisError::NotFound => Self::AnalysisNotFound,
+            donka_analysis::AnalysisError::InvalidPeriod => {
+                Self::InvalidRequest("until must be later than from".into())
+            }
+            donka_analysis::AnalysisError::DecisionNotInRelease(key) => Self::DecisionNotFound(key),
+            donka_analysis::AnalysisError::Project(error) => error.into(),
+            donka_analysis::AnalysisError::Release(error) => error.into(),
+            donka_analysis::AnalysisError::DecisionLog(error) => error.into(),
+            donka_analysis::AnalysisError::Database(_) => Self::DatabaseUnavailable,
+            donka_analysis::AnalysisError::ResultSerialization(_) => Self::DatabaseUnavailable,
         }
     }
 }
@@ -614,6 +641,28 @@ impl IntoResponse for ApiError {
                 StatusCode::NOT_FOUND,
                 "APPROVAL_NOT_FOUND",
                 "This project has no such approval request.".to_owned(),
+                None,
+                None,
+            ),
+            Self::AnalysisNotFound => (
+                StatusCode::NOT_FOUND,
+                "ANALYSIS_NOT_FOUND",
+                "This project has no such analysis.".to_owned(),
+                None,
+                None,
+            ),
+            Self::AnalysisDisabled => (
+                StatusCode::SERVICE_UNAVAILABLE,
+                "ANALYSIS_DISABLED",
+                "Decision analysis is disabled on this installation.".to_owned(),
+                None,
+                None,
+            ),
+            Self::AnalysisOutcomeUnconfigured => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "ANALYSIS_OUTCOME_UNCONFIGURED",
+                "Choose an outcome field in the decision-log settings before running an analysis."
+                    .to_owned(),
                 None,
                 None,
             ),

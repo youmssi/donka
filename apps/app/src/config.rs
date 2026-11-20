@@ -79,6 +79,10 @@ pub struct Config {
     pub mfa_required: MfaRequired,
     /// Decision records older than this are purged.
     pub decision_log_retention_days: u32,
+    /// Whether production decision impact analysis is available.
+    pub analysis_enabled: bool,
+    /// Maximum decision-log records one analysis may read (`DONKA_ANALYSIS_MAX_RECORDS`).
+    pub analysis_max_records: usize,
     /// The customer's LLM endpoint that explains logged decisions; `None`
     /// (the default) turns explanations off. Holds a key: never log it.
     pub explain: Option<donka_explain::Settings>,
@@ -361,6 +365,9 @@ impl Config {
             // Five years, a common minimum for credit files.
             decision_log_retention_days: positive(&get, "DONKA_DECISION_LOG_RETENTION_DAYS")?
                 .unwrap_or(1825),
+            analysis_enabled: boolean(&get, "DONKA_ANALYSIS_ENABLED", true)?,
+            analysis_max_records: positive(&get, "DONKA_ANALYSIS_MAX_RECORDS")?.unwrap_or(10_000)
+                as usize,
             explain,
             packs_dir: get("DONKA_PACKS_DIR")
                 .filter(|v| !v.trim().is_empty())

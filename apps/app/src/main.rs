@@ -121,6 +121,14 @@ async fn main() -> anyhow::Result<()> {
         runtime.clone(),
         Duration::days(config.decision_log_retention_days.into()),
     );
+    let analysis = donka_analysis::Analysis::new(
+        db.clone(),
+        decision_log.clone(),
+        releases.clone(),
+        runtime.clone(),
+        config.analysis_enabled,
+        config.analysis_max_records,
+    );
 
     if let Some(task) = task {
         let done = match task {
@@ -299,6 +307,7 @@ async fn main() -> anyhow::Result<()> {
             decisions,
             releases,
             decision_log,
+            analysis,
             explainer,
             audit,
             packs,

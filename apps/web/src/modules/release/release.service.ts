@@ -6,6 +6,7 @@ import type {
   IssuedCiToken,
   ApprovalList,
   ApprovalReview,
+  AnalysisJob,
   Deployment,
   EnvironmentName,
   EnvironmentState,
@@ -141,6 +142,38 @@ export function getApproval(projectId: string, id: string): Promise<ActionResult
   return attempt(async () => {
     const response = await http.get(approval(projectId, id));
     return response.ok ? success(await response.json<ApprovalReview>()) : failure(response);
+  });
+}
+
+export function startAnalysis(
+  projectId: string,
+  approvalId: string,
+  body: { decisionKey: string; from: string; until: string },
+): Promise<ActionResult<AnalysisJob>> {
+  return attempt(async () => {
+    const response = await http.post(`${approval(projectId, approvalId)}/analysis`, { json: body });
+    return response.ok ? success(await response.json<AnalysisJob>()) : failure(response);
+  });
+}
+
+export function latestAnalysis(projectId: string, approvalId: string): Promise<ActionResult<AnalysisJob | null>> {
+  return attempt(async () => {
+    const response = await http.get(`${approval(projectId, approvalId)}/analysis`);
+    return response.ok ? success(await response.json<AnalysisJob | null>()) : failure(response);
+  });
+}
+
+export function getAnalysis(projectId: string, jobId: string): Promise<ActionResult<AnalysisJob>> {
+  return attempt(async () => {
+    const response = await http.get(`${project(projectId)}/analysis/${encodeURIComponent(jobId)}`);
+    return response.ok ? success(await response.json<AnalysisJob>()) : failure(response);
+  });
+}
+
+export function cancelAnalysis(projectId: string, jobId: string): Promise<ActionResult<AnalysisJob>> {
+  return attempt(async () => {
+    const response = await http.post(`${project(projectId)}/analysis/${encodeURIComponent(jobId)}/cancel`);
+    return response.ok ? success(await response.json<AnalysisJob>()) : failure(response);
   });
 }
 
