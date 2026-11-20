@@ -5818,6 +5818,16 @@
             },
             "description": ""
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Only project owners may view results"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -5868,6 +5878,16 @@
               }
             },
             "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Only project owners may cancel analyses"
           },
           "404": {
             "content": {
@@ -6199,6 +6219,16 @@
               }
             },
             "description": "Approval or decision not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Configure an outcome field before starting analysis"
           },
           "503": {
             "content": {

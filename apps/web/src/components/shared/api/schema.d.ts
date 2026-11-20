@@ -4628,6 +4628,15 @@ export interface operations {
           'application/json': components['schemas']['Job'];
         };
       };
+      /** @description Only project owners may view results */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
       404: {
         headers: {
           [name: string]: unknown;
@@ -4656,6 +4665,15 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['Job'];
+        };
+      };
+      /** @description Only project owners may cancel analyses */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
         };
       };
       404: {
@@ -4860,6 +4878,15 @@ export interface operations {
       };
       /** @description Approval or decision not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Configure an outcome field before starting analysis */
+      422: {
         headers: {
           [name: string]: unknown;
         };
