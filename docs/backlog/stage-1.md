@@ -2079,3 +2079,37 @@ trusted-proxy default and the live 429 assertions unchanged.
 - Changing production rate-limit behavior or trusting forwarded addresses by default.
 - Changing the browser matrix, rate-limit budgets, or security assertions.
 
+---
+
+### DNK-91 — Wait for the signed-out route to settle in WebKit
+
+**Type:** fix · **Repos:** S · **Dependencies:** DNK-89, DNK-90 (merged) · **Size:** S
+
+#### Why
+
+The full release browser matrix passed 671 of 672 journeys, but one French mobile WebKit
+authentication journey reported a failed Next.js route fetch after the signed-out form rendered.
+The assertion ran while the route's same-origin requests were still settling, so teardown could
+turn that pending fetch into a browser page error.
+
+#### Decision
+
+After sign-out, assert the localized sign-in URL and wait for the page's network activity to
+settle before the journey ends. Keep the page-error assertion and all release browser projects.
+
+#### Behaviour
+
+| Where | Before | After |
+|---|---|---|
+| Authentication sign-out journey | Ends after the sign-in form becomes visible | Confirms the localized sign-in route and lets its pending requests settle |
+
+#### Acceptance criteria
+
+- [ ] The signed-out journey confirms the localized sign-in route before finishing.
+- [ ] WebKit French mobile sign-out completes without a pending route fetch being reported as a page error.
+- [ ] The full 672-case release matrix passes without retries or skipped cases.
+
+#### Out of scope
+
+- Changing sign-out behavior, authentication APIs, or the suite's page-error checks.
+

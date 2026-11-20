@@ -74,6 +74,8 @@ test('invitation, password setup, independent visibility, sign-in and sign-out',
   await page.getByRole('button', { name: m.common.account, exact: true }).click();
   await page.getByRole('menuitem', { name: m.common.signOut, exact: true }).click();
   await expect(page.getByLabel(m.signIn.email, { exact: true })).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/${appLocale}/sign-in/?(?:\\?.*)?$`));
+  await page.waitForLoadState('networkidle');
   expect((await page.request.get('/api/v1/auth/me')).status()).toBe(401);
 });
 

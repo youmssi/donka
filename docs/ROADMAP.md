@@ -84,6 +84,7 @@ docker-compose for PostgreSQL, MinIO and Mailpit.
 | 46 | DNK-66 Product documentation for the organisations that run Donka | docs S R C |
 | 47 | DNK-89 Repair the full release browser matrix | S |
 | 48 | DNK-90 Isolate authentication rate-limit probes | S |
+| 49 | DNK-91 Wait for the signed-out route to settle in WebKit | S |
 
 Practices from the upstream codebases, scheduled next to the stories that need them:
 DNK-26 `/version` (after DNK-4), DNK-28 container builds (before DNK-23), DNK-27 OpenTelemetry
