@@ -44,8 +44,18 @@ La CI courte mesure désormais le débit maximal dans **trois fenêtres distinct
 chacune précédée de 3 secondes de chauffe et utilisant 32 appelants simultanés.
 `maximum.throughput` est la médiane des trois débits ; tous les rapports restent dans l'artefact
 `performance.json`. Toute erreur ou requête sans réponse dans une fenêtre fait échouer le contrôle.
-Les références numériques par processeur et la marge de 20 % restent inchangées ; les anciennes
-mesures de référence utilisaient une seule fenêtre de débit maximal.
+La marge de 20 % reste inchangée.
+
+Le 20 novembre 2026, les références des Intel 8573C, AMD 9V74 et AMD 9V45 ont été reconstruites
+comme la moyenne de toutes les exécutions CI enregistrées sur chaque modèle, car chacune reposait
+sur une **seule** exécution : respectivement 7, 24 et 9 exécutions, issues des artefacts
+`performance.json` conservés, dont aucune n'a connu d'erreur de requête. Ces observations uniques
+étaient toutes supérieures à la moyenne de leur modèle — de 12 à 14 % pour le 8573C, qui ne
+passait donc que 4 de ses 7 exécutions. L'écart mesuré d'une exécution à l'autre sur un même
+modèle est de 5 à 12 % d'écart-type relatif : une seule exécution ne peut pas constituer une
+référence. La référence de l'AMD 7763 est inchangée : sa moyenne sur sept exécutions reste à
+3,2 % près de la moyenne des trente exécutions désormais enregistrées, ce qui vérifie la méthode
+de façon indépendante.
 
 La référence de débit est tenue **par modèle de processeur**, comme pour Studio
 ([ADR-008](adr/008-hardware-matched-performance-baselines.md)) : GitHub attribue des processeurs
