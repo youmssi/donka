@@ -27,11 +27,21 @@ curl -sS --fail-with-body -c "$jar" -X POST "$api/auth/sign-in" \
   --data "$(jq -n --arg e "$DONKA_E2E_ADMIN_EMAIL" --arg p "$DONKA_E2E_ADMIN_PASSWORD" \
     '{email: $e, password: $p}')" >/dev/null
 signed_in=true
-issued=$(curl -sS --fail-with-body -b "$jar" -X POST "$api/decision-log/tokens" \
-  -H 'content-type: application/json' -H 'x-donka-csrf: 1' \
-  --data '{"environment":"staging","name":"Disposable feature Runtime"}')
-token=$(jq -er '.token' <<<"$issued")
-[[ "$token" =~ ^dnk_log_[A-Za-z0-9_-]+$ ]]
-printf 'DECISION_LOG__URL=%s\nDECISION_LOG__TOKEN=%s\nDECISION_LOG__FLUSH_INTERVAL=200\n' \
-  "$DONKA_FEATURE_FEED_URL" "$token" > "$root/.feature-runtime.env"
-printf 'Disposable Runtime feed configured.\n'
+# A feed token only accepts records of its own environment, so each disposable
+# Runtime gets the token of the environment it serves. The staging Runtime feeds
+# the decision records and explanations; the production Runtime feeds the
+# production decisions a proposed release is compared with (DNK-56).
+issue() {
+  local environment=$1 file=$2 issued token
+  issued=$(curl -sS --fail-with-body -b "$jar" -X POST "$api/decision-log/tokens" \
+    -H 'content-type: application/json' -H 'x-donka-csrf: 1' \
+    --data "$(jq -n --arg e "$environment" \
+      '{environment: $e, name: ("Disposable feature Runtime (" + $e + ")")}')")
+  token=$(jq -er '.token' <<<"$issued")
+  [[ "$token" =~ ^dnk_log_[A-Za-z0-9_-]+$ ]]
+  printf 'DECISION_LOG__URL=%s\nDECISION_LOG__TOKEN=%s\nDECISION_LOG__FLUSH_INTERVAL=200\n' \
+    "$DONKA_FEATURE_FEED_URL" "$token" > "$root/$file"
+}
+issue staging .feature-runtime.env
+issue production .feature-runtime-production.env
+printf 'Disposable Runtime feeds configured.\n'

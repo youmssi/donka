@@ -36,6 +36,9 @@ test('a separate owner rejects and approves production; an owner rolls back only
   await expect(added).toBeOK();
   const decision: ApiSchemas['DecisionResponse'] = await added.json();
   const decisionPath = `${path}/decisions/${decision.id}`;
+  await expect(
+    await admin.put(`${path}/decision-log/settings`, { data: { outcomeField: 'output', redactedFields: [] } }),
+  ).toBeOK();
   await version(admin, decisionPath, 'Double input');
   const first = await snapshot(admin, path, 'Double input');
   await stage(admin, path, first.id);
@@ -90,7 +93,12 @@ test('a separate owner rejects and approves production; an owner rolls back only
         { timeout: 60_000 },
       )
       .toBe(releaseId);
-    expect((await (await evaluate()).json()).result).toMatchObject({ output: value });
+    const response = await evaluate();
+    expect((await response.json()).result).toMatchObject({ output: value });
+    const recordId = response.headers()['x-decision-id'];
+    expect(recordId).toMatch(/^[0-9a-f-]{36}$/);
+    if (!recordId) throw new Error('Production decision record id is missing');
+    return recordId;
   }
   try {
     const rejected = await request(first.version);
@@ -114,7 +122,7 @@ test('a separate owner rejects and approves production; an owner rolls back only
     await request(first.version);
     await approve();
     await waitLive(admin, path, 'production', first.id);
-    await output(first.id, 24);
+    const firstRecordId = await output(first.id, 24);
     const crossed = await services.post(`${runtime}/api/projects/${key}/evaluate/calculate`, {
       headers: { 'X-Access-Token': stagingToken.token },
       data: { context: { input: 12 } },
@@ -134,7 +142,30 @@ test('a separate owner rejects and approves production; an owner rolls back only
     const second = await snapshot(admin, path, 'Triple input');
     await stage(admin, path, second.id);
     page = await openPage(context, `/${appLocale}/projects/environments?p=${key}`, page);
-    await request(second.version);
+    const secondApproval = await request(second.version);
+    const analysis = owner.getByRole('region', { name: m.approvals.analysis.result, exact: true });
+    await expect(owner.getByText(m.approvals.analysis.limitation, { exact: true })).toBeVisible();
+    await owner.getByRole('button', { name: m.approvals.analysis.run, exact: true }).click();
+    await expect(analysis).toBeVisible();
+    await expect(analysis.getByText(m.approvals.analysis.status.succeeded, { exact: true })).toBeVisible({
+      timeout: 60_000,
+    });
+    // 24 and 36 each appear in both mixes and again in the transition table, so
+    // address the swap itself: production decided 24, the proposal decides 36,
+    // and that row lists the record it changes.
+    const producedMix = analysis.getByRole('list', { name: m.approvals.analysis.before, exact: true });
+    const proposedMix = analysis.getByRole('list', { name: m.approvals.analysis.after, exact: true });
+    await expect(producedMix.getByRole('listitem').filter({ hasText: '24' })).toHaveCount(1);
+    await expect(proposedMix.getByRole('listitem').filter({ hasText: '36' })).toHaveCount(1);
+    const swap = analysis.getByRole('row').filter({ has: owner.getByRole('rowheader', { name: '24', exact: true }) });
+    await expect(swap).toHaveCount(1);
+    await expect(swap.getByRole('cell', { name: '36', exact: true })).toBeVisible();
+    await expect(swap.getByText(firstRecordId, { exact: true })).toBeVisible();
+    const analysisResponse = await admin.get(`${path}/approvals/${secondApproval.id}/analysis`);
+    await expect(analysisResponse).toBeOK();
+    const savedAnalysis: { status: string; result?: { recordsCompared: number } } = await analysisResponse.json();
+    expect(savedAnalysis.status).toBe('succeeded');
+    expect(savedAnalysis.result?.recordsCompared).toBeGreaterThan(0);
     await approve();
     await waitLive(admin, path, 'production', second.id);
     await output(second.id, 36);

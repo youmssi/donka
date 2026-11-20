@@ -7,7 +7,15 @@ import { search } from '@/test/navigation-mock';
 import { renderWithProviders } from '@/test/render';
 
 import { ApprovalPage } from './approval-page';
-import { approve, getApproval, reject } from './release.service';
+import {
+  approve,
+  cancelAnalysis,
+  getAnalysis,
+  getApproval,
+  latestAnalysis,
+  reject,
+  startAnalysis,
+} from './release.service';
 import type { ApprovalReview } from './schema';
 
 vi.mock('./release.service', () => ({
@@ -15,6 +23,10 @@ vi.mock('./release.service', () => ({
   approve: vi.fn(),
   reject: vi.fn(),
   withdraw: vi.fn(),
+  cancelAnalysis: vi.fn(),
+  getAnalysis: vi.fn(),
+  latestAnalysis: vi.fn(),
+  startAnalysis: vi.fn(),
 }));
 const getMock = vi.mocked(getApproval);
 const approveMock = vi.mocked(approve);
@@ -111,6 +123,10 @@ beforeEach(() => {
   me.current = alan;
   search.params = new URLSearchParams({ p: 'credit-pme', a: 'a-1' });
   projectMock.mockResolvedValue({ ok: true, data: project });
+  vi.mocked(latestAnalysis).mockResolvedValue({ ok: true, data: null } as never);
+  vi.mocked(getAnalysis).mockResolvedValue({ ok: true, data: null } as never);
+  vi.mocked(startAnalysis).mockResolvedValue({ ok: true, data: null } as never);
+  vi.mocked(cancelAnalysis).mockResolvedValue({ ok: true, data: null } as never);
 });
 
 it('shows what changes in production, the tests and the notes', async () => {

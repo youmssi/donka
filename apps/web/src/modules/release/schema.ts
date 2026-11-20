@@ -22,6 +22,7 @@ export type ApprovalList = ApiSchemas['ApprovalListResponse'];
 export type ApprovalReview = ApiSchemas['ApprovalReviewResponse'];
 export type ApprovalStatus = ApiSchemas['ApprovalStatusResponse'];
 export type DecisionChange = ApiSchemas['DecisionChangeResponse'];
+export type AnalysisJob = ApiSchemas['Job'];
 
 // Limits come from the API contract, so the forms and the server never disagree.
 export const NOTES_MAX = openapi.components.schemas.CreateReleaseRequest.properties.notes.maxLength;

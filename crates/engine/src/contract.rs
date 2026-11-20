@@ -55,6 +55,16 @@ pub fn input_schema(content: &Value) -> Result<Option<Value>, ContractError> {
     Ok(Some(schema))
 }
 
+/// Whether a recorded input would still be accepted by this graph's input contract.
+pub fn accepts_input(content: &Value, input: &Value) -> Result<bool, ContractError> {
+    let Some(schema) = input_schema(content)? else {
+        return Ok(true);
+    };
+    let validator = jsonschema::draft7::new(&schema)
+        .map_err(|err| ContractError::InvalidSchema(err.to_string()))?;
+    Ok(validator.is_valid(input))
+}
+
 fn input_node(content: &Value) -> Option<&Value> {
     content
         .get("nodes")?

@@ -101,7 +101,9 @@
     "CONTEST_REVIEWED": "Cette contestation a déjà été examinée.",
     "ALREADY_SET_UP": "Cette installation est déjà configurée.",
     "NOT_SET_UP": "Terminez d'abord la configuration de l'installation.",
-    "MODULE_OFF": "Ce module est désactivé sur cette installation. Un opérateur peut le réactiver ; ses données sont conservées."
+    "MODULE_OFF": "Ce module est désactivé sur cette installation. Un opérateur peut le réactiver ; ses données sont conservées.",
+    "ANALYSIS_DISABLED": "L’analyse des décisions est désactivée sur cette installation.",
+    "ANALYSIS_OUTCOME_UNCONFIGURED": "Choisissez un champ de résultat dans les paramètres du journal des décisions avant de lancer une analyse."
   },
   "validation": {
     "email": "Saisissez une adresse e-mail valide.",
@@ -453,6 +455,10 @@
       "approved": "Production approuvée",
       "rejected": "Production refusée",
       "withdrawn": "Demande retirée"
+    },
+    "analysis": {
+      "run_started": "Analyse des résultats démarrée",
+      "run_completed": "Analyse des résultats terminée"
     },
     "decision_record": {
       "viewed": "Décision enregistrée ouverte",
@@ -854,6 +860,40 @@
       "narrowed": "accepte moins de valeurs",
       "widened": "accepte plus de valeurs",
       "presentation": "libellé, aide ou marque de donnée personnelle modifiés"
+    },
+    "analysis": {
+      "title": "Analyse des décisions enregistrées",
+      "description": "Comparez les décisions de production à cette version proposée sur une période donnée.",
+      "limitation": "Nous ne disposons pas ici de l’historique de remboursement des demandes refusées. Ce résumé mesure le volume et la répartition des résultats ; il ne mesure pas le risque et ne prouve pas l’équité.",
+      "decision": "Décision",
+      "from": "Du",
+      "until": "Au",
+      "run": "Lancer l’analyse",
+      "cancel": "Annuler l’analyse",
+      "result": "Résultat de l’analyse",
+      "status": {
+        "queued": "En attente",
+        "running": "En cours",
+        "succeeded": "Terminée",
+        "cancelled": "Annulée",
+        "failed": "Échec"
+      },
+      "recordsRead": "{count} enregistrements de production lus",
+      "recordsCompared": "{count} décisions comparées",
+      "limitReached": "La limite configurée est atteinte ; les résultats sont partiels.",
+      "empty": "Aucun enregistrement de production ne correspond à cette période.",
+      "before": "Répartition des résultats en production",
+      "after": "Répartition des résultats proposés",
+      "transitionTable": "Transitions des résultats",
+      "count": "Nombre",
+      "changedRecords": "Identifiants des enregistrements modifiés",
+      "uncomparable": "Comparaisons impossibles",
+      "reason": {
+        "connectorNotPreviouslyCalled": "La version proposée requiert un connecteur qui n’a pas été appelé pour la décision enregistrée.",
+        "contractRejected": "La version proposée a rejeté le contrat d’entrée enregistré.",
+        "evaluationError": "La version proposée n’a pas pu évaluer l’entrée enregistrée.",
+        "timeDependentExpression": "La décision utilise une expression dépendante du temps."
+      }
     }
   },
   "rollback": {

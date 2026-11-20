@@ -1,0 +1,26 @@
+[package]
+name = "donka-analysis"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+
+[dependencies]
+chrono.workspace = true
+donka-audit.workspace = true
+donka-db.workspace = true
+donka-decision-log.workspace = true
+donka-engine.workspace = true
+donka-project.workspace = true
+donka-release.workspace = true
+donka-shared.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+utoipa.workspace = true
+
+[lints]
+workspace = true

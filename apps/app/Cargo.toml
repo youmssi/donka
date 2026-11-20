@@ -18,6 +18,7 @@ path = "src/admin.rs"
 anyhow = { workspace = true }
 axum = { workspace = true }
 donka-audit = { workspace = true, features = ["openapi"] }
+donka-analysis = { workspace = true }
 donka-decision = { workspace = true }
 donka-decision-log = { workspace = true }
 donka-explain = { workspace = true }

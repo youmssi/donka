@@ -227,6 +227,14 @@ pub enum Action {
     #[serde(rename = "installation.modules_changed")]
     #[sqlx(rename = "installation.modules_changed")]
     InstallationModulesChanged,
+    /// An owner queued a bounded production decision analysis.
+    #[serde(rename = "analysis.run_started")]
+    #[sqlx(rename = "analysis.run_started")]
+    AnalysisRunStarted,
+    /// A decision analysis ended; details include records read and terminal status.
+    #[serde(rename = "analysis.run_completed")]
+    #[sqlx(rename = "analysis.run_completed")]
+    AnalysisRunCompleted,
 }
 
 impl Action {
@@ -292,6 +300,8 @@ impl Action {
             Self::InstallationSetUp => "installation.set_up",
             Self::InstallationOrganisationRenamed => "installation.organisation_renamed",
             Self::InstallationModulesChanged => "installation.modules_changed",
+            Self::AnalysisRunStarted => "analysis.run_started",
+            Self::AnalysisRunCompleted => "analysis.run_completed",
         }
     }
 }

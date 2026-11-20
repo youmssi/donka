@@ -309,10 +309,10 @@ jobs:
             --data "{\"token\": \"$token\", \"password\": \"smoke test passphrase\"}"
       - name: Start isolated OIDC Studio
         run: docker compose --profile full --profile oidc up -d --wait app-oidc
-      - name: Disposable Runtime feed and explanation instance
+      - name: Disposable Runtime feeds and explanation instance
         run: |
           bash scripts/configure-feature-runtime.sh
-          docker compose --profile full --profile feature-explanations up -d --wait runtime app-explanations
+          docker compose --profile full --profile feature-explanations up -d --wait runtime runtime-production app-explanations
           for url in "$DONKA_E2E_EXPLAIN_STUDIO_URL/api/v1/ready" "$DONKA_E2E_EXPLAIN_SERVICE_URL/health"; do
             for _ in $(seq 1 60); do
               curl -sf "$url" >/dev/null && break
