@@ -10,6 +10,7 @@ out/
 .tsgo-cache/
 runtime.env
 .feature-runtime.env
+.feature-runtime-production.env
 .feature-licence.json
 .feature-cli/
 apps/web/playwright-report/

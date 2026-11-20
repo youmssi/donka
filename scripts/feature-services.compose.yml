@@ -101,6 +101,12 @@ services:
     extends:
       file: docker-compose.yml
       service: runtime
+    # Its own production feed token: the decision log refuses a record whose
+    # environment is not the token's, and the analysis of a proposed release
+    # reads the production decisions this Runtime records (DNK-56).
+    env_file:
+      - path: .feature-runtime-production.env
+        required: false
     environment:
       PROVIDER__PREFIX: production/
     ports: !override ['127.0.0.1:8091:8080']
