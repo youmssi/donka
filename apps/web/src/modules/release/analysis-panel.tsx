@@ -238,7 +238,9 @@ function Mix({ title, values }: { title: string; values: Record<string, number> 
   return (
     <div>
       <h3 className="mb-1 text-sm font-medium">{title}</h3>
-      <ul className="grid gap-1 text-sm">
+      {/* Named so each mix is reachable on its own: the two lists hold the same
+          outcome values, and the transition table repeats them again. */}
+      <ul aria-label={title} className="grid gap-1 text-sm">
         {Object.entries(values).map(([outcome, count]) => (
           <li key={outcome} className="flex justify-between gap-3">
             <span className="break-all">{outcome}</span>
