@@ -16,7 +16,7 @@ CI checks every pull request against them.
 | Studio stopped, within the Runtime's queue | no decision fails, no record lost |
 | Studio stopped, beyond the queue | no decision fails; dropped records are counted in the Runtime's log |
 | Studio decision-log search and replay | p95 1 s and 2 s on the documented sample |
-| Regression | Runtime maximum throughput more than 20% below the same CPU model's baseline, or Studio pooled p95 more than 20% (at least 10 ms) above its baseline, fails CI |
+| Regression | Runtime maximum throughput more than 30% below the same CPU model's baseline, or Studio pooled p95 more than 20% (at least 10 ms) above its baseline, fails CI |
 
 The latency is measured from when each request was due, not from when it left, so a slow
 Runtime cannot hide its own queueing.
@@ -43,8 +43,23 @@ compares only the maximum throughput with the baseline.
 Short CI now measures maximum throughput in **three separate 10-second windows**, each after
 its own 3-second warm-up and using 32 concurrent callers. `maximum.throughput` is the median of
 the three rates; all window reports stay in the `performance.json` artifact. Any error or
-unanswered request in a window fails the gate. The existing hardware-specific numeric baselines
-and 20% margin remain unchanged; historical baseline runs used one maximum window each.
+unanswered request in a window fails the gate.
+
+The throughput margin is **30%**, in `baseline.runtime.margin`. Studio latency keeps the 20% in
+the top-level `margin`. Measured run-to-run spread on one CPU model is 3 to 12% relative standard
+deviation, so a 20% floor sat under two standard deviations: replayed over the 70 recorded runs on
+a profiled processor, 20% failed four of them and every failing run had **zero** request errors,
+while 30% is the smallest margin at which all 70 pass (25% leaves one). An error, an unanswered
+request, or a window count other than three still fails the gate regardless of the margin.
+
+On 20 November 2026 the Intel 8573C, AMD 9V74 and AMD 9V45 baselines were rebuilt as the mean of
+every CI run recorded on each model, because each had rested on a **single** run: 7, 24 and 9 runs
+respectively, from the saved `performance.json` artifacts, none of which had a request error. The
+single observations were all above their model's mean — the 8573C's by 12 to 14%, so that model
+only passed 4 of its 7 runs against it. Measured run-to-run spread on one model is 5 to 12%
+relative standard deviation, which is why one run cannot set a baseline. The AMD 7763 baseline is
+unchanged: its seven-run mean is within 3.2% of the mean of all thirty runs now recorded, which is
+the independent check that the method is sound.
 
 The throughput baseline is kept **per CPU model**, as for Studio
 ([ADR-008](adr/008-hardware-matched-performance-baselines.md)): GitHub assigns different processors,

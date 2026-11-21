@@ -271,7 +271,7 @@ case $(jq length <<<"$profile") in
   *) fail "several Runtime baselines match $(jq -c .machine "$out"); remove the ambiguous profile" ;;
 esac
 jq -e --argjson p "$profile" --slurpfile t "$targets" '
-  ($t[0].margin) as $margin | $p[0].decisions as $base
+  ($t[0].baseline.runtime.margin // $t[0].margin) as $margin | $p[0].decisions as $base
   | [ .runtime | to_entries[] | . as $e
       | $base[$e.key] != null
         and $e.value.maximum.sampleCount == 3
