@@ -34,7 +34,7 @@ pub mod sync;
 
 pub use approval::{
     Approval, ApprovalReview, ApprovalStatus, Approver, Change, DecisionChange, Language,
-    MAX_REASON_CHARS,
+    MAX_JUSTIFICATION_CHARS, MAX_REASON_CHARS,
 };
 pub use sync::{
     ArtifactPath, CiAccess, CiToken, IssuedCiToken, Resolved, SyncOutcome, SyncProject,
@@ -163,6 +163,11 @@ pub enum ReleaseError {
     /// No owner other than the release's creator and the person asking.
     #[error("the project has no owner who can approve this release")]
     NoApprover,
+    /// The release reads protected fields and needs an owner-authored explanation.
+    #[error("protected fields need a production justification")]
+    ProtectedFieldJustificationRequired(Vec<String>),
+    #[error("justifications are 1 to {MAX_JUSTIFICATION_CHARS} characters")]
+    InvalidJustification,
     /// One request per project waits at a time.
     #[error("another request is waiting for approval")]
     ApprovalPending,

@@ -34,6 +34,8 @@ export interface InputField {
   pii: boolean;
   /** Identifies the person (national ID, phone): their records are found by it. Always personal data. */
   identifier: boolean;
+  /** Marked by the project owner for decision governance. */
+  protected: boolean;
 }
 
 type Json = Record<string, unknown>;
@@ -77,6 +79,7 @@ export function emptyField(path = ''): InputField {
     help: { en: '', fr: '' },
     pii: false,
     identifier: false,
+    protected: false,
   };
 }
 
@@ -166,6 +169,7 @@ export function schemaToFields(schema: Json | null): InputField[] | null {
         help: texts(hints.help),
         pii: hints.pii === true || hints.identifier === true,
         identifier: hints.identifier === true,
+        protected: hints.protected === true,
       });
     }
     return true;
@@ -214,6 +218,7 @@ function leaf(field: InputField): Json {
   if (field.help.en || field.help.fr) hints.help = pick(field.help);
   if (field.pii || field.identifier) hints.pii = true;
   if (field.identifier) hints.identifier = true;
+  if (field.protected) hints.protected = true;
   if (Object.keys(hints).length > 0) schema[HINTS] = hints;
   return schema;
 }

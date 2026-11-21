@@ -32,20 +32,29 @@ test('a separate owner rejects and approves production; an owner rolls back only
   await expect(owner).toHaveURL(new RegExp(`/${appLocale}/?$`));
   for (const tour of ['releases', 'environments'])
     await expect(await reviewer.request.put(`/api/v1/me/tours/${tour}`, { headers: { 'x-donka-csrf': '1' } })).toBeOK();
-  const added = await admin.post(`${path}/decisions`, { data: { key: 'calculate', content: expressionGraph(2) } });
+  const protectedInput = {
+    type: 'object',
+    required: ['input'],
+    properties: { input: { type: 'number', 'x-donka': { protected: true } } },
+  };
+  const added = await admin.post(`${path}/decisions`, {
+    data: { key: 'calculate', content: expressionGraph(2, protectedInput) },
+  });
   await expect(added).toBeOK();
   const decision: ApiSchemas['DecisionResponse'] = await added.json();
   const decisionPath = `${path}/decisions/${decision.id}`;
   await expect(
     await admin.put(`${path}/decision-log/settings`, { data: { outcomeField: 'output', redactedFields: [] } }),
   ).toBeOK();
-  await version(admin, decisionPath, 'Double input');
+  const savedVersion = await version(admin, decisionPath, 'Double input');
+  expect(savedVersion.warnings).toContainEqual({ kind: 'protected', node: 'Calculate', path: 'input' });
   const first = await snapshot(admin, path, 'Double input');
   await stage(admin, path, first.id);
   const token = await issueToken(admin, path, 'production', 'Production verification');
   const stagingToken = await issueToken(admin, path, 'staging', 'Staging boundary verification');
   let page = await openPage(context, `/${appLocale}/projects/environments?p=${key}`);
   const production = () => page.getByRole('region', { name: m.environments.production, exact: true });
+  const justification = 'The verified rule uses this protected input for the approved sample policy.';
   async function request(version: string) {
     await production()
       .getByRole('button', { name: m.environments.requestProduction.replace('{version}', version), exact: true })
@@ -56,8 +65,19 @@ test('a separate owner rejects and approves production; an owner rolls back only
     );
     await dialog.getByRole('button', { name: m.environments.requestAction, exact: true }).click();
     const response = await pending;
-    expect(response.ok()).toBe(true);
-    const approval: ApiSchemas['ApprovalResponse'] = await response.json();
+    expect(response.status()).toBe(422);
+    expect((await response.json()).details.fields).toContain('calculate: Calculate (input)');
+    await expect(dialog.getByText(m.environments.protectedFieldsRequired, { exact: true })).toBeVisible();
+    await dialog.getByLabel(m.environments.protectedJustification, { exact: true }).fill(justification);
+    const justified = page.waitForResponse(
+      (reply) => reply.url().endsWith(`${path}/approvals`) && reply.request().method() === 'POST',
+    );
+    await dialog.getByRole('button', { name: m.environments.requestAction, exact: true }).click();
+    const accepted = await justified;
+    expect(accepted.ok()).toBe(true);
+    const responseBody = await accepted.json();
+    expect(responseBody.justification).toBe(justification);
+    const approval: ApiSchemas['ApprovalResponse'] = responseBody;
     await expect(page.getByText(m.approvals.authorCannotDecide, { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: m.approvals.approve, exact: true })).toHaveCount(0);
     const denied = await admin.post(`${path}/approvals/${approval.id}/approve`);
@@ -69,6 +89,7 @@ test('a separate owner rejects and approves production; an owner rolls back only
     expect(rejectOwn.status()).toBe(422);
     expect((await rejectOwn.json()).code).toBe('SELF_APPROVAL');
     owner = await openPage(reviewer, `/${appLocale}/projects/approval?p=${key}&a=${approval.id}`, owner);
+    await expect(owner.getByText(justification, { exact: true })).toBeVisible();
     return approval;
   }
   async function approve() {
@@ -112,6 +133,19 @@ test('a separate owner rejects and approves production; an owner rolls back only
     await expect(owner.getByText('Check the sample boundary before promotion', { exact: true })).toBeVisible();
     const review = await admin.get(`${path}/approvals/${rejected.id}`);
     expect(await review.json()).toMatchObject({ status: 'rejected', decidedBy: { email } });
+    const audit = await admin.get(`${path}/audit`);
+    await expect(audit).toBeOK();
+    expect((await audit.json()).items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'approval.requested',
+          details: expect.objectContaining({
+            justification,
+            protectedFields: ['calculate: Calculate (input)'],
+          }),
+        }),
+      ]),
+    );
     expect((await evaluate()).status()).toBe(404);
     const neverApproved = await admin.post(`${path}/rollbacks`, {
       data: { releaseId: first.id, reason: 'Must refuse' },
@@ -136,7 +170,9 @@ test('a separate owner rejects and approves production; an owner rolls back only
     const current = await admin.get(decisionPath);
     const saved: ApiSchemas['DecisionResponse'] = await current.json();
     await expect(
-      await admin.put(decisionPath, { data: { content: expressionGraph(3), revision: saved.revision } }),
+      await admin.put(decisionPath, {
+        data: { content: expressionGraph(3, protectedInput), revision: saved.revision },
+      }),
     ).toBeOK();
     await version(admin, decisionPath, 'Triple input');
     const second = await snapshot(admin, path, 'Triple input');

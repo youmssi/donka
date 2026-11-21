@@ -14,6 +14,7 @@ const age: InputField = {
   type: 'integer',
   minimum: 18,
   maximum: 99,
+  protected: true,
   label: { en: 'Age', fr: 'Âge' },
 };
 const nationalId: InputField = {
@@ -38,7 +39,12 @@ it('turns fields into a draft-07 schema with nested objects and hints', () => {
         type: 'object',
         required: ['age', 'nationalId'],
         properties: {
-          age: { type: 'integer', minimum: 18, maximum: 99, 'x-donka': { label: { en: 'Age', fr: 'Âge' } } },
+          age: {
+            type: 'integer',
+            minimum: 18,
+            maximum: 99,
+            'x-donka': { label: { en: 'Age', fr: 'Âge' }, protected: true },
+          },
           nationalId: { type: 'string', 'x-donka': { help: { en: 'As on the ID card' }, pii: true } },
           employment: { type: 'string', enum: ['public', 'private'] },
         },

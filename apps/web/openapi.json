@@ -241,6 +241,13 @@
             "format": "uuid",
             "type": "string"
           },
+          "justification": {
+            "description": "Why the requester says protected fields are needed by this release.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "reason": {
             "description": "Why it was rejected.",
             "type": [
@@ -650,7 +657,8 @@
       "ContractWarningKind": {
         "enum": [
           "undeclared",
-          "unread"
+          "unread",
+          "protected"
         ],
         "type": "string"
       },
@@ -658,6 +666,13 @@
         "properties": {
           "kind": {
             "$ref": "#/components/schemas/ContractWarningKind"
+          },
+          "node": {
+            "description": "The graph node that reads a protected field.",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "path": {
             "description": "The field, as a dotted path (`customer.age`).",
@@ -2738,6 +2753,12 @@
       },
       "RequestApprovalRequest": {
         "properties": {
+          "justification": {
+            "description": "Why the production release reads protected fields.",
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
           "releaseId": {
             "description": "The release live on staging.",
             "format": "uuid",
@@ -6040,7 +6061,7 @@
                 }
               }
             },
-            "description": "NOT_ON_STAGING or NO_APPROVER (no other owner)"
+            "description": "NOT_ON_STAGING or NO_APPROVER (no other owner), PROTECTED_FIELD_JUSTIFICATION_REQUIRED (the release reads protected fields)"
           }
         },
         "summary": "Asks for the release live on staging to go to production; the owners who\nmay decide are emailed (editors and owners).",

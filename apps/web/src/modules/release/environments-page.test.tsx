@@ -151,24 +151,42 @@ it('asks for the release live on staging to go to production', async () => {
   projectMock.mockResolvedValue({ ok: true, data: project('editor') });
   const live = deployment({ releaseId: 'r-2', releaseVersion: '1.1.0' });
   environmentsMock.mockResolvedValue({ ok: true, data: environments({ live, latest: live }) });
-  requestMock.mockResolvedValue({
-    ok: true,
-    data: {
-      id: 'a-1',
-      releaseId: 'r-2',
-      releaseVersion: '1.1.0',
-      releaseNotes: 'Raise the ceiling',
-      releaseCreatedBy: ada,
-      requestedBy: ada,
-      requestedAt: '2026-10-01T09:00:00Z',
-      status: 'pending',
-    },
-  });
+  requestMock
+    .mockResolvedValueOnce({
+      ok: false,
+      error: {
+        code: 'PROTECTED_FIELD_JUSTIFICATION_REQUIRED',
+        details: { fields: ['scorecard: Eligibility (applicant.age)'] },
+      },
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      data: {
+        id: 'a-1',
+        releaseId: 'r-2',
+        releaseVersion: '1.1.0',
+        releaseNotes: 'Raise the ceiling',
+        releaseCreatedBy: ada,
+        requestedBy: ada,
+        requestedAt: '2026-10-01T09:00:00Z',
+        justification: 'The approved sample rule uses applicant age.',
+        status: 'pending',
+      },
+    });
   renderWithProviders(<EnvironmentsPage />);
   const production = await screen.findByRole('region', { name: 'Production' });
   await user.click(await within(production).findByRole('button', { name: 'Ask to publish 1.1.0' }));
-  await user.click(await screen.findByRole('button', { name: 'Ask for approval' }));
-  expect(requestMock).toHaveBeenCalledWith('p-1', 'r-2');
+  const ask = await screen.findByRole('button', { name: 'Ask for approval' });
+  await user.click(ask);
+  const dialog = screen.getByRole('alertdialog');
+  expect(await within(dialog).findByText('scorecard: Eligibility (applicant.age)')).toBeInTheDocument();
+  await user.type(
+    within(dialog).getByLabelText('Production justification'),
+    'The approved sample rule uses applicant age.',
+  );
+  await user.click(ask);
+  expect(requestMock).toHaveBeenNthCalledWith(1, 'p-1', 'r-2', undefined);
+  expect(requestMock).toHaveBeenNthCalledWith(2, 'p-1', 'r-2', 'The approved sample rule uses applicant age.');
   expect(router.push).toHaveBeenCalledWith('/projects/approval?p=credit-pme&a=a-1');
 });
 

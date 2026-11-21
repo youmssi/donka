@@ -196,6 +196,7 @@ function FieldsTable({
                   {field.required ? <Badge variant="outline">{t('required')}</Badge> : null}
                   {field.identifier ? <Badge variant="secondary">{t('identifier')}</Badge> : null}
                   {field.pii && !field.identifier ? <Badge variant="secondary">{t('pii')}</Badge> : null}
+                  {field.protected ? <Badge variant="destructive">{t('protected')}</Badge> : null}
                 </div>
               </TableCell>
               <TableCell className="hidden sm:table-cell">{t(`types.${field.type}`)}</TableCell>
@@ -288,6 +289,7 @@ function fieldFormSchema(taken: string[]) {
       helpFr: z.string(),
       pii: z.boolean(),
       identifier: z.boolean(),
+      protected: z.boolean(),
     })
     .superRefine((value, ctx) => {
       if (parseValues(value.values, value.type) === null) {
@@ -330,6 +332,7 @@ function toValues(field: InputField): FieldValues {
     helpFr: field.help.fr,
     pii: field.pii,
     identifier: field.identifier,
+    protected: field.protected,
   };
 }
 
@@ -350,6 +353,7 @@ function toField(value: FieldValues): InputField {
     help: { en: value.helpEn.trim(), fr: value.helpFr.trim() },
     pii: value.pii || value.identifier,
     identifier: value.identifier,
+    protected: value.protected,
   };
 }
 
@@ -480,6 +484,15 @@ function FieldDialog({
                   {(field) => (
                     <field.CheckboxField
                       label={t('identifierLong')}
+                      className="w-auto gap-2"
+                      labelClassName="font-normal"
+                    />
+                  )}
+                </form.AppField>
+                <form.AppField name="protected">
+                  {(field) => (
+                    <field.CheckboxField
+                      label={t('protectedLong')}
                       className="w-auto gap-2"
                       labelClassName="font-normal"
                     />

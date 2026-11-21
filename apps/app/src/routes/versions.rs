@@ -77,6 +77,7 @@ impl From<donka_engine::RefusedConnector> for RefusedConnectorResponse {
 pub enum ContractWarningKind {
     Undeclared,
     Unread,
+    Protected,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -84,6 +85,8 @@ pub struct ContractWarningResponse {
     pub kind: ContractWarningKind,
     /// The field, as a dotted path (`customer.age`).
     pub path: String,
+    /// The graph node that reads a protected field.
+    pub node: Option<String>,
 }
 
 impl From<contract::Warning> for ContractWarningResponse {
@@ -92,10 +95,17 @@ impl From<contract::Warning> for ContractWarningResponse {
             contract::Warning::Undeclared { path } => Self {
                 kind: ContractWarningKind::Undeclared,
                 path,
+                node: None,
             },
             contract::Warning::Unread { path } => Self {
                 kind: ContractWarningKind::Unread,
                 path,
+                node: None,
+            },
+            contract::Warning::Protected { node, path } => Self {
+                kind: ContractWarningKind::Protected,
+                path,
+                node: Some(node),
             },
         }
     }

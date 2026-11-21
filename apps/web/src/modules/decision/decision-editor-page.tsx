@@ -283,7 +283,9 @@ function ContractWarnings({
       <AlertDescription>
         <ul className="list-disc ps-4">
           {warnings.map((warning) => (
-            <li key={`${warning.kind}-${warning.path}`}>{t(warning.kind, { path: warning.path })}</li>
+            <li key={`${warning.kind}-${warning.node ?? ''}-${warning.path}`}>
+              {t(warning.kind, { path: warning.path, node: warning.node ?? '' })}
+            </li>
           ))}
         </ul>
         <div className="mt-2 flex gap-2">
