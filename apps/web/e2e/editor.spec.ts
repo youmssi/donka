@@ -52,16 +52,29 @@ test('graph authoring, simulation, versions and scenarios persist through the li
   // Adding the last node can leave it under the graph tabs at narrow viewports. Use the real
   // editor control to bring every node into the visible canvas before connecting their handles.
   await page.getByRole('button', { name: 'fit view', exact: true }).click();
-  await expect(page.locator('.react-flow__node-outputNode')).toBeInViewport();
-  for (const [from, to] of [
+  for (const node of ['inputNode', 'expressionNode', 'outputNode']) {
+    await expect(page.locator(`.react-flow__node-${node}`)).toBeInViewport();
+  }
+  // The editor also ignores a connection gesture that lands while it is still settling, the same
+  // way it ignores an early drop above, and a connection that is dropped leaves no trace. Connect
+  // one edge at a time and draw again until it exists, so an edge that cannot be made still fails
+  // here and names which one it was.
+  const edges = page.locator('.react-flow__edge');
+  const connections = [
     ['inputNode', 'expressionNode'],
     ['expressionNode', 'outputNode'],
-  ]) {
-    await page
-      .locator(`.react-flow__node-${from} .react-flow__handle.source`)
-      .dragTo(page.locator(`.react-flow__node-${to} .react-flow__handle.target`));
+  ];
+  for (const [index, [from, to]] of connections.entries()) {
+    await expect(async () => {
+      if ((await edges.count()) === index) {
+        await page
+          .locator(`.react-flow__node-${from} .react-flow__handle.source`)
+          .dragTo(page.locator(`.react-flow__node-${to} .react-flow__handle.target`));
+      }
+      await expect(edges).toHaveCount(index + 1, { timeout: 1_000 });
+    }).toPass({ timeout: 15_000 });
   }
-  await expect(page.locator('.react-flow__edge')).toHaveCount(2);
+  await expect(edges).toHaveCount(2);
   await page.getByRole('button', { name: 'Edit Expression', exact: true }).click();
   await page.getByRole('button', { name: 'Add row' }).click();
   const decisions = await admin.get(`${path}/decisions`);
