@@ -1,0 +1,459 @@
+{
+  "nodes": [
+    {
+      "id": "request",
+      "type": "inputNode",
+      "name": "Request",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "content": {
+        "schema": "{\n  \"$schema\": \"http://json-schema.org/draft-07/schema#\",\n  \"type\": \"object\",\n  \"required\": [\n    \"wallet\",\n    \"transaction\"\n  ],\n  \"properties\": {\n    \"wallet\": {\n      \"type\": \"object\",\n      \"required\": [\n        \"tier\",\n        \"balance\",\n        \"dailyOutgoing\",\n        \"monthlyOutgoing\"\n      ],\n      \"properties\": {\n        \"tier\": {\n          \"type\": \"integer\",\n          \"minimum\": 1,\n          \"maximum\": 3,\n          \"x-donka\": {\n            \"label\": {\n              \"en\": \"KYC tier\",\n              \"fr\": \"Niveau KYC\"\n            },\n            \"help\": {\n              \"en\": \"1: phone number and declared identity; 2: ID document checked; 3: full KYC.\",\n              \"fr\": \"1 : numéro et identité déclarée ; 2 : pièce d'identité vérifiée ; 3 : KYC complet.\"\n            }\n          }\n        },\n        \"balance\": {\n          \"type\": \"number\",\n          \"minimum\": 0,\n          \"x-donka\": {\n            \"label\": {\n              \"en\": \"Balance (XAF)\",\n              \"fr\": \"Solde (XAF)\"\n            }\n          }\n        },\n        \"dailyOutgoing\": {\n          \"type\": \"number\",\n          \"minimum\": 0,\n          \"x-donka\": {\n            \"label\": {\n              \"en\": \"Sent or withdrawn today (XAF)\",\n              \"fr\": \"Envoyé ou retiré aujourd'hui (XAF)\"\n            }\n          }\n        },\n        \"monthlyOutgoing\": {\n          \"type\": \"number\",\n          \"minimum\": 0,\n          \"x-donka\": {\n            \"label\": {\n              \"en\": \"Sent or withdrawn this month (XAF)\",\n              \"fr\": \"Envoyé ou retiré ce mois-ci (XAF)\"\n            }\n          }\n        }\n      }\n    },\n    \"transaction\": {\n      \"type\": \"object\",\n      \"required\": [\n        \"type\",\n        \"amount\",\n        \"crossBorder\"\n      ],\n      \"properties\": {\n        \"type\": {\n          \"type\": \"string\",\n          \"enum\": [\n            \"deposit\",\n            \"transfer\",\n            \"withdrawal\",\n            \"merchant-payment\"\n          ],\n          \"x-donka\": {\n            \"label\": {\n              \"en\": \"Transaction\",\n              \"fr\": \"Opération\"\n            }\n          }\n        },\n        \"amount\": {\n          \"type\": \"number\",\n          \"minimum\": 1,\n          \"x-donka\": {\n            \"label\": {\n              \"en\": \"Amount (XAF)\",\n              \"fr\": \"Montant (XAF)\"\n            }\n          }\n        },\n        \"crossBorder\": {\n          \"type\": \"boolean\",\n          \"x-donka\": {\n            \"label\": {\n              \"en\": \"To another CEMAC country\",\n              \"fr\": \"Vers un autre pays de la CEMAC\"\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+      }
+    },
+    {
+      "id": "limits",
+      "type": "decisionTableNode",
+      "name": "Limits by tier",
+      "position": {
+        "x": 320,
+        "y": 0
+      },
+      "content": {
+        "hitPolicy": "first",
+        "passThrough": true,
+        "inputs": [
+          {
+            "id": "limitsi0",
+            "name": "Tier",
+            "field": "wallet.tier"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "limitso0",
+            "name": "Maximum balance",
+            "field": "limits.maxBalance"
+          },
+          {
+            "id": "limitso1",
+            "name": "Per transaction",
+            "field": "limits.perTransaction"
+          },
+          {
+            "id": "limitso2",
+            "name": "Daily outgoing",
+            "field": "limits.daily"
+          },
+          {
+            "id": "limitso3",
+            "name": "Monthly outgoing",
+            "field": "limits.monthly"
+          },
+          {
+            "id": "limitso4",
+            "name": "Cross-border",
+            "field": "limits.crossBorder"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "limitsr0",
+            "limitsi0": "1",
+            "limitso0": "500000",
+            "limitso1": "200000",
+            "limitso2": "300000",
+            "limitso3": "1000000",
+            "limitso4": "false"
+          },
+          {
+            "_id": "limitsr1",
+            "limitsi0": "2",
+            "limitso0": "2000000",
+            "limitso1": "1000000",
+            "limitso2": "1500000",
+            "limitso3": "5000000",
+            "limitso4": "true"
+          },
+          {
+            "_id": "limitsr2",
+            "limitsi0": "3",
+            "limitso0": "10000000",
+            "limitso1": "5000000",
+            "limitso2": "7500000",
+            "limitso3": "25000000",
+            "limitso4": "true"
+          }
+        ]
+      }
+    },
+    {
+      "id": "fees",
+      "type": "decisionTableNode",
+      "name": "Fees",
+      "position": {
+        "x": 640,
+        "y": 0
+      },
+      "content": {
+        "hitPolicy": "first",
+        "passThrough": true,
+        "inputs": [
+          {
+            "id": "feesi0",
+            "name": "Transaction",
+            "field": "transaction.type"
+          },
+          {
+            "id": "feesi1",
+            "name": "Amount",
+            "field": "transaction.amount"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "feeso0",
+            "name": "Fee",
+            "field": "fee"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "feesr0",
+            "feesi0": "\"deposit\"",
+            "feesi1": "",
+            "feeso0": "0"
+          },
+          {
+            "_id": "feesr1",
+            "feesi0": "\"merchant-payment\"",
+            "feesi1": "",
+            "feeso0": "0"
+          },
+          {
+            "_id": "feesr2",
+            "feesi0": "\"transfer\"",
+            "feesi1": "<= 5000",
+            "feeso0": "50"
+          },
+          {
+            "_id": "feesr3",
+            "feesi0": "\"transfer\"",
+            "feesi1": "<= 50000",
+            "feeso0": "250"
+          },
+          {
+            "_id": "feesr4",
+            "feesi0": "\"transfer\"",
+            "feesi1": "<= 300000",
+            "feeso0": "1000"
+          },
+          {
+            "_id": "feesr5",
+            "feesi0": "\"transfer\"",
+            "feesi1": "",
+            "feeso0": "2500"
+          },
+          {
+            "_id": "feesr6",
+            "feesi0": "\"withdrawal\"",
+            "feesi1": "<= 5000",
+            "feeso0": "100"
+          },
+          {
+            "_id": "feesr7",
+            "feesi0": "\"withdrawal\"",
+            "feesi1": "<= 50000",
+            "feeso0": "500"
+          },
+          {
+            "_id": "feesr8",
+            "feesi0": "\"withdrawal\"",
+            "feesi1": "<= 300000",
+            "feeso0": "1500"
+          },
+          {
+            "_id": "feesr9",
+            "feesi0": "\"withdrawal\"",
+            "feesi1": "",
+            "feeso0": "3500"
+          }
+        ]
+      }
+    },
+    {
+      "id": "totals",
+      "type": "expressionNode",
+      "name": "After the transaction",
+      "position": {
+        "x": 960,
+        "y": 0
+      },
+      "content": {
+        "expressions": [
+          {
+            "id": "totals0",
+            "key": "outgoing",
+            "value": "transaction.type != 'deposit'"
+          },
+          {
+            "id": "totals1",
+            "key": "debit",
+            "value": "transaction.type == 'deposit' ? 0 : transaction.amount + fee"
+          },
+          {
+            "id": "totals2",
+            "key": "balanceAfter",
+            "value": "transaction.type == 'deposit' ? wallet.balance + transaction.amount : wallet.balance - transaction.amount - fee"
+          },
+          {
+            "id": "totals3",
+            "key": "dailyAfter",
+            "value": "transaction.type == 'deposit' ? wallet.dailyOutgoing : wallet.dailyOutgoing + transaction.amount"
+          },
+          {
+            "id": "totals4",
+            "key": "monthlyAfter",
+            "value": "transaction.type == 'deposit' ? wallet.monthlyOutgoing : wallet.monthlyOutgoing + transaction.amount"
+          }
+        ],
+        "passThrough": true,
+        "outputPath": "after"
+      }
+    },
+    {
+      "id": "checks",
+      "type": "decisionTableNode",
+      "name": "Limit checks",
+      "position": {
+        "x": 0,
+        "y": 240
+      },
+      "content": {
+        "hitPolicy": "collect",
+        "passThrough": true,
+        "inputs": [
+          {
+            "id": "checksi0",
+            "name": "Outgoing",
+            "field": "after.outgoing"
+          },
+          {
+            "id": "checksi1",
+            "name": "Amount",
+            "field": "transaction.amount"
+          },
+          {
+            "id": "checksi2",
+            "name": "Daily after",
+            "field": "after.dailyAfter"
+          },
+          {
+            "id": "checksi3",
+            "name": "Monthly after",
+            "field": "after.monthlyAfter"
+          },
+          {
+            "id": "checksi4",
+            "name": "Balance after",
+            "field": "after.balanceAfter"
+          },
+          {
+            "id": "checksi5",
+            "name": "Cross-border not allowed",
+            "field": "transaction.crossBorder and limits.crossBorder == false"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "checkso0",
+            "name": "Code",
+            "field": "code"
+          },
+          {
+            "id": "checkso1",
+            "name": "English",
+            "field": "en"
+          },
+          {
+            "id": "checkso2",
+            "name": "Français",
+            "field": "fr"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "checksr0",
+            "checksi0": "true",
+            "checksi1": "> limits.perTransaction",
+            "checksi2": "",
+            "checksi3": "",
+            "checksi4": "",
+            "checksi5": "",
+            "checkso0": "\"M01\"",
+            "checkso1": "\"Above the tier's limit per transaction.\"",
+            "checkso2": "\"Au-dessus du plafond par opération du niveau.\""
+          },
+          {
+            "_id": "checksr1",
+            "checksi0": "true",
+            "checksi1": "",
+            "checksi2": "> limits.daily",
+            "checksi3": "",
+            "checksi4": "",
+            "checksi5": "",
+            "checkso0": "\"M02\"",
+            "checkso1": "\"Above the tier's daily limit.\"",
+            "checkso2": "\"Au-dessus du plafond journalier du niveau.\""
+          },
+          {
+            "_id": "checksr2",
+            "checksi0": "true",
+            "checksi1": "",
+            "checksi2": "",
+            "checksi3": "> limits.monthly",
+            "checksi4": "",
+            "checksi5": "",
+            "checkso0": "\"M03\"",
+            "checkso1": "\"Above the tier's monthly limit.\"",
+            "checkso2": "\"Au-dessus du plafond mensuel du niveau.\""
+          },
+          {
+            "_id": "checksr3",
+            "checksi0": "true",
+            "checksi1": "",
+            "checksi2": "",
+            "checksi3": "",
+            "checksi4": "< 0",
+            "checksi5": "",
+            "checkso0": "\"M04\"",
+            "checkso1": "\"The balance does not cover the amount and the fee.\"",
+            "checkso2": "\"Le solde ne couvre pas le montant et les frais.\""
+          },
+          {
+            "_id": "checksr4",
+            "checksi0": "false",
+            "checksi1": "",
+            "checksi2": "",
+            "checksi3": "",
+            "checksi4": "> limits.maxBalance",
+            "checksi5": "",
+            "checkso0": "\"M05\"",
+            "checkso1": "\"The balance would exceed the tier's maximum.\"",
+            "checkso2": "\"Le solde dépasserait le plafond du niveau.\""
+          },
+          {
+            "_id": "checksr5",
+            "checksi0": "",
+            "checksi1": "",
+            "checksi2": "",
+            "checksi3": "",
+            "checksi4": "",
+            "checksi5": "true",
+            "checkso0": "\"M06\"",
+            "checkso1": "\"Transfers to another CEMAC country need tier 2 or more.\"",
+            "checkso2": "\"Les transferts vers un autre pays de la CEMAC demandent le niveau 2 ou plus.\""
+          }
+        ],
+        "outputPath": "refusals"
+      }
+    },
+    {
+      "id": "decision",
+      "type": "expressionNode",
+      "name": "Decision",
+      "position": {
+        "x": 320,
+        "y": 240
+      },
+      "content": {
+        "expressions": [
+          {
+            "id": "decision0",
+            "key": "decision",
+            "value": "len(refusals) == 0 ? 'allow' : 'decline'"
+          },
+          {
+            "id": "decision1",
+            "key": "fee",
+            "value": "len(refusals) == 0 ? fee : 0"
+          },
+          {
+            "id": "decision2",
+            "key": "balanceAfter",
+            "value": "len(refusals) == 0 ? after.balanceAfter : wallet.balance"
+          },
+          {
+            "id": "decision3",
+            "key": "dailyRemaining",
+            "value": "max([0, limits.daily - (len(refusals) == 0 ? after.dailyAfter : wallet.dailyOutgoing)])"
+          },
+          {
+            "id": "decision4",
+            "key": "monthlyRemaining",
+            "value": "max([0, limits.monthly - (len(refusals) == 0 ? after.monthlyAfter : wallet.monthlyOutgoing)])"
+          },
+          {
+            "id": "decision5",
+            "key": "upgradeTo",
+            "value": "len(refusals) > 0 and wallet.tier < 3 and none(refusals, #.code == 'M04') ? wallet.tier + 1 : null"
+          },
+          {
+            "id": "decision6",
+            "key": "reasons",
+            "value": "refusals"
+          }
+        ],
+        "passThrough": false
+      }
+    },
+    {
+      "id": "response",
+      "type": "outputNode",
+      "name": "Response",
+      "position": {
+        "x": 640,
+        "y": 240
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "type": "edge",
+      "sourceId": "request",
+      "targetId": "limits"
+    },
+    {
+      "id": "e2",
+      "type": "edge",
+      "sourceId": "limits",
+      "targetId": "fees"
+    },
+    {
+      "id": "e3",
+      "type": "edge",
+      "sourceId": "fees",
+      "targetId": "totals"
+    },
+    {
+      "id": "e4",
+      "type": "edge",
+      "sourceId": "totals",
+      "targetId": "checks"
+    },
+    {
+      "id": "e5",
+      "type": "edge",
+      "sourceId": "checks",
+      "targetId": "decision"
+    },
+    {
+      "id": "e6",
+      "type": "edge",
+      "sourceId": "decision",
+      "targetId": "response"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/engine", "apps/app"]
+members = ["crates/shared", "crates/engine", "crates/db", "crates/audit", "crates/identity", "crates/mail", "crates/project", "crates/decision", "crates/storage", "crates/release", "crates/decision-log", "crates/analysis", "crates/explain", "crates/pack", "crates/licence", "crates/installation", "apps/app", "tools/licence-issuer"]
 
 [workspace.package]
 version = "0.1.0"
@@ -17,15 +17,78 @@ thiserror = "2"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "net"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 tower = { version = "0.5", features = ["util"] }
-tower-http = { version = "0.6", features = ["trace", "compression-full", "cors", "fs"] }
+tower-http = { version = "0.6", features = ["trace", "compression-full", "cors", "fs", "set-header"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+utoipa = { version = "5", features = ["axum_extras", "uuid", "chrono"] }
+utoipa-axum = "0.2"
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+argon2 = "0.6"
+sha2 = "0.10"
+base64 = "0.22"
+getrandom = "0.3"
+# Studio licence files (DNK-77): signed by Donka, verified offline with the built-in public key.
+ed25519-dalek = { version = "2", default-features = false, features = ["std", "zeroize"] }
+# Encryption at rest of decision records (DNK-18) and second-step secrets (DNK-59).
+aes-gcm = "0.10"
+# Keyed hashes of the identifiers a person's decisions are found by (DNK-75).
+hmac = "0.12"
+# The access report a person receives (DNK-75): PDF, text laid out with the font's own widths.
+krilla = { version = "0.8", default-features = false, features = ["simple-text"] }
+skrifa = "0.42"
+# Authenticator-app codes for the second sign-in step (DNK-59); the otpauth URL feeds the QR code.
+totp-rs = { version = "6", default-features = false, features = ["otpauth"] }
+# rustls with the system trust store, so a bank's internal mail relay CA is honoured.
+lettre = { version = "0.11", default-features = false, features = ["builder", "hostname", "pool", "smtp-transport", "tokio1", "tokio1-rustls", "ring", "rustls-platform-verifier"] }
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "macros", "migrate", "uuid", "chrono"] }
 # One engine version for Studio, Runtime and the editor's WASM linting.
 # scripts/check-engine-version.sh fails CI if any of them drift apart.
-zen-engine = { version = "=2.0.1", features = ["arbitrary_precision"] }
+# Release artifacts: S3, MinIO or a local folder behind one interface.
+object_store = { version = "0.14", features = ["aws"] }
+url = "2"
+zip = { version = "9", default-features = false, features = ["deflate"] }
+zen-engine = { version = "=2.1.6", features = ["arbitrary_precision"] }
+# Explanations from the customer's LLM endpoint (DNK-19); rustls with the system trust
+# store, so an endpoint behind a bank's internal CA is honoured.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-native-roots"] }
+# Connector nodes, the same handler the Runtime runs; Studio uses its mock mode only (no `live`).
+donka-connectors = { git = "https://github.com/youmssi/donka-runtime", rev = "70431161efecf28c32eefaf48a7ef7bca6baba9d" }
 
 donka-engine = { path = "crates/engine" }
+donka-db = { path = "crates/db" }
+donka-audit = { path = "crates/audit" }
+donka-decision = { path = "crates/decision" }
+donka-identity = { path = "crates/identity" }
+donka-project = { path = "crates/project" }
+donka-shared = { path = "crates/shared" }
+donka-mail = { path = "crates/mail" }
+donka-storage = { path = "crates/storage" }
+donka-release = { path = "crates/release" }
+donka-decision-log = { path = "crates/decision-log" }
+donka-analysis = { path = "crates/analysis" }
+donka-explain = { path = "crates/explain" }
+donka-pack = { path = "crates/pack" }
+donka-licence = { path = "crates/licence" }
+donka-installation = { path = "crates/installation" }
+
+# Adopted from gorules/zen: no unsafe code, no unwrap() outside tests (clippy.toml allows it there).
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
 
 [profile.release]
-lto = true
+# Thin LTO: a code change relinks in about 3.5 minutes instead of 8.5 (4 cores), for a binary
+# about 7% larger. More codegen units gained no time and grew the binary by 30%.
+lto = "thin"
 codegen-units = 1
+strip = "symbols"
+
+[patch.crates-io]
+# DNK-49: the 2.1.6 engine source with the patched ZIP reader; DNK-83: the switch that keeps
+# function nodes off the network. Keep both server pins identical.
+zen-engine = { git = "https://github.com/youmssi/zen", rev = "295fdfac546bd01cf4cbbb2b64c5c0e17d7e2a15" }
+zen-expression = { git = "https://github.com/youmssi/zen", rev = "295fdfac546bd01cf4cbbb2b64c5c0e17d7e2a15" }
+zen-tmpl = { git = "https://github.com/youmssi/zen", rev = "295fdfac546bd01cf4cbbb2b64c5c0e17d7e2a15" }

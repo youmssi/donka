@@ -1,0 +1,641 @@
+'use client';
+
+import { CircleAlert, KeyRound, Plus, Rocket, RotateCcw, ShieldCheck } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { Fragment, useId, useState, type ReactNode } from 'react';
+import { toast } from 'sonner';
+
+import type { ActionError } from '@/components/shared/api';
+import { ErrorAlert } from '@/components/shared/error-alert';
+import { useAppForm } from '@/components/shared/form';
+import { When } from '@/components/shared/format';
+import { ShownOnceToken } from '@/components/shared/shown-once-token';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemMedia,
+  ItemSeparator,
+  ItemTitle,
+} from '@/components/ui/item';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import { Textarea } from '@/components/ui/textarea';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Spinner } from '@/components/ui/spinner';
+import { Link, useRouter } from '@/i18n/navigation';
+import { approvalHref, ProjectFrame, type Project } from '@/modules/project';
+
+import { canRelease } from './releases-page';
+import { RollbackButton } from './rollback-dialog';
+import { deployRelease, issueToken, requestApproval, retryDeployment, revokeToken } from './release.service';
+import {
+  inFlight,
+  TOKEN_NAME_MAX,
+  MAX_JUSTIFICATION_CHARS,
+  tokenSchema,
+  type Deployment,
+  type EnvironmentName,
+  type EnvironmentState,
+  type IssuedToken,
+  type RuntimeToken,
+  type TokenValues,
+} from './schema';
+import { useEnvironmentsTour } from './tours';
+import { useApprovals, useEnvironments, useReleaseList, useReleasesChanged, useTokens } from './useReleases';
+
+/** Owners manage the tokens that open an environment. */
+function canManageTokens(project: Project): boolean {
+  return project.role === 'owner' && !project.archivedAt;
+}
+
+export function EnvironmentsPage() {
+  return <ProjectFrame section="environments">{(project) => <Environments project={project} />}</ProjectFrame>;
+}
+
+function Environments({ project }: { project: Project }) {
+  const t = useTranslations('environments');
+  const common = useTranslations('common');
+  const query = useEnvironments(project.id);
+  const result = query.data;
+  useEnvironmentsTour(Boolean(result?.ok));
+
+  if (result && !result.ok) {
+    return (
+      <ErrorAlert
+        error={result.error}
+        title={t('errorTitle')}
+        action={
+          <Button variant="outline" size="sm" className="mt-2" onClick={() => void query.refetch()}>
+            {common('retry')}
+          </Button>
+        }
+      />
+    );
+  }
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      {result
+        ? result.data.map((env) => (
+            <EnvironmentCard
+              key={env.environment}
+              project={project}
+              state={env}
+              staging={result.data.find((other) => other.environment === 'staging')?.live ?? null}
+            />
+          ))
+        : [0, 1].map((index) => <Skeleton key={index} className="h-80 w-full rounded-xl" />)}
+    </div>
+  );
+}
+
+function EnvironmentCard({
+  project,
+  state,
+  staging,
+}: {
+  project: Project;
+  state: EnvironmentState;
+  /** What staging runs: the release production can be asked for. */
+  staging: Deployment | null;
+}) {
+  const t = useTranslations('environments');
+  const env = state.environment;
+  const pending = state.latest && state.latest.id !== state.live?.id ? state.latest : null;
+
+  return (
+    <Card role="region" aria-labelledby={`env-${env}`} data-tour={`env-${env}`}>
+      <CardHeader className="has-data-[slot=card-action]:grid-cols-[minmax(0,1fr)] sm:has-data-[slot=card-action]:grid-cols-[minmax(0,1fr)_fit-content(50%)]">
+        <CardTitle id={`env-${env}`}>{t(env)}</CardTitle>
+        <CardDescription>{t(`${env}Description`)}</CardDescription>
+        <CardAction className="col-start-1 row-span-1 row-start-3 max-w-full min-w-0 justify-self-start sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:justify-self-end">
+          <Badge
+            className="max-w-full text-left break-all whitespace-normal"
+            variant={env === 'production' ? 'default' : 'secondary'}
+          >{`${env}/${project.key}`}</Badge>
+        </CardAction>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        <section className="grid gap-1" aria-label={t('live')}>
+          <h3 className="text-xs font-medium text-muted-foreground uppercase">{t('live')}</h3>
+          {state.live ? (
+            <p className="flex flex-wrap items-center gap-x-2 text-sm">
+              <span className="font-mono text-lg font-semibold">{state.live.releaseVersion}</span>
+              {state.live.reason === 'rollback' ? <Badge variant="outline">{t('rolledBack')}</Badge> : null}
+              <span className="text-muted-foreground">
+                {t('publishedBy', { email: state.live.requestedBy.email })} ·{' '}
+                <When value={state.live.publishedAt ?? state.live.requestedAt} as="ago" />
+              </span>
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">{t('nothingLive')}</p>
+          )}
+          {state.live?.reason === 'rollback' && state.live.rollbackReason ? (
+            <p className="text-sm text-muted-foreground">
+              {t('rollbackReason', { reason: state.live.rollbackReason })}
+            </p>
+          ) : null}
+        </section>
+        {pending ? <PendingDeployment project={project} deployment={pending} /> : null}
+        {env === 'staging' ? (
+          canRelease(project) ? (
+            <div data-tour="env-deploy">
+              <DeployControl project={project} live={state.live?.releaseId ?? null} />
+            </div>
+          ) : null
+        ) : (
+          <ProductionRequest
+            project={project}
+            staging={staging}
+            live={state.live?.releaseId ?? null}
+            actions={<RollbackButton project={project} live={state.live?.releaseId ?? null} />}
+          />
+        )}
+        <Separator />
+        <div data-tour={env === 'staging' ? 'env-tokens' : undefined}>
+          <Tokens project={project} environment={env} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Production is published through an approval: the request waiting for one,
+ * or a way to ask for the release live on staging.
+ */
+function protectedFieldsFrom(error: ActionError): string[] {
+  const details = error.details;
+  if (typeof details !== 'object' || details === null || !('fields' in details)) return [];
+  const fields = details.fields;
+  return Array.isArray(fields) ? fields.filter((field): field is string => typeof field === 'string') : [];
+}
+
+function ProductionRequest({
+  project,
+  staging,
+  live,
+  actions,
+}: {
+  project: Project;
+  staging: Deployment | null;
+  live: string | null;
+  /** Other production actions, shown next to the request (rolling back). */
+  actions: ReactNode;
+}) {
+  const t = useTranslations('environments');
+  const common = useTranslations('common');
+  const errors = useTranslations('errors');
+  const router = useRouter();
+  const changed = useReleasesChanged(project.id);
+  const approvals = useApprovals(project.id, 0).data;
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [protectedFields, setProtectedFields] = useState<string[] | null>(null);
+  const [justification, setJustification] = useState('');
+  const justificationId = useId();
+  const pending = approvals?.ok ? approvals.data.items.find((approval) => approval.status === 'pending') : undefined;
+
+  if (pending) {
+    return (
+      <>
+        <Alert className="border-amber-500/40 bg-amber-500/10">
+          <ShieldCheck className="text-amber-600" aria-hidden />
+          <AlertDescription className="text-foreground">
+            <p>{t('waitingApproval', { version: pending.releaseVersion, email: pending.requestedBy.email })}</p>
+            <Button asChild size="sm" variant="outline" className="mt-2">
+              <Link href={approvalHref(project.key, pending.id)}>{t('review')}</Link>
+            </Button>
+          </AlertDescription>
+        </Alert>
+        {actions}
+      </>
+    );
+  }
+  const askable = canRelease(project) && staging && staging.releaseId !== live;
+  if (!askable) {
+    return (
+      <>
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <ShieldCheck className="size-4 shrink-0" aria-hidden />
+          {t('productionApproval')}
+        </p>
+        {actions}
+      </>
+    );
+  }
+
+  async function onRequest() {
+    if (!staging) return;
+    setBusy(true);
+    const result = await requestApproval(
+      project.id,
+      staging.releaseId,
+      protectedFields ? justification.trim() : undefined,
+    );
+    setBusy(false);
+    changed();
+    if (result.ok) {
+      setConfirming(false);
+      toast.success(t('requested', { version: result.data.releaseVersion }));
+      router.push(approvalHref(project.key, result.data.id));
+    } else {
+      if (result.error.code === 'PROTECTED_FIELD_JUSTIFICATION_REQUIRED') {
+        setProtectedFields(protectedFieldsFrom(result.error));
+        return;
+      }
+      toast.error(errors(result.error.code));
+    }
+  }
+
+  return (
+    <div className="grid gap-2">
+      <p className="flex items-center gap-2 text-sm text-muted-foreground">
+        <ShieldCheck className="size-4 shrink-0" aria-hidden />
+        {t('productionApproval')}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button disabled={busy} onClick={() => setConfirming(true)}>
+          {busy ? <Spinner /> : <Rocket aria-hidden />}
+          {t('requestProduction', { version: staging.releaseVersion })}
+        </Button>
+        {actions}
+      </div>
+      <AlertDialog
+        open={confirming}
+        onOpenChange={(open) => {
+          setConfirming(open);
+          if (!open) {
+            setProtectedFields(null);
+            setJustification('');
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('requestTitle', { version: staging.releaseVersion })}</AlertDialogTitle>
+            <AlertDialogDescription>{t('requestConfirm')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          {protectedFields ? (
+            <div className="grid gap-3">
+              <p className="text-sm">{t('protectedFieldsRequired')}</p>
+              <ul className="list-disc ps-5 text-sm text-muted-foreground">
+                {protectedFields.map((field) => (
+                  <li key={field}>{field}</li>
+                ))}
+              </ul>
+              <Field>
+                <FieldLabel htmlFor={justificationId}>{t('protectedJustification')}</FieldLabel>
+                <Textarea
+                  id={justificationId}
+                  value={justification}
+                  maxLength={MAX_JUSTIFICATION_CHARS}
+                  onChange={(event) => setJustification(event.target.value)}
+                  aria-describedby={`${justificationId}-hint`}
+                />
+                <p id={`${justificationId}-hint`} className="text-sm text-muted-foreground">
+                  {t('protectedJustificationHint', { max: MAX_JUSTIFICATION_CHARS })}
+                </p>
+              </Field>
+            </div>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel>{common('cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={Boolean(protectedFields && !justification.trim()) || busy}
+              onClick={(event) => {
+                event.preventDefault();
+                void onRequest();
+              }}
+            >
+              {busy ? <Spinner /> : null}
+              {t('requestAction')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+/** A deployment on its way, retrying, or given up: said plainly, with what to do. */
+function PendingDeployment({ project, deployment }: { project: Project; deployment: Deployment }) {
+  const t = useTranslations('environments');
+  const errors = useTranslations('errors');
+  const changed = useReleasesChanged(project.id);
+  const [retrying, setRetrying] = useState(false);
+
+  async function onRetry() {
+    setRetrying(true);
+    const result = await retryDeployment(project.id, deployment.environment, deployment.id);
+    setRetrying(false);
+    changed();
+    if (!result.ok) toast.error(errors(result.error.code));
+  }
+
+  const what =
+    deployment.reason === 'tokens'
+      ? t('republishing', { version: deployment.releaseVersion })
+      : deployment.reason === 'rollback'
+        ? t('rollingBackTo', { version: deployment.releaseVersion })
+        : t('deployingVersion', { version: deployment.releaseVersion });
+
+  if (deployment.status === 'failed') {
+    return (
+      <Alert variant="destructive">
+        <CircleAlert aria-hidden />
+        <AlertTitle>{t('failedTitle', { version: deployment.releaseVersion })}</AlertTitle>
+        <AlertDescription>
+          <p>{t('failed', { attempts: deployment.attempts, error: deployment.lastError ?? '' })}</p>
+          {canRelease(project) ? (
+            <Button variant="outline" size="sm" className="mt-2" disabled={retrying} onClick={() => void onRetry()}>
+              {retrying ? <Spinner /> : <RotateCcw aria-hidden />}
+              {t('retry')}
+            </Button>
+          ) : null}
+        </AlertDescription>
+      </Alert>
+    );
+  }
+  if (inFlight(deployment)) {
+    return (
+      <Alert role="status" aria-live="polite">
+        <Spinner />
+        <AlertTitle>{what}</AlertTitle>
+        {deployment.status === 'retrying' ? (
+          <AlertDescription>
+            {t.rich('retrying', {
+              attempts: deployment.attempts,
+              error: deployment.lastError ?? '',
+              when: () => (deployment.nextAttemptAt ? <When value={deployment.nextAttemptAt} as="time" /> : null),
+            })}
+          </AlertDescription>
+        ) : null}
+      </Alert>
+    );
+  }
+  return null;
+}
+
+function DeployControl({ project, live }: { project: Project; live: string | null }) {
+  const t = useTranslations('environments');
+  const errors = useTranslations('errors');
+  const changed = useReleasesChanged(project.id);
+  const releases = useReleaseList(project.id, 0).data;
+  const items = releases?.ok ? releases.data.items : [];
+  const [chosen, setChosen] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const selectId = useId();
+  const selected = chosen ?? items[0]?.id ?? '';
+
+  if (items.length === 0) {
+    return <p className="text-sm text-muted-foreground">{t('noRelease')}</p>;
+  }
+
+  async function onDeploy() {
+    const release = items.find((r) => r.id === selected);
+    if (!release) return;
+    setBusy(true);
+    const result = await deployRelease(project.id, 'staging', release.id);
+    setBusy(false);
+    changed();
+    if (result.ok) toast.success(t('deployingVersion', { version: release.version }));
+    else toast.error(errors(result.error.code));
+  }
+
+  return (
+    <div className="flex flex-wrap items-end gap-2">
+      <Field className="min-w-0 flex-1 gap-1.5">
+        <FieldLabel htmlFor={selectId}>{t('deployLabel')}</FieldLabel>
+        <Select value={selected} onValueChange={setChosen}>
+          <SelectTrigger id={selectId} className="w-full overflow-hidden">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {items.map((release) => (
+              <SelectItem key={release.id} value={release.id}>
+                <span className="font-mono">{release.version}</span>
+                <span className="max-w-60 min-w-0 truncate text-muted-foreground">{release.notes}</span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+      <Button disabled={busy || selected === live} onClick={() => void onDeploy()}>
+        {busy ? <Spinner /> : <Rocket aria-hidden />}
+        {t('deploy')}
+      </Button>
+    </div>
+  );
+}
+
+function Tokens({ project, environment }: { project: Project; environment: EnvironmentName }) {
+  const t = useTranslations('tokens');
+  const query = useTokens(project.id, environment);
+  const result = query.data;
+  const manage = canManageTokens(project);
+  const [issuing, setIssuing] = useState(false);
+
+  return (
+    <section className="grid gap-2" aria-label={t('title')}>
+      <div className="flex items-center gap-2">
+        <h3 className="flex-1 text-xs font-medium text-muted-foreground uppercase">{t('title')}</h3>
+        {manage ? (
+          <Button size="sm" variant="outline" onClick={() => setIssuing(true)}>
+            <Plus aria-hidden />
+            {t('create')}
+          </Button>
+        ) : null}
+      </div>
+      {!result ? (
+        <Skeleton className="h-16 w-full" />
+      ) : !result.ok ? (
+        <ErrorAlert error={result.error} />
+      ) : result.data.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{manage ? t('empty') : t('emptyReadOnly')}</p>
+      ) : (
+        <ItemGroup className="rounded-lg border">
+          {result.data.map((token, index) => (
+            <Fragment key={token.id}>
+              {index > 0 ? <ItemSeparator /> : null}
+              <TokenRow project={project} environment={environment} token={token} manage={manage} />
+            </Fragment>
+          ))}
+        </ItemGroup>
+      )}
+      {issuing ? (
+        <IssueTokenDialog project={project} environment={environment} onClose={() => setIssuing(false)} />
+      ) : null}
+    </section>
+  );
+}
+
+function TokenRow({
+  project,
+  environment,
+  token,
+  manage,
+}: {
+  project: Project;
+  environment: EnvironmentName;
+  token: RuntimeToken;
+  manage: boolean;
+}) {
+  const t = useTranslations('tokens');
+  const common = useTranslations('common');
+  const errors = useTranslations('errors');
+  const changed = useReleasesChanged(project.id);
+  const [confirming, setConfirming] = useState(false);
+  const revoked = token.revokedAt !== null && token.revokedAt !== undefined;
+
+  async function onRevoke() {
+    const result = await revokeToken(project.id, environment, token.id);
+    changed();
+    if (result.ok) toast.success(t('revoked', { name: token.name }));
+    else toast.error(errors(result.error.code));
+  }
+
+  return (
+    <Item size="sm" role="listitem">
+      <ItemMedia variant="icon">
+        <KeyRound aria-hidden />
+      </ItemMedia>
+      <ItemContent className="min-w-0">
+        <ItemTitle className={revoked ? 'text-muted-foreground line-through' : undefined}>{token.name}</ItemTitle>
+        <ItemDescription className="flex flex-wrap items-center gap-x-2">
+          <span className="font-mono">…{token.hint}</span>
+          {revoked ? null : <When value={token.createdAt} as="ago" />}
+        </ItemDescription>
+      </ItemContent>
+      {revoked ? <Badge variant="outline">{t('revokedBadge')}</Badge> : null}
+      {manage && !revoked ? (
+        <ItemActions>
+          <Button variant="ghost" size="sm" onClick={() => setConfirming(true)}>
+            {t('revoke')}
+          </Button>
+          <AlertDialog open={confirming} onOpenChange={setConfirming}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{t('revokeTitle', { name: token.name })}</AlertDialogTitle>
+                <AlertDialogDescription>{t('revokeConfirm')}</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{common('cancel')}</AlertDialogCancel>
+                <AlertDialogAction variant="destructive" onClick={() => void onRevoke()}>
+                  {t('revoke')}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </ItemActions>
+      ) : null}
+    </Item>
+  );
+}
+
+/** Names a new token, then shows it once, with a way to copy it. */
+function IssueTokenDialog({
+  project,
+  environment,
+  onClose,
+}: {
+  project: Project;
+  environment: EnvironmentName;
+  onClose: () => void;
+}) {
+  const t = useTranslations('tokens');
+  const environments = useTranslations('environments');
+  const common = useTranslations('common');
+  const changed = useReleasesChanged(project.id);
+  const [error, setError] = useState<ActionError | null>(null);
+  const [issued, setIssued] = useState<IssuedToken | null>(null);
+
+  const form = useAppForm({
+    defaultValues: { name: '' } satisfies TokenValues,
+    validators: { onChange: tokenSchema, onSubmit: tokenSchema },
+    onSubmit: async ({ value }) => {
+      setError(null);
+      const result = await issueToken(project.id, environment, value.name.trim());
+      if (result.ok) {
+        changed();
+        setIssued(result.data);
+      } else {
+        setError(result.error);
+      }
+    },
+  });
+
+  return (
+    <Dialog open onOpenChange={(open) => (open ? null : onClose())}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t('createTitle', { environment: environments(environment) })}</DialogTitle>
+          <DialogDescription>{issued ? t('shownOnce') : t('createDescription')}</DialogDescription>
+        </DialogHeader>
+        {issued ? (
+          <div className="grid gap-4">
+            <ShownOnceToken label={issued.name} token={issued.token} />
+            <Alert>
+              <CircleAlert aria-hidden />
+              <AlertDescription>{t('header')}</AlertDescription>
+            </Alert>
+            <DialogFooter>
+              <Button onClick={onClose}>{t('done')}</Button>
+            </DialogFooter>
+          </div>
+        ) : (
+          <form.AppForm>
+            <form.Form className="grid gap-4">
+              {error ? <ErrorAlert error={error} /> : null}
+              <FieldGroup className="gap-2">
+                <form.AppField name="name">
+                  {(field) => (
+                    <field.TextField
+                      label={t('name')}
+                      hint={t('nameHint')}
+                      placeholder={t('namePlaceholder')}
+                      required
+                      autoFocus
+                      messageValues={{ max: TOKEN_NAME_MAX }}
+                    />
+                  )}
+                </form.AppField>
+              </FieldGroup>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={onClose}>
+                  {common('cancel')}
+                </Button>
+                <form.SubmitButton pendingLabel={t('creating')}>{t('create')}</form.SubmitButton>
+              </DialogFooter>
+            </form.Form>
+          </form.AppForm>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}

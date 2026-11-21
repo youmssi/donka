@@ -10,17 +10,84 @@ publish = false
 name = "donka-app"
 path = "src/main.rs"
 
+[[bin]]
+name = "donka-admin"
+path = "src/admin.rs"
+
 [dependencies]
 anyhow = { workspace = true }
 axum = { workspace = true }
+donka-audit = { workspace = true, features = ["openapi"] }
+donka-analysis = { workspace = true }
+donka-decision = { workspace = true }
+donka-decision-log = { workspace = true }
+donka-explain = { workspace = true }
+donka-db = { workspace = true }
 donka-engine = { workspace = true }
+donka-identity = { workspace = true, features = ["openapi"] }
+donka-installation = { workspace = true }
+donka-licence = { workspace = true }
+donka-mail = { workspace = true }
+donka-pack = { workspace = true }
+donka-project = { workspace = true, features = ["openapi"] }
+donka-release = { workspace = true }
+donka-shared = { workspace = true }
+donka-storage = { workspace = true }
+chrono = { workspace = true }
+base64 = { workspace = true }
+ed25519-dalek = { workspace = true }
+getrandom = { workspace = true }
+ipnet = "2.12"
+openidconnect = "4.1"
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
+tower = { workspace = true }
 tower-http = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+opentelemetry = { version = "0.32", default-features = false, features = ["trace", "metrics"] }
+opentelemetry_sdk = { version = "0.32", default-features = false, features = ["trace", "metrics"] }
+opentelemetry-otlp = { version = "0.32", default-features = false, features = ["http-proto", "reqwest-blocking-client", "reqwest-rustls", "trace", "metrics"] }
+tracing-opentelemetry = "0.33"
+utoipa = { workspace = true }
+utoipa-axum = { workspace = true }
+utoipa-scalar = { version = "0.3", features = ["axum"] }
+uuid = { workspace = true }
+thiserror = { workspace = true }
+# donka-admin upgrade (DNK-64): the Docker Engine API, the registry, cosign signatures.
+bollard = "0.21"
+futures-util = "0.3"
+hex = "0.4"
+p256 = { version = "0.14", features = ["ecdsa", "pem"] }
+reqwest = { workspace = true }
+semver = { version = "1", features = ["serde"] }
+# donka.yaml, the installation's answers (DNK-74).
+serde_yaml_ng = "0.10"
+sha2 = { workspace = true }
+# donka-admin doctor (DNK-74): what PostgreSQL answered.
+sqlx = { workspace = true }
+tar = "0.4"
+# donka-admin support-bundle (DNK-74): the archive, and what is removed from it.
+flate2 = "1"
+regex = "1"
+
+[features]
+# Trust the development licence key instead of Donka's (DNK-77): local development and CI only.
+development-licence-key = ["donka-licence/development-key"]
 
 [dev-dependencies]
-tower = { workspace = true }
+uuid = { workspace = true }
+donka-licence = { workspace = true }
+sqlx = { workspace = true }
+async-trait = { workspace = true }
+donka-mail = { workspace = true, features = ["testing"] }
+donka-storage = { workspace = true, features = ["testing"] }
+totp-rs = { workspace = true }
+zip = { workspace = true }
+sha2 = { workspace = true }
 http-body-util = "0.1"
+opentelemetry_sdk = { version = "0.32", default-features = false, features = ["trace", "metrics", "testing"] }
+
+[lints]
+workspace = true

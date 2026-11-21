@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "key": "kyc-risk-rating",
+  "name": {
+    "en": "KYC risk rating",
+    "fr": "Notation du risque KYC"
+  },
+  "description": {
+    "en": "Money-laundering and terrorist-financing risk of a customer at onboarding and review, for the CEMAC: geography, PEP, activity, channel and volume give a low, medium or high rating, the due-diligence level and the next review date.",
+    "fr": "Risque de blanchiment et de financement du terrorisme d'un client à l'entrée en relation et à la revue, pour la CEMAC : géographie, PPE, activité, canal et volume donnent une notation faible, moyenne ou élevée, le niveau de vigilance et la prochaine revue."
+  },
+  "version": "1.0",
+  "market": "CM",
+  "currency": "XAF",
+  "entry": "risk-rating",
+  "decisions": [
+    "risk-rating"
+  ],
+  "decisionLog": {
+    "outcomeField": "rating",
+    "redactedFields": []
+  }
+}

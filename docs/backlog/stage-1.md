@@ -1,0 +1,2115 @@
+# Stage 1 — pilot-ready (stories)
+
+Order of delivery is in `docs/ROADMAP.md`. Repos: **S** = donka (Studio), **R** = donka-runtime,
+**C** = donka-cli. Stories spanning repos use the same branch name in each (producer merges
+first). Every story also carries the standing criteria: checks green, docs and `.env.example`
+updated, EN + FR strings for UI, screenshots for UI.
+
+---
+
+### DNK-1 — Work the same way in every Donka repo
+
+**Type:** chore · **Repos:** S, R, C · **Dependencies:** none · **Size:** S
+
+#### Why
+Three repos, one team: without shared rules each repo drifts in branching, commits and quality bar.
+
+#### Behaviour
+| Where | After |
+|---|---|
+| All repos | `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, PR template, `develop` branch |
+| Studio | Engineering guides adapted to Rust + static Next.js, ADR-001…006, this backlog |
+
+#### Acceptance criteria
+- [x] Each repo has the playbook files with no placeholder left
+- [x] Studio guides state every deviation from the generic playbook and link the ADR behind it
+- [x] The forks state how they follow the playbook without restructuring upstream code (ADR-006)
+- [x] Repository settings to apply by hand are listed in `CONTRIBUTING.md`
+
+#### Out of scope
+Code changes (DNK-2 onward).
+
+Acceptance evidence: [2026-10-20 foundation audit](../engineering/foundation-evidence.md).
+
+---
+
+### DNK-2 — API conventions every endpoint follows
+
+**Type:** refactor · **Repos:** S · **Dependencies:** DNK-1 · **Size:** S
+
+#### Why
+Every later endpoint copies the first ones; the base path, error shape and request id must be right
+before there are thirty endpoints.
+
+#### Behaviour
+| Where | Before | After |
+|---|---|---|
+| All routes | `/api/…` hardcoded | `/api/v1/…` from `DONKA_API_BASE_PATH` |
+| Errors | ad-hoc JSON | `{ message, code, requestId, fields? }` |
+| Every response | — | `x-request-id` header (incoming one reused) |
+| Contract | — | `GET /api/v1/openapi.json` generated with `utoipa` |
+
+#### Acceptance criteria
+- [x] Changing `DONKA_API_BASE_PATH` moves every route; no handler contains the version
+- [x] Simulate errors keep their meaning with the new shape: unknown decision `404 DECISION_NOT_FOUND`, invalid model `422 INVALID_DECISION`, engine rejection `422 EVALUATION_FAILED`
+- [x] An unexpected failure returns `500 INTERNAL_ERROR` with a request id and no internal detail; the log line carries the same id
+- [x] `GET /health` (liveness) answers without the database
+- [x] Invalid configuration stops startup with a message naming the variable
+
+#### Out of scope
+Database readiness (DNK-3), authentication (DNK-4).
+
+Acceptance evidence: [2026-10-20 foundation audit](../engineering/foundation-evidence.md).
+
+---
+
+### DNK-3 — Persistent storage for Studio
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-2 · **Size:** M
+
+#### Why
+Nothing is stored today. Every following feature needs PostgreSQL, migrations and a tested way to
+run them in CI.
+
+#### Acceptance criteria
+- [x] `DATABASE_URL` required; Studio applies pending migrations at startup (can be disabled with `DONKA_DB_MIGRATE=false`)
+- [x] `GET /ready` returns `503` when the database is unreachable, `200` otherwise
+- [x] CI runs integration tests against PostgreSQL 16
+- [x] A reusable append-only guard (trigger rejecting `UPDATE`/`DELETE`) exists, with a test that proves it
+- [x] Shared persistence crate (`crates/db`: pool, migrations, readiness); business-module crates arrive with their first table (`crates/identity` in DNK-4), so no empty crate is created ahead of use
+
+#### Out of scope
+Business tables other than what DNK-4 needs.
+
+Acceptance evidence: [2026-10-20 foundation audit](../engineering/foundation-evidence.md).
+
+---
+
+### DNK-4 — Sign in to Studio
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-3 · **Size:** M
+
+#### Why
+Studio holds credit policy. Only known people may see or change it, and every change must be
+attributable.
+
+#### Decision
+Session cookie (httpOnly, Secure, SameSite=Lax) on the same origin as the web app (ADR-002),
+sessions stored in PostgreSQL as token hashes on Studio's own pool (ADR-007), argon2id password
+hashes, CSRF enforced with the `x-donka-csrf` header. A locked account gets the same
+`INVALID_CREDENTIALS` answer as a wrong password, so lockout does not reveal that an account exists. First administrator created from
+`DONKA_BOOTSTRAP_ADMIN_EMAIL` on an empty database, with a one-time password-setup link printed to
+the log.
+
+#### Acceptance criteria
+- [x] Sign in with email + password; wrong credentials return one generic message (no account enumeration)
+- [x] Sign out invalidates the session server-side
+- [x] Every route except health, ready, sign-in and password setup returns `401` without a session
+- [x] State-changing requests without the CSRF header are refused (`403`)
+- [x] Five failed sign-ins for one account in 15 minutes lock it for 15 minutes (limits from config)
+- [x] Sessions expire after `DONKA_SESSION_IDLE_MINUTES` of inactivity
+- [x] Passwords are never logged or returned
+
+#### Out of scope
+SSO/OIDC (DNK-60, Phase 2). Password reset and invitations (DNK-5). Second step (DNK-59).
+
+---
+
+### DNK-5 — Invite teammates and reset passwords
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-4 · **Size:** M
+
+#### Acceptance criteria
+- [x] An administrator invites a person by email; the invitation link is single-use, expires (config), and is stored hashed
+- [x] Password reset sends a single-use, short-lived link; requesting it for an unknown email looks identical to a known one
+- [x] Emails go through an outbox processed after commit; a failed send is retried with backoff
+- [x] SMTP settings come from `DONKA_SMTP_URL` and `DONKA_SMTP_FROM`; local development uses Mailpit
+- [x] Email content exists in English and French, chosen by the recipient's language
+
+---
+
+### DNK-6 — Studio web foundation
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-4 · **Size:** L
+
+#### Why
+Every screen after this one reuses its shell, language switch, theme, HTTP client and error
+handling.
+
+#### Acceptance criteria
+- [x] `apps/web` builds as a static export; `apps/app` serves it on the same origin, with unknown paths falling back to the app shell
+- [x] shadcn/ui on Radix with CSS-variable tokens, light and dark
+- [x] English and French with `i18n:check` in CI; language switch keeps the current page
+- [x] Sign-in and sign-out screens working against DNK-4, with the four data states
+- [x] Typed client generated from `/api/v1/openapi.json`; services return `ActionResult`
+- [x] Checked at 390 px and desktop; screenshots in the PR
+
+---
+
+### DNK-7 — Projects and who can work on them
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-6 · **Size:** M
+
+#### Decisions (taken in the story, easy to change)
+- Only instance administrators create projects; the creator becomes the first owner.
+- Administrators are not implicit members of every project (least privilege); an owner adds them.
+- Keys are immutable (artifacts are stored under them); archiving is reversible by an owner.
+
+#### Acceptance criteria
+- [x] Create, list, rename and archive projects; project keys are unique and URL-safe
+- [x] Members with roles owner / editor / viewer; only owners manage members
+- [x] One `ProjectAccess` extractor enforces membership on every project route; a non-member gets `404`
+- [x] A viewer calling any change endpoint gets `403`
+- [x] Tests prove a member of project A cannot read or change project B
+- [x] Screens: project list (empty state explains how to create one), project settings, members
+
+---
+
+### DNK-8 — Edit a decision and simulate it
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-7 · **Size:** L
+
+#### Decisions (taken in the story)
+- The draft is a working copy: autosaves are not audit events; creating and deleting a decision
+  are. Immutable versions, and their audit trail, come with DNK-9.
+- On a conflict the editor stops autosaving and asks: load their version, or keep mine (which
+  replaces theirs, knowingly). Nothing is overwritten silently.
+- Projects open on their decisions.
+
+#### Acceptance criteria
+- [x] Decisions (JDM graphs) are stored per project under a key (`person-score`, `bureau/normalize`)
+- [x] The editor page loads jdm-editor client-only, themed with Studio's tokens
+- [x] Changes autosave as a draft; two people editing the same decision get a conflict (`409`) instead of silently overwriting
+- [x] Simulate evaluates the draft with every sibling decision of the project, returns result + trace
+- [x] Viewers can open and simulate but not save
+
+---
+
+### DNK-9 — Version history and diff
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-8 · **Size:** M
+
+#### Decisions (taken in the story)
+- Versions are numbered per decision (v1, v2…) and hold the whole graph. The database refuses
+  any change to a version, as it does for the audit log.
+- A version needs a message (up to 500 characters). Saving when the draft equals the latest
+  version is refused (`VERSION_UNCHANGED`): no empty versions. "Equal" compares the graphs, not
+  revisions, so a save that changes nothing leaves the draft unchanged.
+- A version is taken of the draft the editor shows: pending autosaves are sent first, and the
+  request names the draft revision, so a concurrent edit is a conflict, not a surprise.
+- Restoring version N puts its graph in the draft and adds a new version ("Restored version N")
+  in one transaction, with the same revision check. Draft changes not saved as a version are
+  replaced; the confirmation says so.
+- Deleting a decision is now a soft delete: its versions stay (a release will point at them);
+  its key is free for a new decision.
+- The editor and the decisions list show the latest version and whether the draft changed
+  since. Saving and restoring a version are audit events.
+- Compare: any two versions, or a version and the draft, in jdm-editor's diff view (added,
+  removed, modified nodes). Viewers can compare but not save or restore.
+
+#### Acceptance criteria
+- [x] "Save version" creates an immutable version with author, time and message
+- [x] History lists versions newest first, paginated
+- [x] Comparing two versions shows jdm-editor's diff view
+- [x] Restoring an old version creates a new version (history is never rewritten)
+
+---
+
+### DNK-10 — Test scenarios that run on every version
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-9 · **Size:** M
+
+#### Why
+An approver who only sees a diff is rubber-stamping. Tests make the four-eyes rule mean something.
+
+#### Decisions (taken in the story)
+- A scenario targets one decision of the project: a name (unique per decision, any case), an
+  input object, an expected output object, and a match. **Partial**: every expected field has
+  its value, other output fields are free. **Exact**: the output is exactly the expected
+  document. Objects compare field by field, arrays and values as a whole, numbers by value.
+- Saving or restoring any version runs **every** scenario of the project, because decisions
+  call each other. A version is tested as a release would hold it: that decision at the new
+  version, every other decision at its latest version. A scenario that needs a decision without
+  a saved version is reported as "could not run", naming that decision.
+- Results never block saving; they are kept with the version, never change, and copy the
+  scenario as it ran, so editing or deleting a scenario later does not rewrite what was tested.
+  Approvals (DNK-14) will read them.
+- Mismatches (path, expected, actual) are computed by the server, so API clients get the same
+  per-field explanation as the web app.
+- Editors and owners write scenarios; viewers read them and the results. Creating, changing and
+  deleting a scenario are audit events.
+- "Save as scenario" in the simulator keeps the last run's input and output (partial match by
+  default) for the person to name and trim.
+
+#### Acceptance criteria
+- [x] A scenario = decision key + input + expected output (exact or partial match)
+- [x] All scenarios of a project run when a version is saved; results stored with the version
+- [x] A failing scenario shows expected vs actual per field
+- [x] Scenarios can be created from a simulator run in one click
+
+---
+
+### DNK-11 — Audit log
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-7 · **Size:** S
+
+#### Acceptance criteria
+- [x] Every state change (sign-in, member change, save, release, deploy, approval, rollback) writes exactly one audit event in the same transaction — done for every change that exists today (account and project changes); save, release, deploy, approval and rollback record theirs in their own stories (backend guide §5 and the endpoint checklist)
+- [x] Audit events cannot be updated or deleted, by the API or the application database role
+- [x] Owners can filter the project's audit log by person, action and date; export as CSV
+
+---
+
+### DNK-12 — Donka Runtime on engine 2.0.1, under its own name
+
+**Type:** chore · **Repos:** R · **Dependencies:** DNK-1 · **Size:** M
+
+#### Acceptance criteria
+- [x] zen-engine and zen-expression pinned to `=2.0.1`; Studio's drift check passes against the runtime
+- [x] Binary, image and service names are `donka-runtime`; upstream API paths unchanged
+- [x] Upstream release automation that would publish under GoRules names is removed
+- [x] CI runs fmt, clippy and all tests including the container-based ones
+
+---
+
+### DNK-13 — Runtime tokens stored hashed, one per environment
+
+**Type:** feature · **Repos:** R, S · **Dependencies:** DNK-12 · **Size:** S
+
+#### Decisions (taken in the story)
+- Format version 2 adds `accessTokenHashes`: per token its id, environment, algorithm
+  (`sha256`) and lowercase hex digest. Tokens are long random secrets (at least 32 random
+  bytes), so an unsalted SHA-256 is enough; the Runtime compares in constant time.
+- An artifact deployed to an environment accepts only entries issued for that environment.
+- A malformed entry is skipped, never the whole file: a file that fails to parse turns token
+  checks off in the Runtime, so a bad entry must not be able to do that.
+- The Runtime ships the change; Studio documents the format (`docs/artifact-format.md`) and
+  starts writing it when it issues tokens and deploys releases (DNK-14).
+
+#### Acceptance criteria
+- [x] `.config/project.json` carries token hashes, never plain tokens; the artifact format is versioned and documented
+- [x] A token issued for staging is refused by the production runtime
+- [x] Artifacts in the old format keep working (additive change)
+
+---
+
+### DNK-14 — Releases and environments
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-10, DNK-11, DNK-13 · **Size:** L
+
+#### Decisions (product owner)
+- A decision with no saved version blocks the release; the dialog names it with a link to fix it.
+- Editors and owners create releases and deploy to staging; owners manage Runtime tokens.
+  Production goes through DNK-15's approval.
+- The person picks a major, minor or patch bump; the first release of a project is 1.0.0.
+- Failing tests warn but do not block; each frozen version keeps its test results.
+
+#### Technical choices
+- A release copies the frozen content (`release_decisions`, append-only), so a later version or a
+  deleted decision never changes what was released.
+- Each deployment row is its own outbox entry: published after commit by a worker
+  (`FOR UPDATE SKIP LOCKED`, backoff from 30 s to 1 h, `DONKA_PUBLISH_MAX_ATTEMPTS`), then marked
+  published, retrying or failed with the last error; a failed one is retried by hand.
+- A newer deployment of the same environment supersedes the unpublished ones, so the bucket
+  always ends with the latest request.
+- Issuing or revoking a token republishes the live release with the new hash list.
+- Storage is `object_store` behind `ArtifactStore`: `s3://` (AWS, MinIO, Ceph) or `file:///`.
+
+#### Acceptance criteria
+- [x] Each project has exactly two environments: staging and production
+- [x] A release freezes one version of every decision in the project, with a semantic version and notes
+- [x] Deploying to staging writes the artifact to `staging/<project-key>` in the bucket after commit (outbox); a storage failure is retried and visible
+- [x] Studio issues, lists and revokes Runtime tokens per environment; a token is shown once
+- [x] An end-to-end test: release → deploy to staging → a Runtime reads it and evaluates (`scripts/e2e.sh`, CI job `e2e`)
+
+---
+
+### DNK-15 — Production needs a second person's approval
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-14 · **Size:** M
+
+#### Decisions (product owner)
+- Approvers are the project's owners.
+- Neither the person who made the release nor the person who asked for production can approve
+  or reject it (`422 SELF_APPROVAL`); a request with no other owner is refused (`422 NO_APPROVER`).
+- Only the release live on staging can be asked for production (`422 NOT_ON_STAGING`).
+- One request per project waits at a time (`409 APPROVAL_PENDING`); the person who asked can
+  withdraw it.
+
+#### Technical choices
+- Approvals live in the release module (`crates/release/src/approval.rs`): approving queues the
+  production deployment through the same outbox as staging.
+- Deciding locks the pending request first (`SELECT … FOR UPDATE`), then queues the deployment
+  and records the outcome; a second owner waits on the lock and gets `409 APPROVAL_DECIDED`.
+- Approval emails have their own outbox (`approval_emails`), rendered in each owner's language
+  when queued (they hold no secret), sent by the email worker with the same retry policy.
+- The review compares the release with what production ran before the request's outcome, by
+  decision id (a renamed decision is the same decision); each changed decision opens the graph
+  diff of its two versions.
+
+#### Acceptance criteria
+- [x] Requesting production creates a pending approval and emails the project's approvers
+- [x] The release author cannot approve (`422 SELF_APPROVAL`)
+- [x] Approving publishes to `production/<project-key>`; rejecting records a reason
+- [x] Two approvers acting at the same time produce one outcome (`409` for the second)
+- [x] The approval screen shows diff, test results and release notes
+
+---
+
+### DNK-16 — Roll back production
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-15 · **Size:** S
+
+#### Decisions (product owner)
+- Any owner can roll back, including to a release they made or asked for: it was approved by
+  someone else once, and rollback is an emergency action.
+- Targets are the releases once approved for production, except the live one, newer ones
+  included (so production can come back after a rollback).
+- A request waiting for approval stays pending; its review compares with production as it is.
+
+#### Technical choices
+- A rollback is a production deployment with reason `rollback` and its `rollback_reason`, queued
+  through the same outbox; token changes republish the release production runs, rolled back or not.
+- `GET /projects/{id}/rollback-targets` lists the targets; `POST /projects/{id}/rollbacks` rolls
+  back (`422 NEVER_APPROVED`, `422 ALREADY_LIVE`).
+
+#### Acceptance criteria
+- [x] An approver redeploys any previously approved release to production in one action, with a required reason
+- [x] No new approval is needed; the audit log records who, when, from which release to which
+- [x] A release never approved for production cannot be used for rollback
+
+---
+
+### DNK-17 — Connectors for bureau, KYC and AML calls
+
+**Type:** feature · **Repos:** R, S · **Dependencies:** DNK-12 · **Size:** L
+
+#### Decision
+Connector handler implemented once in Rust (custom-node adapter), in an MIT crate inside
+donka-runtime; Studio depends on it for simulation (mock mode).
+
+#### Decisions (taken in the story)
+- Connector types: HTTP JSON (POST) and a "bureau score" template of it.
+- On failure after the retries, the author chooses per node: fail the evaluation, or continue
+  with a fallback answer. Only service failures fall back; bad settings never do.
+- Mock answers live on each connector node; simulation and test scenarios use them.
+- Secret values come from the Runtime's environment (`DONKA_SECRET_<NAME>`); a vault is a later
+  story. The decision log (DNK-18) receives the node trace, which never holds a secret.
+
+#### Acceptance criteria
+- [x] Graph nodes store connector type, settings and a secret **name**; secret values come from the Runtime's environment or vault
+- [x] Timeout, bounded retries and a circuit breaker are enforced by the handler
+- [x] Studio simulation uses mock responses defined in the project; no real call leaves Studio
+- [x] A reference "bureau score" connector works end-to-end
+- [x] No secret value appears in artifacts, logs, traces or the decision log
+
+---
+
+### DNK-18 — Decision log: every production decision, searchable and replayable
+
+**Type:** feature · **Repos:** R, S · **Dependencies:** DNK-14 · **Size:** L
+
+#### Decisions (taken in the story)
+- **Outcome**: each project names one output field (a dotted path, e.g. `decision`); Studio reads
+  it when a record arrives and stores it searchable. Failed evaluations have the outcome `error`.
+- **Retention**: five years by default (`DONKA_DECISION_LOG_RETENTION_DAYS=1825`).
+- **Access**: every project member searches the log and opens records; each opening and replay
+  is audited. Owners set the outcome field.
+- **Runtime credential**: decision-log tokens issued by administrators under **Runtimes**, one
+  environment each, shown once and stored hashed; a staging Runtime cannot write production
+  records, and Studio stores a record only for a release it published to that environment.
+- **Reference**: callers send `X-Donka-Reference` to the Runtime; every logged answer returns
+  `X-Decision-Id`. The trace is always recorded and returned only when asked for.
+- **Encryption**: input, output, error and trace are encrypted with AES-256-GCM under
+  `DONKA_DECISION_LOG_KEY` (required); search fields stay readable.
+- **Replay** runs the record's release in Studio with connector nodes answering from the
+  recorded trace (no outside call). Identical means both succeeded with the same output, or
+  both failed.
+- Feed format: `docs/decision-log-feed.md`.
+
+#### Acceptance criteria
+- [x] The Runtime sends each evaluation (input, output, release, trace, time) to Studio asynchronously, batched, retried, without slowing the response
+- [x] Studio stores records encrypted at rest; retention from configuration; purge is audited
+- [x] Search by reference, decision, outcome and date; paginated
+- [x] Replay re-evaluates a record against its release and shows whether the result is identical
+- [x] Viewing a record is audited (it contains personal data)
+
+---
+
+### DNK-19 — Explain a decision in plain language
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-18 · **Size:** M
+
+#### Decisions (taken in the story)
+- **Endpoint formats**: Anthropic's Messages API or OpenAI-compatible chat completions
+  (`DONKA_EXPLAIN_API`), so a bank can use a hosted model or one it runs itself. URL, key, format
+  and model are all configuration; nothing is assumed.
+- **Redaction**: owners list dotted paths (`applicant.nationalId`) in the project's decision-log
+  settings; they are removed from the input, the output and every trace node (and from a
+  decision table's traced references) before sending. Values computed from a redacted field are
+  not tracked.
+- **Who**: any member who can open the record; each explanation is audited
+  (`decision_record.explained`) before the record is sent, whatever the endpoint answers.
+- **Nothing stored**: the explanation is shown, not kept; asking again asks the endpoint again.
+
+#### Acceptance criteria
+- [x] Off by default; enabling requires the customer's endpoint URL and key in configuration
+- [x] Fields listed in the project's redaction settings are removed before sending
+- [x] The explanation is in the viewer's language; it is read-only and cannot change any decision
+- [x] With the feature off, no explain control is rendered and the endpoint returns `404`
+
+---
+
+### DNK-20 — Pull releases from CI (Studio side)
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-14 · **Size:** M
+
+#### Decisions (taken in the story)
+- **Targets**: Donka has releases, not branches or commits. `main` is the project's newest
+  release; `commit:<id>` is a release by its id; `release:<version>` by its semantic version;
+  `env:<key>` what is live there. `branch:` answers `UNSUPPORTED_TARGET`.
+- **Tokens**: new read-only **CI tokens**, issued per project by owners in Settings, shown once,
+  hashed, revocable, audited, with the time they were last used. Runtime tokens are not reused.
+- **Other projects**: a sync entry for a project the token cannot reach answers `no_access`
+  (the CLI's contract); downloading another project's artifact answers `404`.
+- **Artifacts**: an environment's artifact is its Runtime's (tokens included); a release's has
+  no environment and no token. Both are rebuilt reproducibly, so the SHA-256 holds.
+- **no_change** compares the caller's id with the release (or, for `env:`, the deployment) it
+  resolved to. Contract: `docs/rules-sync.md`.
+
+#### Acceptance criteria
+- [x] `POST /api/v1/rules-sync` resolves `main`, `commit:<id>`, `release:<version>`, `env:<key>` targets and returns the artifact location and sha256
+- [x] Access with project tokens (read scope); tokens outside the project get `404`
+- [x] Unchanged targets answer `no_change` when the caller sends its current id
+
+---
+
+### DNK-21 — Donka CLI
+
+**Type:** chore · **Repos:** C · **Dependencies:** DNK-20 · **Size:** M
+
+#### Decisions (taken in the story)
+- **Shipping**: nothing goes to npm. Each GitHub release of donka-cli (tagged `vX.Y.Z`) carries
+  `donka-cli-X.Y.Z.tgz`; the templates run it with `npx --package`, and a `cli-package` setting
+  points them at a mirror inside the bank's network.
+- **Webhook payload**: removed from the templates. Studio does not start pipelines, so each
+  pipeline sets its project and target; a Studio-triggered pipeline would be a later story.
+- **Tests**: donka-cli tests the built CLI and each template's script against a fake Studio that
+  follows `docs/rules-sync.md`, and CI runs the GitHub action itself.
+
+#### Acceptance criteria
+- [x] Command `donka`, package `@donka/cli`, variables `DONKA_URL`, `DONKA_TOKEN`, `DONKA_PROJECT`, `DONKA_TARGET`
+- [x] `donka pull` works against DNK-20 for every target, with the same exit codes
+- [x] GitHub, GitLab and Azure templates renamed and tested
+- [x] Upstream publishing under GoRules names removed
+
+---
+
+### DNK-22 — Rate limits on the Runtime
+
+**Type:** feature · **Repos:** R · **Dependencies:** DNK-12 · **Size:** S
+
+#### Acceptance criteria
+- [x] Per-token request limit from configuration; exceeding it returns `429` with `Retry-After`
+- [x] Limits do not apply to health endpoints
+
+---
+
+### DNK-23 — Install Donka with one command
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-15, DNK-18 · **Size:** M
+
+#### Acceptance criteria
+- [x] `docker compose --profile full up` starts Studio, Runtime, PostgreSQL and MinIO with working defaults
+- [x] Installation and operations guide in English and French (backup, upgrade, rotation of secrets)
+- [x] Post-deploy smoke script: health, ready, simulate, evaluate on the Runtime
+
+---
+
+### DNK-24 — Credit starter pack
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-14, DNK-17 · **Size:** M
+
+#### Why
+Customers buy time to a live scorecard, not an empty canvas.
+
+#### Acceptance criteria
+- [x] Importable project "Retail credit": person scorecard with reason codes and bands
+- [x] Importable project "SME treasury evaluation"
+- [x] Each ships with test scenarios that pass and a short guide (EN/FR)
+
+#### Decision
+Option A, decided by the product owner: the pilot customer's market, **Cameroon (CEMAC)**, with
+amounts in **FCFA (XAF)** and reason codes in English and French. Bureau data is an input the
+lender's system fills from the source it consults (a private bureau or the central bank's risk
+register), so the packs do not depend on one bureau's API. Policy values are expert defaults,
+marked for the pilot's risk team to confirm; they are not regulatory values.
+
+Packs live in `packs/` (format 1: manifest, decisions, scenarios, guides) and are imported with
+`scripts/import-pack.sh`; CI imports each one and checks its scenarios. Import from the web app is
+DNK-43.
+
+---
+
+### DNK-25 — Learn from the upstream codebases before inventing
+
+**Type:** docs · **Repos:** S · **Dependencies:** DNK-3 · **Size:** S
+
+#### Why
+zen, agent-public and the CLI already solved many problems Donka meets. Copying good practice
+(and knowing what not to copy) is cheaper than rediscovering it.
+
+#### Acceptance criteria
+- [x] `docs/engineering/references.md` lists adopted, planned and rejected practices, each with its source file
+- [x] The engineering guides and `AGENTS.md` point to it
+- [x] Every planned practice has a story (DNK-26 to DNK-30)
+
+Acceptance evidence: [2026-10-20 foundation audit](../engineering/foundation-evidence.md).
+
+---
+
+### DNK-26 — Report which version is running
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-3 · **Size:** S
+
+#### Acceptance criteria
+- [x] `GET /api/v1/version` returns the version from the `SERVICE_VERSION` build argument (`unknown` in local builds)
+- [x] The same version appears in the OpenAPI document and the startup log line
+
+---
+
+### DNK-27 — Optional OpenTelemetry
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-26 · **Size:** M
+
+#### Acceptance criteria
+- [x] Traces and request metrics exported over OTLP when `DONKA_OTEL_ENABLED=true`; nothing exported by default
+- [x] The request id is attached to every span
+- [x] No personal data or secrets in span attributes
+
+---
+
+### DNK-28 — Fast, reproducible container builds
+
+**Type:** build · **Repos:** S · **Dependencies:** DNK-3 · **Size:** S
+
+#### Acceptance criteria
+- [x] The Dockerfile builds dependencies in a layer that only `Cargo.toml`/`Cargo.lock` changes invalidate
+- [x] The image runs as a non-root user and passes `SERVICE_VERSION` through
+- [x] CI builds the image on every pull request (no push yet)
+
+---
+
+### DNK-29 — Storybook for Studio components
+
+**Type:** chore · **Repos:** S · **Dependencies:** DNK-6 · **Size:** S
+
+#### Acceptance criteria
+- [x] Every shared UI component has a story showing its four states (loading, empty, error, success) where they apply
+- [x] Stories render in light and dark, English and French
+- [x] CI builds Storybook so a broken story fails the pull request
+
+Verification: 45 stories, all 360 desktop/390 px, EN/FR and light/dark browser combinations;
+real control interactions, render errors and document overflow checked by Playwright.
+See [component previews](../engineering/storybook.md) for the coverage map and CI commands.
+
+---
+
+### DNK-30 — Changelog and versions from commits
+
+**Type:** chore · **Repos:** S, R, C · **Dependencies:** DNK-1 · **Size:** S
+
+#### Decision
+Option A, signed off 2026-09-28: release-please generates the changelog and version bump from
+Conventional Commits (as in zen, cli and agent). It runs on `main`: a promotion PR brings
+`develop` in, release-please keeps a release PR open, merging it tags the release and opens a
+back-merge PR into `develop`. (Option B, hand-written release PRs, was declined.)
+
+#### Acceptance criteria
+- [x] Release PRs carry a generated `CHANGELOG.md` entry and a semantic version bump
+- [x] Nothing is published to a package registry under GoRules names
+
+---
+
+### DNK-32 — Rate limits on sign-in and password reset
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-5 · **Size:** S
+
+#### Why
+Lockout protects one account, and one pending email per user protects one inbox. Nothing limits
+how fast one client can try many accounts or ask for many reset emails (found in DNK-5).
+
+#### Acceptance criteria
+- [x] Per-client-address limits on `POST /auth/sign-in` and `POST /auth/password-reset` from
+      configuration; exceeding one returns `429 RATE_LIMITED` with `Retry-After`
+- [x] The client address honours a configured trusted proxy (`X-Forwarded-For` only from it)
+- [x] The web app shows the translated message and when to retry
+
+---
+
+### DNK-33 — People: invite and manage Studio accounts
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-7 · **Size:** S
+
+#### Why
+Invitations exist in the API (DNK-5) but not in the web app, and owners can only add people who
+already have an account (found in DNK-7).
+
+#### Acceptance criteria
+- [x] Administrators see Studio's accounts (email, administrator or not, invited or active) on a People page
+- [x] Administrators invite a person (email, language, administrator or not) and resend a pending invitation
+- [x] In a project's members screen, an administrator adding an unknown email is offered to invite them
+- [x] English and French; checked at 390 px and desktop
+
+---
+
+### DNK-31 — Local stack starts, and engine drift fails CI
+
+**Type:** build · **Repos:** S · **Dependencies:** DNK-12 · **Size:** S
+
+#### Why
+`minio/minio` and `minio/mc` were removed from Docker Hub, so `docker compose up` failed. The
+engine drift check skipped silently in CI because the runtime was never checked out.
+
+#### Acceptance criteria
+- [x] Every image in `docker-compose.yml` exists and is pinned to a release (no `latest`)
+- [x] CI checks out donka-runtime (`develop`) and fails when its zen-engine differs from Studio's
+- [x] The drift check fails instead of skipping when it cannot find the runtime
+
+Acceptance evidence: [2026-10-20 foundation audit](../engineering/foundation-evidence.md).
+
+---
+
+### DNK-34 — Studio works like a web app: sidebar shell and one component system
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-11 · **Size:** M
+
+#### Why
+Studio grew screen by screen with hand-made lists, tabs, pagers and empty states. It should feel
+like one web application: persistent navigation, breadcrumbs, a quick switcher, dense tables,
+short dates and readable links, built from the shadcn components instead of our own.
+
+#### Decisions (product owner, 2026-09-29)
+- Collapsible **sidebar** navigation (icons when collapsed, a sheet on phones), breadcrumb in the
+  page header, command palette (Ctrl/⌘ K).
+- **Data table** (TanStack Table) for every list: projects, members, people, audit.
+- Project links use the project **key** (`?p=credit-pme`), not its id.
+- shadcn components are taken from the official registry (new-york-v4) and not rewritten;
+  forms use TanStack Form + Zod through shadcn `Field`.
+
+#### Acceptance criteria
+- [x] Signed-in pages share one shell: sidebar (brand, Projects, People for administrators, the
+      open project's sections, account menu with language and theme), breadcrumb, command palette
+- [x] Every form uses `Field` with TanStack Form + Zod; submit buttons show a spinner; a
+      success is confirmed by a toast
+- [x] Projects, members, people and audit are data tables with loading skeleton, empty state
+      (`Empty`) with its next action, error with retry, and pagination
+- [x] Dates are short ("13 Nov", "13 Nov 2025" for another year, "14:05") with the full date and
+      time on hover; recent audit events read "2 h ago"
+- [x] Project pages open by key; `?id=` links keep working
+- [x] Checked at desktop and 390 px, English and French, light and dark
+
+---
+
+### DNK-35 — Every screen built from the shadcn components
+
+**Type:** refactor · **Repos:** S · **Dependencies:** DNK-15 · **Size:** S
+
+#### Why
+Screens added after DNK-34 (releases, environments, approvals) and a few older spots still use
+hand-made lists, labels, status boxes and a pager. Studio should look and behave the same
+everywhere, using the shadcn component made for each job and its documented usage.
+
+#### Decisions
+- Lists of things with actions or badges are `Item` / `ItemGroup`; form labels are `Field`.
+- A status that needs attention (a deployment on its way or given up, a request waiting) is an
+  `Alert`.
+- Pagination is the shadcn `Pagination`; a value to copy is an `InputGroup` with its button.
+- The two graph diff views (version history and approval review) share one panel.
+
+#### Acceptance criteria
+- [x] No hand-made list, label, pager or status box remains where a shadcn component fits
+- [x] Behaviour, text and tests are unchanged except where a component improves accessibility
+- [x] Screens checked on desktop and 390 px, English and French, light and dark
+
+---
+
+### DNK-36 — READMEs that present each repository
+
+**Type:** docs · **Repos:** S, R, C · **Dependencies:** DNK-21 · **Size:** S
+
+#### Why
+The READMEs grew as reference manuals. Someone landing on a repository should see at a glance
+what it is, what it does, how to try it and where to read more, the same way in all three.
+
+#### Decisions
+- One layout everywhere: banner, centred name and tagline, badges, links; then Introduction,
+  Features, Quick start, Documentation, Contributing, License.
+- Badges show facts only (CI, license, stack, how it ships). No contributor counts.
+- Reference content moves to `docs/` pages linked from the README (Runtime: configuration,
+  connectors, decision log, rules OpenAPI; CLI: pull, CI templates, MCP bridge); nothing is lost.
+- One banner design (`.github/assets/banner.svg`) per repository, in Studio's colours.
+
+#### Acceptance criteria
+- [x] The three READMEs follow the same layout and link to each other
+- [x] Every section removed from a README lives on in a `docs/` page
+- [x] Version pins in the CLI docs are still updated by release-please
+
+---
+
+### DNK-37 — One input contract for the rules and the form
+
+**Type:** feature · **Repos:** S, R · **Dependencies:** DNK-14, DNK-20 · **Size:** L
+
+#### Why
+The fields a credit decision needs are defined twice today: implicitly in the rules (what the
+expressions read) and again by hand in the application form. When an analyst renames or adds a
+field, nothing tells the form, and the mismatch is found in production. Analysts and form
+builders need one definition, released with the rules, that both sides are checked against.
+
+#### Decision
+- **JSON Schema on the input node of the project's entry decision** is the contract.
+  zen-engine 2.0.1 already validates requests against it, so the Runtime enforces the same
+  definition the form is built from. The engine validates with **draft-07** (found while
+  building it; the story first said 2020-12), so contracts are written as draft-07: the keywords
+  a form needs (type, required, limits, allowed values, format) are the same in both.
+- **Presentation hints** live beside it as `x-donka` annotations the engine ignores: label and
+  help in English and French, widget, order, step, `pii: true`. The form may override them.
+- **Released with the rules**: the schema is frozen in each release and travels in the artifact
+  and over rules-sync, so `release 1.4.0` always means the same fields.
+- Not an export/import file: an imported copy drifts silently; a pinned, checked contract does
+  not.
+
+#### Behaviour
+
+| Where | Before | After |
+|---|---|---|
+| Studio, decision editor | Input fields are implicit | An **Input fields** table: name, type, required, limits, allowed values, format, labels (EN/FR), PII |
+| Studio, saving a version | No field checks | Warns when a rule reads a field missing from the contract, or a required field no rule reads |
+| Studio, approval screen | Rules diff only | Also lists contract changes, marked **breaking** (removed, renamed, now required, narrower) or **compatible** |
+| Release artifact / rules-sync | Decisions only | Adds `input.schema.json` per entry decision (additive) |
+| Runtime | Accepts any input | Answers `400` naming the field when a request breaks the contract (engine validation) |
+| Decision log | Redaction listed by hand | Fields marked `pii` are redacted from explanations by default |
+
+#### Acceptance criteria
+- [x] Analysts edit the input fields of a decision in a table; the JSON Schema is generated, and
+      editing the raw schema stays possible
+- [x] The schema is saved with each version and frozen in each release
+- [x] Saving warns about fields read by rules but not declared, and declared required fields no
+      rule reads
+- [x] The approval screen shows contract changes and flags breaking ones
+- [x] Artifacts and rules-sync carry `input.schema.json` (artifact format: additive, documented)
+- [x] The Runtime refuses a request that breaks the contract with `400` and the field's path
+- [x] `pii` fields are redacted from explanations without listing them again
+- [x] Labels and help in English and French
+
+#### Out of scope
+- Rendering forms (Fieldkit), and the CLI side (DNK-38)
+- Output contracts (what a decision returns), a later story
+
+---
+
+### DNK-38 — Forms pull and check the input contract
+
+**Type:** feature · **Repos:** C · **Dependencies:** DNK-37 · **Size:** M
+
+#### Why
+A form team needs to start from the contract and know, in CI, the day their form stops matching
+the rules it feeds.
+
+#### Behaviour
+
+| Command | What it does |
+|---|---|
+| `donka form pull --project credit-pme --target env:production` | Downloads the input contract(s) of a target, like `donka pull` does artifacts |
+| `donka form check --contract input.schema.json --form <form definition>` | Fails (exit `1`) when a field is missing, renamed, of another type, or required on one side only; lists every difference |
+
+#### Acceptance criteria
+- [x] `donka form pull` resolves every rules-sync target and verifies the checksum
+- [x] `donka form check` reports each difference with its field path; exit codes follow the CLI's
+      contract
+- [x] The GitHub, GitLab and Azure templates gain a contract check step, tested like the pull
+- [x] A form definition can be generated from the contract as a starting point
+
+#### Out of scope
+- Fieldkit's own renderer (Stage 2); the check reads a plain JSON Schema-based form definition
+  so any form library can use it
+
+---
+
+### DNK-39 — One logo family for Donka and its products
+
+**Type:** chore · **Repos:** S, R, C · **Dependencies:** DNK-36 · **Size:** S
+
+#### Why
+Studio shows a letter "D" as its logo and the READMEs carry the same placeholder. Donka needs a
+real mark that also tells Studio, Runtime, CLI and Fieldkit apart.
+
+#### Decision
+Direction A of the proposal: the "Decision D", a D holding an input that runs into a decision
+node. One rounded tile and stroke for the family; each product has its own glyph and colour
+(Runtime: D with a forward chevron, teal; CLI: a prompt, slate; Fieldkit: a field and a ticked
+checkbox, amber). The wordmark is lowercase **donka** in Geist Bold, outlined.
+
+#### Acceptance criteria
+- [x] Marks and light/dark lockups for Donka, Studio, Runtime, CLI and Fieldkit in `docs/brand/`,
+      with usage rules
+- [x] Studio's header, sidebar and browser tab show the mark, coloured by the theme
+- [x] Studio's and the CLI's README banners show their product's mark
+- [x] The Runtime's README banner shows its mark (after DNK-22, one story at a time per repo)
+
+---
+
+### DNK-44 — One form hook for Studio and Fieldkit
+
+**Type:** refactor · **Repos:** S · **Dependencies:** DNK-34, DNK-37 · **Size:** M
+
+#### Why
+Every Studio form builds its own `useForm`, passes an untyped field (`AnyFieldApi`) to its
+inputs and repeats the same submit button. TanStack Form's own guidance is to wrap it once in
+an app form hook (`createFormHook`) with pre-bound field and form components. That keeps forms
+short and typed end to end, and gives Fieldkit (Stage 2) the components it will pick per field
+from an input contract (ADR-005: one form engine, shared field patterns).
+
+#### Behaviour
+
+| Where | After |
+|---|---|
+| `components/shared/form/` | `createFormHookContexts` + `createFormHook` export `useAppForm` and `withForm`; field components (text, number, select, checkbox, …) read their field with `useFieldContext<T>()`; `SubmitButton` reads the form with `useFormContext()` |
+| Every form | Uses `useAppForm` and `form.AppField` / `form.AppForm`; no `form.Subscribe` copied for the submit button; large forms (input fields, connector node) split with `formOptions` + `withForm` |
+| Failed submit | Focus moves to the first invalid field (`onSubmitInvalid`, `aria-invalid`) |
+| Person using Studio | Nothing else changes: same fields, messages, timing of errors and layout |
+
+#### Acceptance criteria
+- [x] One app form hook in `components/shared/form/`; no form calls `useForm` directly, and no
+      field component takes an `AnyFieldApi` prop
+- [x] Every existing form moved to it with its behaviour unchanged; its tests still pass
+- [x] A submit that fails validation focuses the first invalid field, tested
+- [x] Validation timing kept as the frontend guide states (`onChange` + `onSubmit`, errors shown
+      once the field is left or the form submitted)
+- [x] The frontend guide and ADR-005 describe the hook and how to add a field component
+- [x] `@tanstack/react-form` pinned to an exact patch version (its types change between patches)
+
+#### Out of scope
+- Fieldkit itself and rendering forms from a contract (Stage 2)
+- New validation behaviour (`revalidateLogic`, async validators)
+
+---
+
+### DNK-40 — Rotate the decision-log key
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-18, DNK-23 · **Size:** M
+
+#### Why
+Every decision record is encrypted with `DONKA_DECISION_LOG_KEY`, and Studio reads records with
+that key only. A key that may have leaked cannot be replaced today without losing every record
+written before: the install guide tells operators not to change it.
+
+#### Acceptance criteria
+- [x] Studio takes a new key and keeps reading records sealed with the previous ones (each record
+      names its key: `key_id`)
+- [x] New records are sealed with the new key only
+- [x] A command re-seals old records with the new key, resumable, audited; afterwards the old key
+      can be removed
+- [x] The install and operations guide (EN/FR) describes the rotation
+
+---
+
+### DNK-41 — First-run onboarding
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-24, DNK-43 · **Size:** M
+
+#### Why
+A new analyst lands on an empty project list. They should reach "my first decision answered by
+the Runtime" in minutes, and find their way around the editor and the release screens without a
+training session.
+
+#### Decisions
+- A **Get started** checklist on the projects page, driven by real state from the API (a project
+  exists, a simulation ran, a version is saved, a release is live on staging, a Runtime token
+  exists), not by "tour seen" flags. Each step links to where it is done; it disappears once done.
+- Its first step imports a starter pack (DNK-43).
+- Short guided tours (4 to 6 steps) with driver.js (MIT, no dependencies, works with the static
+  export): the decision editor, releases and environments. Each runs once, can be replayed from a
+  Help menu, and can always be skipped.
+- Tours are translated (next-intl), follow the theme, work with the keyboard and respect reduced
+  motion. "Seen" is kept per user on the server, so tours do not replay on another device.
+
+#### Acceptance criteria
+- [x] The checklist shows each step's real state and links to it; it hides when complete
+- [x] Editor and releases tours, English and French, replayable from Help, skippable
+- [x] Tour state per user on the server (additive API)
+- [x] Checked at 390 px and desktop, light and dark
+
+---
+
+### DNK-42 — Wording that fits any industry
+
+**Type:** chore · **Repos:** S · **Dependencies:** DNK-19 · **Size:** S
+
+#### Why
+Donka decides anything that takes JSON in and gives JSON out: insurance, mobile money,
+e-commerce, public sector. A few texts assume a bank and a loan applicant, which tells a
+non-bank prospect the product is not for them.
+
+#### Acceptance criteria
+- [x] The explanation prompt speaks of "the organisation's business rules" and "the person or case
+      decided", not of a bank and an applicant
+- [x] Hints and placeholders use neutral examples (`customer.id`, "Order discounts")
+- [x] English and French; product docs keep credit as the first example, not the only one
+
+#### Verification
+The provider protocol test sends an order-discount record and checks the neutral prompt while
+retaining the instruction guard. A live production-export walkthrough covers EN/FR, desktop
+and 390 px, light/dark, including field validation, simulation and staging publication. The
+multiline field now forwards its placeholder; the settings test guards that regression.
+
+---
+
+### DNK-43 — Packs: import, duplicate, export
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-24, DNK-37 · **Size:** M
+
+#### Why
+Starter packs import with a script today (DNK-24). Analysts should import one from the web app,
+copy any project to start another product, and turn their own project into a pack another team or
+installation can import.
+
+#### Decisions
+- The pack format is DNK-24's (`packs/README.md`), extended with the input contract (DNK-37).
+- What a copy carries: decisions (latest draft or a chosen version), test scenarios, input
+  contract, decision-log settings. What it never carries: releases, deployments, tokens, decision
+  records (personal data) and members (the person copying becomes the only owner).
+- A copy has no link back: a newer pack never overwrites it. Its audit log starts with where it
+  came from ("created from pack Retail credit 1.2", "duplicated from project X").
+
+#### Acceptance criteria
+- [x] Import a pack from a catalogue in the web app, under a key and name of one's choice
+- [x] Duplicate a project; export a project as a pack file and import it in another installation
+- [x] Packs "KYC risk rating" and "Mobile money tiered limits" (CEMAC), with scenarios and guides
+- [x] Audited; English and French
+
+DNK-55 verifies duplication and export/reimport into independent projects in one installation.
+Transfer between separate installations is covered by DNK-50's isolated-install rehearsal,
+which exports a pack from one fresh installation and imports it into another.
+
+---
+
+### DNK-45 — Show and hide passwords
+
+**Type:** fix · **Repos:** S · **Dependencies:** DNK-44 · **Size:** S
+
+#### Why
+People cannot check a password they typed because sign-in and password setup have no visibility
+control. The shared form field should provide this consistently, including confirmation.
+
+#### Acceptance criteria
+- [x] Passwords start masked; an eye button shows or hides only its associated field
+- [x] Toggling preserves the value, validation and autocomplete and never submits the form
+- [x] Named keyboard-accessible controls and tooltips in English and French; disabled fields stay disabled
+- [x] Sign-in and both setup fields work live at desktop and 390 px, light and dark
+
+#### Out of scope
+Authentication policy, password storage and API changes.
+
+---
+
+### DNK-46 — Environment cards fit phones
+
+**Type:** fix · **Repos:** S · **Dependencies:** DNK-14 · **Size:** S
+
+#### Why
+Long project keys make the environment path badge force its card wider than a phone viewport.
+The full path should remain readable without moving the page sideways.
+
+#### Acceptance criteria
+- [x] Staging and production cards fit a 390 px viewport with long valid project keys
+- [x] Environment paths wrap in full; desktop headers keep their action on the right
+- [x] English and French, light and dark; shared registry components remain unchanged
+
+#### Out of scope
+Environment behavior, deployment policy and token contracts.
+
+---
+
+### DNK-47 — Agreed delivery plan and foundation evidence
+
+**Type:** docs · **Repos:** S · **Dependencies:** DNK-29 (merged) · **Size:** S
+
+#### Why
+The roadmap needs the newly agreed phase boundaries and feature-testing policy. Old foundation
+checklists and planned-practice rows do not reflect the delivered code or its remaining gaps.
+
+#### Decisions
+Confirmed 2026-10-20: Phase 1 is Studio + Runtime + CLI; Phase 2 adds Fieldkit and AI authoring;
+Phase 3 includes SSO. AI proposals show a diff and need owner acceptance before draft changes.
+Agree each phase, then deliver its stories; clarify material decisions interactively before coding.
+
+#### Acceptance criteria
+- [x] The delivery plan records phase scope, proposal acceptance, feature tests and exit gates
+- [x] The 20 legacy foundation criteria have exact source/test evidence; limitations stay explicit
+- [x] Reference rows name source files and distinguish delivered work from planned work
+- [x] Missing live feature coverage, coverage/security CI gates and operational rehearsal remain tracked
+
+#### Out of scope
+Application behavior, new authoring/Fieldkit/SSO code and production deployment.
+
+---
+
+### DNK-48 — Live feature-test foundation
+
+**Type:** test · **Repos:** S, R, C · **Dependencies:** DNK-47 · **Size:** L
+
+#### Why
+Component previews and ad-hoc browser runs do not provide repeatable live regression coverage
+of business workflows. Feature completion needs a test against the running application.
+
+#### Acceptance criteria
+- [x] A documented, repeatable Playwright Test setup uses isolated synthetic data and real local Studio/Runtime/PostgreSQL/object storage/email services
+- [x] Initial authentication and core project-to-Runtime journeys run locally and in CI using Chromium
+- [x] A release command runs Chromium, Firefox and WebKit; UI checks cover EN/FR, light/dark, desktop and 390 px
+- [x] Tests use real conditions and user-facing locators; failures retain useful protected traces/screenshots
+- [x] Static form controls reject interaction until hydration; a delayed-script regression proves early input cannot be lost
+- [x] A feature coverage map identifies each existing module's journeys and remaining feature-group stories; API/CLI checks retain their own appropriate tests
+
+Implementation and validation evidence: [PR #50](https://github.com/youmssi/donka/pull/50).
+This checklist does not declare pilot readiness; the remaining feature groups and phase exit
+gates still apply.
+
+#### Out of scope
+Changing product scope, testing customer production systems and silently declaring uncovered
+features verified. Add separate stories for remaining feature groups and defects before phase exit.
+
+---
+
+### DNK-49 — Enforce coverage and dependency-security gates
+
+**Type:** chore · **Repos:** S, R, C · **Dependencies:** DNK-47 · **Size:** M
+
+#### Why
+The engineering guides require a business-logic coverage floor and dependency-security checks;
+the current Studio workflow does not enforce them. Audit the other repos before applying changes.
+
+#### Acceptance criteria
+- [x] CI measures business-logic coverage and enforces the documented floor with a justified module scope
+- [x] Dependency checks fail on fixable high/critical vulnerabilities in the affected ecosystems
+- [x] Published container images are scanned (Trivy or equivalent) and a fixable high/critical finding fails the release (added 2026-10-25)
+- [x] Findings are fixed at their cause; no skipped tests, arbitrary exclusions or lowered thresholds to obtain green
+- [x] Local commands and CI behavior are documented; gaps found in Runtime/CLI are tracked and resolved
+
+---
+
+### DNK-50 — Isolated backup, restore and upgrade rehearsal
+
+**Type:** test · **Repos:** S, R, C · **Dependencies:** DNK-49, DNK-51, DNK-52, DNK-53, DNK-54, DNK-55 · **Size:** M
+
+#### Acceptance criteria
+- [x] Fresh install and post-deploy smoke checks pass in an isolated environment, including importing an exported pack from the source installation
+- [x] Database, release bucket and required secrets restore together; rule versions, approvals and encrypted decision records remain usable
+- [x] A person with a second sign-in step signs in after the restore: the rehearsal restores `DONKA_SECOND_STEP_KEY` with the database (added 2026-10-27, DNK-59)
+- [x] Upgrade and recovery follow the documented order and migrations; the original development stack is preserved
+- [x] Live browser and Studio-to-Runtime checks prove the restored/upgraded system works
+- [x] EN/FR operations guides reflect the exercised procedure and any remaining customer decisions
+- [x] Recovery point and recovery time objectives are stated and met by the rehearsal (added 2026-10-25)
+- [x] Two Runtimes behind a load balancer keep answering while one restarts, and while Studio is down; the guide covers PostgreSQL provided by the customer or replicated (added 2026-10-25)
+
+Evidence: `scripts/rehearse-restore.sh`, run 2026-11-11 on this machine against locally
+built 1.0.0 images in an isolated folder. Fresh install and smoke: 21 s; a pack exported
+from the source and imported into a second fresh installation (one project created).
+Backup 4 s (dump 138 KB); restore onto the target with its whole installation folder
+(`donka.yaml`, `.env`, `runtime.env`, `secrets/`) and both volumes: Studio answering 24 s
+after the restore began (recovery time objective: one hour), decision-log total identical
+before and after (recovery point objective: 24 h with daily backups; 0 records lost here).
+The administrator signed in on the restored data with the second step enrolled on the
+source, then the smoke test passed on the restored installation. On that data, a signed
+broken release (1.2.0) was rolled back and Studio kept answering on 1.0.0; the upgrade to
+1.1.0 then passed its smoke test. Two Runtimes behind nginx kept answering decisions with
+one Runtime stopped, and again with Studio stopped; the token was revoked at the end. The
+original `donka_postgres` volume and the development/test stacks were never touched.
+Scopes kept honest: the rehearsal drives the API and `scripts/smoke.sh`, not a browser
+(browser journeys of the same flows run against the development stack, DNK-48 to DNK-55);
+approvals ride in the same database dump and their records restore with it, but no approval
+flow is re-run after the restore. Customer policy values (backup cadence beyond the daily
+advice, who provides PostgreSQL) remain the customer's, as the install guides state.
+
+#### Out of scope
+Customer production deployment or declaring customer policy values approved without their owner.
+
+---
+
+### DNK-51 — Live identity, project and permission boundaries
+
+**Type:** test · **Repos:** S · **Dependencies:** DNK-48 · **Size:** L
+
+#### Acceptance criteria
+- [x] Invalid/expired links, wrong credentials, account lockout and configured rate limits have live evidence
+- [x] Account invitations/administration and project membership roles are exercised through the UI
+- [x] Cross-project access, forbidden actions, project edit/archive and concurrency criteria are covered by the appropriate browser/integration tests
+- [x] The feature coverage map records exact passing journeys and remaining limits
+
+Evidence: [live feature coverage and exact integration journeys](../engineering/live-tests.md).
+Chromium covers all eight UI modes; clock-dependent expiry/recovery and simultaneous changes
+use the real PostgreSQL integration suite. Firefox/WebKit remain required before release.
+
+---
+
+### DNK-52 — Live editor, contracts, versions and scenarios
+
+**Type:** test · **Repos:** S, R · **Dependencies:** DNK-48 · **Size:** L
+
+#### Acceptance criteria
+- [x] Graph authoring and the simulation panel persist and produce expected results through the UI
+- [x] Input types/validation, schema editing and compatible/breaking contract changes are exercised
+- [x] Version diff/restore and scenario creation/execution/failure paths are checked
+- [x] Runtime input-contract rejection is verified and the coverage map is current
+
+---
+
+### DNK-53 — Live approval, rollback, Runtime and connectors
+
+**Type:** test · **Repos:** S, R · **Dependencies:** DNK-48 · **Size:** L
+
+#### Acceptance criteria
+- [x] Separate author/approver sessions prove self-approval denial, approval/rejection and approved rollback
+- [x] Token scope/revocation, Runtime limits and environment boundaries are exercised
+- [x] Connector mapping, secret references and timeout/failure/fallback behavior have real service evidence
+- [x] The coverage map distinguishes Studio simulation mocks from Runtime external calls
+
+Evidence: [live journeys and exact integration boundaries](../engineering/live-tests.md#approvalruntimeconnector-integration-boundaries).
+
+---
+
+### DNK-54 — Live decision records, explanations and audit
+
+**Type:** test · **Repos:** S, R · **Dependencies:** DNK-48 · **Size:** L
+
+#### Acceptance criteria
+- [x] Real Runtime records reach Studio and can be searched, opened and replayed through the UI
+- [x] Explanation disabled/enabled/error states and redaction use a controlled endpoint and verify what is sent
+- [x] Audit screens reflect relevant actions and access rules; retention and key rotation retain integration/operational evidence
+- [x] The coverage map identifies what was executed and what remains
+
+Evidence: [live journeys and exact integration boundaries](../engineering/live-tests.md#recordexplanationaudit-integration-boundaries).
+
+---
+
+### DNK-55 — Live packs, onboarding and CLI integration
+
+**Type:** test · **Repos:** S, C · **Dependencies:** DNK-48 · **Size:** L
+
+#### Acceptance criteria
+- [x] Catalogue/file import, independent duplicate, export/reimport and invalid/conflicting pack paths are exercised
+- [x] Real-progress checklist and skippable/replayable tours work with persisted per-user state
+- [x] CLI sync targets, checksums, contract pull/check/init and relevant templates are verified against real Studio as appropriate
+- [x] The coverage map is current; Phase 1 is not marked complete while a required feature group remains unverified
+
+Evidence: [live journeys and exact integration boundaries](../engineering/live-tests.md#packonboardingcli-integration-boundaries).
+
+---
+
+### DNK-59 — Two-step sign-in with an authenticator app
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-4, DNK-5, DNK-40 (merged) · **Size:** M
+
+#### Why
+A password alone protects the people who can release rules to production. Banks expect a second
+factor for such a tool, and the pilot's administrators and owners cannot wait for single
+sign-on (DNK-60, Phase 2) to get one.
+
+#### Decisions
+Confirmed 2026-10-25, before the pilot:
+- **Time-based one-time codes** (RFC 6238; SHA-1, six digits, 30 seconds, one step of clock
+  tolerance) from any authenticator app, through `totp-rs` (MIT). A code is accepted once.
+  SMS codes are not offered (SIM-swap risk, cost per message).
+- **Recovery codes**: ten single-use codes, shown once at enrolment, stored hashed.
+- **Secrets** are encrypted at rest under their own key with previous keys for rotation, the
+  DNK-40 keyring pattern; never logged, returned after enrolment or exported in a pack.
+- **Policy** from configuration: `DONKA_MFA_REQUIRED=none|privileged|all`. `privileged` means
+  instance administrators and anyone owning a project. A person the policy covers who has no
+  second step enrols right after the password, before anything else opens.
+- **Lost device**: another administrator resets the person's second step; the person enrols
+  again at the next sign-in. A person cannot remove their own without a code.
+
+#### Behaviour
+| Where | Before | After |
+|---|---|---|
+| Sign-in | Email and password | Then a six-digit code (or a recovery code) when the account has a second step |
+| Account | Password | Set up, regenerate recovery codes, turn off (needs a code; refused when policy requires it) |
+| People (admin) | Invite, resend | Shows who has a second step; resets one |
+
+#### Acceptance criteria
+- [x] Enrolment shows a QR code and the key as text, and completes only after a valid code; recovery codes are shown once
+- [x] Sign-in asks for the code after the password; the password step alone opens no session; the pending step expires and is single-use
+- [x] Wrong codes count towards the existing lockout; answers stay generic; a code already used is refused
+- [x] A recovery code signs in once; regenerating codes invalidates the old ones
+- [x] The configured policy forces enrolment for the people it covers; `none` keeps today's sign-in
+- [x] An administrator's reset, enrolment, removal and recovery-code use are audited and send the person a notice email (EN/FR)
+- [x] Secrets survive key rotation; the backup/restore rehearsal (DNK-50) includes the key
+- [x] Runtime, decision-log and CI tokens are unaffected
+- [x] Strings in English and French; integration tests and a live Playwright journey cover each criterion above
+
+#### Out of scope
+Passkeys/WebAuthn (later, `webauthn-rs`); single sign-on (DNK-60); SMS or email codes.
+
+---
+
+### DNK-62 — Bring the decision engine up to date
+
+**Type:** chore · **Repos:** R, S · **Dependencies:** none · **Size:** M
+
+#### Why
+Studio and the Runtime pin zen-engine 2.0.1 while upstream is at 2.1.6 (2026-10-21). The newer
+releases fix a stack overflow from a graph expression that references `$` in itself (a request
+could stop a Runtime), number serialization, and how null and required policy inputs are
+handled, which changes behaviour. The dependency gate (DNK-49) only reports published
+advisories, so it would not flag this.
+
+#### Decisions
+Confirmed 2026-10-25, before the pilot. One exact version in both repos (ADR-003), Runtime
+first. The upgrade is accepted on evidence, not on the changelog: every pack scenario and a
+replay of recorded decisions must give the same results, or the difference is explained.
+
+#### Acceptance criteria
+- [x] The Runtime, then Studio, pin the same latest 2.1.x; `scripts/check-engine-version.sh` passes; `arbitrary_precision` stays enabled in the Runtime
+- [x] Every scenario of every catalogue pack passes in Studio and through a Runtime evaluation
+- [x] The decision-log e2e records replay as identical after the upgrade
+- [x] A regression test covers a self-referencing `$` expression: it fails cleanly without stopping the process
+- [x] Each behaviour change upstream lists (null and required inputs, number output) is either covered by a test that shows Donka's result or documented in the release notes for customers
+- [x] The in-editor expression hints (`@gorules/jdm-editor`) are on its latest release; NOTICE files are current
+- [x] `docs/engineering` describes the upgrade procedure so the next one follows it
+
+#### Out of scope
+Adopting new 2.1 features in the editor; the policy-document editor (Phase 3).
+
+---
+
+### DNK-63 — Connectors that authenticate like the core banking system
+
+**Type:** feature · **Repos:** R, S · **Dependencies:** DNK-17 (merged) · **Size:** M
+
+#### Why
+The pilot's core banking system requires OAuth2 or mutual TLS. Today a connector sends one
+secret in a header, so the Runtime cannot call it and the pilot's main data source is out of
+reach.
+
+#### Decisions
+Confirmed 2026-10-25, before the pilot. Both methods live in the MIT connectors crate, behind
+the existing connector settings; graphs keep secret **names** only:
+- **OAuth2 client credentials**: token URL, client id, scopes and the name of the secret; the
+  token is cached until shortly before it expires and fetched again once after a `401`.
+- **Mutual TLS**: names of the client certificate, its key and an optional CA bundle, read from
+  the Runtime's environment or files.
+
+- **Built on the standards**, confirmed 2026-10-25 while the pilot's core banking system is not
+  yet known: OAuth2 client credentials (RFC 6749 §4.4) and mutual TLS, tested against generic
+  local servers. The pilot's system is then connected by configuration; its details come from
+  the [integration questionnaire](../pilot-questionnaire.md).
+
+#### Acceptance criteria
+- [x] A connector authenticates with OAuth2 client credentials; the token is reused until expiry, refreshed once on `401`, and a token endpoint failure counts towards the retry policy and the circuit breaker
+- [x] A connector authenticates with a client certificate and trusts a configured CA; a wrong certificate fails with a clear error naming the connector, never the secret
+- [x] Studio's editor configures both methods; simulation still answers from mocks and makes no call
+- [x] No token, key or certificate appears in artifacts, logs, traces or the decision log
+- [x] Tests run against a local OAuth2 server and an mTLS server in CI; docs (EN/FR) show both setups
+- [ ] When the pilot's answers to the questionnaire arrive, its flow is checked against these tests and any gap becomes its own story
+
+#### Out of scope
+SOAP and proprietary protocols (the customer's integration layer); other OAuth2 flows.
+
+---
+
+### DNK-65 — Read secrets from files
+
+**Type:** feature · **Repos:** S, R · **Dependencies:** none · **Size:** S
+
+#### Why
+An installation already holds seven secrets (database, storage, decision-log key, TOTP key,
+SMTP, LLM key, connector secrets) and more come with single sign-on. Banks keep them in a vault
+or as Docker/Kubernetes secrets, which arrive as files, not as environment variables.
+
+#### Decisions
+Confirmed 2026-10-25: every secret setting `X` can instead be given as `X_FILE`, a path whose
+content is the value; setting both fails at start. Donka integrates with no vault directly:
+OpenBao, Vault, Infisical and Kubernetes all write files through their own agents.
+
+#### Acceptance criteria
+- [x] Every secret setting of Studio and the Runtime accepts the `_FILE` form; trailing newlines are trimmed; an unreadable file fails at start and names the setting
+- [x] Setting both forms fails at start
+- [x] `.env.example`, the install guides (EN/FR) and the Runtime configuration guide list the file form with a Docker secrets example
+- [x] Tests cover each rule above
+
+#### Out of scope
+A direct vault client; dynamic secrets; automatic rotation.
+
+---
+
+### DNK-64 — A first decision five minutes after install
+
+**Type:** feature · **Repos:** S, R · **Dependencies:** DNK-62, DNK-65 · **Size:** L
+
+#### Why
+Installing Donka builds it from source (15 to 30 minutes), then asks for a setup link from the
+logs, a decision-log token pasted into `runtime.env` and a restart. A bank's team should see a
+decision served end to end within five minutes, and the pilot's installation should be the one
+DNK-50 rehearses.
+
+#### Decisions
+Confirmed 2026-10-25, before DNK-50:
+- **Published images** for Studio and the Runtime, versioned and signed, plus an offline
+  bundle for servers without internet access.
+- **One command prepares the installation**: the Studio image writes a complete `.env` with
+  random secrets and prints the first administrator's setup link; no tool beyond Docker.
+- **The staging Runtime is wired at first start**: Studio provisions its decision-log token.
+- **A demo option** imports the retail-credit pack, publishes it to staging and points its
+  bureau connector at a bundled fake bureau.
+- The promise covers a demo with simulated connectors. Real core banking and bureau
+  integrations, and AI authoring (Phase 2), are not part of the five minutes.
+
+- **Release storage** (confirmed 2026-10-25): a disk volume shared by Studio and the staging
+  Runtime by default, for one server and the demo; the customer's S3 when Studio and a Runtime
+  run on different machines. For a customer without S3: PGSTY SILO, the maintained MinIO fork
+  already used by `docker-compose.yml` and CI (`pgsty/silo`), documented and tested in CI, with Garage
+  named as the alternative. Donka only uses the S3 API, so the server can change later.
+
+- **Registry and signing** (confirmed 2026-10-25): GitHub Container Registry, public for the
+  Runtime and the CLI (MIT), private for Studio with a read token per customer; images signed
+  with cosign using a key pair whose public key is published, so a bank verifies them without
+  network access; an SBOM and a provenance attestation per image; the offline bundle carries
+  the same signatures.
+- **Assisted upgrade** (confirmed 2026-10-25): `donka-admin upgrade <version>` verifies the signature
+  and compatibility, backs up the database, release storage and keys, upgrades the Runtime
+  first and then Studio, runs the smoke test and restores everything if a check fails. It
+  writes a timestamped report for the bank's change record. Unattended upgrades exist only for
+  staging and demo installations, off by default; production never upgrades by itself.
+- **How the upgrade runs** (confirmed 2026-10-29): `donka-admin` drives Docker through its socket,
+  so the server needs nothing beyond Docker; the **installed** version runs it, so only images it
+  verifies with the installation's `cosign.pub` are used. Each release image carries
+  `/etc/donka/upgrade.json` (the Studio versions it upgrades from, the Runtime it needs), covered
+  by its signature and readable offline. Studio learns of a newer release from the GitHub
+  Releases API once a day, never when the installation is offline (`DONKA_UPDATE_CHECK=false`).
+  Unattended upgrades follow the assisted upgrade in their own change.
+- **Unattended upgrades** (confirmed 2026-10-29): an installation declares its role
+  (`DONKA_INSTALLATION_ROLE`: production by default, demo with `--demo`, staging), and only
+  staging and demo upgrade by themselves; in a weekly window (`DONKA_AUTO_UPGRADE_WINDOW`, e.g.
+  `Sun 02:00-04:00`, the server's time); to the latest release of the same major version, a new
+  major version being announced and upgraded by hand.
+
+#### Acceptance criteria
+- [ ] From an empty server with Docker, pulling the images, preparing the installation and starting it reaches a Runtime decision recorded in Studio in five minutes or less on the documented reference machine; CI measures it
+- [x] The offline bundle installs the same version with no network access
+- [x] Generated secrets are random, written once, never printed except the one-time setup link, and never overwritten by a second run
+- [x] Without the demo option, nothing is imported; with it, the Get started checklist (DNK-41) shows the demo project's progress
+- [x] `donka-admin upgrade` refuses an image whose signature does not verify, and an upgrade the release notes mark as incompatible with the installed version
+- [x] An upgrade whose smoke test fails restores the previous version and data, and says what failed; a successful one keeps the data and writes its report
+- [x] Studio shows when a newer version is published, without any outgoing call when the installation is offline; unattended upgrades, when enabled, run only in the configured window and never in production
+- [x] The DNK-50 rehearsal runs on this installation and this upgrade path
+- [x] Studio publishes to a disk volume that the Runtime's `Filesystem` provider serves and hot-reloads; S3 still works; CI runs the storage tests against the latest SILO release
+- [x] The install guides (EN/FR) start with this path; building from source moves to the contributor guide
+
+#### Out of scope
+Kubernetes charts; high availability; production hardening beyond the documented settings.
+
+---
+
+### DNK-66 — Product documentation for the organisations that run Donka
+
+**Type:** docs · **Repos:** new `donka-docs`, S, R, C · **Dependencies:** DNK-64, DNK-50 · **Size:** L
+
+#### Why
+The repositories hold about 3,700 lines of documentation written for the team. A bank that
+evaluates, integrates and operates Donka needs another reading: what it does and why, how it
+connects to its systems, how to run it, and the answers its security review asks for.
+
+#### Decisions
+Confirmed 2026-10-25, before the pilot:
+- A `donka-docs` repository built with **Fumadocs** (MIT, Next.js, the stack of Studio's web
+  app), exported as a static, versioned site in English and French, with a PDF export to hand
+  to a customer.
+- Organised by reader and intent (Diátaxis): discover, get started, guides, integrate,
+  operate, security and compliance, reference.
+- What can be generated is generated at each release: the API reference from Studio's and the
+  Runtime's OpenAPI documents (the same ones Studio serves as its interactive reference), the
+  CLI reference from `--help`, and screenshots from the
+  Playwright journeys. Explanations stay next to the code and are assembled into the site.
+- Every story updates the pages it changes as part of being done (AGENTS.md).
+- No wiki server: team wikis are not versioned with the code.
+
+Confirmed 2026-11-11, at DNK-66 entry:
+- **The story proceeds although DNK-64's five-minute criterion is still open**: that
+  criterion waits for the published-images measurement and the owner's registry
+  visibility change; the site describes the installation path as it exists and claims
+  nothing the evidence does not cover (the Trust page states each status exactly).
+- **Build without deploying**: the static export is built and link-checked in CI on
+  every change; where it is hosted, and on which domain, is decided when the owner
+  names the target. Nothing goes public before that.
+- **Content is assembled at build time** from the three repositories (guides, security
+  dossier, performance results), as decided on 2026-10-25: one source of truth, no
+  hand-kept copies in `donka-docs`. Pages written for the site itself (discover, get
+  started) live in `donka-docs`.
+- The story runs in three parts, each its own pull request: (1) the Fumadocs site
+  skeleton with internationalisation, the home-page architecture diagram and the CI
+  build/link check; (2) the written content, including the Trust and Performance pages;
+  (3) the generated references at tagged releases, Scalar at `/api/docs` in Studio, and
+  the documentation rule in the three repositories' AGENTS.md files.
+
+#### Acceptance criteria
+- [ ] The site builds in CI from tagged releases of the three repositories and fails on a broken link or an unpublished change to a generated reference
+- [ ] Discover: what Donka does, the architecture diagrams, the four packs as use cases, the architecture decisions that matter to a customer
+- [ ] The home page opens on a diagram of how the pieces connect: the customer's core banking system and channels call the Runtime, which serves decisions and records them in Studio; Studio feeds the documentation and API reference, the CLI and its MCP bridge, and Fieldkit. Drawn in Mermaid or as a component, in English and French, light and dark, readable at 390 px
+- [ ] Get started: the five-minute first decision (DNK-64) and from a pack to production
+- [ ] Integrate: Runtime API, connectors and core banking (DNK-63), identity providers, CLI and CI/CD
+- [ ] Operate: install, upgrade (DNK-64), backup and restore (DNK-50), secrets (DNK-65), monitoring
+- [ ] Security and compliance: encryption and keys, access control and audit, personal data, and answers to a typical bank security questionnaire
+- [ ] Reference: generated API and CLI pages, every configuration variable, the artifact format, release notes
+- [ ] English and French; a version selector per release; a PDF export of a chosen version
+- [ ] A public **Trust** page publishes the Phase 1 trust dossier (DNK-73), states that the external penetration test has not yet occurred, and does not claim third-party verification; add the owner-approved sanitized test attestation after DNK-69 in Phase 3
+- [ ] A public **Performance** page publishes the load-test targets and results (DNK-67) with the method and scripts to reproduce them
+- [ ] Studio serves an interactive API reference (Scalar, through `utoipa-scalar`) at `/api/docs` from its own OpenAPI document, so each installation shows the API of its installed version
+- [ ] AGENTS.md in the three repositories adds the documentation rule to the checks before a pull request
+
+#### Out of scope
+A team wiki; hosted search services; documentation of Phase 2 features before they exist.
+
+---
+
+### DNK-67 — Measured performance with published targets
+
+**Type:** test · **Repos:** R, S · **Dependencies:** DNK-64 · **Size:** M
+
+#### Why
+The engine evaluates in microseconds, but nothing measures Donka itself: the Runtime's response
+time, its throughput, the decision-log feed and Studio's search at pilot volumes. A bank asks
+for these figures in its first questionnaire, and without a baseline a slowdown goes unnoticed.
+
+#### Decisions
+Confirmed 2026-10-25. Targets are stated per reference machine and checked in CI against the
+published images; external calls are excluded (the connectors' own budgets are configured
+separately).
+
+[INTERACTIVE STEP] at story start: the reference machine and the volumes to hold (decisions
+per second at peak, records per day), taken from the pilot questionnaire when available.
+
+Confirmed 2026-10-30, before the pilot questionnaire's figures:
+- Reference machine: GitHub's `ubuntu-latest` runner (4 vCPU, 16 GB), as for the five-minute
+  install; CI measures on it with each published image.
+- One Runtime holds **100 decisions per second** at peak.
+- The decision log is sized for **100,000 records a day**, about 180 million over the five-year
+  retention; Studio's search is measured on a sample of that volume.
+- Targets: the Runtime answers within **p95 20 ms and p99 50 ms** at peak without connectors;
+  Studio's search within **p95 1 s** and replay within **p95 2 s**. CI fails when a measure
+  regresses more than **20%** beyond its baseline.
+
+Confirmed 2026-10-30 after Studio's 50-request reference and validation runs:
+- Keep the **20% Studio p95 gate** and calibrate with larger, repeated samples. Replay p95
+  moved from 8.47 to 13.40 ms with no application-source change; both runs met the absolute
+  targets, but the latter correctly failed the regression gate.
+- Each case now measures three rounds of 1,000 requests after 50 warm-ups per round. The gate
+  uses p95 across all 3,000 measured requests, retaining every round in the report. Every round
+  must also meet the absolute targets with zero errors. Establish the new baseline from three
+  independent reference-runner measurements, including all three, then validate it separately.
+
+Confirmed 2026-10-31 after the three larger-sample runs:
+- Keep the standard GitHub runner and **CPU-specific Studio baselines**. The three assigned
+  models differ enough that a shared mean would reject four unchanged-code cases by 21–31%.
+- Match CPU model, virtual core count, architecture and Node major version, along with the
+  configured sample and actual corpus. Each model's initial baseline uses its own pooled
+  3,000-request measurement; do not average hardware models together.
+- Unknown hardware or incompatible samples **fail CI until calibrated**. Results are saved
+  first so a new profile can be reviewed without bypassing a gate. Local runs still enforce
+  the absolute targets and explicitly report an unavailable regression comparison.
+- Validate the matching-hardware gate independently in CI before merging. The owner authorized
+  the CPU-specific implementation and the merge after the required checks pass.
+
+Confirmed 2026-11-13 after a single-window KYC throughput outlier on unchanged application
+source:
+- Keep the existing numeric baselines and 20% margin. Short CI measures each decision's maximum
+  throughput in three independent windows and compares their median; retain every window in the
+  artifact and fail if any request errors or goes unanswered.
+
+#### Acceptance criteria
+- [x] A repeatable load test (scripted, in the repository) measures the Runtime's p50/p95/p99 and maximum throughput on each starter pack, without connectors and with mocked ones
+- [x] The decision-log feed keeps up with the target throughput; back-pressure and loss behaviour under Studio outage are measured
+- [x] Studio's decision-log search and replay stay within their targets on a database holding the retention period's volume
+  - Confirmed sample: 100,000 encrypted records across 60 monthly partitions; [three reference runs](https://github.com/youmssi/donka/actions/runs/41121411427) plus [EPYC 9V45 calibration](https://github.com/youmssi/donka/actions/runs/41183908484/attempts/1) measured 60,000 requests with no errors. Search p95 is 3.10–40.87 ms and replay 4.24–6.06 ms across the recorded CPU profiles. The script, hardware-specific baselines and exact method are in `docs/performance.md` and `docs/performance.json`; no full-volume capacity claim.
+- [x] CI runs a shortened version and fails when a target regresses beyond a stated margin
+- [ ] The targets and results are published in the documentation (DNK-66)
+
+#### Out of scope
+Tuning beyond what the measurements show is needed; customer-specific capacity planning.
+
+---
+
+### DNK-68 — Partition the decision log by month
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-18 (merged) · **Size:** M
+
+#### Why
+Records are kept five years by default. At tens of thousands of decisions a day, one
+`decision_records` table grows to tens of millions of encrypted rows: purging becomes a long
+delete and searches slow down. Partitioning is cheap now and costly once a customer has data.
+
+#### Decisions
+Confirmed 2026-10-25, before any pilot data: PostgreSQL range partitions by month on the
+evaluation time; partitions are created ahead by Studio; retention drops whole partitions
+(records of a partially expired month are deleted individually until the month expires).
+
+#### Acceptance criteria
+- [x] A forward migration moves existing records into monthly partitions without losing or re-encrypting any
+- [x] Studio creates upcoming partitions ahead of time; a record never fails for a missing partition
+- [x] Retention purge drops expired partitions, deletes the expired rows of the boundary month, and stays audited
+- [x] Search, opening, replay, explanation and key rotation (DNK-40) behave as before; their tests pass unchanged
+- [x] Backup and restore (DNK-50) cover the partitions
+
+#### Out of scope
+Archiving to cold storage; partitioning other tables.
+
+---
+
+### DNK-69 — External security test before the pilot (Phase 3)
+
+**Type:** chore · **Repos:** S, R, C · **Phase:** 3 · **Dependencies:** DNK-64, Phase 2 scope · **Size:** M
+
+#### Why
+A bank's security officer asks for the threats considered, an independent test and how
+findings were handled before anything reaches production.
+
+#### Decisions
+Confirmed 2026-10-25: a written threat model (STRIDE) of the whole installation, then an
+external penetration test of the pilot's installation path; findings are fixed or accepted
+in writing before the pilot.
+
+[INTERACTIVE STEP] at story start: who performs the penetration test, and its budget.
+
+Confirmed 2026-11-04:
+- An independent security firm with certified testers runs the test. Donka writes the scope
+  first ([penetration-test-scope.md](../security/penetration-test-scope.md)); firms quote from
+  it and the budget follows.
+- Reports go through GitHub's private vulnerability reporting in each repository
+  (`SECURITY.md`); the owner enables it in each repository's settings.
+- The threat model's open items are fixed before the test, each as its own story, in this
+  order: DNK-83, DNK-84, DNK-85, DNK-86, DNK-87.
+
+Confirmed 2026-11-16 by the owner: defer vendor sourcing and the external assessment to Phase 3
+to allow time to collect vendor information. The assessment remains a hard gate before any
+customer pilot or production deployment. Do not contact suppliers until the owner resumes
+sourcing. Refresh the scope after Phase 2 architecture is established so the test covers the
+actual pre-pilot product and installation path.
+
+Confirmed 2026-11-16 by the owner: defer agreement on customer policy values, the named pilot
+target, and pilot acceptance/stop criteria to the end of Phase 3. These decisions do not block
+Phase 1 implementation exit, but no pilot may begin until the customer agreement is recorded.
+
+#### Acceptance criteria
+- [x] The threat model covers Studio, the Runtime, the CLI, storage, secrets, the decision log, connectors, identity and the language model endpoint, with each mitigation linked to code, configuration or a story
+- [ ] An external penetration test runs against an installation built from the published images
+- [ ] Every high or critical finding is fixed and retested; others are fixed or accepted with a reason and an owner
+- [ ] The documentation's security section (DNK-66) publishes the threat model summary and the test's outcome
+- [ ] At the end of Phase 3, record customer-approved policy values, the named pilot target, and pilot acceptance/stop criteria before any pilot
+- [x] A security contact and disclosure policy exist in each repository
+
+#### Out of scope
+Certification (SOC 2, ISO 27001), which stays in Phase 3.
+
+---
+
+### DNK-73 — A trust dossier banks can verify
+
+**Type:** chore · **Repos:** S, R, C · **Dependencies:** DNK-64 · **Size:** M
+
+#### Why
+Banks select suppliers against international security standards. Most certifications
+(ISO/IEC 27001, SOC 2) certify an organisation, not software, and PCI DSS applies only to card
+data. What a bank can check on the software itself is its application security, how it is
+built and delivered, and whether it falls inside its regulated scopes.
+
+#### Decisions
+Confirmed 2026-10-25, before the pilot. Each item states its status exactly; a self-assessment
+is never presented as a certification:
+- **OWASP ASVS 4.0.3 level 2** self-assessment of Studio and the Runtime, with evidence per
+  requirement (test, configuration or document). (Version confirmed 2026-11-09: 4.0.3 is the
+  stable, verifiable reference; ASVS 5.0 renumbers every chapter and is too recent for a bank
+  dossier.)
+- **NIST SSDF (SP 800-218)** mapping of the development practices.
+- **SLSA build level 3** provenance for the published images (DNK-64).
+- **OpenSSF Scorecard** and the **OpenSSF Best Practices badge** for the public repositories.
+- **CIS Docker Benchmark** checks of the images.
+- **PCI DSS out of scope by design**: Donka needs no card numbers; contracts reject fields
+  that look like a primary account number, so Donka stays outside the bank's card-data scope.
+- A pre-filled answer pack for a typical bank security questionnaire, with a mapping to
+  supervisory expectations on outsourcing and ICT third parties.
+- **Compliance matrices** (confirmed 2026-10-25), each requirement linked to its evidence and to
+  who is responsible (Donka, the customer, or both), since the customer hosts Donka:
+  ISO/IEC 27001:2022 Annex A, SOC 2 trust services criteria, GDPR, ISO 22301, the EU AI Act
+  obligations for high-risk credit scoring, WCAG 2.2 AA, the Malabo Convention, and the
+  banking and data-protection rules of the target region: CEMAC (COBAC), UEMOA (Commission
+  Bancaire de l'UMOA, BCEAO) and Guinea, with each pilot country's data-protection law
+  (for example Cameroon's law 2024/017). Each matrix starts from the strictest common rules
+  and gains a country section when a customer there signs.
+
+#### Decisions
+Confirmed 2026-11-06: executed in parts, each its own PR — card refusal and the PCI DSS scope
+statement first (this part), then ASVS+SSDF, then compliance matrices, questionnaire and
+WCAG, then SLSA, Scorecard and CIS. A contract field is refused by its name (`pan`,
+`cardNumber`, `numeroCarte`…) or by a Luhn-valid 13-to-19-digit value in an example or a
+default. SLSA provenance is prepared with its offline verification commands and its exact
+status stated (awaiting the first signed release, an owner release item), never claimed
+without evidence.
+
+Confirmed 2026-11-09 (part 3): each compliance matrix lists the full requirement set of its
+framework, with Not applicable allowed only with a written reason, so a bank can check
+completeness. The security questionnaire is a separate pre-filled pack under
+`docs/security/` (English and French), distinct from the pilot integration questionnaire,
+which asks the bank questions instead of answering them. The version choice for the ASVS
+page is 4.0.3 (see the Decisions above).
+
+Confirmed 2026-11-09 (part 4): OpenSSF Scorecard runs as a weekly workflow in each public
+repository (results in its Security tab), with every CI action pinned to a commit SHA.
+The Best Practices badge answers are prepared from the dossier; registering the projects
+on bestpractices.dev is the owner's action, and until then the badge is stated exactly as
+not obtained.
+
+Confirmed 2026-11-16 by the owner: DNK-69 vendor sourcing, test report and external attestation
+are deferred to Phase 3. The Phase 1 dossier and Trust page must state that no external test has
+yet taken place; add the owner-approved sanitized attestation after DNK-69 completes. This
+deferral does not authorize a pilot or production deployment.
+
+#### Acceptance criteria
+- [x] The ASVS level 2 self-assessment lists every applicable requirement with its evidence; failures become stories or written exceptions
+- [x] The SSDF mapping links each practice to the repository's rules, CI and reviews
+- [ ] Published images carry SLSA level 3 provenance that a bank verifies offline with the documented commands — prepared with its verification commands and its exact status (awaiting the first signed release, an owner release item) in `docs/security/supply-chain.md`
+- [ ] OpenSSF Scorecard runs on each public repository and the Best Practices badge is obtained; their results are linked — Scorecard runs weekly in Studio, Runtime and CLI; badge answers are prepared and registration is the owner's (confirmed 2026-11-09)
+- [x] Images pass the applicable CIS Docker Benchmark checks or document each exception
+- [x] Saving a contract with a field that holds or looks like a card number is refused, and the PCI DSS scope statement is published
+- [x] Each compliance matrix lists every requirement with its evidence, its owner (Donka, customer, shared) and its status; gaps become stories or written exceptions; legal texts are cited from their official sources
+- [x] A WCAG 2.2 AA self-assessment of Studio's screens is part of the dossier
+- [ ] The questionnaire answer pack (EN/FR) and the dossier appear on the Trust page (DNK-66) — the pack is written (`docs/security/questionnaire.md` and `.fr.md`); appearance waits for DNK-66
+
+#### Out of scope
+ISO/IEC 27001 and SOC 2 Type II certification of the company, and third-party verification of
+the ASVS assessment (Phase 3, when Donka operates a hosted service or a customer requires it).
+
+---
+
+### DNK-74 — Guided setup with chosen modules
+
+**Type:** feature · **Repos:** S, R · **Dependencies:** DNK-64, DNK-77 · **Size:** M
+
+#### Why
+DNK-64 makes a first decision possible in five minutes. A bank's real installation still asks
+for many choices: its domain and certificate, storage, identity, mail, language model, which
+packs and modules it wants. Asked one by one, with checks, they take minutes instead of days.
+
+#### Decisions
+Confirmed 2026-10-25:
+- **`donka-admin`**, a Rust binary in the Studio image, holds every server command (`init`,
+  `doctor`, `upgrade`, `modules`, `support-bundle`); the developers' CLI keeps the name `donka`
+  (`pull`, `form`, `mcp`). Nothing beyond Docker is installed on the bank's server.
+- **A command-line assistant** (`donka-admin init`), in the manner of `create-next-app`:
+  organisation, domain and TLS, storage (disk, the customer's S3, SILO), identity (local
+  accounts with a second step, or single sign-on), mail, language model (endpoint and key
+  chosen by the customer), modules (explanations, analysis, connectors), packs to import, tools
+  (CLI, `donka-scorecard`), licence file (DNK-77) and demo mode. Defaults are offered for each.
+- It writes secrets as files and a readable `donka.yaml`; running with that file replays the
+  installation without questions.
+- `donka-admin doctor` checks the database, storage, mail, identity provider, language model and
+  connector endpoints, and explains each failure in plain words.
+- **A first-run assistant in the browser** creates the first administrator and their second
+  step, names the organisation and imports the chosen packs; the DNK-41 checklist follows.
+- Modules are enabled or disabled later (`donka-admin modules enable|disable`), and upgrades go
+  through `donka-admin upgrade` (DNK-64).
+- `donka-admin support-bundle` collects versions, configuration and logs with secrets removed, to
+  send for support without access to the bank.
+- A desktop installer is not built: installations run on headless servers.
+
+Confirmed 2026-10-29, for the browser assistant:
+- It is reached through the one-time link the logs print for the first administrator: after the
+  password, signing in leads to it. Nobody without access to the server can take over an empty
+  installation.
+- Two-step sign-in is required to finish it: the first administrator holds every right.
+- The organisation's name appears in Studio's header and browser tab, in its emails, in the
+  person access report and in audit exports; administrators rename it in Settings.
+- Every pack of the catalogue is offered, none ticked; each chosen pack becomes a project the
+  administrator owns.
+- An installation people already sign in to is not sent through the assistant after the upgrade.
+
+#### Acceptance criteria
+- [x] The assistant runs from the published image with only Docker installed, in English and French, and every question has a default
+- [x] Running again with `donka.yaml` produces the same installation without questions; secrets are never printed nor overwritten
+- [x] `donka-admin doctor` reports each dependency as working or not, with the reason and the setting to change
+- [x] The browser assistant appears only until the first administrator exists, enrols their second step, and imports the selected packs
+- [x] Enabling or disabling a module keeps data, is audited and takes effect after a restart
+- [x] The support bundle contains no secret, token or personal data; a test checks it
+- [x] The install guides (EN/FR) and DNK-50's rehearsal use this path
+
+---
+
+### DNK-75 — Rights of the people decisions are about
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-18, DNK-68 · **Size:** M
+
+#### Why
+Data-protection laws in the target region and the GDPR give a person the right to know what is
+held about them, to have it erased when the law allows, and to contest a decision made
+automatically. Cameroon's law 2024/017 has applied since June 2026. A lender must answer these
+requests within legal deadlines; today nobody can find every decision about one person.
+
+#### Decisions
+Confirmed 2026-10-25, before the pilot:
+- An owner looks up the decisions about a person by the identifiers the contract marks as
+  personal (national ID, phone…), searched through keyed hashes so nothing is decrypted to
+  search.
+- The result exports as a readable report (EN/FR) of inputs, outcome, reasons and explanation.
+- Erasure anonymises the person's fields in their records, unless a retention rule the owner
+  documents requires keeping them; the record and its outcome stay for audit.
+- A contest is recorded against the decision with its outcome after human review; the review
+  itself happens in the lender's own systems.
+
+Confirmed 2026-10-28, when the story started:
+- People are found by the input fields marked **identifier** (national ID, phone, customer
+  number), a new mark beside "personal data"; an identifier is always personal data.
+  Anonymisation removes every personal-data field; only identifiers are searchable.
+- The access report is a **PDF** generated by Studio, in English or French.
+- A retention rule is documented **per project**: what it is, its legal reference and until
+  when it runs. While one runs, anonymisation is refused with the rule shown; rules are audited.
+- A contest is **open** when recorded, then **upheld** or **revised** (with the new outcome) after
+  review; a reason is required at each step.
+
+#### Acceptance criteria
+- [x] Searching by a personal identifier finds that person's records across the project's decisions without decrypting the log
+- [x] Records stored before this story are indexed by a resumable, audited job, like key re-sealing (DNK-40)
+- [x] The access report includes every record found, its reasons and explanation, in English or French
+- [x] Anonymising removes the person's fields from input, output and trace, keeps outcome, release and time, and cannot be undone; a documented retention rule blocks it with the rule shown
+- [x] A contest and its review outcome are recorded on the decision and shown in its history
+- [x] Every search, export, anonymisation and contest is audited; only owners can perform them
+- [x] Tests cover each criterion, including records in several monthly partitions (DNK-68)
+
+---
+
+### DNK-76 — Find gaps and overlaps in decision tables
+
+**Type:** feature · **Repos:** S · **Dependencies:** DNK-62 · **Size:** S
+
+#### Why
+A table with a gap lets an application through without a decision; overlapping rows make the
+result depend on row order. Rule analysis is a standard feature of mature rule platforms, and
+the upgraded engine (2.1) provides table verification and diagnostics.
+
+#### Decisions
+Confirmed 2026-10-25: the engine's verification runs in `crates/engine` and its findings
+appear in the editor and in the production approval review.
+
+#### Acceptance criteria
+- [x] Saving a table reports gaps, overlapping rows and rows that can never match, with the row and column
+- [x] The approval review lists the findings of the release under review
+- [x] Findings warn and never block a save; an owner can acknowledge one with a reason, which is audited
+- [x] Strings in English and French; tests use tables with each kind of finding
+
+---
+
+### DNK-77 — Licence file for Studio
+
+**Type:** feature · **Repos:** S · **Dependencies:** none · **Size:** S
+
+#### Why
+Studio is proprietary software delivered to each customer. Nothing yet ties an installation
+to its contract, its validity or the modules it includes.
+
+#### Decisions
+Confirmed 2026-10-25: a licence file signed by Donka (Ed25519), verified offline with the public
+key built into Studio. It names the customer, the validity dates and the modules included.
+Decisions are never affected: the Runtime does not read licences and keeps serving released
+rules. Without a valid licence Studio stays readable and exportable but refuses new versions
+and releases, and says why.
+
+#### Acceptance criteria
+- [x] Studio verifies the licence file at start and daily, without network access
+- [x] Modules outside the licence are hidden and their routes refused with a clear error
+- [x] Thirty days before expiry, administrators see a notice; after expiry Studio refuses new versions and releases, while reading, exporting and the Runtime keep working
+- [x] A tampered or foreign licence is refused and named in the log; replacing the file needs no restart beyond a reload
+- [x] A tool kept outside the customer installation issues licences; its signing key never ships
+
+---
+
+### DNK-83 — Function nodes cannot reach the network
+
+**Type:** fix · **Repos:** S, R · **Dependencies:** DNK-69 · **Size:** S
+
+#### Why
+zen-engine 2.x gives JavaScript function nodes an `http` module with its own client. Any
+project editor can make Studio's simulator, or a released rule on the Runtime, call internal
+services from inside the bank's network and read the answer (threat model RA-1, critical).
+Calls to outside services belong to connectors, which have secrets, timeouts and limits.
+
+#### Decisions
+Confirmed 2026-11-04: fixed first, before the other threat-model items.
+
+#### Acceptance criteria
+- [x] A function node that imports `http` and calls any address fails with a clear error, in Studio's simulator, test scenarios and replay, and on the Runtime
+- [x] The engine never attaches cloud credentials to a request
+- [x] Regression tests in both repositories call a local server and prove no request reaches it
+- [x] Function nodes keep everything else they do today; the starter packs' tests pass unchanged
+- [x] The rule-authoring guide says function nodes have no network access and points to connectors
+
+---
+
+### DNK-84 — Connector secrets go only where the installation allows
+
+**Type:** fix · **Repos:** R, S · **Dependencies:** DNK-83 · **Size:** M
+
+#### Why
+A connector node names a secret and a URL, and nothing limits where a secret may be sent;
+staging releases need no approval. An editor can send the bureau's key to their own server, and
+a redirect can carry it to another host (threat model CN-1, CN-2, high).
+
+#### Decisions
+Confirmed 2026-11-04:
+- A secret without a host list is refused; `donka-admin init` writes the lists from
+  `donka.yaml` (`connector_hosts`, `connector_open_hosts`).
+- One installation-wide list (`CONNECTORS__ALLOWED_HOSTS`) covers every connector call,
+  connectors without a secret included.
+
+#### Acceptance criteria
+- [x] The Runtime's configuration lists, for each secret, the hosts it may be sent to; a call to another host with that secret is refused before anything is sent, and the trace says why
+- [x] Connectors do not follow redirects; a redirect is reported as the connector's error
+- [x] Studio warns, when a version is saved, about a connector whose host is not allowed for its secret, when the installation's list is known
+- [x] `donka-admin init` and the demo write the allowed hosts; the configuration and connectors guides (EN/FR) explain it
+- [x] Tests cover an allowed host, another host, a redirect, OAuth2 token URLs and mutual TLS
+
+---
+
+### DNK-85 — Browser security headers
+
+**Type:** fix · **Repos:** S · **Dependencies:** DNK-69 · **Size:** S
+
+#### Why
+Studio sends no Content-Security-Policy, and no Strict-Transport-Security when it is served
+over HTTPS (threat model ID-7, medium).
+
+#### Decisions
+Confirmed 2026-11-05: a strict targeted policy (`'self'` for scripts, styles, fonts and the
+API; `wasm-unsafe-eval` and blob workers only for the decision editor and
+Monaco; inline styles stay allowed because the component libraries set them at runtime).
+The static export inlines its own bootstrap scripts in every page; Studio lists their
+SHA-256 hashes in the policy at startup, so any other inline script stays blocked.
+HSTS is sent only when `DONKA_PUBLIC_URL` is HTTPS (`max-age 63072000; includeSubDomains`,
+no preload), so plain-HTTP local and demo installs never pin a browser to HTTPS. The header
+test covers the web app and the API; the shared Playwright fixture fails every journey on a
+CSP violation (Chromium, EN/FR; Firefox and WebKit stay with the release matrix).
+
+#### Acceptance criteria
+- [x] Studio sends a Content-Security-Policy that allows only its own scripts, styles, fonts and API, with no inline script; the decision editor, Storybook previews and every live journey work under it
+- [x] Strict-Transport-Security is sent when Studio's public URL is HTTPS
+- [x] A test checks the headers on the web app and the API; a browser test fails on any CSP violation
+
+---
+
+### DNK-86 — Studio and the Runtime listen on localhost by default
+
+**Type:** fix · **Repos:** S · **Dependencies:** DNK-69 · **Size:** S
+
+#### Why
+The generated `docker-compose.yml` publishes Studio (8080) and the Runtime (8090) on every
+interface in plain HTTP, while the guide says to reach them only through the bank's TLS proxy
+(threat model RT-5, medium).
+
+#### Decisions
+Confirmed 2026-11-06: one `publish_address` answer for both ports, any valid IP address
+(`127.0.0.1` by default; hostnames refused). A `donka.yaml` written before this answer
+existed keeps every interface (`0.0.0.0`), so an upgrade changes nothing for it; only a
+new `init` starts on localhost. `donka-admin doctor` warns for each service when its port
+is published beyond localhost while Studio's public URL is plain HTTP, and stays silent
+behind the HTTPS proxy.
+
+#### Acceptance criteria
+- [x] By default the ports are published on 127.0.0.1 only; `donka-admin init` asks which address to publish on, with localhost as the default, and `donka.yaml` keeps the answer
+- [x] `donka-admin upgrade` keeps an existing installation's choice
+- [x] `donka-admin doctor` warns when a port is published beyond localhost over plain HTTP
+- [x] The install guides (EN/FR) show the reverse proxy in front
+
+---
+
+### DNK-87 — Signed release artifacts
+
+**Type:** feature · **Repos:** S, R · **Dependencies:** DNK-69 · **Size:** M
+
+#### Why
+The Runtime evaluates whatever artifact it reads, so whoever can write the releases volume or
+bucket changes decisions (threat model RT-3, medium).
+
+#### Decisions
+Confirmed 2026-11-06: the signature travels inside the artifact as `.config/signature.json`
+(key id, SHA-256 digest of the canonical content, Ed25519 signature over the digest), so one
+object is published atomically and every provider is unchanged. The Runtime verifies first
+(Runtime PR), then Studio signs. Rotation accepts the current and previous public keys at
+once: `donka-admin rotate-signing-key` moves the current key to previous, writes a fresh
+one, and Studio signs with the new key while Runtimes verify with either.
+
+#### Acceptance criteria
+- [x] Studio signs each artifact it publishes with a key of the installation; the signature travels with the artifact (additive to the artifact format, Runtime first)
+- [x] The Runtime, given the installation's public key, refuses an unsigned or altered artifact, keeps serving the last valid one and logs why
+- [x] Without a public key configured, the Runtime behaves as today and says so at start, so existing installations upgrade in order
+- [x] `donka-admin init` creates the key pair; the key rotates without downtime; the guides (EN/FR) cover it
+- [x] Tests cover a valid, an altered, an unsigned and a foreign-key artifact
+
+---
+
+### DNK-88 — Signed immutable release candidates
+
+**Type:** feature · **Repos:** S, R, C · **Dependencies:** DNK-64, DNK-87 (merged) · **Size:** L
+
+#### Why
+
+Phase 1 needs a versioned candidate path to rehearse installation and upgrades before stable
+promotion. The current image workflows publish mutable development aliases or stable aliases;
+the CLI workflow only creates stable GitHub releases. Reusing either path for a candidate could
+move `edge`, `latest`, or a stable SemVer image tag.
+
+#### Decision
+
+Confirmed by the owner on 2026-11-16: implement a dedicated, manually dispatched signed release
+candidate path across Studio, Runtime, and CLI. Each repository keeps its independent version
+stream. A candidate uses strict `X.Y.Z-rc.N` SemVer, identifies an exact reviewed `develop`
+commit, and is published as a prerelease. Candidate publication never updates stable SemVer,
+`latest`, `edge`, or other stable aliases. Build each repository's candidate in its own workflow;
+release order is Runtime, then Studio, then CLI. Use a distinct signing key for every repository.
+Do not publish a candidate as part of this implementation story.
+
+#### Behaviour
+
+| Where | Before | After |
+|---|---|---|
+| Studio and Runtime image workflows | Publish mutable `edge`/SHA development tags or stable SemVer/`latest` release tags | A dedicated manual candidate run publishes only its exact `-rc.N` image reference, records the immutable digest, signs it and verifies it with that repository's public key |
+| CLI release workflow | Build and attach an unsigned package only for a stable release | A dedicated manual candidate run builds a tarball from its selected `develop` commit, signs and verifies it with the CLI key, and attaches it to a prerelease |
+| GitHub release | Stable Release Please workflow publishes releases from `main` | Candidate workflow creates a draft prerelease, adds all assets, then publishes it; existing tag/release names are rejected |
+
+#### Acceptance criteria
+
+- [ ] Candidate runs are manually dispatched from `develop` and are bound to the exact reviewed commit; invalid refs and versions outside `X.Y.Z-rc.N` fail before publishing.
+- [ ] Studio and Runtime candidate image tags contain only the requested `-rc.N` version. Candidate jobs never write `edge`, `latest`, stable SemVer tags, or stable minor aliases; a pre-existing candidate tag or registry reference fails closed.
+- [ ] Both candidate images include SBOM and provenance, are signed by their repository-specific Cosign key, and verify against the public key from the same tagged commit. The run records image digests for staging.
+- [ ] CLI candidate tarballs are signed and verified with a distinct CLI key and public key; no npm publication occurs.
+- [ ] Each GitHub candidate release is a prerelease tied to the exact reviewed commit. Assets are complete before publication; published release assets and tags are protected by GitHub immutable releases, and `-rc` tags cannot be updated or deleted by the workflow.
+- [ ] Tests exercise invalid version/ref, duplicate candidate, signing verification, the exact candidate tag set, and the invariant that stable aliases remain untouched.
+- [ ] A candidate installation/upgrade smoke run uses the selected Runtime and Studio RC digests and passes before the candidate is declared ready for staging.
+- [ ] CI and documentation describe dispatch, verification, retry/failure behavior, key separation, and the owner settings required for immutable releases.
+- [ ] The operator guide explains that GitHub exposes manual workflows only after they reach the default branch; promote the reviewed Phase 1 source to `main` first, then dispatch each candidate workflow from `develop`.
+
+#### Out of scope
+
+- Creating or publishing an actual candidate, stable release, or production deployment.
+- Coordinating the three independent version numbers into one product version.
+- Changing Release Please's stable promotion path or moving any stable alias.
+
+---
+
+### DNK-89 — Repair the full release browser matrix
+
+**Type:** fix · **Repos:** S · **Dependencies:** DNK-48, DNK-51, DNK-52, DNK-55, DNK-88 (merged) · **Size:** M
+
+#### Why
+
+The promotion-to-main CI run exercises 672 live journeys across Chromium, Firefox and WebKit,
+English and French, light and dark themes, and desktop and 390 px viewports. The latest Studio
+run exposed failures that the Chromium push run did not: account lookup stopped at the first
+100 rows, the editor connection journey could target a node obscured at narrow widths, and
+Firefox executed Zstandard-compressed JavaScript as text. Playwright's trace showed each
+affected JavaScript chunk returned with `Content-Encoding: zstd` and failed at line 0, column 1.
+
+#### Decisions
+
+- Keep the complete three-engine matrix, real UI interactions, page-error checks, and current
+  timeout. Do not skip engines, filter browser errors, increase timeouts, or quarantine journeys.
+- Disable Zstandard response negotiation while retaining Brotli, gzip and deflate; assert that
+  a Zstandard-only request receives a valid uncompressed response.
+- Locate created accounts by following the API's real pagination and use collision-resistant
+  IDs for data shared across the release matrix.
+- Use the editor's visible fit-view control before connecting newly authored nodes, then assert
+  the target is in view. Diagnose any remaining Firefox/WebKit page errors from the resulting
+  CI evidence before considering this story complete.
+
+#### Acceptance criteria
+
+- [ ] Firefox does not execute compressed bytes as JavaScript; the app has a regression proving
+  a Zstandard-only client receives an uncompressed response.
+- [ ] The second-step journey finds its own account regardless of its position in the paginated
+  people list.
+- [ ] Synthetic project and account identifiers are collision-resistant across the full matrix.
+- [ ] The editor journey connects all three nodes through real pointer interactions at 390 px
+  and desktop widths in all three engines.
+- [ ] Firefox onboarding completes with no invalid-character JavaScript errors, closed-page
+  timeouts, or unexplained browser renderer failures.
+- [ ] The full 672-case release suite passes without retries or skips; the independent security
+  suite remains unchanged.
+
+---
+
+### DNK-90 — Isolate authentication rate-limit probes
+
+**Type:** fix · **Repos:** S · **Dependencies:** DNK-32, DNK-89 (merged) · **Size:** S
+
+#### Why
+
+The live authentication security suite runs browser projects against one isolated Studio
+instance. They share its Docker client address, so a later project can inherit an earlier
+project's nearly expired rate-limit window and lose the intended UI 429 assertion.
+
+#### Decision
+
+Give every browser probe a unique forwarded client address, and trust forwarded addresses only
+from the disposable CI Docker bridge for the isolated rate-limit run. Keep the production
+trusted-proxy default and the live 429 assertions unchanged.
+
+#### Behaviour
+
+| Where | Before | After |
+|---|---|---|
+| CI authentication security probes | All projects share one limiter identity | Each project uses its own client identity for both API setup and real UI requests |
+| Isolated CI Studio process | Forwarded client addresses are ignored | The Docker bridge may supply test identities to the limiter |
+
+#### Acceptance criteria
+
+- [ ] Each security probe's API requests and browser UI requests use the same unique client identity.
+- [ ] The CI-only proxy trust setting is scoped to the isolated rate-limit service and Docker bridge.
+- [ ] Sign-in and password-reset probes still assert the real 429 response, Retry-After header, and translated UI guidance.
+- [ ] Production proxy trust remains empty unless an installation explicitly configures it.
+- [ ] The release security suite passes in Chromium, Firefox and WebKit without retries or skipped cases.
+
+#### Out of scope
+
+- Changing production rate-limit behavior or trusting forwarded addresses by default.
+- Changing the browser matrix, rate-limit budgets, or security assertions.
+
+---
+
+### DNK-91 — Wait for the signed-out route to settle in WebKit
+
+**Type:** fix · **Repos:** S · **Dependencies:** DNK-89, DNK-90 (merged) · **Size:** S
+
+#### Why
+
+The full release browser matrix passed 671 of 672 journeys, but one French mobile WebKit
+authentication journey reported a failed Next.js route fetch after the signed-out form rendered.
+The assertion ran while the route's same-origin requests were still settling, so teardown could
+turn that pending fetch into a browser page error.
+
+#### Decision
+
+After sign-out, assert the localized sign-in URL and wait for the page's network activity to
+settle before the journey ends. Keep the page-error assertion and all release browser projects.
+
+#### Behaviour
+
+| Where | Before | After |
+|---|---|---|
+| Authentication sign-out journey | Ends after the sign-in form becomes visible | Confirms the localized sign-in route and lets its pending requests settle |
+
+#### Acceptance criteria
+
+- [ ] The signed-out journey confirms the localized sign-in route before finishing.
+- [ ] WebKit French mobile sign-out completes without a pending route fetch being reported as a page error.
+- [ ] The full 672-case release matrix passes without retries or skipped cases.
+
+#### Out of scope
+
+- Changing sign-out behavior, authentication APIs, or the suite's page-error checks.
+

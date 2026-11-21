@@ -1,0 +1,601 @@
+use super::*;
+
+fn dir(name: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("donka-init-{name}-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&dir).unwrap();
+    dir
+}
+
+fn system_random(buf: &mut [u8]) -> Result<(), String> {
+    getrandom::fill(buf).map_err(|err| err.to_string())
+}
+
+fn value(env: &str, key: &str) -> String {
+    env.lines()
+        .find_map(|line| line.strip_prefix(&format!("{key}=")))
+        .unwrap_or_else(|| panic!("{key} missing"))
+        .to_owned()
+}
+
+fn read(dir: &Path, name: &str) -> String {
+    std::fs::read_to_string(dir.join(name)).unwrap()
+}
+
+fn mode(path: &Path) -> u32 {
+    use std::os::unix::fs::PermissionsExt as _;
+    std::fs::metadata(path).unwrap().permissions().mode() & 0o777
+}
+
+const GENERATED: [&str; 5] = [
+    POSTGRES_PASSWORD,
+    DATABASE_URL,
+    DECISION_LOG_KEY,
+    SECOND_STEP_KEY,
+    PERSON_INDEX_KEY,
+];
+
+#[test]
+fn a_new_installation_keeps_its_secrets_in_files_only() {
+    let dir = dir("fresh");
+    init(
+        &dir,
+        &Installation::for_version("1.4.0"),
+        &Provided::default(),
+        system_random,
+    )
+    .unwrap();
+    assert_eq!(read(&dir, "docker-compose.yml"), COMPOSE);
+    let env = read(&dir, ".env");
+    assert_eq!(value(&env, "DONKA_VERSION"), "1.4.0");
+    assert_eq!(value(&env, "DONKA_RUNTIME_VERSION"), "latest");
+    assert_eq!(value(&env, "DONKA_INSTALLATION_ROLE"), "production");
+    assert_eq!(
+        value(&env, "DATABASE_URL_FILE"),
+        "/run/secrets/database_url"
+    );
+    assert_eq!(value(&env, "DONKA_COOKIE_SECURE"), "false");
+    let secrets = dir.join(SECRETS);
+    let password = read_secret(&secrets.join(POSTGRES_PASSWORD)).unwrap();
+    assert_eq!(password.len(), 48);
+    assert_eq!(
+        read_secret(&secrets.join(DATABASE_URL)).unwrap(),
+        format!("postgres://donka:{password}@postgres:5432/donka")
+    );
+    for key in [DECISION_LOG_KEY, SECOND_STEP_KEY, PERSON_INDEX_KEY] {
+        let key = read_secret(&secrets.join(key)).unwrap();
+        assert_eq!(B64.decode(key).unwrap().len(), 32);
+    }
+    // No secret value appears in a file Compose or anyone reads.
+    for name in [".env", "runtime.env", CONFIG] {
+        let text = read(&dir, name);
+        for secret in GENERATED {
+            let secret = read_secret(&secrets.join(secret)).unwrap();
+            assert!(!text.contains(&secret), "{name} holds a secret");
+        }
+    }
+    // Only the owner enters the folder; containers read a secret by name, never list them.
+    assert_eq!(mode(&dir), 0o700);
+    assert_eq!(mode(&secrets), 0o711);
+    assert_eq!(mode(&secrets.join(POSTGRES_PASSWORD)), 0o644);
+    assert_eq!(mode(&dir.join(CONFIG)), 0o600);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn every_installation_gets_its_own_secrets() {
+    let (a, b) = (dir("a"), dir("b"));
+    let installation = Installation::for_version("1.4.0");
+    init(&a, &installation, &Provided::default(), system_random).unwrap();
+    init(&b, &installation, &Provided::default(), system_random).unwrap();
+    let secret = |d: &Path, name: &str| read_secret(&d.join(SECRETS).join(name)).unwrap();
+    for name in GENERATED {
+        assert_ne!(secret(&a, name), secret(&b, name), "{name}");
+    }
+    let values: std::collections::BTreeSet<_> =
+        GENERATED.iter().map(|name| secret(&a, name)).collect();
+    assert_eq!(values.len(), GENERATED.len());
+    let _ = (std::fs::remove_dir_all(&a), std::fs::remove_dir_all(&b));
+}
+
+#[test]
+fn a_second_init_changes_nothing_and_a_replay_keeps_the_secrets() {
+    let dir = dir("again");
+    let installation = Installation::for_version("1.4.0");
+    init(&dir, &installation, &Provided::default(), system_random).unwrap();
+    let secrets_before: Vec<String> = GENERATED
+        .iter()
+        .map(|name| read_secret(&dir.join(SECRETS).join(name)).unwrap())
+        .collect();
+    let env_before = read(&dir, ".env");
+
+    let other = Installation::for_version("2.0.0");
+    let outcome = init(&dir, &other, &Provided::default(), system_random).unwrap();
+    assert_eq!(outcome, vec![Outcome::Kept(dir.join(CONFIG))]);
+    assert_eq!(read(&dir, ".env"), env_before);
+
+    // A replay from donka.yaml writes the same files and keeps every secret.
+    std::fs::remove_file(dir.join(".env")).unwrap();
+    let replayed = Installation::read(&dir).unwrap();
+    assert_eq!(replayed, installation);
+    apply(&dir, &replayed, &Provided::default(), |_| {
+        Err("no new secret".into())
+    })
+    .unwrap();
+    assert_eq!(read(&dir, ".env"), env_before);
+    let secrets_after: Vec<String> = GENERATED
+        .iter()
+        .map(|name| read_secret(&dir.join(SECRETS).join(name)).unwrap())
+        .collect();
+    assert_eq!(secrets_after, secrets_before);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_failing_random_source_writes_no_secret() {
+    let dir = dir("norandom");
+    let failed = init(
+        &dir,
+        &Installation::for_version("1.4.0"),
+        &Provided::default(),
+        |_| Err("no entropy".into()),
+    );
+    assert_eq!(failed.unwrap_err(), "no entropy");
+    assert!(!dir.join(SECRETS).join(POSTGRES_PASSWORD).exists());
+    assert!(!dir.join(CONFIG).exists());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_demo_turns_on_its_profile_and_its_connector_secret() {
+    let plain = dir("plain");
+    init(
+        &plain,
+        &Installation::for_version("1.4.0"),
+        &Provided::default(),
+        system_random,
+    )
+    .unwrap();
+    let env = read(&plain, ".env");
+    assert!(!env.contains("DONKA_DEMO") && !env.contains("COMPOSE_PROFILES"));
+    assert!(!env.contains("DONKA_UPDATE_CHECK"));
+    assert!(!read(&plain, "runtime.env").contains("DONKA_SECRET_"));
+    assert!(!read(&plain, "runtime.env").contains("CONNECTORS__"));
+    assert!(!env.contains("DONKA_CONNECTOR_"));
+
+    let demo = dir("demo");
+    let installation = Installation {
+        role: Role::Demo,
+        demo: true,
+        offline: true,
+        images: Images {
+            registry: Some("registry.bank.example/donka".into()),
+            ..Installation::for_version("1.4.0").images
+        },
+        ..Installation::for_version("1.4.0")
+    };
+    init(&demo, &installation, &Provided::default(), system_random).unwrap();
+    let env = read(&demo, ".env");
+    assert_eq!(value(&env, "COMPOSE_PROFILES"), "demo");
+    assert_eq!(value(&env, "DONKA_UPDATE_CHECK"), "false");
+    assert_eq!(value(&env, "DONKA_DEMO"), "true");
+    assert_eq!(value(&env, "DONKA_REGISTRY"), "registry.bank.example/donka");
+    let runtime = read(&demo, "runtime.env");
+    assert_eq!(
+        value(&runtime, "DONKA_SECRET_BUREAU_API_KEY_FILE"),
+        "/run/secrets/connector_bureau_api_key"
+    );
+    // The demo's key goes to its fake bureau only (DNK-84), and Studio knows it.
+    assert_eq!(value(&runtime, "CONNECTORS__ALLOWED_HOSTS"), "demo-bureau");
+    assert_eq!(value(&env, "DONKA_CONNECTOR_ALLOWED_HOSTS"), "demo-bureau");
+    assert_eq!(
+        value(&env, "DONKA_CONNECTOR_HOSTS"),
+        "BUREAU_API_KEY=demo-bureau"
+    );
+    assert_eq!(
+        value(&runtime, "CONNECTORS__HOSTS__BUREAU_API_KEY"),
+        "demo-bureau"
+    );
+    let key = read_secret(&demo.join(SECRETS).join("connector_bureau_api_key")).unwrap();
+    assert_eq!(key.len(), 48);
+    assert!(!runtime.contains(&key));
+}
+
+#[test]
+fn unattended_upgrades_are_refused_in_production() {
+    let window = Window::parse("Sun 02:00-04:00").unwrap();
+    let production = Installation {
+        auto_upgrade: Some(window),
+        ..Installation::for_version("1.4.0")
+    };
+    let refused = init(
+        &dir("role-production"),
+        &production,
+        &Provided::default(),
+        system_random,
+    )
+    .unwrap_err();
+    assert!(refused.contains("never run in production"), "{refused}");
+
+    let staging = dir("role-staging");
+    let installation = Installation {
+        role: Role::Staging,
+        ..production.clone()
+    };
+    init(&staging, &installation, &Provided::default(), system_random).unwrap();
+    let env = read(&staging, ".env");
+    assert_eq!(value(&env, "DONKA_INSTALLATION_ROLE"), "staging");
+    assert_eq!(value(&env, "COMPOSE_PROFILES"), "auto-upgrade");
+    assert_eq!(value(&env, "DONKA_AUTO_UPGRADE_WINDOW"), "Sun 02:00-04:00");
+
+    let demo = dir("role-demo");
+    let installation = Installation {
+        role: Role::Demo,
+        demo: true,
+        ..production
+    };
+    init(&demo, &installation, &Provided::default(), system_random).unwrap();
+    assert_eq!(
+        value(&read(&demo, ".env"), "COMPOSE_PROFILES"),
+        "demo,auto-upgrade"
+    );
+}
+
+#[test]
+fn the_customers_services_read_their_secrets_from_files() {
+    let dir = dir("services");
+    let licence = dir.join("licence-from-donka.json");
+    std::fs::write(&licence, "{\"format\":\"donka-licence/1\"}").unwrap();
+    let installation = Installation {
+        public_url: "https://donka.bank.example".into(),
+        second_step: SecondStep::Privileged,
+        storage: Storage::S3 {
+            bucket: "releases".into(),
+            region: "eu-west-1".into(),
+            endpoint: Some("http://silo:9000".into()),
+        },
+        mail: Mail::Smtp {
+            from: "Donka <donka@bank.example>".into(),
+        },
+        explanations: Explanations::Anthropic {
+            url: "https://api.anthropic.com/v1/messages".into(),
+            model: "claude-opus-5-5".into(),
+        },
+        licence: true,
+        ..Installation::for_version("1.4.0")
+    };
+    // Without the operator's secrets, nothing usable is written and the missing file is named.
+    let missing = init(&dir, &installation, &Provided::default(), system_random).unwrap_err();
+    assert!(missing.contains("smtp_url is missing"), "{missing}");
+
+    let provided = Provided {
+        smtp_url: Some("smtp://ada:pw@mail.bank.example:587".into()),
+        storage_access_key_id: Some("AKIA".into()),
+        storage_secret_access_key: Some("s3-secret".into()),
+        explain_api_key: Some("llm-key".into()),
+        licence: Some(licence),
+    };
+    init(&dir, &installation, &provided, system_random).unwrap();
+    let env = read(&dir, ".env");
+    assert_eq!(value(&env, "DONKA_COOKIE_SECURE"), "true");
+    assert_eq!(value(&env, "DONKA_MFA_REQUIRED"), "privileged");
+    assert_eq!(value(&env, "DONKA_SMTP_URL_FILE"), "/run/secrets/smtp_url");
+    assert_eq!(value(&env, "DONKA_STORAGE_URL"), "s3://releases");
+    assert_eq!(value(&env, "DONKA_STORAGE_ENDPOINT"), "http://silo:9000");
+    assert_eq!(
+        value(&env, "DONKA_EXPLAIN_API_KEY_FILE"),
+        "/run/secrets/explain_api_key"
+    );
+    assert_eq!(
+        value(&env, "DONKA_LICENCE_FILE"),
+        "/run/secrets/licence.json"
+    );
+    let runtime = read(&dir, "runtime.env");
+    assert_eq!(value(&runtime, "PROVIDER__TYPE"), "S3");
+    assert_eq!(value(&runtime, "PROVIDER__PREFIX"), "staging/");
+    assert_eq!(
+        value(&runtime, "AWS_SECRET_ACCESS_KEY_FILE"),
+        "/run/secrets/storage_secret_access_key"
+    );
+    for secret in ["ada:pw", "AKIA", "s3-secret", "llm-key"] {
+        for name in [".env", "runtime.env", CONFIG] {
+            assert!(!read(&dir, name).contains(secret), "{name} holds {secret}");
+        }
+    }
+    assert_eq!(
+        read_secret(&dir.join(SECRETS).join(SMTP_URL)).unwrap(),
+        "smtp://ada:pw@mail.bank.example:587"
+    );
+    assert!(read(&dir, &format!("{SECRETS}/{LICENCE}")).contains("donka-licence/1"));
+}
+
+#[test]
+fn an_upgrade_changes_only_the_versions_in_donka_yaml() {
+    let dir = dir("versions");
+    init(
+        &dir,
+        &Installation::for_version("1.4.0"),
+        &Provided::default(),
+        system_random,
+    )
+    .unwrap();
+    let yaml = read(&dir, CONFIG) + "# the operator's note\n";
+    std::fs::write(dir.join(CONFIG), &yaml).unwrap();
+    set_versions(&dir, "1.5.0", "1.3.0").unwrap();
+    let after = read(&dir, CONFIG);
+    assert!(
+        after.contains("  studio: '1.5.0'") && after.contains("  runtime: '1.3.0'"),
+        "{after}"
+    );
+    assert!(after.contains("# the operator's note"));
+    assert_eq!(Installation::read(&dir).unwrap().images.studio, "1.5.0");
+    assert_eq!(value(&read(&dir, ".env"), "DONKA_VERSION"), "1.5.0");
+    assert_eq!(value(&read(&dir, ".env"), "DONKA_RUNTIME_VERSION"), "1.3.0");
+}
+
+#[test]
+fn modules_are_turned_on_and_off_in_donka_yaml_only() {
+    let dir = dir("modules");
+    init(
+        &dir,
+        &Installation::for_version("1.4.0"),
+        &Provided::default(),
+        system_random,
+    )
+    .unwrap();
+    assert!(!read(&dir, ".env").contains("DONKA_MODULES"));
+    let yaml = read(&dir, CONFIG) + "# the operator's note\n";
+    std::fs::write(dir.join(CONFIG), &yaml).unwrap();
+
+    let some = BTreeSet::from([Module::Analysis, Module::Explain]);
+    set_modules(&dir, Some(&some)).unwrap();
+    let after = read(&dir, CONFIG);
+    assert!(after.ends_with("modules: [explain, analysis]\n"), "{after}");
+    assert!(after.contains("# the operator's note"));
+    assert_eq!(Installation::read(&dir).unwrap().modules, Some(some));
+    assert_eq!(
+        value(&read(&dir, ".env"), "DONKA_MODULES"),
+        "explain,analysis"
+    );
+
+    // Written as a list by hand, then every module again: the entry goes.
+    let listed = after.replace(
+        "modules: [explain, analysis]\n",
+        "modules:\n  - connectors\n",
+    );
+    std::fs::write(dir.join(CONFIG), &listed).unwrap();
+    set_modules(&dir, Some(&BTreeSet::new())).unwrap();
+    assert_eq!(value(&read(&dir, ".env"), "DONKA_MODULES"), "");
+    set_modules(&dir, None).unwrap();
+    let after = read(&dir, CONFIG);
+    assert!(
+        !after.contains("modules") && !after.contains("connectors"),
+        "{after}"
+    );
+    assert!(after.contains("# the operator's note"));
+    assert!(!read(&dir, ".env").contains("DONKA_MODULES"));
+}
+
+#[test]
+fn connector_secrets_go_only_to_the_hosts_donka_yaml_lists() {
+    let secrets = vec!["CBS_CLIENT_SECRET".to_owned(), "BUREAU_API_KEY".to_owned()];
+    let without_hosts = Installation {
+        connector_secrets: secrets.clone(),
+        ..Installation::for_version("1.4.0")
+    };
+    let refused = init(
+        &dir("connector-no-hosts"),
+        &without_hosts,
+        &Provided::default(),
+        system_random,
+    )
+    .unwrap_err();
+    assert!(
+        refused.contains("connector secret `CBS_CLIENT_SECRET` has no hosts"),
+        "{refused}"
+    );
+
+    for (hosts, message) in [
+        (
+            vec!["https://api.bureau.cm".to_owned()],
+            "connector host `https://api.bureau.cm`",
+        ),
+        (
+            vec!["api.bureau.cm,cbs".to_owned()],
+            "connector host `api.bureau.cm,cbs`",
+        ),
+        (vec!["cbs.bank:0".to_owned()], "connector host `cbs.bank:0`"),
+    ] {
+        let invalid = Installation {
+            connector_secrets: vec!["BUREAU_API_KEY".to_owned()],
+            connector_hosts: BTreeMap::from([("BUREAU_API_KEY".to_owned(), hosts)]),
+            ..Installation::for_version("1.4.0")
+        };
+        let refused = invalid.validate().unwrap_err();
+        assert!(refused.contains(message), "{refused}");
+    }
+    let unknown = Installation {
+        connector_hosts: BTreeMap::from([("OTHER".to_owned(), vec!["x.example".to_owned()])]),
+        ..Installation::for_version("1.4.0")
+    };
+    assert!(unknown
+        .validate()
+        .unwrap_err()
+        .contains("connector_hosts.OTHER: `OTHER` is not in connector_secrets"));
+
+    let dir = dir("connector-hosts");
+    for name in ["connector_cbs_client_secret", "connector_bureau_api_key"] {
+        std::fs::create_dir_all(dir.join(SECRETS)).unwrap();
+        std::fs::write(dir.join(SECRETS).join(name), "value").unwrap();
+    }
+    let installation = Installation {
+        connector_secrets: secrets,
+        connector_hosts: BTreeMap::from([
+            (
+                "CBS_CLIENT_SECRET".to_owned(),
+                vec![
+                    "cbs.bank.internal:8443".to_owned(),
+                    "login.bank.internal".to_owned(),
+                ],
+            ),
+            (
+                "BUREAU_API_KEY".to_owned(),
+                vec!["api.bureau.cm".to_owned()],
+            ),
+        ]),
+        connector_open_hosts: vec!["rates.beac.int".to_owned()],
+        ..Installation::for_version("1.4.0")
+    };
+    init(&dir, &installation, &Provided::default(), system_random).unwrap();
+    let runtime = read(&dir, "runtime.env");
+    assert_eq!(
+        value(&runtime, "CONNECTORS__ALLOWED_HOSTS"),
+        "api.bureau.cm,cbs.bank.internal:8443,login.bank.internal,rates.beac.int"
+    );
+    assert_eq!(
+        value(&runtime, "CONNECTORS__HOSTS__CBS_CLIENT_SECRET"),
+        "cbs.bank.internal:8443,login.bank.internal"
+    );
+    assert_eq!(
+        value(&runtime, "CONNECTORS__HOSTS__BUREAU_API_KEY"),
+        "api.bureau.cm"
+    );
+    assert_eq!(
+        value(&read(&dir, ".env"), "DONKA_CONNECTOR_HOSTS"),
+        "BUREAU_API_KEY=api.bureau.cm;CBS_CLIENT_SECRET=cbs.bank.internal:8443,login.bank.internal"
+    );
+    // donka.yaml keeps the lists, so a replay writes the same settings.
+    let config = read(&dir, CONFIG);
+    assert!(config.contains("connector_hosts:") && config.contains("connector_open_hosts:"));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_new_installation_publishes_on_localhost_only() {
+    let dir = dir("publish-default");
+    init(
+        &dir,
+        &Installation::for_version("1.4.0"),
+        &Provided::default(),
+        system_random,
+    )
+    .unwrap();
+    assert_eq!(
+        value(&read(&dir, ".env"), "DONKA_PUBLISH_ADDRESS"),
+        "127.0.0.1"
+    );
+    assert!(read(&dir, CONFIG).contains("publish_address: 127.0.0.1"));
+    let compose = read(&dir, "docker-compose.yml");
+    assert!(
+        compose.contains("${DONKA_PUBLISH_ADDRESS:-127.0.0.1}:8080:8080"),
+        "{compose}"
+    );
+    assert!(
+        compose.contains("${DONKA_PUBLISH_ADDRESS:-127.0.0.1}:8090:8080"),
+        "{compose}"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn an_installation_written_before_the_answer_keeps_every_interface() {
+    let legacy_dir = dir("publish-legacy");
+    std::fs::create_dir_all(&legacy_dir).unwrap();
+    // Build the legacy file from a current one with the answer removed, so its
+    // spelling never has to be guessed.
+    let fresh = dir("publish-legacy-source");
+    init(
+        &fresh,
+        &Installation::for_version("1.4.0"),
+        &Provided::default(),
+        system_random,
+    )
+    .unwrap();
+    let current = read(&fresh, CONFIG);
+    let legacy: String = current
+        .lines()
+        .filter(|line| !line.starts_with("publish_address:"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    std::fs::write(legacy_dir.join(CONFIG), format!("{legacy}\n")).unwrap();
+    let installation = Installation::read(&legacy_dir).unwrap();
+    assert_eq!(installation.publish_address, "0.0.0.0");
+    // Applying it (an upgrade does) keeps every interface.
+    apply(
+        &legacy_dir,
+        &installation,
+        &Provided::default(),
+        system_random,
+    )
+    .unwrap();
+    assert_eq!(
+        value(&read(&legacy_dir, ".env"), "DONKA_PUBLISH_ADDRESS"),
+        "0.0.0.0"
+    );
+    let _ = std::fs::remove_dir_all(&legacy_dir);
+    let _ = std::fs::remove_dir_all(&fresh);
+}
+
+#[test]
+fn init_creates_the_signing_pair_and_tells_the_runtime_the_public_half() {
+    let dir = dir("signing-pair");
+    init(
+        &dir,
+        &Installation::for_version("1.4.0"),
+        &Provided::default(),
+        system_random,
+    )
+    .unwrap();
+    let secret = read(&dir, "secrets/artifact_signing_key");
+    let (id, seed) = secret.split_once('=').unwrap();
+    assert_eq!(id.len(), 8, "{secret}");
+    assert!(seed.len() >= 40, "{secret}");
+    assert_eq!(
+        value(&read(&dir, ".env"), "DONKA_ARTIFACT_SIGNING_KEY_FILE"),
+        "/run/secrets/artifact_signing_key"
+    );
+    let runtime = read(&dir, "runtime.env");
+    let public = value(&runtime, "ARTIFACT__PUBLIC_KEY");
+    assert!(public.starts_with(&format!("{id}=")), "{runtime}");
+    assert!(!public.contains(seed), "the seed never leaves secrets/");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn rotating_the_signing_key_keeps_the_previous_one_trusted() {
+    let dir = dir("signing-rotate");
+    let installation = Installation::for_version("1.4.0");
+    init(&dir, &installation, &Provided::default(), system_random).unwrap();
+    let before = value(&read(&dir, "runtime.env"), "ARTIFACT__PUBLIC_KEY");
+    super::rotate_signing_key(&dir, &mut system_random).unwrap();
+    apply(&dir, &installation, &Provided::default(), system_random).unwrap();
+    let runtime = read(&dir, "runtime.env");
+    let now = value(&runtime, "ARTIFACT__PUBLIC_KEY");
+    let previous = value(&runtime, "ARTIFACT__PUBLIC_KEY_PREVIOUS");
+    assert_ne!(now, before);
+    assert_eq!(previous, before);
+    // Both key files exist; Studio signs with the new one only.
+    assert!(dir.join("secrets/artifact_signing_key_previous").exists());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_chosen_publish_address_is_kept_and_validated() {
+    let mut installation = Installation::for_version("1.4.0");
+    installation.publish_address = "192.0.2.10".to_owned();
+    let dir = dir("publish-chosen");
+    init(&dir, &installation, &Provided::default(), system_random).unwrap();
+    assert_eq!(
+        value(&read(&dir, ".env"), "DONKA_PUBLISH_ADDRESS"),
+        "192.0.2.10"
+    );
+    assert_eq!(
+        Installation::read(&dir).unwrap().publish_address,
+        "192.0.2.10"
+    );
+    installation.publish_address = "studio.bank.example".to_owned();
+    assert!(installation
+        .validate()
+        .unwrap_err()
+        .contains("publish_address"));
+    let _ = std::fs::remove_dir_all(&dir);
+}

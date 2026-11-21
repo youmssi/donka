@@ -1,0 +1,21 @@
+[package]
+name = "donka-licence-issuer"
+description = "Issues Studio licence files. Runs at Donka, never in a customer installation."
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+publish = false
+
+[[bin]]
+name = "donka-licence"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+chrono = { workspace = true }
+donka-licence = { workspace = true }
+getrandom = { workspace = true }
+uuid = { workspace = true }
+
+[lints]
+workspace = true

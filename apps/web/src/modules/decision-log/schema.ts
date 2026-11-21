@@ -1,0 +1,224 @@
+import { z } from 'zod';
+
+import type { ApiSchemas } from '@/components/shared/api';
+import { isEmptyRange as emptyRange, rangeQuery, readDay } from '@/components/shared/date-range';
+import openapi from '../../../openapi.json';
+
+export type RecordSummary = ApiSchemas['RecordSummaryResponse'];
+export type RecordList = ApiSchemas['RecordListResponse'];
+export type DecisionRecord = ApiSchemas['RecordResponse'];
+export type Replay = ApiSchemas['ReplayResponse'];
+export type RecordStatus = ApiSchemas['RecordStatus'];
+export type EnvironmentName = ApiSchemas['EnvironmentName'];
+export type LogSettings = ApiSchemas['DecisionLogSettingsResponse'];
+export type LogSettingsChange = ApiSchemas['DecisionLogSettingsBody'];
+export type Explanation = ApiSchemas['ExplainResponse'];
+export type ExplainLanguage = ApiSchemas['ExplainLanguage'];
+export type LogToken = ApiSchemas['LogTokenResponse'];
+export type IssuedLogToken = ApiSchemas['IssuedLogTokenResponse'];
+export type PersonRecord = ApiSchemas['PersonRecordResponse'];
+export type RetentionRule = ApiSchemas['RetentionRuleResponse'];
+export type NewRetentionRule = ApiSchemas['NewRetentionRuleRequest'];
+export type Contest = ApiSchemas['ContestResponse'];
+export type ContestStatus = ApiSchemas['ContestStatusName'];
+
+// Limits come from the API contract, so the forms and the server never disagree.
+export const TOKEN_NAME_MAX = openapi.components.schemas.IssueLogTokenRequest.properties.name.maxLength;
+export const OUTCOME_FIELD_MAX = 200;
+export const REDACTED_FIELDS_MAX =
+  openapi.components.schemas.DecisionLogSettingsBody.properties.redactedFields.maxItems;
+
+const ENVIRONMENTS: readonly EnvironmentName[] = ['production', 'staging'];
+const STATUSES: readonly RecordStatus[] = ['succeeded', 'failed'];
+
+/** The filters as the page's address holds them: dates are days in the viewer's time zone. */
+export interface LogFilters {
+  reference?: string;
+  batchId?: string;
+  decision?: string;
+  outcome?: string;
+  environment?: EnvironmentName;
+  status?: RecordStatus;
+  /** First day shown, `YYYY-MM-DD`. */
+  from?: string;
+  /** Last day shown, `YYYY-MM-DD`, inclusive. */
+  to?: string;
+}
+
+/** The API query for these filters. */
+export interface LogQuery {
+  reference?: string;
+  batchId?: string;
+  decisionKey?: string;
+  outcome?: string;
+  environment?: EnvironmentName;
+  status?: RecordStatus;
+  from?: string;
+  until?: string;
+}
+
+export function toQuery(filters: LogFilters): LogQuery {
+  return {
+    reference: filters.reference,
+    batchId: filters.batchId,
+    decisionKey: filters.decision,
+    outcome: filters.outcome,
+    environment: filters.environment,
+    status: filters.status,
+    ...rangeQuery(filters.from, filters.to),
+  };
+}
+
+/** Reads the filters from the page's address, dropping values the API would refuse. */
+export function readFilters(params: URLSearchParams): LogFilters {
+  const text = (name: string) => {
+    const value = params.get(name)?.trim();
+    return value && value.length <= OUTCOME_FIELD_MAX ? value : undefined;
+  };
+  const oneOf = <T extends string>(name: string, values: readonly T[]) => {
+    const value = params.get(name) as T | null;
+    return value && values.includes(value) ? value : undefined;
+  };
+  return {
+    reference: text('reference'),
+    batchId: uuid(params.get('batchId')),
+    decision: text('decision'),
+    outcome: text('outcome'),
+    environment: oneOf('environment', ENVIRONMENTS),
+    status: oneOf('status', STATUSES),
+    from: readDay(params.get('from')),
+    to: readDay(params.get('to')),
+  };
+}
+
+function uuid(value: string | null): string | undefined {
+  const candidate = value?.trim();
+  return candidate && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(candidate)
+    ? candidate
+    : undefined;
+}
+
+export function isFiltered(filters: LogFilters): boolean {
+  return Object.values(filters).some(Boolean);
+}
+
+/** True when the last day comes before the first: nothing could match. */
+export function isEmptyRange(filters: LogFilters): boolean {
+  return emptyRange(filters.from, filters.to);
+}
+
+/** How long the Runtime took: microseconds below a millisecond, else milliseconds. */
+export function duration(us: number, locale: string): string {
+  if (us < 1000) return `${new Intl.NumberFormat(locale).format(us)} µs`;
+  return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(us / 1000)} ms`;
+}
+
+/** The feed address a Runtime sends to, from where Studio is served. */
+export function feedUrl(origin: string): string {
+  return `${origin}/api/v1/decision-log/records`;
+}
+
+// `decision`, `result.band`: field names joined by dots (the API checks the same).
+const FIELD_PATH = /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/;
+
+/** Redacted fields as the form holds them: one dotted path per line. */
+export function fieldLines(text: string): string[] {
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+export const settingsSchema = z.object({
+  outcomeField: z
+    .string()
+    .trim()
+    .max(OUTCOME_FIELD_MAX, 'maxLength')
+    .refine((value) => value === '' || FIELD_PATH.test(value), 'fieldPath'),
+  redactedFields: z
+    .string()
+    .refine((text) => fieldLines(text).every((line) => FIELD_PATH.test(line)), 'fieldPathLines')
+    .refine((text) => new Set(fieldLines(text)).size <= REDACTED_FIELDS_MAX, 'fieldPathCount'),
+});
+export type SettingsValues = z.infer<typeof settingsSchema>;
+
+export const tokenSchema = z.object({
+  environment: z.enum(['production', 'staging']),
+  name: z.string().trim().min(1, 'required').max(TOKEN_NAME_MAX, 'maxLength'),
+});
+export type TokenValues = z.infer<typeof tokenSchema>;
+
+// People's requests (DNK-75): limits as the API checks them.
+export const IDENTIFIER_MAX = 200;
+export const RULE_DESCRIPTION_MAX = 500;
+export const LEGAL_REFERENCE_MAX = 200;
+export const CONTEST_TEXT_MAX = 2000;
+export const REVISED_OUTCOME_MAX = 200;
+
+/** An identifier keeps something once case, spaces, dashes and dots are set aside. */
+const IDENTIFYING = /[^\s.-]/;
+
+export const personSchema = z.object({
+  identifier: z
+    .string()
+    .trim()
+    .min(1, 'required')
+    .max(IDENTIFIER_MAX, 'maxLength')
+    .refine((value) => IDENTIFYING.test(value), 'required'),
+});
+export type PersonValues = z.infer<typeof personSchema>;
+
+export const reportSchema = z.object({
+  language: z.enum(['en', 'fr']),
+  explain: z.boolean(),
+});
+export type ReportValues = z.infer<typeof reportSchema>;
+
+/** `YYYY-MM-DD`, today or later in the viewer's calendar. */
+export function ruleSchema(today: string) {
+  return z.object({
+    description: z.string().trim().min(1, 'required').max(RULE_DESCRIPTION_MAX, 'maxLength'),
+    legalReference: z.string().trim().max(LEGAL_REFERENCE_MAX, 'maxLength'),
+    until: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, 'required')
+      .refine((day) => day >= today, 'notPast'),
+  });
+}
+export type RuleValues = z.infer<ReturnType<typeof ruleSchema>>;
+
+export const contestSchema = z.object({
+  reason: z.string().trim().min(1, 'required').max(CONTEST_TEXT_MAX, 'maxLength'),
+});
+export type ContestValues = z.infer<typeof contestSchema>;
+
+export const reviewSchema = z
+  .object({
+    status: z.enum(['upheld', 'revised']),
+    review: z.string().trim().min(1, 'required').max(CONTEST_TEXT_MAX, 'maxLength'),
+    revisedOutcome: z.string().trim().max(REVISED_OUTCOME_MAX, 'maxLength'),
+  })
+  .refine((values) => values.status !== 'revised' || values.revisedOutcome !== '', {
+    message: 'required',
+    path: ['revisedOutcome'],
+  });
+export type ReviewValues = z.infer<typeof reviewSchema>;
+
+/** Today in the viewer's calendar, `YYYY-MM-DD`. */
+export function localToday(now: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+/** A calendar day (`YYYY-MM-DD`) as a date at its start, in the viewer's time zone. */
+export function dayDate(day: string): Date {
+  return new Date(`${day}T00:00:00`);
+}
+
+/** The retention rule a refusal to anonymise names. */
+export function blockingRule(details: unknown): Pick<RetentionRule, 'description' | 'legalReference' | 'until'> | null {
+  if (!details || typeof details !== 'object' || !('rule' in details)) return null;
+  const rule = details.rule as Partial<RetentionRule> | null;
+  if (!rule || typeof rule.description !== 'string' || typeof rule.until !== 'string') return null;
+  return { description: rule.description, legalReference: rule.legalReference ?? null, until: rule.until };
+}

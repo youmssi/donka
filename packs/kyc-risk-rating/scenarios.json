@@ -1,0 +1,350 @@
+[
+  {
+    "decision": "risk-rating",
+    "name": "Salaried customer known for years",
+    "input": {
+      "customer": {
+        "type": "individual",
+        "residence": "CM",
+        "nationality": "CM",
+        "activity": "salaried",
+        "pep": false,
+        "yearsKnown": 3
+      },
+      "account": {
+        "channel": "branch",
+        "expectedMonthlyVolume": 400000
+      },
+      "screening": {
+        "sanctionsHit": false,
+        "adverseMedia": false
+      },
+      "documents": {
+        "identityVerified": true,
+        "addressVerified": true
+      }
+    },
+    "expected": {
+      "decision": "accept",
+      "rating": "low",
+      "dueDiligence": "simplified",
+      "reviewMonths": 36,
+      "score": 0,
+      "reasons": []
+    },
+    "match": "partial"
+  },
+  {
+    "decision": "risk-rating",
+    "name": "Trader onboarded through an agent",
+    "input": {
+      "customer": {
+        "type": "individual",
+        "residence": "CM",
+        "nationality": "CM",
+        "activity": "trader",
+        "pep": false,
+        "yearsKnown": 0
+      },
+      "account": {
+        "channel": "agent",
+        "expectedMonthlyVolume": 12000000
+      },
+      "screening": {
+        "sanctionsHit": false,
+        "adverseMedia": false
+      },
+      "documents": {
+        "identityVerified": true,
+        "addressVerified": true
+      }
+    },
+    "expected": {
+      "decision": "accept",
+      "rating": "medium",
+      "dueDiligence": "standard",
+      "reviewMonths": 24,
+      "score": 40
+    },
+    "match": "partial"
+  },
+  {
+    "decision": "risk-rating",
+    "name": "Politically exposed person",
+    "input": {
+      "customer": {
+        "type": "individual",
+        "residence": "CM",
+        "nationality": "CM",
+        "activity": "salaried",
+        "pep": true,
+        "yearsKnown": 3
+      },
+      "account": {
+        "channel": "branch",
+        "expectedMonthlyVolume": 400000
+      },
+      "screening": {
+        "sanctionsHit": false,
+        "adverseMedia": false
+      },
+      "documents": {
+        "identityVerified": true,
+        "addressVerified": true
+      }
+    },
+    "expected": {
+      "decision": "refer",
+      "rating": "high",
+      "dueDiligence": "enhanced",
+      "reviewMonths": 12,
+      "reasons": [
+        {
+          "code": "R01",
+          "en": "Politically exposed person: enhanced due diligence and senior management approval.",
+          "fr": "Personne politiquement exposée : vigilance renforcée et accord de la direction."
+        }
+      ]
+    },
+    "match": "partial"
+  },
+  {
+    "decision": "risk-rating",
+    "name": "Money changer with high volume, online",
+    "input": {
+      "customer": {
+        "type": "business",
+        "residence": "CM",
+        "nationality": "CM",
+        "activity": "cash-intensive",
+        "pep": false,
+        "yearsKnown": 3,
+        "beneficialOwnersIdentified": true
+      },
+      "account": {
+        "channel": "online",
+        "expectedMonthlyVolume": 80000000
+      },
+      "screening": {
+        "sanctionsHit": false,
+        "adverseMedia": false
+      },
+      "documents": {
+        "identityVerified": true,
+        "addressVerified": true
+      }
+    },
+    "expected": {
+      "decision": "refer",
+      "rating": "high",
+      "score": 60
+    },
+    "match": "partial"
+  },
+  {
+    "decision": "risk-rating",
+    "name": "Resident of a high-risk country",
+    "input": {
+      "customer": {
+        "type": "individual",
+        "residence": "IR",
+        "nationality": "IR",
+        "activity": "salaried",
+        "pep": false,
+        "yearsKnown": 3
+      },
+      "account": {
+        "channel": "branch",
+        "expectedMonthlyVolume": 400000
+      },
+      "screening": {
+        "sanctionsHit": false,
+        "adverseMedia": false
+      },
+      "documents": {
+        "identityVerified": true,
+        "addressVerified": true
+      }
+    },
+    "expected": {
+      "decision": "refer",
+      "rating": "high",
+      "dueDiligence": "enhanced"
+    },
+    "match": "partial"
+  },
+  {
+    "decision": "risk-rating",
+    "name": "Gabonese resident, outside Cameroon but inside CEMAC",
+    "input": {
+      "customer": {
+        "type": "individual",
+        "residence": "GA",
+        "nationality": "GA",
+        "activity": "salaried",
+        "pep": false,
+        "yearsKnown": 3
+      },
+      "account": {
+        "channel": "branch",
+        "expectedMonthlyVolume": 400000
+      },
+      "screening": {
+        "sanctionsHit": false,
+        "adverseMedia": false
+      },
+      "documents": {
+        "identityVerified": true,
+        "addressVerified": true
+      }
+    },
+    "expected": {
+      "decision": "accept",
+      "rating": "low",
+      "score": 0
+    },
+    "match": "partial"
+  },
+  {
+    "decision": "risk-rating",
+    "name": "Customer living in France",
+    "input": {
+      "customer": {
+        "type": "individual",
+        "residence": "FR",
+        "nationality": "CM",
+        "activity": "salaried",
+        "pep": false,
+        "yearsKnown": 3
+      },
+      "account": {
+        "channel": "branch",
+        "expectedMonthlyVolume": 400000
+      },
+      "screening": {
+        "sanctionsHit": false,
+        "adverseMedia": false
+      },
+      "documents": {
+        "identityVerified": true,
+        "addressVerified": true
+      }
+    },
+    "expected": {
+      "decision": "accept",
+      "rating": "low",
+      "score": 15
+    },
+    "match": "partial"
+  },
+  {
+    "decision": "risk-rating",
+    "name": "Confirmed sanctions match",
+    "input": {
+      "customer": {
+        "type": "individual",
+        "residence": "CM",
+        "nationality": "CM",
+        "activity": "salaried",
+        "pep": false,
+        "yearsKnown": 3
+      },
+      "account": {
+        "channel": "branch",
+        "expectedMonthlyVolume": 400000
+      },
+      "screening": {
+        "sanctionsHit": true,
+        "adverseMedia": false
+      },
+      "documents": {
+        "identityVerified": true,
+        "addressVerified": true
+      }
+    },
+    "expected": {
+      "decision": "reject",
+      "rating": "prohibited",
+      "dueDiligence": "none",
+      "reviewMonths": 0
+    },
+    "match": "partial"
+  },
+  {
+    "decision": "risk-rating",
+    "name": "Company whose owners are not identified",
+    "input": {
+      "customer": {
+        "type": "business",
+        "residence": "CM",
+        "nationality": "CM",
+        "activity": "trader",
+        "pep": false,
+        "yearsKnown": 3
+      },
+      "account": {
+        "channel": "branch",
+        "expectedMonthlyVolume": 400000
+      },
+      "screening": {
+        "sanctionsHit": false,
+        "adverseMedia": false
+      },
+      "documents": {
+        "identityVerified": true,
+        "addressVerified": true
+      }
+    },
+    "expected": {
+      "decision": "refer",
+      "rating": "low",
+      "score": 15,
+      "reasons": [
+        {
+          "code": "R10",
+          "en": "Beneficial owners not identified.",
+          "fr": "Bénéficiaires effectifs non identifiés."
+        }
+      ]
+    },
+    "match": "partial"
+  },
+  {
+    "decision": "risk-rating",
+    "name": "Address not verified yet",
+    "input": {
+      "customer": {
+        "type": "individual",
+        "residence": "CM",
+        "nationality": "CM",
+        "activity": "salaried",
+        "pep": false,
+        "yearsKnown": 3
+      },
+      "account": {
+        "channel": "branch",
+        "expectedMonthlyVolume": 400000
+      },
+      "screening": {
+        "sanctionsHit": false,
+        "adverseMedia": false
+      },
+      "documents": {
+        "identityVerified": true,
+        "addressVerified": false
+      }
+    },
+    "expected": {
+      "decision": "refer",
+      "rating": "low",
+      "reasons": [
+        {
+          "code": "R09",
+          "en": "Address not verified yet.",
+          "fr": "Adresse pas encore vérifiée."
+        }
+      ]
+    },
+    "match": "partial"
+  }
+]

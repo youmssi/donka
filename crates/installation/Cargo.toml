@@ -1,0 +1,23 @@
+[package]
+name = "donka-installation"
+description = "The installation itself: the organisation it serves and its first-run assistant"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+publish = false
+
+[dependencies]
+chrono = { workspace = true }
+donka-audit = { workspace = true }
+donka-db = { workspace = true }
+donka-shared = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,339 @@
+use crate::error::{ApiError, ErrorBody};
+use crate::extract::{ApiJson, DecisionId, ProjectAccess, VersionNumber};
+use crate::routes::decisions::{conflict_or, full, graph_schema, DecisionResponse};
+use crate::routes::findings::{self, TableFindingResponse};
+use crate::routes::people::{emails, PersonRef};
+use crate::routes::scenarios::TestSummaryResponse;
+use crate::AppState;
+use axum::extract::{Query, State};
+use axum::http::StatusCode;
+use axum::Json;
+use chrono::{DateTime, Utc};
+use donka_decision::{VersionSummary, MAX_MESSAGE_CHARS};
+use donka_engine::contract;
+use donka_licence::Module;
+use donka_shared::page::PageRequest;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::collections::HashMap;
+use utoipa::openapi::schema::{ObjectBuilder, Type};
+use utoipa::openapi::{RefOr, Schema};
+use utoipa::{IntoParams, ToSchema};
+use uuid::Uuid;
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DecisionVersionResponse {
+    /// 1, 2, 3… per decision.
+    pub number: i32,
+    pub message: String,
+    pub created_at: DateTime<Utc>,
+    pub created_by: PersonRef,
+    /// The older version this one restores, when it does.
+    pub restored_from: Option<i32>,
+    /// How the project's test scenarios went when this version was saved.
+    pub tests: TestSummaryResponse,
+}
+
+/// A version just saved, with what its author should know about the input contract.
+#[derive(Serialize, ToSchema)]
+pub struct SavedVersionResponse {
+    #[serde(flatten)]
+    pub version: DecisionVersionResponse,
+    /// Fields rules read but the input contract does not declare (`undeclared`), and required
+    /// fields no rule reads (`unread`). Empty when the decision has no contract.
+    pub warnings: Vec<ContractWarningResponse>,
+    /// What the table checks find in the version: gaps, overlapping rows, conditions that never
+    /// match (DNK-76). They warn and never block the save.
+    pub findings: Vec<TableFindingResponse>,
+    /// Connector nodes the installation's Runtime would refuse to call (DNK-84): a host no
+    /// connector may call, or a secret listed for other hosts. Empty when Studio is not told
+    /// the installation's lists. They warn and never block the save.
+    pub connectors: Vec<RefusedConnectorResponse>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct RefusedConnectorResponse {
+    /// The connector node, as its author named it.
+    pub node: String,
+    /// The host the Runtime would refuse.
+    pub host: String,
+    /// The secret that may not be sent to `host`; absent when no connector may call it.
+    pub secret: Option<String>,
+}
+
+impl From<donka_engine::RefusedConnector> for RefusedConnectorResponse {
+    fn from(refused: donka_engine::RefusedConnector) -> Self {
+        Self {
+            node: refused.node,
+            host: refused.host,
+            secret: refused.secret,
+        }
+    }
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum ContractWarningKind {
+    Undeclared,
+    Unread,
+    Protected,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct ContractWarningResponse {
+    pub kind: ContractWarningKind,
+    /// The field, as a dotted path (`customer.age`).
+    pub path: String,
+    /// The graph node that reads a protected field.
+    pub node: Option<String>,
+}
+
+impl From<contract::Warning> for ContractWarningResponse {
+    fn from(warning: contract::Warning) -> Self {
+        match warning {
+            contract::Warning::Undeclared { path } => Self {
+                kind: ContractWarningKind::Undeclared,
+                path,
+                node: None,
+            },
+            contract::Warning::Unread { path } => Self {
+                kind: ContractWarningKind::Unread,
+                path,
+                node: None,
+            },
+            contract::Warning::Protected { node, path } => Self {
+                kind: ContractWarningKind::Protected,
+                path,
+                node: Some(node),
+            },
+        }
+    }
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct DecisionVersionDetailResponse {
+    #[serde(flatten)]
+    pub version: DecisionVersionResponse,
+    /// The JDM graph as it was saved.
+    #[schema(schema_with = graph_schema)]
+    pub content: Value,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct DecisionVersionListResponse {
+    pub items: Vec<DecisionVersionResponse>,
+    /// Versions of the decision, across all pages.
+    pub total: i64,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct RestoreResponse {
+    /// The decision, its draft now the restored content.
+    pub decision: DecisionResponse,
+    /// The new version the restore created.
+    pub version: DecisionVersionResponse,
+}
+
+fn message_schema() -> impl Into<RefOr<Schema>> {
+    ObjectBuilder::new()
+        .schema_type(Type::String)
+        .min_length(Some(1))
+        .max_length(Some(MAX_MESSAGE_CHARS))
+        .description(Some("What changed and why, for the history."))
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct SaveVersionRequest {
+    #[schema(schema_with = message_schema)]
+    pub message: String,
+    /// The draft revision the editor shows: the version is exactly that draft.
+    pub revision: i32,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct RestoreRequest {
+    /// The draft revision the editor shows; `409 DECISION_CONFLICT` when it moved on.
+    pub revision: i32,
+}
+
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct VersionsQuery {
+    /// Page size, 1 to 100 (default 50).
+    pub limit: Option<u32>,
+    pub offset: Option<u32>,
+}
+
+/// The decision's versions, newest first (any member).
+#[utoipa::path(
+    get,
+    path = "/projects/{project_id}/decisions/{decision_id}/versions",
+    tag = "versions",
+    params(("project_id" = Uuid, Path), ("decision_id" = Uuid, Path), VersionsQuery),
+    responses(
+        (status = 200, body = DecisionVersionListResponse),
+        (status = 404, description = "PROJECT_NOT_FOUND or DECISION_NOT_FOUND", body = ErrorBody),
+    )
+)]
+pub async fn list(
+    State(state): State<AppState>,
+    ProjectAccess(access): ProjectAccess,
+    DecisionId(id): DecisionId,
+    Query(query): Query<VersionsQuery>,
+) -> Result<Json<DecisionVersionListResponse>, ApiError> {
+    let page = state
+        .decisions
+        .versions(&access, id, PageRequest::new(query.limit, query.offset))
+        .await?;
+    let emails = emails(&state, page.items.iter().map(|v| Some(v.created_by))).await?;
+    Ok(Json(DecisionVersionListResponse {
+        items: page
+            .items
+            .into_iter()
+            .map(|v| response(&emails, v))
+            .collect(),
+        total: page.total,
+    }))
+}
+
+/// Saves the draft as the next version (editors and owners).
+#[utoipa::path(
+    post,
+    path = "/projects/{project_id}/decisions/{decision_id}/versions",
+    tag = "versions",
+    params(("project_id" = Uuid, Path), ("decision_id" = Uuid, Path)),
+    request_body = SaveVersionRequest,
+    responses(
+        (status = 201, body = SavedVersionResponse),
+        (status = 400, description = "Missing or too long message (INVALID_REQUEST)", body = ErrorBody),
+        (status = 403, description = "Viewers cannot save versions (FORBIDDEN); the licence is not valid (LICENCE_INACTIVE); the draft has a connector node and the licence leaves connectors out (MODULE_NOT_LICENSED)", body = ErrorBody),
+        (status = 404, description = "PROJECT_NOT_FOUND or DECISION_NOT_FOUND", body = ErrorBody),
+        (status = 409, description = "DECISION_CONFLICT (the draft moved on) or PROJECT_ARCHIVED", body = ErrorBody),
+        (status = 422, description = "Nothing changed since the latest version (VERSION_UNCHANGED, details: version), or the input schema is not a usable JSON Schema object (INVALID_CONTRACT)", body = ErrorBody),
+    )
+)]
+pub async fn save(
+    State(state): State<AppState>,
+    ProjectAccess(access): ProjectAccess,
+    DecisionId(id): DecisionId,
+    ApiJson(req): ApiJson<SaveVersionRequest>,
+) -> Result<(StatusCode, Json<SavedVersionResponse>), ApiError> {
+    state.licensing.require_changes()?;
+    if !state.licensing.includes(Module::Connectors) {
+        let draft = state.decisions.get(&access, id).await?;
+        connectors_licensed(&state, &draft.content)?;
+    }
+    // The version saved is the draft: its connectors are checked as the Runtime would.
+    let refused = match &state.connector_destinations {
+        Some(destinations) => {
+            let draft = state.decisions.get(&access, id).await?;
+            donka_engine::refused_connectors(&draft.content, destinations)
+        }
+        None => Vec::new(),
+    };
+    let saved = state
+        .decisions
+        .save_version(&access, id, req.revision, &req.message)
+        .await;
+    let saved = conflict_or(&state, saved).await?;
+    let emails = emails(&state, [Some(saved.summary.created_by)]).await?;
+    Ok((
+        StatusCode::CREATED,
+        Json(SavedVersionResponse {
+            version: response(&emails, saved.summary),
+            warnings: saved.warnings.into_iter().map(Into::into).collect(),
+            findings: findings::responses(&state, saved.findings).await?,
+            connectors: refused.into_iter().map(Into::into).collect(),
+        }),
+    ))
+}
+
+/// One version with its content, to compare or restore (any member).
+#[utoipa::path(
+    get,
+    path = "/projects/{project_id}/decisions/{decision_id}/versions/{number}",
+    tag = "versions",
+    params(("project_id" = Uuid, Path), ("decision_id" = Uuid, Path), ("number" = i32, Path)),
+    responses(
+        (status = 200, body = DecisionVersionDetailResponse),
+        (status = 404, description = "PROJECT_NOT_FOUND, DECISION_NOT_FOUND or VERSION_NOT_FOUND", body = ErrorBody),
+    )
+)]
+pub async fn get(
+    State(state): State<AppState>,
+    ProjectAccess(access): ProjectAccess,
+    DecisionId(id): DecisionId,
+    VersionNumber(number): VersionNumber,
+) -> Result<Json<DecisionVersionDetailResponse>, ApiError> {
+    let version = state.decisions.version(&access, id, number).await?;
+    let emails = emails(&state, [Some(version.summary.created_by)]).await?;
+    Ok(Json(DecisionVersionDetailResponse {
+        version: response(&emails, version.summary),
+        content: version.content,
+    }))
+}
+
+/// Restores a version (editors and owners): its content becomes the draft and a
+/// new version; the history only grows.
+#[utoipa::path(
+    post,
+    path = "/projects/{project_id}/decisions/{decision_id}/versions/{number}/restore",
+    tag = "versions",
+    params(("project_id" = Uuid, Path), ("decision_id" = Uuid, Path), ("number" = i32, Path)),
+    request_body = RestoreRequest,
+    responses(
+        (status = 201, body = RestoreResponse),
+        (status = 403, description = "Viewers cannot restore (FORBIDDEN); the licence is not valid (LICENCE_INACTIVE); the version has a connector node and the licence leaves connectors out (MODULE_NOT_LICENSED)", body = ErrorBody),
+        (status = 404, description = "PROJECT_NOT_FOUND, DECISION_NOT_FOUND or VERSION_NOT_FOUND", body = ErrorBody),
+        (status = 409, description = "DECISION_CONFLICT (the draft moved on) or PROJECT_ARCHIVED", body = ErrorBody),
+    )
+)]
+pub async fn restore(
+    State(state): State<AppState>,
+    ProjectAccess(access): ProjectAccess,
+    DecisionId(id): DecisionId,
+    VersionNumber(number): VersionNumber,
+    ApiJson(req): ApiJson<RestoreRequest>,
+) -> Result<(StatusCode, Json<RestoreResponse>), ApiError> {
+    state.licensing.require_changes()?;
+    if !state.licensing.includes(Module::Connectors) {
+        let version = state.decisions.version(&access, id, number).await?;
+        connectors_licensed(&state, &version.content)?;
+    }
+    let restored = state
+        .decisions
+        .restore(&access, id, number, req.revision)
+        .await;
+    let (decision, version) = conflict_or(&state, restored).await?;
+    let emails = emails(&state, [Some(version.created_by)]).await?;
+    Ok((
+        StatusCode::CREATED,
+        Json(RestoreResponse {
+            decision: full(&state, decision).await?,
+            version: response(&emails, version),
+        }),
+    ))
+}
+
+fn response(emails: &HashMap<Uuid, String>, version: VersionSummary) -> DecisionVersionResponse {
+    DecisionVersionResponse {
+        number: version.number,
+        message: version.message,
+        created_at: version.created_at,
+        created_by: PersonRef {
+            id: version.created_by,
+            email: emails.get(&version.created_by).cloned().unwrap_or_default(),
+        },
+        restored_from: version.restored_from,
+        tests: version.tests.into(),
+    }
+}
+
+/// A graph with a connector node needs the connectors module (DNK-77).
+fn connectors_licensed(state: &AppState, content: &Value) -> Result<(), ApiError> {
+    if donka_engine::uses_connectors(content) {
+        state.licensing.require(Module::Connectors)?;
+    }
+    Ok(())
+}

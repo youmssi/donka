@@ -6,20 +6,120 @@
 //! A [`Bundle`] is the unit Donka evaluates: every decision of a project at one
 //! point in time (a draft, or a release). Graphs reference sub-decisions by key,
 //! so evaluating a single graph without its siblings would be wrong.
+//!
+//! Connector nodes (`donka.connector`) answer with the mock response their
+//! author defined, or, when replaying a logged decision, with what they
+//! answered at the time: no call to an outside service ever leaves Studio.
+//! The Runtime runs the same handler for real.
+
+pub mod contract;
+pub mod tables;
 
 use async_trait::async_trait;
+use donka_connectors::{recorded_outputs, ConnectorAdapter};
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::thread::available_parallelism;
 use tokio_util::task::LocalPoolHandle;
 use zen_engine::loader::MemoryLoader;
 use zen_engine::model::DecisionContent;
-use zen_engine::{DecisionEngine, EvaluationSerializedOptions, EvaluationTraceKind};
+use zen_engine::{DecisionEngine, EvaluationSerializedOptions, EvaluationTraceKind, ZEN_CONFIG};
 
 /// Graph nesting limit, the same default the engine uses.
 const MAX_DEPTH: u8 = 10;
+
+/// Whether a decision graph has a connector node, the part of Studio a licence may leave out
+/// (DNK-77).
+pub fn uses_connectors(content: &Value) -> bool {
+    content
+        .get("nodes")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .any(|node| {
+            node.get("type").and_then(Value::as_str) == Some("customNode")
+                && node.pointer("/content/kind").and_then(Value::as_str)
+                    == Some(donka_connectors::KIND)
+        })
+}
+
+/// The addresses a decision graph's connector nodes call: each service, and the token endpoint
+/// of those that use OAuth2. Nodes whose settings are invalid are left out (validation reports
+/// them).
+pub fn connector_endpoints(content: &Value) -> Vec<String> {
+    content
+        .get("nodes")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|node| {
+            node.get("type").and_then(Value::as_str) == Some("customNode")
+                && node.pointer("/content/kind").and_then(Value::as_str)
+                    == Some(donka_connectors::KIND)
+        })
+        .filter_map(|node| node.pointer("/content/config"))
+        .filter_map(|config| donka_connectors::parse(config).ok())
+        .flat_map(|config| {
+            let token = match config.auth {
+                donka_connectors::Auth::OAuth2 { token_url, .. } => Some(token_url),
+                _ => None,
+            };
+            std::iter::once(config.url).chain(token)
+        })
+        .collect()
+}
+
+pub use donka_connectors::Destinations;
+
+/// A connector node the installation's Runtime would refuse to call (DNK-84).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RefusedConnector {
+    /// The node's name, as the author gave it.
+    pub node: String,
+    /// The host the Runtime would refuse.
+    pub host: String,
+    /// The secret that may not go there; `None` when no connector may call the host.
+    pub secret: Option<String>,
+}
+
+/// The connector nodes of a decision graph that `destinations` refuses, with the same check the
+/// Runtime makes before each call. Nodes whose settings are invalid are left out (validation
+/// reports them).
+pub fn refused_connectors(content: &Value, destinations: &Destinations) -> Vec<RefusedConnector> {
+    content
+        .get("nodes")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|node| {
+            node.get("type").and_then(Value::as_str) == Some("customNode")
+                && node.pointer("/content/kind").and_then(Value::as_str)
+                    == Some(donka_connectors::KIND)
+        })
+        .filter_map(|node| {
+            let config = donka_connectors::parse(node.pointer("/content/config")?).ok()?;
+            let (host, secret) = match destinations.check(&config) {
+                Err(donka_connectors::ConnectorError::HostNotAllowed(host)) => (host, None),
+                Err(donka_connectors::ConnectorError::SecretHostNotAllowed { secret, host }) => {
+                    (host, Some(secret))
+                }
+                _ => return None,
+            };
+            Some(RefusedConnector {
+                node: node
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_owned(),
+                host,
+                secret,
+            })
+        })
+        .collect()
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum RuntimeError {
@@ -74,10 +174,13 @@ impl Bundle {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct EvaluateOptions {
     /// Per-node trace, used by the simulator, the decision log and AI explain.
     pub trace: bool,
+    /// Replays a logged decision: its trace, from which connector nodes answer
+    /// with their output at the time instead of their mock.
+    pub recorded_trace: Option<Arc<Value>>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -107,12 +210,18 @@ pub trait DecisionRuntime: Send + Sync {
 #[derive(Clone)]
 pub struct ZenRuntime {
     pool: LocalPoolHandle,
+    connectors: Arc<ConnectorAdapter>,
 }
 
 impl ZenRuntime {
     pub fn new(workers: usize) -> Self {
+        // Rules reach other systems only through connectors: function nodes get no HTTP client,
+        // and the engine attaches no cloud credentials (DNK-83). The setting is process-wide.
+        ZEN_CONFIG.http_native.store(false, Ordering::Relaxed);
+        ZEN_CONFIG.http_auth.store(false, Ordering::Relaxed);
         Self {
             pool: LocalPoolHandle::new(workers.max(1)),
+            connectors: Arc::new(ConnectorAdapter::mock()),
         }
     }
 }
@@ -137,6 +246,10 @@ impl DecisionRuntime for ZenRuntime {
         }
 
         let loader = bundle.loader.clone();
+        let connectors = match &options.recorded_trace {
+            Some(trace) => Arc::new(ConnectorAdapter::replay(recorded_outputs(trace))),
+            None => self.connectors.clone(),
+        };
         let key = key.to_owned();
         let trace = if options.trace {
             EvaluationTraceKind::Default
@@ -147,7 +260,9 @@ impl DecisionRuntime for ZenRuntime {
         let outcome = self
             .pool
             .spawn_pinned(move || async move {
-                let engine = DecisionEngine::default().with_loader(loader);
+                let engine = DecisionEngine::default()
+                    .with_loader(loader)
+                    .with_adapter(connectors);
                 engine
                     .evaluate_serialized(
                         key,

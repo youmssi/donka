@@ -1,0 +1,25 @@
+[package]
+name = "donka-audit"
+description = "Append-only audit log: one event per state change, in the same transaction"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+publish = false
+
+[features]
+# Describes public types (Action) in the API's OpenAPI document.
+openapi = ["dep:utoipa"]
+
+[dependencies]
+chrono = { workspace = true }
+donka-db = { workspace = true }
+donka-shared = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+thiserror = { workspace = true }
+utoipa = { workspace = true, optional = true }
+uuid = { workspace = true }
+
+[lints]
+workspace = true

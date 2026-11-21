@@ -8,6 +8,15 @@ zen-engine, zen-expression, zen-types, zen-tmpl (https://github.com/gorules/zen)
 Test fixtures in crates/engine/tests/fixtures are copied from gorules/zen (test-data),
   Copyright (c) 2023 GoRules.io, MIT License.
 
+krilla (https://github.com/LaurenzV/krilla), PDF writer for the access report
+  License: MIT OR Apache-2.0
+skrifa (https://github.com/googlefonts/fontations), font metrics
+  License: MIT OR Apache-2.0
+
+Geist fonts embedded in the access report (crates/decision-log/fonts)
+  Copyright (c) 2023 Vercel, in collaboration with basement.studio
+  License: SIL Open Font License 1.1 (crates/decision-log/fonts/OFL.txt)
+
 MIT License text:
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software
