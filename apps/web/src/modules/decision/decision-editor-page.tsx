@@ -1,0 +1,408 @@
+'use client';
+
+import { CircleAlert, Eye, FileQuestion } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import { useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { useCallback, useMemo, useState } from 'react';
+
+import { ErrorAlert } from '@/components/shared/error-alert';
+import { When } from '@/components/shared/format';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Spinner } from '@/components/ui/spinner';
+import { Link } from '@/i18n/navigation';
+import { projectHome, ProjectFrame, type Project } from '@/modules/project';
+
+import { canEditDecisions } from './decisions-page';
+import { simulateDecision } from './decision.service';
+import { InputFieldsSheet } from './input-fields';
+import {
+  splitKey,
+  type ContractWarning,
+  type Decision,
+  type RefusedConnector,
+  type SavedVersion,
+  type TableFinding,
+} from './schema';
+import { RefusedConnectors } from './refused-connectors';
+import { openFindings, TableChecksSheet } from './table-findings';
+import { useDecision, useDecisionList, useDecisionSaved } from './useDecisions';
+import { useDraft, type DraftStatus } from './useDraft';
+import type { SimulatorRun } from './jdm-graph';
+import { jsonText, ScenarioDialog } from './scenario-dialog';
+import { useEditorTour } from './editor-tour';
+import { HistorySheet, SaveVersionDialog, VersionChip } from './versions';
+
+// antd and the engine's WASM load only here, and only in the browser (ADR-004).
+const JdmGraph = dynamic(() => import('./jdm-graph').then((module) => module.JdmGraph), {
+  ssr: false,
+  loading: () => <Skeleton className="size-full rounded-lg" />,
+});
+
+/** The editor fills the page: minus the header (3.5rem), page padding (3rem) and toolbar (3rem). */
+const EDITOR_HEIGHT = 'h-[calc(100dvh-9.5rem)]';
+
+export function DecisionEditorPage() {
+  return (
+    <ProjectFrame section="decision" header={() => null}>
+      {(project) => <EditorLoader project={project} />}
+    </ProjectFrame>
+  );
+}
+
+/** The decision from `?d=<key>`: found in the project's list, then loaded with its draft. */
+function EditorLoader({ project }: { project: Project }) {
+  const t = useTranslations('decisions');
+  const common = useTranslations('common');
+  const key = useSearchParams().get('d') ?? '';
+  const list = useDecisionList(project.id);
+  const id = list.data?.ok ? list.data.data.find((decision) => decision.key === key)?.id : undefined;
+  const decision = useDecision(project.id, id);
+  // Stable between renders: the editor rebuilds its node types when this changes.
+  const listed = list.data?.ok ? list.data.data : null;
+  const others = useMemo(() => (listed ?? []).map((d) => d.key).filter((k) => k !== key), [listed, key]);
+
+  const failed = list.data && !list.data.ok ? list.data : decision.data && !decision.data.ok ? decision.data : null;
+  if (failed) {
+    return (
+      <ErrorAlert
+        error={failed.error}
+        title={t('errorTitle')}
+        action={
+          <Button variant="outline" size="sm" className="mt-2" onClick={() => void list.refetch()}>
+            {common('retry')}
+          </Button>
+        }
+      />
+    );
+  }
+  if (list.data?.ok && !id) {
+    return (
+      <Empty className="border border-dashed">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <FileQuestion />
+          </EmptyMedia>
+          <EmptyTitle>{t('notFoundTitle')}</EmptyTitle>
+          <EmptyDescription>{t('notFound', { key })}</EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button asChild variant="outline">
+            <Link href={projectHome(project.key)}>{t('backToDecisions')}</Link>
+          </Button>
+        </EmptyContent>
+      </Empty>
+    );
+  }
+  if (!decision.data?.ok) return <Skeleton className={`${EDITOR_HEIGHT} w-full rounded-lg`} />;
+  // Keyed by the decision: opening another one starts a fresh draft.
+  return <Editor key={decision.data.data.id} project={project} decision={decision.data.data} others={others} />;
+}
+
+function Editor({ project, decision, others }: { project: Project; decision: Decision; others: string[] }) {
+  const t = useTranslations('decisions');
+  const errors = useTranslations('errors');
+  const onSaved = useDecisionSaved(project.id);
+  const editable = canEditDecisions(project);
+  const draft = useDraft(project.id, decision, editable, onSaved);
+  const { folder, name } = splitKey(decision.key);
+
+  const decisionNodeLabels = useMemo(
+    () => ({ displayName: t('nodeName'), shortDescription: t('nodeDescription'), choose: t('nodeChoose') }),
+    [t],
+  );
+
+  const scenarios = useTranslations('scenarios');
+  // A simulator run the person keeps as a test scenario.
+  const [keeping, setKeeping] = useState<SimulatorRun | null>(null);
+  const saveRun = useMemo(
+    () => (editable ? { label: scenarios('saveRun'), onSave: setKeeping } : undefined),
+    [editable, scenarios],
+  );
+
+  // The input fields panel, and what the last saved version's contract and rules disagree on.
+  const [fieldsOpen, setFieldsOpen] = useState(false);
+  const [warnings, setWarnings] = useState<{ number: number; items: ContractWarning[] } | null>(null);
+  // The table checks panel, read again after each save of the draft, and what the last saved
+  // version's tables still have open (DNK-76).
+  const [checksOpen, setChecksOpen] = useState(false);
+  const [findings, setFindings] = useState<{ number: number; items: TableFinding[] } | null>(null);
+  const statusAt = draft.status.kind === 'saved' ? draft.status.at : null;
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+  if (statusAt && statusAt !== savedAt) setSavedAt(statusAt);
+  // Connectors the installation's Runtime would refuse to call, in the last saved version (DNK-84).
+  const [refused, setRefused] = useState<{ number: number; items: RefusedConnector[] } | null>(null);
+  const onVersionSaved = useCallback((saved: SavedVersion) => {
+    setWarnings(saved.warnings.length > 0 ? { number: saved.number, items: saved.warnings } : null);
+    setRefused(saved.connectors.length > 0 ? { number: saved.number, items: saved.connectors } : null);
+    const open = openFindings(saved.findings);
+    setFindings(open.length > 0 ? { number: saved.number, items: open } : null);
+  }, []);
+
+  const [graphReady, setGraphReady] = useState(false);
+  const onGraphReady = useCallback(() => setGraphReady(true), []);
+  useEditorTour(graphReady);
+
+  const simulate = useCallback(
+    (graph: unknown, context: unknown) => simulateDecision(project.id, decision.id, graph, context),
+    [project.id, decision.id],
+  );
+
+  return (
+    <div className="grid gap-3">
+      <div className="flex min-h-9 flex-wrap items-center gap-x-3 gap-y-1">
+        <h1 className="font-mono text-base">
+          <span className="text-muted-foreground">{folder}</span>
+          <span className="font-semibold">{name}</span>
+        </h1>
+        <span data-tour="editor-status" className="flex items-center gap-3">
+          <VersionChip {...draft.version} />
+          <SaveStatus status={draft.status} onRetry={draft.retry} />
+        </span>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <span data-tour="editor-fields" className="inline-flex">
+            <InputFieldsSheet
+              graph={draft.graph}
+              onChange={draft.change}
+              editable={editable}
+              open={fieldsOpen}
+              onOpenChange={setFieldsOpen}
+            />
+          </span>
+          <span className="inline-flex">
+            <TableChecksSheet
+              project={project}
+              decisionId={decision.id}
+              savedAt={savedAt}
+              open={checksOpen}
+              onOpenChange={setChecksOpen}
+            />
+          </span>
+          <span data-tour="editor-history" className="inline-flex">
+            <HistorySheet
+              projectId={project.id}
+              decision={decision}
+              draft={draft}
+              editable={editable}
+              callable={others}
+              decisionNodeLabels={decisionNodeLabels}
+            />
+          </span>
+          {editable ? (
+            <span data-tour="editor-save" className="inline-flex">
+              <SaveVersionDialog projectId={project.id} decision={decision} draft={draft} onSaved={onVersionSaved} />
+            </span>
+          ) : null}
+        </div>
+      </div>
+      {warnings ? (
+        <ContractWarnings
+          number={warnings.number}
+          warnings={warnings.items}
+          onReview={() => setFieldsOpen(true)}
+          onDismiss={() => setWarnings(null)}
+        />
+      ) : null}
+      {refused ? (
+        <RefusedConnectors number={refused.number} connectors={refused.items} onDismiss={() => setRefused(null)} />
+      ) : null}
+      {findings ? (
+        <FindingsAlert
+          number={findings.number}
+          count={findings.items.length}
+          onReview={() => setChecksOpen(true)}
+          onDismiss={() => setFindings(null)}
+        />
+      ) : null}
+      <div data-tour="editor-graph" className={`${EDITOR_HEIGHT} min-h-96 overflow-hidden rounded-lg border`}>
+        <JdmGraph
+          onReady={onGraphReady}
+          value={draft.graph}
+          onChange={draft.change}
+          disabled={!editable}
+          simulatorTitle={t('simulator')}
+          callable={others}
+          decisionNodeLabels={decisionNodeLabels}
+          simulate={simulate}
+          failureMessage={(result) => errors(result.error.code)}
+          saveRun={saveRun}
+        />
+      </div>
+      {keeping ? (
+        <ScenarioDialog
+          projectId={project.id}
+          decisions={[{ id: decision.id, key: decision.key }]}
+          initial={{
+            decisionId: decision.id,
+            name: '',
+            input: jsonText(keeping.input),
+            expected: jsonText(keeping.output),
+            match: 'partial',
+          }}
+          fixedDecision
+          open
+          onOpenChange={(open) => (open ? null : setKeeping(null))}
+        />
+      ) : null}
+      <ConflictDialog status={draft.status} onKeepMine={draft.keepMine} onLoadTheirs={draft.loadTheirs} />
+    </div>
+  );
+}
+
+/** What saving a version found about its input fields: rules and contract that disagree. */
+function ContractWarnings({
+  number,
+  warnings,
+  onReview,
+  onDismiss,
+}: {
+  number: number;
+  warnings: ContractWarning[];
+  onReview: () => void;
+  onDismiss: () => void;
+}) {
+  const t = useTranslations('inputFields');
+  return (
+    <Alert role="status">
+      <CircleAlert aria-hidden />
+      <AlertTitle>{t('warningsTitle', { number })}</AlertTitle>
+      <AlertDescription>
+        <ul className="list-disc ps-4">
+          {warnings.map((warning) => (
+            <li key={`${warning.kind}-${warning.node ?? ''}-${warning.path}`}>
+              {t(warning.kind, { path: warning.path, node: warning.node ?? '' })}
+            </li>
+          ))}
+        </ul>
+        <div className="mt-2 flex gap-2">
+          <Button size="sm" variant="outline" onClick={onReview}>
+            {t('review')}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={onDismiss}>
+            {t('dismiss')}
+          </Button>
+        </div>
+      </AlertDescription>
+    </Alert>
+  );
+}
+
+/** What saving a version found in its tables; it never stopped the save. */
+function FindingsAlert({
+  number,
+  count,
+  onReview,
+  onDismiss,
+}: {
+  number: number;
+  count: number;
+  onReview: () => void;
+  onDismiss: () => void;
+}) {
+  const t = useTranslations('tableChecks');
+  return (
+    <Alert role="status">
+      <CircleAlert aria-hidden />
+      <AlertTitle>{t('savedTitle', { number, count })}</AlertTitle>
+      <AlertDescription>
+        <p>{t('savedDescription')}</p>
+        <div className="mt-2 flex gap-2">
+          <Button size="sm" variant="outline" onClick={onReview}>
+            {t('review')}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={onDismiss}>
+            {t('dismiss')}
+          </Button>
+        </div>
+      </AlertDescription>
+    </Alert>
+  );
+}
+
+/** Where the draft stands; silent when all is saved, clear when it is not. */
+function SaveStatus({ status, onRetry }: { status: DraftStatus; onRetry: () => void }) {
+  const t = useTranslations('decisions');
+  const errors = useTranslations('errors');
+  const common = useTranslations('common');
+  return (
+    <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status" aria-live="polite">
+      {status.kind === 'saved' ? (
+        <>
+          {t('saved')} <When value={status.at} as="ago" />
+        </>
+      ) : status.kind === 'dirty' ? (
+        t('unsaved')
+      ) : status.kind === 'saving' ? (
+        <>
+          <Spinner /> {t('saving')}
+        </>
+      ) : status.kind === 'readOnly' ? (
+        <Badge variant="secondary">
+          <Eye aria-hidden />
+          {t('readOnly')}
+        </Badge>
+      ) : status.kind === 'error' ? (
+        <span className="flex items-center gap-2 text-destructive">
+          <CircleAlert className="size-4" aria-hidden />
+          {t('notSaved', { reason: errors(status.error.code) })}
+          <Button variant="outline" size="xs" onClick={onRetry}>
+            {common('retry')}
+          </Button>
+        </span>
+      ) : (
+        <span className="text-destructive">{t('conflictShort')}</span>
+      )}
+    </p>
+  );
+}
+
+/** Someone else saved while this person was editing: they choose, nothing is lost silently. */
+function ConflictDialog({
+  status,
+  onKeepMine,
+  onLoadTheirs,
+}: {
+  status: DraftStatus;
+  onKeepMine: () => void;
+  onLoadTheirs: () => Promise<void>;
+}) {
+  const t = useTranslations('decisions');
+  const conflict = status.kind === 'conflict' ? status.conflict : null;
+  return (
+    <AlertDialog open={status.kind === 'conflict'}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{t('conflictTitle')}</AlertDialogTitle>
+          <AlertDialogDescription>
+            {conflict?.updatedBy
+              ? t.rich('conflictBy', {
+                  email: conflict.updatedBy.email,
+                  when: () => <When value={conflict.updatedAt} as="ago" />,
+                })
+              : t('conflict')}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => void onLoadTheirs()}>{t('loadTheirs')}</AlertDialogCancel>
+          <AlertDialogAction variant="destructive" onClick={onKeepMine}>
+            {t('keepMine')}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}

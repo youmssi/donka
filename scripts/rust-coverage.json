@@ -1,0 +1,16 @@
+{
+  "minimumLinePercent": 70,
+  "modules": [
+    "crates/audit/src",
+    "crates/decision/src",
+    "crates/decision-log/src",
+    "crates/engine/src",
+    "crates/explain/src",
+    "crates/identity/src",
+    "crates/installation/src",
+    "crates/licence/src",
+    "crates/pack/src",
+    "crates/project/src",
+    "crates/release/src"
+  ]
+}

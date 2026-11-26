@@ -1,0 +1,260 @@
+'use client';
+
+// The decision editor (antd + WASM): loaded only on the editor page, never on the server.
+import '@ant-design/v5-patch-for-react-19';
+import './monaco-setup';
+import '@gorules/jdm-editor/dist/style.css';
+
+import {
+  calculateDiffGraph,
+  DecisionGraph,
+  GraphSimulator,
+  JdmConfigProvider,
+  type Simulation,
+} from '@gorules/jdm-editor';
+import { FlaskConical, PlayCircle } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { useTheme } from 'next-themes';
+import { useEffect, useMemo, useState } from 'react';
+
+import type { ActionResult } from '@/components/shared/api';
+import { Button } from '@/components/ui/button';
+import { useModule } from '@/modules/licence';
+
+import { CONNECTOR_KIND } from './connector';
+import { connectorNodeSpecification } from './connector-node';
+import { decisionNodeSpecification, type DecisionNodeLabels } from './decision-node';
+import type { SimulationResult } from './schema';
+
+type Graph = Parameters<NonNullable<Parameters<typeof DecisionGraph>[0]['onChange']>>[0];
+
+export interface JdmGraphProps {
+  /** The lazy-loaded graph has mounted; its page can now offer the guided tour. */
+  onReady?: () => void;
+  value: unknown;
+  onChange: (graph: unknown) => void;
+  disabled: boolean;
+  simulatorTitle: string;
+  /** Decisions this one may call (the project's others). */
+  callable: string[];
+  decisionNodeLabels: DecisionNodeLabels;
+  /** Runs the graph with an input; the page decides where (the project's simulator). */
+  simulate: (graph: unknown, context: unknown) => Promise<ActionResult<SimulationResult>>;
+  /** Text for a failed run, in the reader's language. */
+  failureMessage: (result: Extract<ActionResult<SimulationResult>, { ok: false }>) => string;
+  /** Keeps the last successful run as a test scenario; absent when the person cannot. */
+  saveRun?: { label: string; onSave: (run: SimulatorRun) => void };
+}
+
+/** A simulator run: the input it was given and the output it gave. */
+export interface SimulatorRun {
+  input: unknown;
+  output: unknown;
+}
+
+/**
+ * Studio's colours, read from its design tokens, as the editor's theme needs them.
+ * This component only renders in the browser, so the tokens are read while
+ * rendering, once per light or dark mode.
+ */
+function useEditorTheme() {
+  const { resolvedTheme } = useTheme();
+  const mode = resolvedTheme === 'dark' ? ('dark' as const) : ('light' as const);
+  const token = useMemo(
+    () => ({
+      colorPrimary: tokenColor('--primary'),
+      colorBgContainer: tokenColor('--background'),
+      colorBgElevated: tokenColor('--popover'),
+      colorBorder: tokenColor('--border'),
+      colorText: tokenColor('--foreground'),
+      colorTextSecondary: tokenColor('--muted-foreground'),
+      fontFamily: getComputedStyle(document.body).fontFamily,
+    }),
+    // The tokens change with the mode.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [mode],
+  );
+  return { mode, token };
+}
+
+/**
+ * A CSS colour token as `#rrggbb`. Studio's tokens are `oklch()`, which the
+ * editor's theme cannot derive shades from; the browser converts it by painting
+ * one pixel.
+ */
+function tokenColor(name: string): string {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 1;
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  if (!context) return '';
+  context.fillStyle = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  context.fillRect(0, 0, 1, 1);
+  const [r = 0, g = 0, b = 0] = context.getImageData(0, 0, 1, 1).data;
+  return `#${[r, g, b].map((part) => part.toString(16).padStart(2, '0')).join('')}`;
+}
+
+/**
+ * The custom nodes Studio adds to the editor: connectors to outside services. When the licence
+ * leaves connectors out (DNK-77) the editor does not offer them, unless the graph already has
+ * one: it is still shown, and saving a version is refused with the reason. Read-only views show
+ * every node they meet.
+ */
+function useCustomNodes(graph?: unknown, readOnly = false) {
+  const t = useTranslations('connector');
+  const licensed = useModule('connectors');
+  const shown = readOnly || licensed || usesConnectors(graph);
+  return useMemo(
+    () =>
+      shown ? [connectorNodeSpecification({ displayName: t('nodeName'), shortDescription: t('nodeDescription') })] : [],
+    [shown, t],
+  );
+}
+
+function usesConnectors(graph: unknown): boolean {
+  const nodes = (graph as { nodes?: { type?: string; content?: { kind?: string } }[] } | undefined)?.nodes;
+  return Boolean(nodes?.some((node) => node.type === 'customNode' && node.content?.kind === CONNECTOR_KIND));
+}
+
+export function JdmGraph({
+  onReady,
+  value,
+  onChange,
+  disabled,
+  simulatorTitle,
+  callable,
+  decisionNodeLabels,
+  simulate,
+  failureMessage,
+  saveRun,
+}: JdmGraphProps) {
+  const theme = useEditorTheme();
+  const [simulation, setSimulation] = useState<Simulation>();
+  const components = useMemo(
+    () => [decisionNodeSpecification(callable, decisionNodeLabels)],
+    [callable, decisionNodeLabels],
+  );
+  const customNodes = useCustomNodes(value);
+  const [running, setRunning] = useState(false);
+  const [lastRun, setLastRun] = useState<SimulatorRun | null>(null);
+  useEffect(() => {
+    onReady?.();
+  }, [onReady]);
+
+  async function run({ graph, context }: { graph: Graph; context: unknown }) {
+    setRunning(true);
+    const result = await simulate(graph, context);
+    setRunning(false);
+    setLastRun(result.ok ? { input: context, output: result.data.result } : null);
+    if (result.ok) {
+      setSimulation({
+        result: {
+          result: result.data.result as never,
+          trace: result.data.trace as never,
+          performance: result.data.performance,
+          snapshot: graph,
+        },
+      });
+      return;
+    }
+    // The engine's error names the node that failed and carries the trace up to it.
+    const details = (result.error.details ?? {}) as { nodeId?: string; source?: string; trace?: unknown };
+    setSimulation({
+      result: details.trace
+        ? { result: null as never, trace: details.trace as never, performance: '', snapshot: graph }
+        : undefined,
+      error: {
+        title: failureMessage(result),
+        message: details.source ?? '',
+        data: { nodeId: details.nodeId },
+      },
+    });
+  }
+
+  return (
+    <JdmConfigProvider theme={theme}>
+      <DecisionGraph
+        value={value as Graph}
+        onChange={onChange}
+        disabled={disabled}
+        simulate={simulation}
+        reactFlowProOptions={{ hideAttribution: true }}
+        components={components}
+        customNodes={customNodes}
+        panels={[
+          {
+            id: 'simulator',
+            title: simulatorTitle,
+            icon: <PlayCircle size={16} aria-hidden />,
+            renderPanel: () => (
+              <div className="flex h-full flex-col">
+                {saveRun ? (
+                  <div className="flex justify-end border-b px-2 py-1.5">
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      disabled={!lastRun}
+                      onClick={() => (lastRun ? saveRun.onSave(lastRun) : undefined)}
+                    >
+                      <FlaskConical aria-hidden />
+                      {saveRun.label}
+                    </Button>
+                  </div>
+                ) : null}
+                <div className="min-h-0 flex-1 overflow-x-auto" role="region" aria-label={simulatorTitle} tabIndex={0}>
+                  {/* Keep the request usable beside the upstream output pane's minimum width. */}
+                  <div className="h-full min-w-3xl">
+                    <GraphSimulator
+                      loading={running}
+                      onClear={() => {
+                        setSimulation(undefined);
+                        setLastRun(null);
+                      }}
+                      onRun={(p) => void run(p)}
+                    />
+                  </div>
+                </div>
+              </div>
+            ),
+          },
+        ]}
+      />
+    </JdmConfigProvider>
+  );
+}
+
+export interface JdmDiffGraphProps {
+  /** The newer side of the comparison. */
+  current: unknown;
+  /** The older side. */
+  previous: unknown;
+  callable: string[];
+  decisionNodeLabels: DecisionNodeLabels;
+}
+
+/**
+ * Two versions of a decision compared: the newer graph, read-only, with each
+ * node marked added, removed, modified or moved (jdm-editor's diff view).
+ */
+export function JdmDiffGraph({ current, previous, callable, decisionNodeLabels }: JdmDiffGraphProps) {
+  const theme = useEditorTheme();
+  const components = useMemo(
+    () => [decisionNodeSpecification(callable, decisionNodeLabels)],
+    [callable, decisionNodeLabels],
+  );
+  const customNodes = useCustomNodes(undefined, true);
+  const diff = useMemo(
+    () => calculateDiffGraph(current as Graph, previous as Graph, { components, customNodes }),
+    [current, previous, components, customNodes],
+  );
+  return (
+    <JdmConfigProvider theme={theme}>
+      <DecisionGraph
+        value={diff}
+        disabled
+        components={components}
+        customNodes={customNodes}
+        reactFlowProOptions={{ hideAttribution: true }}
+      />
+    </JdmConfigProvider>
+  );
+}

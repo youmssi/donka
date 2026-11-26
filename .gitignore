@@ -1,4 +1,6 @@
 /target
+/coverage
+/.quality-gates
 node_modules/
 .next/
 out/
@@ -6,3 +8,12 @@ out/
 *.log
 .DS_Store
 .tsgo-cache/
+runtime.env
+.feature-runtime.env
+.feature-runtime-production.env
+.feature-licence.json
+.feature-cli/
+apps/web/playwright-report/
+apps/web/playwright-report-security/
+apps/web/test-results/
+/performance.json

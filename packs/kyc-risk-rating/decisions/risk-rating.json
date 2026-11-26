@@ -1,0 +1,962 @@
+{
+  "nodes": [
+    {
+      "id": "request",
+      "type": "inputNode",
+      "name": "Request",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "content": {
+        "schema": "{\n  \"$schema\": \"http://json-schema.org/draft-07/schema#\",\n  \"type\": \"object\",\n  \"required\": [\n    \"customer\",\n    \"account\",\n    \"screening\",\n    \"documents\"\n  ],\n  \"properties\": {\n    \"customer\": {\n      \"type\": \"object\",\n      \"required\": [\n        \"type\",\n        \"residence\",\n        \"nationality\",\n        \"activity\",\n        \"pep\",\n        \"yearsKnown\"\n      ],\n      \"properties\": {\n        \"type\": {\n          \"type\": \"string\",\n          \"enum\": [\n            \"individual\",\n            \"business\"\n          ],\n          \"x-donka\": {\n            \"label\": {\n              \"en\": \"Customer type\",\n              \"fr\": \"Type de client\"\n            }\n          }\n        },\n        \"residence\": {\n          \"type\": \"string\",\n          \"pattern\": \"^[A-Z]{2}$\",\n          \"x-donka\": {\n            \"label\": {\n              \"en\": \"Country of residence (ISO code)\",\n              \"fr\": \"Pays de résidence (code ISO)\"\n            },\n            \"help\": {\n              \"en\": \"Two letters, e.g. CM, GA, FR.\",\n              \"fr\": \"Deux lettres, p. ex. CM, GA, FR.\"\n            }\n          }\n        },\n        \"nationality\": {\n          \"type\": \"string\",\n          \"pattern\": \"^[A-Z]{2}$\",\n          \"x-donka\": {\n            \"label\": {\n              \"en\": \"Nationality or country of registration (ISO code)\",\n              \"fr\": \"Nationalité ou pays d'immatriculation (code ISO)\"\n            }\n          }\n        },\n        \"activity\": {\n          \"type\": \"string\",\n          \"enum\": [\n            \"salaried\",\n            \"civil-servant\",\n            \"self-employed\",\n            \"trader\",\n            \"ngo\",\n            \"cash-intensive\",\n            \"other\"\n          ],\n          \"x-donka\": {\n            \"label\": {\n              \"en\": \"Occupation or business activity\",\n              \"fr\": \"Profession ou activité\"\n            },\n            \"help\": {\n              \"en\": \"cash-intensive: money changers, precious metals, real estate, car dealers, casinos.\",\n              \"fr\": \"cash-intensive : changeurs, métaux précieux, immobilier, concessionnaires, casinos.\"\n            }\n          }\n        },\n        \"pep\": {\n          \"type\": \"boolean\",\n          \"x-donka\": {\n            \"label\": {\n              \"en\": \"Politically exposed person, family or close associate\",\n              \"fr\": \"Personne politiquement exposée, famille ou proche\"\n            }\n          }\n        },\n        \"yearsKnown\": {\n          \"type\": \"number\",\n          \"minimum\": 0,\n          \"x-donka\": {\n            \"label\": {\n              \"en\": \"Years as a customer\",\n              \"fr\": \"Ancienneté de la relation (années)\"\n            }\n          }\n        },\n        \"beneficialOwnersIdentified\": {\n          \"type\": \"boolean\",\n          \"x-donka\": {\n            \"label\": {\n              \"en\": \"Beneficial owners identified (businesses)\",\n              \"fr\": \"Bénéficiaires effectifs identifiés (entreprises)\"\n            },\n            \"help\": {\n              \"en\": \"Everyone who owns or controls 25% or more.\",\n              \"fr\": \"Toute personne qui détient ou contrôle 25 % ou plus.\"\n            }\n          }\n        }\n      }\n    },\n    \"account\": {\n      \"type\": \"object\",\n      \"required\": [\n        \"channel\",\n        \"expectedMonthlyVolume\"\n      ],\n      \"properties\": {\n        \"channel\": {\n          \"type\": \"string\",\n          \"enum\": [\n            \"branch\",\n            \"agent\",\n            \"online\"\n          ],\n          \"x-donka\": {\n            \"label\": {\n              \"en\": \"Onboarding channel\",\n              \"fr\": \"Canal d'entrée en relation\"\n            }\n          }\n        },\n        \"expectedMonthlyVolume\": {\n          \"type\": \"number\",\n          \"minimum\": 0,\n          \"x-donka\": {\n            \"label\": {\n              \"en\": \"Expected monthly volume (XAF)\",\n              \"fr\": \"Volume mensuel attendu (XAF)\"\n            }\n          }\n        }\n      }\n    },\n    \"screening\": {\n      \"type\": \"object\",\n      \"required\": [\n        \"sanctionsHit\",\n        \"adverseMedia\"\n      ],\n      \"properties\": {\n        \"sanctionsHit\": {\n          \"type\": \"boolean\",\n          \"x-donka\": {\n            \"label\": {\n              \"en\": \"Confirmed match on a sanctions list\",\n              \"fr\": \"Correspondance confirmée sur une liste de sanctions\"\n            }\n          }\n        },\n        \"adverseMedia\": {\n          \"type\": \"boolean\",\n          \"x-donka\": {\n            \"label\": {\n              \"en\": \"Adverse media found\",\n              \"fr\": \"Informations négatives dans les médias\"\n            }\n          }\n        }\n      }\n    },\n    \"documents\": {\n      \"type\": \"object\",\n      \"required\": [\n        \"identityVerified\",\n        \"addressVerified\"\n      ],\n      \"properties\": {\n        \"identityVerified\": {\n          \"type\": \"boolean\",\n          \"x-donka\": {\n            \"label\": {\n              \"en\": \"Identity document verified\",\n              \"fr\": \"Pièce d'identité vérifiée\"\n            }\n          }\n        },\n        \"addressVerified\": {\n          \"type\": \"boolean\",\n          \"x-donka\": {\n            \"label\": {\n              \"en\": \"Address verified\",\n              \"fr\": \"Adresse vérifiée\"\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+      }
+    },
+    {
+      "id": "policy",
+      "type": "expressionNode",
+      "name": "AML policy",
+      "position": {
+        "x": 320,
+        "y": 0
+      },
+      "content": {
+        "expressions": [
+          {
+            "id": "policy0",
+            "key": "cemac",
+            "value": "['CM', 'CF', 'CG', 'GA', 'GQ', 'TD']"
+          },
+          {
+            "id": "policy1",
+            "key": "highRiskCountries",
+            "value": "['IR', 'KP', 'MM']"
+          },
+          {
+            "id": "policy2",
+            "key": "highVolume",
+            "value": "50000000"
+          },
+          {
+            "id": "policy3",
+            "key": "mediumVolume",
+            "value": "10000000"
+          },
+          {
+            "id": "policy4",
+            "key": "mediumFrom",
+            "value": "30"
+          },
+          {
+            "id": "policy5",
+            "key": "highFrom",
+            "value": "60"
+          }
+        ],
+        "passThrough": true,
+        "outputPath": "policy"
+      }
+    },
+    {
+      "id": "geography",
+      "type": "expressionNode",
+      "name": "Geography",
+      "position": {
+        "x": 640,
+        "y": 0
+      },
+      "content": {
+        "expressions": [
+          {
+            "id": "geography0",
+            "key": "highRisk",
+            "value": "contains(policy.highRiskCountries, customer.residence) or contains(policy.highRiskCountries, customer.nationality)"
+          },
+          {
+            "id": "geography1",
+            "key": "outsideCemac",
+            "value": "not contains(policy.cemac, customer.residence)"
+          }
+        ],
+        "passThrough": true,
+        "outputPath": "geo"
+      }
+    },
+    {
+      "id": "ownership",
+      "type": "expressionNode",
+      "name": "Beneficial owners",
+      "position": {
+        "x": 960,
+        "y": 0
+      },
+      "content": {
+        "expressions": [
+          {
+            "id": "ownership0",
+            "key": "missing",
+            "value": "customer.type == 'business' and customer.beneficialOwnersIdentified != true"
+          }
+        ],
+        "passThrough": true,
+        "outputPath": "ownership"
+      }
+    },
+    {
+      "id": "activity",
+      "type": "decisionTableNode",
+      "name": "Points: activity",
+      "position": {
+        "x": 0,
+        "y": 240
+      },
+      "content": {
+        "hitPolicy": "first",
+        "passThrough": true,
+        "inputs": [
+          {
+            "id": "activityi0",
+            "name": "Activity",
+            "field": "customer.activity"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "activityo0",
+            "name": "Points",
+            "field": "points.activity"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "activityr0",
+            "activityi0": "\"cash-intensive\"",
+            "activityo0": "30"
+          },
+          {
+            "_id": "activityr1",
+            "activityi0": "\"ngo\"",
+            "activityo0": "20"
+          },
+          {
+            "_id": "activityr2",
+            "activityi0": "\"trader\"",
+            "activityo0": "15"
+          },
+          {
+            "_id": "activityr3",
+            "activityi0": "\"self-employed\"",
+            "activityo0": "10"
+          },
+          {
+            "_id": "activityr4",
+            "activityi0": "\"other\"",
+            "activityo0": "10"
+          },
+          {
+            "_id": "activityr5",
+            "activityi0": "",
+            "activityo0": "0"
+          }
+        ]
+      }
+    },
+    {
+      "id": "country",
+      "type": "decisionTableNode",
+      "name": "Points: geography",
+      "position": {
+        "x": 320,
+        "y": 240
+      },
+      "content": {
+        "hitPolicy": "first",
+        "passThrough": true,
+        "inputs": [
+          {
+            "id": "countryi0",
+            "name": "High-risk country",
+            "field": "geo.highRisk"
+          },
+          {
+            "id": "countryi1",
+            "name": "Outside CEMAC",
+            "field": "geo.outsideCemac"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "countryo0",
+            "name": "Points",
+            "field": "points.geography"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "countryr0",
+            "countryi0": "true",
+            "countryi1": "",
+            "countryo0": "40"
+          },
+          {
+            "_id": "countryr1",
+            "countryi0": "",
+            "countryi1": "true",
+            "countryo0": "15"
+          },
+          {
+            "_id": "countryr2",
+            "countryi0": "",
+            "countryi1": "",
+            "countryo0": "0"
+          }
+        ]
+      }
+    },
+    {
+      "id": "pep",
+      "type": "decisionTableNode",
+      "name": "Points: PEP",
+      "position": {
+        "x": 640,
+        "y": 240
+      },
+      "content": {
+        "hitPolicy": "first",
+        "passThrough": true,
+        "inputs": [
+          {
+            "id": "pepi0",
+            "name": "PEP",
+            "field": "customer.pep"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "pepo0",
+            "name": "Points",
+            "field": "points.pep"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "pepr0",
+            "pepi0": "true",
+            "pepo0": "40"
+          },
+          {
+            "_id": "pepr1",
+            "pepi0": "",
+            "pepo0": "0"
+          }
+        ]
+      }
+    },
+    {
+      "id": "channel",
+      "type": "decisionTableNode",
+      "name": "Points: channel",
+      "position": {
+        "x": 960,
+        "y": 240
+      },
+      "content": {
+        "hitPolicy": "first",
+        "passThrough": true,
+        "inputs": [
+          {
+            "id": "channeli0",
+            "name": "Channel",
+            "field": "account.channel"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "channelo0",
+            "name": "Points",
+            "field": "points.channel"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "channelr0",
+            "channeli0": "\"online\"",
+            "channelo0": "10"
+          },
+          {
+            "_id": "channelr1",
+            "channeli0": "\"agent\"",
+            "channelo0": "5"
+          },
+          {
+            "_id": "channelr2",
+            "channeli0": "",
+            "channelo0": "0"
+          }
+        ]
+      }
+    },
+    {
+      "id": "volume",
+      "type": "decisionTableNode",
+      "name": "Points: expected volume",
+      "position": {
+        "x": 0,
+        "y": 480
+      },
+      "content": {
+        "hitPolicy": "first",
+        "passThrough": true,
+        "inputs": [
+          {
+            "id": "volumei0",
+            "name": "Monthly volume",
+            "field": "account.expectedMonthlyVolume"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "volumeo0",
+            "name": "Points",
+            "field": "points.volume"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "volumer0",
+            "volumei0": ">= policy.highVolume",
+            "volumeo0": "20"
+          },
+          {
+            "_id": "volumer1",
+            "volumei0": ">= policy.mediumVolume",
+            "volumeo0": "10"
+          },
+          {
+            "_id": "volumer2",
+            "volumei0": "",
+            "volumeo0": "0"
+          }
+        ]
+      }
+    },
+    {
+      "id": "tenure",
+      "type": "decisionTableNode",
+      "name": "Points: relationship",
+      "position": {
+        "x": 320,
+        "y": 480
+      },
+      "content": {
+        "hitPolicy": "first",
+        "passThrough": true,
+        "inputs": [
+          {
+            "id": "tenurei0",
+            "name": "Years known",
+            "field": "customer.yearsKnown"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "tenureo0",
+            "name": "Points",
+            "field": "points.tenure"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "tenurer0",
+            "tenurei0": "< 1",
+            "tenureo0": "10"
+          },
+          {
+            "_id": "tenurer1",
+            "tenurei0": "",
+            "tenureo0": "0"
+          }
+        ]
+      }
+    },
+    {
+      "id": "media",
+      "type": "decisionTableNode",
+      "name": "Points: adverse media",
+      "position": {
+        "x": 640,
+        "y": 480
+      },
+      "content": {
+        "hitPolicy": "first",
+        "passThrough": true,
+        "inputs": [
+          {
+            "id": "mediai0",
+            "name": "Adverse media",
+            "field": "screening.adverseMedia"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "mediao0",
+            "name": "Points",
+            "field": "points.media"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "mediar0",
+            "mediai0": "true",
+            "mediao0": "30"
+          },
+          {
+            "_id": "mediar1",
+            "mediai0": "",
+            "mediao0": "0"
+          }
+        ]
+      }
+    },
+    {
+      "id": "score",
+      "type": "expressionNode",
+      "name": "Score",
+      "position": {
+        "x": 960,
+        "y": 480
+      },
+      "content": {
+        "expressions": [
+          {
+            "id": "score0",
+            "key": "score",
+            "value": "points.activity + points.geography + points.pep + points.channel + points.volume + points.tenure + points.media"
+          }
+        ],
+        "passThrough": true
+      }
+    },
+    {
+      "id": "rating",
+      "type": "decisionTableNode",
+      "name": "Rating",
+      "position": {
+        "x": 0,
+        "y": 720
+      },
+      "content": {
+        "hitPolicy": "first",
+        "passThrough": true,
+        "inputs": [
+          {
+            "id": "ratingi0",
+            "name": "Sanctions hit",
+            "field": "screening.sanctionsHit"
+          },
+          {
+            "id": "ratingi1",
+            "name": "PEP or high-risk country",
+            "field": "customer.pep or geo.highRisk"
+          },
+          {
+            "id": "ratingi2",
+            "name": "Score",
+            "field": "score"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "ratingo0",
+            "name": "Rating",
+            "field": "rating"
+          },
+          {
+            "id": "ratingo1",
+            "name": "Due diligence",
+            "field": "dueDiligence"
+          },
+          {
+            "id": "ratingo2",
+            "name": "Review (months)",
+            "field": "reviewMonths"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "ratingr0",
+            "ratingi0": "true",
+            "ratingi1": "",
+            "ratingi2": "",
+            "ratingo0": "\"prohibited\"",
+            "ratingo1": "\"none\"",
+            "ratingo2": "0"
+          },
+          {
+            "_id": "ratingr1",
+            "ratingi0": "",
+            "ratingi1": "true",
+            "ratingi2": "",
+            "ratingo0": "\"high\"",
+            "ratingo1": "\"enhanced\"",
+            "ratingo2": "12"
+          },
+          {
+            "_id": "ratingr2",
+            "ratingi0": "",
+            "ratingi1": "",
+            "ratingi2": ">= policy.highFrom",
+            "ratingo0": "\"high\"",
+            "ratingo1": "\"enhanced\"",
+            "ratingo2": "12"
+          },
+          {
+            "_id": "ratingr3",
+            "ratingi0": "",
+            "ratingi1": "",
+            "ratingi2": ">= policy.mediumFrom",
+            "ratingo0": "\"medium\"",
+            "ratingo1": "\"standard\"",
+            "ratingo2": "24"
+          },
+          {
+            "_id": "ratingr4",
+            "ratingi0": "",
+            "ratingi1": "",
+            "ratingi2": "",
+            "ratingo0": "\"low\"",
+            "ratingo1": "\"simplified\"",
+            "ratingo2": "36"
+          }
+        ]
+      }
+    },
+    {
+      "id": "reasons",
+      "type": "decisionTableNode",
+      "name": "Reason codes",
+      "position": {
+        "x": 320,
+        "y": 720
+      },
+      "content": {
+        "hitPolicy": "collect",
+        "passThrough": true,
+        "inputs": [
+          {
+            "id": "reasonsi0",
+            "name": "Sanctions hit",
+            "field": "screening.sanctionsHit"
+          },
+          {
+            "id": "reasonsi1",
+            "name": "PEP",
+            "field": "customer.pep"
+          },
+          {
+            "id": "reasonsi2",
+            "name": "High-risk country",
+            "field": "geo.highRisk"
+          },
+          {
+            "id": "reasonsi3",
+            "name": "Outside CEMAC",
+            "field": "geo.outsideCemac"
+          },
+          {
+            "id": "reasonsi4",
+            "name": "Activity",
+            "field": "customer.activity"
+          },
+          {
+            "id": "reasonsi5",
+            "name": "Adverse media",
+            "field": "screening.adverseMedia"
+          },
+          {
+            "id": "reasonsi6",
+            "name": "Channel",
+            "field": "account.channel"
+          },
+          {
+            "id": "reasonsi7",
+            "name": "Volume",
+            "field": "account.expectedMonthlyVolume"
+          },
+          {
+            "id": "reasonsi8",
+            "name": "Identity verified",
+            "field": "documents.identityVerified"
+          },
+          {
+            "id": "reasonsi9",
+            "name": "Address verified",
+            "field": "documents.addressVerified"
+          },
+          {
+            "id": "reasonsi10",
+            "name": "Beneficial owners missing",
+            "field": "ownership.missing"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "reasonso0",
+            "name": "Code",
+            "field": "code"
+          },
+          {
+            "id": "reasonso1",
+            "name": "English",
+            "field": "en"
+          },
+          {
+            "id": "reasonso2",
+            "name": "Français",
+            "field": "fr"
+          }
+        ],
+        "rules": [
+          {
+            "_id": "reasonsr0",
+            "reasonsi0": "true",
+            "reasonsi1": "",
+            "reasonsi2": "",
+            "reasonsi3": "",
+            "reasonsi4": "",
+            "reasonsi5": "",
+            "reasonsi6": "",
+            "reasonsi7": "",
+            "reasonsi8": "",
+            "reasonsi9": "",
+            "reasonsi10": "",
+            "reasonso0": "\"K01\"",
+            "reasonso1": "\"Confirmed match on a sanctions list: the relationship cannot proceed.\"",
+            "reasonso2": "\"Correspondance confirmée sur une liste de sanctions : la relation ne peut pas être établie.\""
+          },
+          {
+            "_id": "reasonsr1",
+            "reasonsi0": "",
+            "reasonsi1": "true",
+            "reasonsi2": "",
+            "reasonsi3": "",
+            "reasonsi4": "",
+            "reasonsi5": "",
+            "reasonsi6": "",
+            "reasonsi7": "",
+            "reasonsi8": "",
+            "reasonsi9": "",
+            "reasonsi10": "",
+            "reasonso0": "\"R01\"",
+            "reasonso1": "\"Politically exposed person: enhanced due diligence and senior management approval.\"",
+            "reasonso2": "\"Personne politiquement exposée : vigilance renforcée et accord de la direction.\""
+          },
+          {
+            "_id": "reasonsr2",
+            "reasonsi0": "",
+            "reasonsi1": "",
+            "reasonsi2": "true",
+            "reasonsi3": "",
+            "reasonsi4": "",
+            "reasonsi5": "",
+            "reasonsi6": "",
+            "reasonsi7": "",
+            "reasonsi8": "",
+            "reasonsi9": "",
+            "reasonsi10": "",
+            "reasonso0": "\"R02\"",
+            "reasonso1": "\"Resident or national of a high-risk country.\"",
+            "reasonso2": "\"Résident ou ressortissant d'un pays à haut risque.\""
+          },
+          {
+            "_id": "reasonsr3",
+            "reasonsi0": "",
+            "reasonsi1": "",
+            "reasonsi2": "false",
+            "reasonsi3": "true",
+            "reasonsi4": "",
+            "reasonsi5": "",
+            "reasonsi6": "",
+            "reasonsi7": "",
+            "reasonsi8": "",
+            "reasonsi9": "",
+            "reasonsi10": "",
+            "reasonso0": "\"R03\"",
+            "reasonso1": "\"Resident outside the CEMAC.\"",
+            "reasonso2": "\"Résident hors de la CEMAC.\""
+          },
+          {
+            "_id": "reasonsr4",
+            "reasonsi0": "",
+            "reasonsi1": "",
+            "reasonsi2": "",
+            "reasonsi3": "",
+            "reasonsi4": "\"cash-intensive\"",
+            "reasonsi5": "",
+            "reasonsi6": "",
+            "reasonsi7": "",
+            "reasonsi8": "",
+            "reasonsi9": "",
+            "reasonsi10": "",
+            "reasonso0": "\"R04\"",
+            "reasonso1": "\"Cash-intensive activity.\"",
+            "reasonso2": "\"Activité à forte intensité d'espèces.\""
+          },
+          {
+            "_id": "reasonsr5",
+            "reasonsi0": "",
+            "reasonsi1": "",
+            "reasonsi2": "",
+            "reasonsi3": "",
+            "reasonsi4": "",
+            "reasonsi5": "true",
+            "reasonsi6": "",
+            "reasonsi7": "",
+            "reasonsi8": "",
+            "reasonsi9": "",
+            "reasonsi10": "",
+            "reasonso0": "\"R05\"",
+            "reasonso1": "\"Adverse media found.\"",
+            "reasonso2": "\"Informations négatives dans les médias.\""
+          },
+          {
+            "_id": "reasonsr6",
+            "reasonsi0": "",
+            "reasonsi1": "",
+            "reasonsi2": "",
+            "reasonsi3": "",
+            "reasonsi4": "",
+            "reasonsi5": "",
+            "reasonsi6": "\"online\"",
+            "reasonsi7": "",
+            "reasonsi8": "",
+            "reasonsi9": "",
+            "reasonsi10": "",
+            "reasonso0": "\"R06\"",
+            "reasonso1": "\"Onboarded without meeting the customer.\"",
+            "reasonso2": "\"Entrée en relation à distance.\""
+          },
+          {
+            "_id": "reasonsr7",
+            "reasonsi0": "",
+            "reasonsi1": "",
+            "reasonsi2": "",
+            "reasonsi3": "",
+            "reasonsi4": "",
+            "reasonsi5": "",
+            "reasonsi6": "",
+            "reasonsi7": ">= policy.highVolume",
+            "reasonsi8": "",
+            "reasonsi9": "",
+            "reasonsi10": "",
+            "reasonso0": "\"R07\"",
+            "reasonso1": "\"High expected volume.\"",
+            "reasonso2": "\"Volume attendu élevé.\""
+          },
+          {
+            "_id": "reasonsr8",
+            "reasonsi0": "",
+            "reasonsi1": "",
+            "reasonsi2": "",
+            "reasonsi3": "",
+            "reasonsi4": "",
+            "reasonsi5": "",
+            "reasonsi6": "",
+            "reasonsi7": "",
+            "reasonsi8": "false",
+            "reasonsi9": "",
+            "reasonsi10": "",
+            "reasonso0": "\"R08\"",
+            "reasonso1": "\"Identity document not verified yet.\"",
+            "reasonso2": "\"Pièce d'identité pas encore vérifiée.\""
+          },
+          {
+            "_id": "reasonsr9",
+            "reasonsi0": "",
+            "reasonsi1": "",
+            "reasonsi2": "",
+            "reasonsi3": "",
+            "reasonsi4": "",
+            "reasonsi5": "",
+            "reasonsi6": "",
+            "reasonsi7": "",
+            "reasonsi8": "",
+            "reasonsi9": "false",
+            "reasonsi10": "",
+            "reasonso0": "\"R09\"",
+            "reasonso1": "\"Address not verified yet.\"",
+            "reasonso2": "\"Adresse pas encore vérifiée.\""
+          },
+          {
+            "_id": "reasonsr10",
+            "reasonsi0": "",
+            "reasonsi1": "",
+            "reasonsi2": "",
+            "reasonsi3": "",
+            "reasonsi4": "",
+            "reasonsi5": "",
+            "reasonsi6": "",
+            "reasonsi7": "",
+            "reasonsi8": "",
+            "reasonsi9": "",
+            "reasonsi10": "true",
+            "reasonso0": "\"R10\"",
+            "reasonso1": "\"Beneficial owners not identified.\"",
+            "reasonso2": "\"Bénéficiaires effectifs non identifiés.\""
+          }
+        ],
+        "outputPath": "reasons"
+      }
+    },
+    {
+      "id": "decision",
+      "type": "expressionNode",
+      "name": "Decision",
+      "position": {
+        "x": 640,
+        "y": 720
+      },
+      "content": {
+        "expressions": [
+          {
+            "id": "decision0",
+            "key": "decision",
+            "value": "rating == 'prohibited' ? 'reject' : (rating == 'high' or ownership.missing or documents.identityVerified == false or documents.addressVerified == false ? 'refer' : 'accept')"
+          },
+          {
+            "id": "decision1",
+            "key": "rating",
+            "value": "rating"
+          },
+          {
+            "id": "decision2",
+            "key": "dueDiligence",
+            "value": "dueDiligence"
+          },
+          {
+            "id": "decision3",
+            "key": "reviewMonths",
+            "value": "reviewMonths"
+          },
+          {
+            "id": "decision4",
+            "key": "score",
+            "value": "score"
+          },
+          {
+            "id": "decision5",
+            "key": "reasons",
+            "value": "reasons"
+          },
+          {
+            "id": "decision6",
+            "key": "points",
+            "value": "points"
+          }
+        ],
+        "passThrough": false
+      }
+    },
+    {
+      "id": "response",
+      "type": "outputNode",
+      "name": "Response",
+      "position": {
+        "x": 960,
+        "y": 720
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "type": "edge",
+      "sourceId": "request",
+      "targetId": "policy"
+    },
+    {
+      "id": "e2",
+      "type": "edge",
+      "sourceId": "policy",
+      "targetId": "geography"
+    },
+    {
+      "id": "e3",
+      "type": "edge",
+      "sourceId": "geography",
+      "targetId": "ownership"
+    },
+    {
+      "id": "e4",
+      "type": "edge",
+      "sourceId": "ownership",
+      "targetId": "activity"
+    },
+    {
+      "id": "e5",
+      "type": "edge",
+      "sourceId": "activity",
+      "targetId": "country"
+    },
+    {
+      "id": "e6",
+      "type": "edge",
+      "sourceId": "country",
+      "targetId": "pep"
+    },
+    {
+      "id": "e7",
+      "type": "edge",
+      "sourceId": "pep",
+      "targetId": "channel"
+    },
+    {
+      "id": "e8",
+      "type": "edge",
+      "sourceId": "channel",
+      "targetId": "volume"
+    },
+    {
+      "id": "e9",
+      "type": "edge",
+      "sourceId": "volume",
+      "targetId": "tenure"
+    },
+    {
+      "id": "e10",
+      "type": "edge",
+      "sourceId": "tenure",
+      "targetId": "media"
+    },
+    {
+      "id": "e11",
+      "type": "edge",
+      "sourceId": "media",
+      "targetId": "score"
+    },
+    {
+      "id": "e12",
+      "type": "edge",
+      "sourceId": "score",
+      "targetId": "rating"
+    },
+    {
+      "id": "e13",
+      "type": "edge",
+      "sourceId": "rating",
+      "targetId": "reasons"
+    },
+    {
+      "id": "e14",
+      "type": "edge",
+      "sourceId": "reasons",
+      "targetId": "decision"
+    },
+    {
+      "id": "e15",
+      "type": "edge",
+      "sourceId": "decision",
+      "targetId": "response"
+    }
+  ]
+}

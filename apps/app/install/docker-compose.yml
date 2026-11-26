@@ -1,0 +1,104 @@
+# Donka on one server, from its published images (DNK-64). Written by `donka-admin init`
+# from donka.yaml, with .env (Studio's settings), runtime.env (the staging Runtime's) and the
+# secrets as files in secrets/, mounted read-only at /run/secrets (DNK-74).
+#
+#   docker compose up -d
+#   docker compose logs app | grep setup-password   # the first administrator's one-time link
+#
+# Studio publishes releases to the `releases` volume; the staging Runtime serves them and sends
+# its decisions to Studio with the token Studio writes at first start in the `wiring` volume.
+name: donka
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: donka
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_DB: donka
+    volumes:
+      - postgres:/var/lib/postgresql/data
+      - ./secrets:/run/secrets:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U donka"]
+      interval: 5s
+      retries: 10
+
+  # Catches every email Studio sends (http://localhost:8025) until donka.yaml names your mail
+  # server.
+  mailpit:
+    image: axllent/mailpit:v1.31.3
+    ports: ["127.0.0.1:8025:8025"]
+    restart: unless-stopped
+
+  app:
+    image: ${DONKA_REGISTRY:-ghcr.io/youmssi}/donka-studio:${DONKA_VERSION:?run donka-admin init first}
+    env_file: [.env]
+    environment:
+      DONKA_RUNTIME_LOG_TOKEN_FILE: /var/lib/donka/wiring/staging-decision-log-token
+    volumes:
+      - releases:/var/lib/donka/releases
+      - wiring:/var/lib/donka/wiring
+      - ./secrets:/run/secrets:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      mailpit: { condition: service_started }
+    ports: ["${DONKA_PUBLISH_ADDRESS:-127.0.0.1}:8080:8080"]
+    restart: unless-stopped
+
+  # The staging Runtime, its settings in runtime.env. It restarts until Studio has written its
+  # decision-log token.
+  runtime:
+    image: ${DONKA_REGISTRY:-ghcr.io/youmssi}/donka-runtime:${DONKA_RUNTIME_VERSION:?run donka-admin init first}
+    env_file: [runtime.env]
+    volumes:
+      - releases:/var/lib/donka/releases:ro
+      - wiring:/var/lib/donka/wiring:ro
+      - ./secrets:/run/secrets:ro
+    depends_on:
+      app: { condition: service_started }
+    ports: ["${DONKA_PUBLISH_ADDRESS:-127.0.0.1}:8090:8080"]
+    restart: unless-stopped
+
+  # Only with `donka-admin init --demo` (COMPOSE_PROFILES=demo in .env): the fake credit bureau
+  # the demo project's connector calls. It reads the key the Runtime sends, in secrets/.
+  demo-bureau:
+    profiles: [demo]
+    image: ${DONKA_REGISTRY:-ghcr.io/youmssi}/donka-studio:${DONKA_VERSION:?run donka-admin init first}
+    command: [donka-admin, demo-bureau]
+    environment:
+      DONKA_SECRET_BUREAU_API_KEY_FILE: /run/secrets/connector_bureau_api_key
+    volumes: [./secrets:/run/secrets:ro]
+    restart: unless-stopped
+
+  # Only with `donka-admin init --auto-upgrade` (the auto-upgrade profile), staging and demo
+  # installations only: unattended upgrades in the weekly window DONKA_AUTO_UPGRADE_WINDOW (the
+  # server's time), to the latest release of the same major version. Each is `donka-admin
+  # upgrade`: verified with cosign.pub in this folder, backed up, rolled back on failure and
+  # reported in upgrades/. It drives Docker, so it runs as root.
+  auto-upgrade:
+    profiles: [auto-upgrade]
+    image: ${DONKA_REGISTRY:-ghcr.io/youmssi}/donka-studio:${DONKA_VERSION:?run donka-admin init first}
+    command: [donka-admin, auto-upgrade]
+    user: "0:0"
+    working_dir: /install
+    environment:
+      DONKA_REGISTRY_USER: ${DONKA_REGISTRY_USER:-}
+      DONKA_REGISTRY_TOKEN: ${DONKA_REGISTRY_TOKEN:-}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/install
+      - /etc/localtime:/etc/localtime:ro
+    restart: unless-stopped
+
+  # Never started: the image `donka-admin upgrade` runs `docker compose` from. Listed here so
+  # that it is pulled, and bundled offline, with the others.
+  upgrade-tools:
+    profiles: [tools]
+    image: docker:28.5-cli
+
+volumes:
+  postgres:
+  releases:
+  wiring:

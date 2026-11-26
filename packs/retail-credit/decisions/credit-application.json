@@ -1,0 +1,92 @@
+{
+  "nodes": [
+    {
+      "id": "request",
+      "type": "inputNode",
+      "name": "Request",
+      "position": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "bureau",
+      "type": "customNode",
+      "name": "Credit bureau",
+      "position": {
+        "x": 0,
+        "y": 180
+      },
+      "content": {
+        "kind": "donka.connector",
+        "config": {
+          "preset": "bureau-score",
+          "url": "http://demo-bureau:8080/report",
+          "auth": {
+            "type": "header",
+            "header": "X-Api-Key",
+            "secret": "BUREAU_API_KEY"
+          },
+          "body": {
+            "nationalId": "{{ applicant.nationalId }}"
+          },
+          "outputKey": "bureau",
+          "timeoutMs": 3000,
+          "retries": 1,
+          "onError": "fallback",
+          "fallback": {
+            "checked": false,
+            "activeLoans": 0,
+            "worstDaysPastDue": 0
+          },
+          "mock": {
+            "checked": true,
+            "activeLoans": 1,
+            "worstDaysPastDue": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "scorecard",
+      "type": "decisionNode",
+      "name": "Scorecard",
+      "position": {
+        "x": 0,
+        "y": 360
+      },
+      "content": {
+        "key": "scorecard"
+      }
+    },
+    {
+      "id": "response",
+      "type": "outputNode",
+      "name": "Response",
+      "position": {
+        "x": 0,
+        "y": 540
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "type": "edge",
+      "sourceId": "request",
+      "targetId": "bureau"
+    },
+    {
+      "id": "e2",
+      "type": "edge",
+      "sourceId": "bureau",
+      "targetId": "scorecard"
+    },
+    {
+      "id": "e3",
+      "type": "edge",
+      "sourceId": "scorecard",
+      "targetId": "response"
+    }
+  ]
+}

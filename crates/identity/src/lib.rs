@@ -1,0 +1,1122 @@
+//! Identity module: Studio users, sign-in with lockout and an optional second
+//! step, sessions, invitations, password reset and the one-time links they rely on.
+//!
+//! Other modules use it only through [`Identity`] and the types exported here.
+
+mod emails;
+mod second_step;
+mod secret;
+
+use chrono::{DateTime, Duration, Utc};
+use donka_audit::{Action, Event};
+use donka_db::PgPool;
+use donka_mail::{Email, Mailer};
+use donka_shared::cipher::Cipher;
+use donka_shared::clock::Clock;
+use donka_shared::page::{Page, PageRequest};
+use emails::Kind;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+use sqlx::Acquire;
+use std::sync::Arc;
+use tokio::sync::Notify;
+use uuid::Uuid;
+
+pub use second_step::{Enrolment, RecoveryCodes, SecondStepStatus, SignIn, RECOVERY_CODE_COUNT};
+pub use secret::{MAX_PASSWORD_CHARS, MIN_PASSWORD_CHARS};
+
+/// Avoid a database write on every request: `last_seen_at` moves at most this often.
+const TOUCH_INTERVAL_SECONDS: i64 = 60;
+/// Emails handled per call to [`Identity::deliver_due_emails`].
+const EMAIL_BATCH: usize = 20;
+/// Retry delays double from this value after each failed send...
+const EMAIL_RETRY_BASE_SECONDS: i64 = 30;
+/// ...up to this ceiling.
+const EMAIL_RETRY_MAX_SECONDS: i64 = 3600;
+/// Page of the web app (under the locale segment) that reads the token and
+/// asks for the new password.
+const SETUP_PAGE: &str = "setup-password";
+
+#[derive(Debug, Clone)]
+pub struct Policy {
+    /// A session ends after this long without activity.
+    pub session_idle_timeout: Duration,
+    /// Failed sign-ins allowed within `failure_window` before the account locks.
+    pub max_failed_sign_ins: u32,
+    pub failure_window: Duration,
+    pub lock_duration: Duration,
+    /// How long an invitation link (and the first administrator's link) works.
+    pub invitation_link_lifetime: Duration,
+    /// How long a password-reset link works.
+    pub reset_link_lifetime: Duration,
+    /// Failed sends after which an account email is abandoned.
+    pub email_max_attempts: u32,
+}
+
+impl Default for Policy {
+    fn default() -> Self {
+        Self {
+            session_idle_timeout: Duration::hours(8),
+            max_failed_sign_ins: 5,
+            failure_window: Duration::minutes(15),
+            lock_duration: Duration::minutes(15),
+            invitation_link_lifetime: Duration::hours(72),
+            reset_link_lifetime: Duration::minutes(30),
+            email_max_attempts: 10,
+        }
+    }
+}
+
+/// Language of a user's emails and screens.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[serde(rename_all = "lowercase")]
+#[sqlx(type_name = "text", rename_all = "lowercase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub enum Locale {
+    En,
+    Fr,
+}
+
+impl Locale {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::En => "en",
+            Self::Fr => "fr",
+        }
+    }
+}
+
+impl std::str::FromStr for Locale {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "en" => Ok(Self::En),
+            "fr" => Ok(Self::Fr),
+            other => Err(format!(
+                "unsupported language '{other}' (expected en or fr)"
+            )),
+        }
+    }
+}
+
+/// A guided tour of a Studio screen (DNK-41). Seen once per user, on any device.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[serde(rename_all = "lowercase")]
+#[sqlx(type_name = "text", rename_all = "lowercase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub enum Tour {
+    Editor,
+    Releases,
+    Environments,
+}
+
+impl std::str::FromStr for Tour {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "editor" => Ok(Self::Editor),
+            "releases" => Ok(Self::Releases),
+            "environments" => Ok(Self::Environments),
+            other => Err(format!(
+                "unknown tour '{other}' (expected editor, releases or environments)"
+            )),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, sqlx::FromRow)]
+pub struct User {
+    pub id: Uuid,
+    pub email: String,
+    pub is_admin: bool,
+    pub locale: Locale,
+}
+
+/// A Studio account as administrators see it.
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct Account {
+    pub id: Uuid,
+    pub email: String,
+    pub is_admin: bool,
+    pub locale: Locale,
+    /// False until the person has chosen a password (an invitation is pending).
+    pub active: bool,
+    /// The person has turned on a second sign-in step (DNK-59).
+    pub second_step: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+/// A secret handed to the browser (session cookie) or to a person (setup link).
+/// Only its hash is stored. Debug output never shows the value.
+pub struct IssuedToken(String);
+
+impl IssuedToken {
+    pub fn expose(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::fmt::Debug for IssuedToken {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("IssuedToken(***)")
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum IdentityError {
+    /// Wrong email or password, unknown account, account without a password,
+    /// or locked account: deliberately indistinguishable to the caller.
+    #[error("invalid credentials")]
+    InvalidCredentials,
+    #[error("no valid session")]
+    Unauthenticated,
+    #[error("the password-setup link is invalid, used or expired")]
+    InvalidSetupLink,
+    #[error("password must be between {MIN_PASSWORD_CHARS} and {MAX_PASSWORD_CHARS} characters")]
+    WeakPassword,
+    #[error("not a valid email address")]
+    InvalidEmail,
+    #[error("only administrators can do this")]
+    Forbidden,
+    #[error("a user with this email already exists")]
+    EmailTaken,
+    /// The password step expired, was used, or never happened: sign in again.
+    #[error("the sign-in expired; enter your password again")]
+    SignInExpired,
+    /// An authenticator or recovery code was wrong, when the person is already
+    /// known (signed in, or setting up). At sign-in a wrong code is `InvalidCredentials`.
+    #[error("the code is not valid")]
+    InvalidCode,
+    #[error("two-step sign-in is already on")]
+    SecondStepAlreadyOn,
+    #[error("two-step sign-in is not on")]
+    SecondStepOff,
+    #[error("two-step sign-in is required for this account")]
+    SecondStepRequired,
+    #[error("no invited Studio account matches this identity")]
+    OidcIdentityNotInvited,
+    #[error(transparent)]
+    Database(#[from] sqlx::Error),
+    #[error("internal error: {0}")]
+    Internal(String),
+}
+
+impl From<donka_shared::cipher::CipherError> for IdentityError {
+    fn from(err: donka_shared::cipher::CipherError) -> Self {
+        Self::Internal(format!("second-step secret: {err}"))
+    }
+}
+
+impl From<secret::SecretError> for IdentityError {
+    fn from(err: secret::SecretError) -> Self {
+        Self::Internal(err.to_string())
+    }
+}
+
+#[derive(Clone)]
+pub struct Identity {
+    pool: PgPool,
+    clock: Arc<dyn Clock>,
+    policy: Policy,
+    /// Wakes the email worker when a transaction has queued an email.
+    outbox: Arc<Notify>,
+    /// Seals second-step secrets (`DONKA_SECOND_STEP_KEY` and previous keys).
+    second_step_keys: Arc<Cipher>,
+}
+
+impl Identity {
+    pub fn new(
+        pool: PgPool,
+        clock: Arc<dyn Clock>,
+        policy: Policy,
+        second_step_keys: Arc<Cipher>,
+    ) -> Self {
+        Self {
+            pool,
+            clock,
+            policy,
+            outbox: Arc::new(Notify::new()),
+            second_step_keys,
+        }
+    }
+
+    /// Resolves when an email has been queued since the last call; the email
+    /// worker waits on it between polls.
+    pub async fn email_queued(&self) {
+        self.outbox.notified().await;
+    }
+
+    /// Creates the first administrator, without a password, when no user exists
+    /// yet, and returns a one-time password-setup token. Returns `None` when
+    /// users already exist, so it is safe to call on every start.
+    pub async fn bootstrap_admin(
+        &self,
+        email: &str,
+        locale: Locale,
+    ) -> Result<Option<IssuedToken>, IdentityError> {
+        let email = normalize_email(email)?;
+        let now = self.clock.now();
+        let mut tx = self.pool.begin().await?;
+        // Serializes concurrent starts of several instances.
+        sqlx::query("LOCK TABLE users IN EXCLUSIVE MODE")
+            .execute(&mut *tx)
+            .await?;
+        let (existing,): (i64,) = sqlx::query_as("SELECT count(*) FROM users")
+            .fetch_one(&mut *tx)
+            .await?;
+        if existing > 0 {
+            return Ok(None);
+        }
+        let user_id = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO users (id, email, is_admin, locale, created_at) \
+             VALUES ($1, $2, true, $3, $4)",
+        )
+        .bind(user_id)
+        .bind(&email)
+        .bind(locale)
+        .bind(now)
+        .execute(&mut *tx)
+        .await?;
+        let token = self
+            .issue_setup_token(&mut tx, user_id, now, self.policy.invitation_link_lifetime)
+            .await?;
+        donka_audit::record(
+            &mut tx,
+            Event::new(now, None, Action::UserInvited)
+                .about_user(user_id)
+                .with_details(json!({ "isAdmin": true, "firstAdministrator": true })),
+        )
+        .await?;
+        tx.commit().await?;
+        Ok(Some(token))
+    }
+
+    /// Sets the password of the user the link belongs to. The link works once.
+    pub async fn complete_password_setup(
+        &self,
+        token: &str,
+        password: &str,
+    ) -> Result<(), IdentityError> {
+        check_password_rules(password)?;
+        let now = self.clock.now();
+        let hash = hash_off_thread(password.to_owned()).await?;
+        let mut tx = self.pool.begin().await?;
+        let token_hash = secret::hash_token(token);
+        // SMTP can expose the link before its worker commits. Wait for that transaction
+        // before deciding whether the token exists; a row lock cannot see an uncommitted insert.
+        lock_setup_token(&mut tx, &token_hash).await?;
+        let user_id: Option<(Uuid,)> = sqlx::query_as(
+            "UPDATE password_setup_tokens SET used_at = $2 \
+             WHERE token_hash = $1 AND used_at IS NULL AND expires_at > $2 \
+             RETURNING user_id",
+        )
+        .bind(token_hash)
+        .bind(now)
+        .fetch_optional(&mut *tx)
+        .await?;
+        let (user_id,) = user_id.ok_or(IdentityError::InvalidSetupLink)?;
+        sqlx::query(
+            "UPDATE users SET password_hash = $2, failed_sign_ins = 0, \
+             failed_window_started_at = NULL, locked_until = NULL WHERE id = $1",
+        )
+        .bind(user_id)
+        .bind(hash)
+        .execute(&mut *tx)
+        .await?;
+        // A new password ends every existing session of that user...
+        sqlx::query("DELETE FROM sessions WHERE user_id = $1")
+            .bind(user_id)
+            .execute(&mut *tx)
+            .await?;
+        // ...and every other link still waiting in their inbox.
+        revoke_setup_tokens(&mut tx, user_id, now).await?;
+        donka_audit::record(
+            &mut tx,
+            Event::new(now, Some(user_id), Action::UserPasswordSet),
+        )
+        .await?;
+        tx.commit().await?;
+        Ok(())
+    }
+
+    /// Invites a person: creates their account without a password and queues
+    /// an email with a one-time link to choose it. Inviting someone who has
+    /// not accepted yet sends a fresh link and revokes the previous one.
+    pub async fn invite(
+        &self,
+        inviter: &User,
+        email: &str,
+        locale: Locale,
+        is_admin: bool,
+    ) -> Result<User, IdentityError> {
+        if !inviter.is_admin {
+            return Err(IdentityError::Forbidden);
+        }
+        let email = normalize_email(email)?;
+        let now = self.clock.now();
+        let mut tx = self.pool.begin().await?;
+        let existing: Option<(Uuid, bool)> = sqlx::query_as(
+            "SELECT id, password_hash IS NOT NULL FROM users WHERE email = $1 FOR UPDATE",
+        )
+        .bind(&email)
+        .fetch_optional(&mut *tx)
+        .await?;
+        let user_id = match existing {
+            Some((_, true)) => return Err(IdentityError::EmailTaken),
+            Some((id, false)) => {
+                sqlx::query("UPDATE users SET is_admin = $2, locale = $3 WHERE id = $1")
+                    .bind(id)
+                    .bind(is_admin)
+                    .bind(locale)
+                    .execute(&mut *tx)
+                    .await?;
+                revoke_setup_tokens(&mut tx, id, now).await?;
+                id
+            }
+            None => {
+                let id = Uuid::new_v4();
+                sqlx::query(
+                    "INSERT INTO users (id, email, is_admin, locale, created_at) \
+                     VALUES ($1, $2, $3, $4, $5)",
+                )
+                .bind(id)
+                .bind(&email)
+                .bind(is_admin)
+                .bind(locale)
+                .bind(now)
+                .execute(&mut *tx)
+                .await
+                .map_err(|err| match err {
+                    // Invited by someone else at the same moment.
+                    sqlx::Error::Database(db) if db.is_unique_violation() => {
+                        IdentityError::EmailTaken
+                    }
+                    other => other.into(),
+                })?;
+                id
+            }
+        };
+        queue_email(&mut tx, user_id, Kind::Invitation, now).await?;
+        donka_audit::record(
+            &mut tx,
+            Event::new(now, Some(inviter.id), Action::UserInvited)
+                .about_user(user_id)
+                .with_details(
+                    json!({ "isAdmin": is_admin, "locale": locale, "resent": existing.is_some() }),
+                ),
+        )
+        .await?;
+        tx.commit().await?;
+        self.outbox.notify_one();
+        tracing::info!(inviter = %inviter.id, user_id = %user_id, "user invited");
+        Ok(User {
+            id: user_id,
+            email,
+            is_admin,
+            locale,
+        })
+    }
+
+    /// Queues a password-reset email when the address belongs to a user.
+    /// Known and unknown addresses take the same single statement and give the
+    /// same answer, so the caller cannot tell which accounts exist.
+    pub async fn request_password_reset(&self, email: &str) -> Result<(), IdentityError> {
+        let email = normalize_email(email)?;
+        let now = self.clock.now();
+        // ON CONFLICT: a reset already waiting to be sent is not queued twice.
+        sqlx::query(
+            "INSERT INTO account_emails (id, user_id, kind, created_at, next_attempt_at) \
+             SELECT $1, id, $2, $3, $3 FROM users WHERE email = $4 \
+             ON CONFLICT DO NOTHING",
+        )
+        .bind(Uuid::new_v4())
+        .bind(Kind::PasswordReset.as_str())
+        .bind(now)
+        .bind(&email)
+        .execute(&self.pool)
+        .await?;
+        self.outbox.notify_one();
+        Ok(())
+    }
+
+    /// Sends the account emails that are due, each in its own transaction, and
+    /// returns how many were sent. Safe to run from several instances at once.
+    ///
+    /// The one-time link is created at send time, inside a savepoint that is
+    /// rolled back if the send fails: a working link never exists without an
+    /// email that carries it, and no link is ever stored in clear.
+    pub async fn deliver_due_emails(
+        &self,
+        mailer: &dyn Mailer,
+        public_url: &str,
+        organisation: Option<&str>,
+    ) -> Result<usize, IdentityError> {
+        let mut sent = 0;
+        for _ in 0..EMAIL_BATCH {
+            let now = self.clock.now();
+            let mut tx = self.pool.begin().await?;
+            let due: Option<DueEmail> = sqlx::query_as(
+                "SELECT e.id, e.kind, e.attempts, e.user_id, e.created_at, u.email, u.locale \
+                 FROM account_emails e JOIN users u ON u.id = e.user_id \
+                 WHERE e.sent_at IS NULL AND e.abandoned_at IS NULL AND e.next_attempt_at <= $1 \
+                 ORDER BY e.next_attempt_at LIMIT 1 \
+                 FOR UPDATE OF e SKIP LOCKED",
+            )
+            .bind(now)
+            .fetch_optional(&mut *tx)
+            .await?;
+            let Some(due) = due else { break };
+            let kind = Kind::parse(&due.kind).ok_or_else(|| {
+                IdentityError::Internal(format!("unknown email kind {}", due.kind))
+            })?;
+            let lifetime = match kind {
+                Kind::Invitation => self.policy.invitation_link_lifetime,
+                Kind::PasswordReset => self.policy.reset_link_lifetime,
+                Kind::Notice(_) => Duration::zero(),
+            };
+
+            let mut attempt = tx.begin().await?;
+            let link = if kind.carries_link() {
+                let token = self
+                    .issue_setup_token(&mut attempt, due.user_id, now, lifetime)
+                    .await?;
+                setup_link(public_url, due.locale, &token)
+            } else {
+                String::new()
+            };
+            let content = emails::render(kind, due.locale, &link, lifetime);
+            let email = Email {
+                to: due.email,
+                subject: content.subject,
+                text: content.text,
+            }
+            .signed(organisation);
+            let attempts = due.attempts.saturating_add(1);
+            match mailer.send(&email).await {
+                Ok(()) => {
+                    attempt.commit().await?;
+                    sqlx::query(
+                        "UPDATE account_emails SET sent_at = $2, attempts = $3, last_error = NULL \
+                         WHERE id = $1",
+                    )
+                    .bind(due.id)
+                    .bind(now)
+                    .bind(attempts)
+                    .execute(&mut *tx)
+                    .await?;
+                    if kind == Kind::PasswordReset {
+                        record_reset_request(&mut tx, due.user_id, due.created_at, true).await?;
+                    }
+                    sent += 1;
+                }
+                Err(err) => {
+                    attempt.rollback().await?;
+                    let max = i32::try_from(self.policy.email_max_attempts).unwrap_or(i32::MAX);
+                    let abandoned_at = (err.is_permanent() || attempts >= max).then_some(now);
+                    if abandoned_at.is_some() {
+                        tracing::error!(email_id = %due.id, kind = kind.as_str(), %err, attempts, "account email abandoned");
+                    } else {
+                        tracing::warn!(email_id = %due.id, kind = kind.as_str(), %err, attempts, "account email not sent; will retry");
+                    }
+                    sqlx::query(
+                        "UPDATE account_emails SET attempts = $2, last_error = $3, \
+                         next_attempt_at = $4, abandoned_at = $5 WHERE id = $1",
+                    )
+                    .bind(due.id)
+                    .bind(attempts)
+                    .bind(err.to_string())
+                    .bind(now + retry_delay(attempts))
+                    .bind(abandoned_at)
+                    .execute(&mut *tx)
+                    .await?;
+                    if kind == Kind::PasswordReset && abandoned_at.is_some() {
+                        record_reset_request(&mut tx, due.user_id, due.created_at, false).await?;
+                    }
+                }
+            }
+            tx.commit().await?;
+        }
+        Ok(sent)
+    }
+
+    /// Checks the credentials. Without a second step the session opens; with
+    /// one, or when `second_step_required` and the account has none yet, the
+    /// sign-in waits for it (see [`SignIn`]). Every failure, including a locked
+    /// or unknown account, is reported as `InvalidCredentials` after the same
+    /// amount of work.
+    pub async fn sign_in(
+        &self,
+        email: &str,
+        password: &str,
+        second_step_required: bool,
+    ) -> Result<SignIn, IdentityError> {
+        let Ok(email) = normalize_email(email) else {
+            verify_off_thread(password.to_owned(), None).await?;
+            return Err(IdentityError::InvalidCredentials);
+        };
+        let now = self.clock.now();
+        let mut tx = self.pool.begin().await?;
+        // FOR UPDATE: concurrent failures for one account are counted one after another.
+        let row: Option<AccountRow> = sqlx::query_as(
+            "SELECT id, email, is_admin, locale, password_hash, failed_sign_ins, \
+                    failed_window_started_at, locked_until \
+             FROM users WHERE email = $1 FOR UPDATE",
+        )
+        .bind(&email)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        let Some(account) = row else {
+            verify_off_thread(password.to_owned(), None).await?;
+            return Err(IdentityError::InvalidCredentials);
+        };
+        if account.locked_until.is_some_and(|until| until > now) {
+            verify_off_thread(password.to_owned(), None).await?;
+            tracing::warn!(user_id = %account.id, "sign-in refused: account is locked");
+            return Err(IdentityError::InvalidCredentials);
+        }
+
+        let matches = verify_off_thread(password.to_owned(), account.password_hash.clone()).await?;
+        if !matches {
+            self.record_failure(&mut tx, &account, now).await?;
+            tx.commit().await?;
+            return Err(IdentityError::InvalidCredentials);
+        }
+
+        let enrolled: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM second_steps \
+             WHERE user_id = $1 AND confirmed_at IS NOT NULL)",
+        )
+        .bind(account.id)
+        .fetch_one(&mut *tx)
+        .await?;
+        if enrolled || second_step_required {
+            // Failed attempts are cleared only when a session opens, so a known
+            // password does not reset the count of wrong codes.
+            let held = self
+                .hold_for_second_step(&mut tx, account.id, enrolled, now)
+                .await?;
+            tx.commit().await?;
+            return Ok(held);
+        }
+        let token = self
+            .open_session(&mut tx, account.id, now, serde_json::Value::Null)
+            .await?;
+        tx.commit().await?;
+        Ok(SignIn::Session(token, account.into_user()))
+    }
+
+    /// Clears failed attempts, creates the session and records the sign-in.
+    async fn open_session(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        user: Uuid,
+        now: DateTime<Utc>,
+        details: serde_json::Value,
+    ) -> Result<IssuedToken, IdentityError> {
+        sqlx::query(
+            "UPDATE users SET failed_sign_ins = 0, failed_window_started_at = NULL, \
+             locked_until = NULL WHERE id = $1",
+        )
+        .bind(user)
+        .execute(&mut **tx)
+        .await?;
+        let (token, token_hash) = secret::new_token()?;
+        sqlx::query(
+            "INSERT INTO sessions (token_hash, user_id, created_at, last_seen_at) \
+             VALUES ($1, $2, $3, $3)",
+        )
+        .bind(token_hash)
+        .bind(user)
+        .bind(now)
+        .execute(&mut **tx)
+        .await?;
+        let mut event = Event::new(now, Some(user), Action::UserSignedIn);
+        if !details.is_null() {
+            event = event.with_details(details);
+        }
+        donka_audit::record(tx, event).await?;
+        Ok(IssuedToken(token))
+    }
+
+    /// Resolves a session token to its user, ending sessions idle for longer
+    /// than the policy allows.
+    pub async fn authenticate(&self, token: &str) -> Result<User, IdentityError> {
+        let now = self.clock.now();
+        let token_hash = secret::hash_token(token);
+        let row: Option<SessionRow> = sqlx::query_as(
+            "SELECT u.id, u.email, u.is_admin, u.locale, s.last_seen_at \
+             FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = $1",
+        )
+        .bind(&token_hash)
+        .fetch_optional(&self.pool)
+        .await?;
+        let Some(session) = row else {
+            return Err(IdentityError::Unauthenticated);
+        };
+        let idle = now - session.last_seen_at;
+        if idle > self.policy.session_idle_timeout {
+            sqlx::query("DELETE FROM sessions WHERE token_hash = $1")
+                .bind(&token_hash)
+                .execute(&self.pool)
+                .await?;
+            return Err(IdentityError::Unauthenticated);
+        }
+        if idle > Duration::seconds(TOUCH_INTERVAL_SECONDS) {
+            sqlx::query("UPDATE sessions SET last_seen_at = $2 WHERE token_hash = $1")
+                .bind(&token_hash)
+                .bind(now)
+                .execute(&self.pool)
+                .await?;
+        }
+        Ok(User {
+            id: session.id,
+            email: session.email,
+            is_admin: session.is_admin,
+            locale: session.locale,
+        })
+    }
+
+    /// The tours this user has seen or skipped.
+    pub async fn tours_seen(&self, user: Uuid) -> Result<Vec<Tour>, IdentityError> {
+        let rows: Vec<(Tour,)> =
+            sqlx::query_as("SELECT tour FROM user_tours WHERE user_id = $1 ORDER BY tour")
+                .bind(user)
+                .fetch_all(&self.pool)
+                .await?;
+        Ok(rows.into_iter().map(|(tour,)| tour).collect())
+    }
+
+    /// Notes that the user saw or skipped a tour; seeing it again changes nothing.
+    pub async fn mark_tour_seen(&self, user: Uuid, tour: Tour) -> Result<(), IdentityError> {
+        sqlx::query(
+            "INSERT INTO user_tours (user_id, tour, seen_at) VALUES ($1, $2, $3) \
+             ON CONFLICT (user_id, tour) DO NOTHING",
+        )
+        .bind(user)
+        .bind(tour)
+        .bind(self.clock.now())
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Every Studio account, by email. Administrators only.
+    pub async fn list_accounts(
+        &self,
+        reader: &User,
+        page: PageRequest,
+    ) -> Result<Page<Account>, IdentityError> {
+        if !reader.is_admin {
+            return Err(IdentityError::Forbidden);
+        }
+        let items = sqlx::query_as(
+            "SELECT id, email, is_admin, locale, password_hash IS NOT NULL AS active, \
+                    EXISTS (SELECT 1 FROM second_steps s \
+                            WHERE s.user_id = users.id AND s.confirmed_at IS NOT NULL) AS second_step, \
+                    created_at \
+             FROM users ORDER BY email LIMIT $1 OFFSET $2",
+        )
+        .bind(page.limit)
+        .bind(page.offset)
+        .fetch_all(&self.pool)
+        .await?;
+        let (total,): (i64,) = sqlx::query_as("SELECT count(*) FROM users")
+            .fetch_one(&self.pool)
+            .await?;
+        Ok(Page { items, total })
+    }
+
+    /// The user with this email, if any. For callers that are already
+    /// authorized to know (e.g. a project owner adding a member).
+    pub async fn find_by_email(&self, email: &str) -> Result<Option<User>, IdentityError> {
+        let email = normalize_email(email)?;
+        Ok(
+            sqlx::query_as("SELECT id, email, is_admin, locale FROM users WHERE email = $1")
+                .bind(email)
+                .fetch_optional(&self.pool)
+                .await?,
+        )
+    }
+
+    /// Opens a Studio session for an OIDC subject. First sign-in links only an
+    /// existing invitation; later sign-ins follow the issuer and immutable subject even if
+    /// the provider changes the person's email address.
+    pub async fn sign_in_oidc(
+        &self,
+        issuer: &str,
+        subject: &str,
+        email: &str,
+        is_admin: Option<bool>,
+    ) -> Result<(IssuedToken, User), IdentityError> {
+        if issuer.trim().is_empty()
+            || issuer.len() > 2048
+            || subject.trim().is_empty()
+            || subject.len() > 512
+        {
+            return Err(IdentityError::OidcIdentityNotInvited);
+        }
+        let email = normalize_email(email)?;
+        let now = self.clock.now();
+        let mut tx = self.pool.begin().await?;
+        let linked: Option<(Uuid, bool)> = sqlx::query_as(
+            "SELECT i.user_id, u.is_admin FROM oidc_identities i \
+             JOIN users u ON u.id = i.user_id WHERE i.issuer = $1 AND i.subject = $2 FOR UPDATE OF i, u",
+        )
+        .bind(issuer)
+        .bind(subject)
+        .fetch_optional(&mut *tx)
+        .await?;
+        let (user_id, previous_admin) = if let Some((user_id, previous_admin)) = linked {
+            let updated = sqlx::query(
+                "UPDATE users SET email = $2, is_admin = COALESCE($3, is_admin) WHERE id = $1",
+            )
+            .bind(user_id)
+            .bind(&email)
+            .bind(is_admin)
+            .execute(&mut *tx)
+            .await;
+            match updated {
+                Ok(_) => (user_id, previous_admin),
+                Err(sqlx::Error::Database(error)) if error.is_unique_violation() => {
+                    return Err(IdentityError::OidcIdentityNotInvited);
+                }
+                Err(error) => return Err(error.into()),
+            }
+        } else {
+            let invited: Option<(Uuid, bool)> =
+                sqlx::query_as("SELECT id, is_admin FROM users WHERE email = $1 FOR UPDATE")
+                    .bind(&email)
+                    .fetch_optional(&mut *tx)
+                    .await?;
+            let Some((user_id, previous_admin)) = invited else {
+                return Err(IdentityError::OidcIdentityNotInvited);
+            };
+            let inserted = sqlx::query(
+                "INSERT INTO oidc_identities (issuer, subject, user_id, linked_at) VALUES ($1, $2, $3, $4)",
+            )
+            .bind(issuer)
+            .bind(subject)
+            .bind(user_id)
+            .bind(now)
+            .execute(&mut *tx)
+            .await;
+            match inserted {
+                Ok(_) => {}
+                Err(sqlx::Error::Database(error)) if error.is_unique_violation() => {
+                    return Err(IdentityError::OidcIdentityNotInvited);
+                }
+                Err(error) => return Err(error.into()),
+            }
+            if let Some(is_admin) = is_admin {
+                sqlx::query("UPDATE users SET is_admin = $2 WHERE id = $1")
+                    .bind(user_id)
+                    .bind(is_admin)
+                    .execute(&mut *tx)
+                    .await?;
+            }
+            (user_id, previous_admin)
+        };
+        if let Some(is_admin) = is_admin.filter(|role| *role != previous_admin) {
+            donka_audit::record(
+                &mut tx,
+                Event::new(now, Some(user_id), Action::UserAdminRoleChanged).with_details(
+                    json!({ "provider": "oidc", "from": previous_admin, "to": is_admin }),
+                ),
+            )
+            .await?;
+        }
+        let user: User =
+            sqlx::query_as("SELECT id, email, is_admin, locale FROM users WHERE id = $1")
+                .bind(user_id)
+                .fetch_one(&mut *tx)
+                .await?;
+        let token = self
+            .open_session(&mut tx, user_id, now, json!({ "provider": "oidc" }))
+            .await?;
+        tx.commit().await?;
+        Ok((token, user))
+    }
+
+    /// The users with these ids, in no particular order; unknown ids are skipped.
+    pub async fn users_by_ids(&self, ids: &[Uuid]) -> Result<Vec<User>, IdentityError> {
+        Ok(
+            sqlx::query_as("SELECT id, email, is_admin, locale FROM users WHERE id = ANY($1)")
+                .bind(ids)
+                .fetch_all(&self.pool)
+                .await?,
+        )
+    }
+
+    /// Ends the session server-side. Unknown tokens are ignored.
+    pub async fn sign_out(&self, token: &str) -> Result<(), IdentityError> {
+        let mut tx = self.pool.begin().await?;
+        let ended: Option<(Uuid,)> =
+            sqlx::query_as("DELETE FROM sessions WHERE token_hash = $1 RETURNING user_id")
+                .bind(secret::hash_token(token))
+                .fetch_optional(&mut *tx)
+                .await?;
+        if let Some((user_id,)) = ended {
+            donka_audit::record(
+                &mut tx,
+                Event::new(self.clock.now(), Some(user_id), Action::UserSignedOut),
+            )
+            .await?;
+        }
+        tx.commit().await?;
+        Ok(())
+    }
+
+    async fn issue_setup_token(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        user_id: Uuid,
+        now: DateTime<Utc>,
+        lifetime: Duration,
+    ) -> Result<IssuedToken, IdentityError> {
+        let (token, token_hash) = secret::new_token()?;
+        lock_setup_token(tx, &token_hash).await?;
+        sqlx::query(
+            "INSERT INTO password_setup_tokens (token_hash, user_id, created_at, expires_at) \
+             VALUES ($1, $2, $3, $4)",
+        )
+        .bind(token_hash)
+        .bind(user_id)
+        .bind(now)
+        .bind(now + lifetime)
+        .execute(&mut **tx)
+        .await?;
+        Ok(IssuedToken(token))
+    }
+
+    async fn record_failure(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        account: &AccountRow,
+        now: DateTime<Utc>,
+    ) -> Result<(), IdentityError> {
+        let window_open = account
+            .failed_window_started_at
+            .is_some_and(|start| now - start <= self.policy.failure_window);
+        let (failures, window_start) = if window_open {
+            (
+                account.failed_sign_ins + 1,
+                account.failed_window_started_at,
+            )
+        } else {
+            (1, Some(now))
+        };
+        let max = i32::try_from(self.policy.max_failed_sign_ins).unwrap_or(i32::MAX);
+        let locks = failures >= max;
+        // Nobody is signed in yet: the event is about the account, with no actor.
+        donka_audit::record(
+            tx,
+            Event::new(now, None, Action::UserSignInFailed)
+                .about_user(account.id)
+                .with_details(json!({ "locked": locks })),
+        )
+        .await?;
+        if locks {
+            tracing::warn!(user_id = %account.id, "account locked after repeated failed sign-ins");
+            sqlx::query(
+                "UPDATE users SET failed_sign_ins = 0, failed_window_started_at = NULL, \
+                 locked_until = $2 WHERE id = $1",
+            )
+            .bind(account.id)
+            .bind(now + self.policy.lock_duration)
+            .execute(&mut **tx)
+            .await?;
+        } else {
+            sqlx::query(
+                "UPDATE users SET failed_sign_ins = $2, failed_window_started_at = $3 WHERE id = $1",
+            )
+            .bind(account.id)
+            .bind(failures)
+            .bind(window_start)
+            .execute(&mut **tx)
+            .await?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(sqlx::FromRow)]
+struct AccountRow {
+    id: Uuid,
+    email: String,
+    is_admin: bool,
+    locale: Locale,
+    password_hash: Option<String>,
+    failed_sign_ins: i32,
+    failed_window_started_at: Option<DateTime<Utc>>,
+    locked_until: Option<DateTime<Utc>>,
+}
+
+impl AccountRow {
+    fn into_user(self) -> User {
+        User {
+            id: self.id,
+            email: self.email,
+            is_admin: self.is_admin,
+            locale: self.locale,
+        }
+    }
+}
+
+#[derive(sqlx::FromRow)]
+struct SessionRow {
+    id: Uuid,
+    email: String,
+    is_admin: bool,
+    locale: Locale,
+    last_seen_at: DateTime<Utc>,
+}
+
+#[derive(sqlx::FromRow)]
+struct DueEmail {
+    id: Uuid,
+    kind: String,
+    attempts: i32,
+    user_id: Uuid,
+    created_at: DateTime<Utc>,
+    email: String,
+    locale: Locale,
+}
+
+/// A reset request is recorded when its email reaches a final state (sent or
+/// abandoned), not when it is asked for: the request itself must take the same
+/// path for known and unknown addresses (see `request_password_reset`).
+async fn record_reset_request(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    user_id: Uuid,
+    requested_at: DateTime<Utc>,
+    delivered: bool,
+) -> Result<(), IdentityError> {
+    donka_audit::record(
+        tx,
+        Event::new(requested_at, None, Action::UserPasswordResetRequested)
+            .about_user(user_id)
+            .with_details(json!({ "delivered": delivered })),
+    )
+    .await?;
+    Ok(())
+}
+
+async fn queue_email(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    user_id: Uuid,
+    kind: Kind,
+    now: DateTime<Utc>,
+) -> Result<(), IdentityError> {
+    // ON CONFLICT: an email of this kind already waiting covers this request.
+    sqlx::query(
+        "INSERT INTO account_emails (id, user_id, kind, created_at, next_attempt_at) \
+         VALUES ($1, $2, $3, $4, $4) ON CONFLICT DO NOTHING",
+    )
+    .bind(Uuid::new_v4())
+    .bind(user_id)
+    .bind(kind.as_str())
+    .bind(now)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
+/// Serializes issuing and consuming one setup link, without storing its clear value.
+async fn lock_setup_token(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    token_hash: &[u8],
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "SELECT pg_advisory_xact_lock(\
+         hashtextextended('password-setup:' || encode($1, 'hex'), 0))",
+    )
+    .bind(token_hash)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
+/// Marks the user's unused links as spent, so only the newest one works.
+async fn revoke_setup_tokens(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    user_id: Uuid,
+    now: DateTime<Utc>,
+) -> Result<(), IdentityError> {
+    sqlx::query(
+        "UPDATE password_setup_tokens SET used_at = $2 WHERE user_id = $1 AND used_at IS NULL",
+    )
+    .bind(user_id)
+    .bind(now)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
+/// The link a person opens to choose their password, in their language.
+pub fn setup_link(public_url: &str, locale: Locale, token: &IssuedToken) -> String {
+    format!(
+        "{}/{}/{SETUP_PAGE}/?token={}",
+        public_url.trim_end_matches('/'),
+        locale.as_str(),
+        token.expose()
+    )
+}
+
+/// 30 s, 1 min, 2 min… capped at one hour.
+fn retry_delay(attempts: i32) -> Duration {
+    let doublings = u32::try_from(attempts.saturating_sub(1))
+        .unwrap_or(0)
+        .min(16);
+    Duration::seconds((EMAIL_RETRY_BASE_SECONDS << doublings).min(EMAIL_RETRY_MAX_SECONDS))
+}
+
+/// Emails are compared case-insensitively and stored lower-cased.
+fn normalize_email(email: &str) -> Result<String, IdentityError> {
+    let email = email.trim().to_lowercase();
+    let well_formed = email.len() <= 254
+        && !email.chars().any(char::is_whitespace)
+        && email
+            .split_once('@')
+            .is_some_and(|(local, domain)| !local.is_empty() && domain.contains('.'));
+    if well_formed {
+        Ok(email)
+    } else {
+        Err(IdentityError::InvalidEmail)
+    }
+}
+
+fn check_password_rules(password: &str) -> Result<(), IdentityError> {
+    let chars = password.chars().count();
+    if (MIN_PASSWORD_CHARS..=MAX_PASSWORD_CHARS).contains(&chars) {
+        Ok(())
+    } else {
+        Err(IdentityError::WeakPassword)
+    }
+}
+
+async fn hash_off_thread(password: String) -> Result<String, IdentityError> {
+    tokio::task::spawn_blocking(move || secret::hash_password(&password))
+        .await
+        .map_err(|err| IdentityError::Internal(err.to_string()))?
+        .map_err(Into::into)
+}
+
+async fn verify_off_thread(
+    password: String,
+    stored: Option<String>,
+) -> Result<bool, IdentityError> {
+    // Very long input is refused before argon2 runs, so it cannot be used to burn CPU.
+    if password.chars().count() > MAX_PASSWORD_CHARS {
+        return Ok(false);
+    }
+    tokio::task::spawn_blocking(move || secret::verify_password(&password, stored.as_deref()))
+        .await
+        .map_err(|err| IdentityError::Internal(err.to_string()))
+}
+
+#[cfg(test)]
+mod tests;

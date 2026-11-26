@@ -1,0 +1,18 @@
+[package]
+name = "donka-db"
+description = "PostgreSQL connection pool, migrations and readiness for Donka Studio"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+publish = false
+
+[dependencies]
+sqlx = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

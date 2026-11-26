@@ -1,10 +1,60 @@
-FROM rust:1.94 AS builder
-WORKDIR /src
-COPY . .
-RUN cargo build --release -p donka-app
+# Studio image: the backend, serving the web app's static export on the same origin.
+#
+#   docker build -f apps/app/Dockerfile --build-arg SERVICE_VERSION=1.2.0 -t donka-studio .
+#
+# Rust dependencies are compiled in their own layer, keyed on the workspace's manifests and
+# Cargo.lock only (cargo-chef), so a change to Studio's code rebuilds Studio, not its ~600
+# dependencies.
 
-FROM gcr.io/distroless/cc-debian12:nonroot
+# Web app: static export (apps/web/out).
+FROM node:22-slim AS web
+WORKDIR /src/apps/web
+RUN corepack enable
+COPY apps/web/package.json apps/web/pnpm-lock.yaml apps/web/pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY apps/web/ ./
+RUN pnpm build
+
+FROM lukemathwalker/cargo-chef:0.1.77-rust-1.94 AS chef
+WORKDIR /src
+
+# The dependency recipe: what the manifests and Cargo.lock say, nothing from the code.
+FROM chef AS planner
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef AS builder
+# Empty for a delivered Studio. CI passes `development-licence-key` so test licences verify
+# (DNK-77); scripts/check-image.sh refuses a delivered image built that way.
+ARG CARGO_FEATURES=""
+COPY --from=planner /src/recipe.json recipe.json
+RUN cargo chef cook --release --locked --package donka-app --features "$CARGO_FEATURES" \
+    --recipe-path recipe.json
+COPY . .
+# Release version reported by GET /api/v1/version; compiled into the binary. Declared after the
+# dependency layer so a new version does not rebuild the dependencies.
+ARG SERVICE_VERSION=unknown
+ENV SERVICE_VERSION=$SERVICE_VERSION
+RUN cargo build --release --locked --package donka-app --features "$CARGO_FEATURES"
+# Mount points of the installation's volumes (apps/app/install/docker-compose.yml). A new named
+# volume takes their owner, so Studio can write releases and the staging Runtime's token.
+RUN mkdir -p /out/var/lib/donka/releases /out/var/lib/donka/wiring
+
+# No shell, no package manager; runs as the unprivileged `nonroot` user (uid 65532). Same Debian
+# release as the build stage (13), so the binary finds the glibc it was linked against.
+FROM gcr.io/distroless/cc-debian13:nonroot
 COPY --from=builder /src/target/release/donka-app /usr/local/bin/donka-app
+COPY --from=builder /src/target/release/donka-admin /usr/local/bin/donka-admin
+COPY --from=builder --chown=nonroot:nonroot /out/var/lib/donka /var/lib/donka
+COPY --from=web /src/apps/web/out /srv/web
+COPY packs /srv/packs
+# What `donka-admin upgrade` reads from a new release's image: the versions it upgrades from
+# and the compose file it installs.
+COPY apps/app/upgrade.json /etc/donka/upgrade.json
+COPY apps/app/install/docker-compose.yml /etc/donka/docker-compose.yml
+USER nonroot:nonroot
 EXPOSE 8080
 ENV DONKA_LISTEN=0.0.0.0:8080
+ENV DONKA_WEB_DIR=/srv/web
+ENV DONKA_PACKS_DIR=/srv/packs
 CMD ["donka-app"]

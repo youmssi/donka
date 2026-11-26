@@ -1,0 +1,959 @@
+//! `donka-admin init` (DNK-64, DNK-74): prepares an installation from the published images,
+//! with nothing but Docker on the server.
+//!
+//! `donka.yaml` holds the installation's answers and no secret. From it, init writes the files
+//! Docker Compose reads: `.env` (Studio's settings), `runtime.env` (the staging Runtime's) and
+//! `docker-compose.yml`, and the secrets as files in `secrets/`, which containers read through
+//! the `*_FILE` settings. Running init again with `donka.yaml` writes the same files; a secret
+//! that exists is never overwritten, and none is ever printed.
+
+pub mod assistant;
+
+use crate::upgrade::auto::{Role, Window};
+use crate::upgrade::UPGRADER;
+use base64::engine::general_purpose::STANDARD as B64;
+use base64::Engine as _;
+use donka_licence::Module;
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, BTreeSet};
+use std::io::Write as _;
+use std::path::{Path, PathBuf};
+
+/// The installation's compose file: Studio, the staging Runtime, PostgreSQL and Mailpit.
+pub const COMPOSE: &str = include_str!("../../install/docker-compose.yml");
+/// The installation's answers, next to the files written from them.
+pub const CONFIG: &str = "donka.yaml";
+/// The folder of secret files, mounted read-only at `/run/secrets` in the containers.
+pub const SECRETS: &str = "secrets";
+const MOUNTED: &str = "/run/secrets";
+
+// The secrets, one file each.
+pub const POSTGRES_PASSWORD: &str = "postgres_password";
+const DATABASE_URL: &str = "database_url";
+const DECISION_LOG_KEY: &str = "decision_log_key";
+/// Studio's artifact signing key (DNK-87), `keyId=<base64 seed>`; the previous
+/// one is kept next to it while a rotation completes.
+const ARTIFACT_SIGNING_KEY: &str = "artifact_signing_key";
+const ARTIFACT_SIGNING_KEY_PREVIOUS: &str = "artifact_signing_key_previous";
+const SECOND_STEP_KEY: &str = "second_step_key";
+const PERSON_INDEX_KEY: &str = "person_index_key";
+const SMTP_URL: &str = "smtp_url";
+const STORAGE_ACCESS_KEY_ID: &str = "storage_access_key_id";
+const STORAGE_SECRET_ACCESS_KEY: &str = "storage_secret_access_key";
+const EXPLAIN_API_KEY: &str = "explain_api_key";
+const LICENCE: &str = "licence.json";
+/// The demo's connector secret: the key the Runtime sends to the fake bureau.
+const DEMO_CONNECTOR_SECRET: &str = "BUREAU_API_KEY";
+/// The demo's fake bureau, the one host its connector secret may be sent to.
+const DEMO_CONNECTOR_HOST: &str = "demo-bureau";
+
+/// `donka.yaml`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Installation {
+    /// The assistant's language, and Studio's for new accounts: `en` or `fr`.
+    pub language: Language,
+    /// Where people reach Studio. Behind HTTPS, sessions use secure cookies.
+    pub public_url: String,
+    /// The first administrator, created on the empty database.
+    pub administrator: String,
+    /// What the installation is: production, staging or demo. Production never upgrades itself.
+    pub role: Role,
+    /// Who signs in with a second step: none, privileged (administrators and owners) or all.
+    pub second_step: SecondStep,
+    pub images: Images,
+    pub storage: Storage,
+    pub mail: Mail,
+    /// The language model that explains decisions, chosen by the customer.
+    pub explanations: Explanations,
+    /// Donka's licence file, kept in `secrets/licence.json`; without it, evaluation.
+    #[serde(default)]
+    pub licence: bool,
+    /// The retail-credit pack released to staging at the first start, with a fake bureau.
+    #[serde(default)]
+    pub demo: bool,
+    /// No internet access: Studio never checks for new releases.
+    #[serde(default)]
+    pub offline: bool,
+    /// The weekly window of unattended upgrades (staging and demo only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_upgrade: Option<Window>,
+    /// The optional modules turned on (DNK-74): `explain`, `connectors`, `analysis`, within what
+    /// the licence includes. Every module the licence includes when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub modules: Option<BTreeSet<Module>>,
+    /// The connector secrets the Runtime reads (`DONKA_SECRET_<NAME>`), each in
+    /// `secrets/connector_<name>`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub connector_secrets: Vec<String>,
+    /// For each connector secret, the hosts it may be sent to (`host` or `host:port`): the
+    /// Runtime sends it nowhere else (DNK-84). Every connector secret needs one.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub connector_hosts: BTreeMap<String, Vec<String>>,
+    /// Hosts connectors without a secret may call. With the hosts above, the only hosts any
+    /// connector may call.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub connector_open_hosts: Vec<String>,
+    /// The address Studio's (8080) and the Runtime's (8090) ports are published
+    /// on: `127.0.0.1` unless the operator chose otherwise, behind their TLS
+    /// proxy (DNK-86). Files written before this answer existed have no entry
+    /// and keep every interface, so an upgrade changes nothing for them.
+    #[serde(default = "every_interface")]
+    pub publish_address: String,
+}
+
+fn every_interface() -> String {
+    "0.0.0.0".to_owned()
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum Language {
+    #[default]
+    En,
+    Fr,
+}
+
+impl Language {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::En => "en",
+            Self::Fr => "fr",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum SecondStep {
+    #[default]
+    None,
+    Privileged,
+    All,
+}
+
+impl SecondStep {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Privileged => "privileged",
+            Self::All => "all",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Images {
+    pub studio: String,
+    pub runtime: String,
+    /// A mirror of `ghcr.io/youmssi`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub registry: Option<String>,
+}
+
+/// Where releases are published for the Runtimes.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(tag = "kind", rename_all = "lowercase", deny_unknown_fields)]
+pub enum Storage {
+    /// A volume Studio and the staging Runtime share, on this server.
+    #[default]
+    Disk,
+    /// The customer's S3 (or SILO): its keys in `secrets/storage_access_key_id` and
+    /// `secrets/storage_secret_access_key`.
+    S3 {
+        bucket: String,
+        region: String,
+        /// For an S3-compatible server; AWS without it.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        endpoint: Option<String>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(tag = "kind", rename_all = "lowercase", deny_unknown_fields)]
+pub enum Mail {
+    /// Mailpit catches every email (http://localhost:8025).
+    #[default]
+    Mailpit,
+    /// The customer's server: its URL, with credentials, in `secrets/smtp_url`.
+    Smtp { from: String },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(tag = "kind", rename_all = "lowercase", deny_unknown_fields)]
+pub enum Explanations {
+    #[default]
+    Off,
+    /// A Messages API endpoint; its key in `secrets/explain_api_key`.
+    Anthropic { url: String, model: String },
+    /// An OpenAI-compatible endpoint; its key in `secrets/explain_api_key`.
+    Openai { url: String, model: String },
+}
+
+impl Installation {
+    /// The defaults for a first look on this machine, with the images of this Studio's own
+    /// version: a release pins itself and the latest Runtime; any other build uses `edge`.
+    pub fn for_version(version: &str) -> Self {
+        let released = !version.is_empty()
+            && version
+                .split('.')
+                .all(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit()));
+        Self {
+            language: Language::En,
+            public_url: "http://localhost:8080".to_owned(),
+            administrator: "admin@donka.local".to_owned(),
+            role: Role::Production,
+            second_step: SecondStep::None,
+            images: Images {
+                studio: if released { version } else { "edge" }.to_owned(),
+                runtime: if released { "latest" } else { "edge" }.to_owned(),
+                registry: None,
+            },
+            storage: Storage::Disk,
+            mail: Mail::Mailpit,
+            explanations: Explanations::Off,
+            licence: false,
+            demo: false,
+            offline: false,
+            auto_upgrade: None,
+            modules: None,
+            connector_secrets: Vec::new(),
+            connector_hosts: BTreeMap::new(),
+            connector_open_hosts: Vec::new(),
+            publish_address: "127.0.0.1".to_owned(),
+        }
+    }
+
+    pub fn read(dir: &Path) -> Result<Self, String> {
+        let path = dir.join(CONFIG);
+        let text = std::fs::read_to_string(&path)
+            .map_err(|err| format!("cannot read {}: {err}", path.display()))?;
+        serde_yaml_ng::from_str(&text).map_err(|err| format!("{}: {err}", path.display()))
+    }
+
+    fn validate(&self) -> Result<(), String> {
+        if self.auto_upgrade.is_some() && !self.role.upgrades_unattended() {
+            return Err(
+                "unattended upgrades never run in production: set the role to staging (or demo)"
+                    .to_owned(),
+            );
+        }
+        if !(self.public_url.starts_with("http://") || self.public_url.starts_with("https://")) {
+            return Err(format!(
+                "public_url `{}` is not an http(s) URL",
+                self.public_url
+            ));
+        }
+        if !self.administrator.contains('@') {
+            return Err(format!(
+                "administrator `{}` is not an email",
+                self.administrator
+            ));
+        }
+        if self.publish_address.parse::<std::net::IpAddr>().is_err() {
+            return Err(format!(
+                "publish_address `{}` is not an IP address: use 127.0.0.1 to keep Studio and \
+                 the Runtime on this server, or the address to publish them on",
+                self.publish_address
+            ));
+        }
+        for name in &self.connector_secrets {
+            if name.is_empty()
+                || !name
+                    .bytes()
+                    .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_')
+            {
+                return Err(format!("connector secret `{name}`: use A-Z, 0-9 and _"));
+            }
+            if self.connector_hosts.get(name).is_none_or(Vec::is_empty) {
+                return Err(format!(
+                    "connector secret `{name}` has no hosts: list where the Runtime may send it \
+                     under connector_hosts.{name}"
+                ));
+            }
+        }
+        if let Some(name) = self
+            .connector_hosts
+            .keys()
+            .find(|name| !self.connector_secrets.contains(name))
+        {
+            return Err(format!(
+                "connector_hosts.{name}: `{name}` is not in connector_secrets"
+            ));
+        }
+        for host in self
+            .connector_hosts
+            .values()
+            .flatten()
+            .chain(&self.connector_open_hosts)
+        {
+            if !valid_host(host) {
+                return Err(format!(
+                    "connector host `{host}`: write a host name, or host:port, without scheme or path"
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    /// Each connector secret's hosts, the demo's included.
+    fn connector_hosts(&self) -> BTreeMap<String, Vec<String>> {
+        let mut hosts = self.connector_hosts.clone();
+        if self.demo {
+            hosts
+                .entry(DEMO_CONNECTOR_SECRET.to_owned())
+                .or_insert_with(|| vec![DEMO_CONNECTOR_HOST.to_owned()]);
+        }
+        hosts
+    }
+
+    /// Every host a connector may call: each secret's hosts, and the hosts without a secret.
+    fn connector_allowed_hosts(&self) -> BTreeSet<String> {
+        self.connector_hosts()
+            .into_values()
+            .flatten()
+            .chain(self.connector_open_hosts.iter().cloned())
+            .collect()
+    }
+
+    /// The connector secrets, the demo's included.
+    fn connector_secrets(&self) -> Vec<String> {
+        let mut names = self.connector_secrets.clone();
+        if self.demo && !names.iter().any(|name| name == DEMO_CONNECTOR_SECRET) {
+            names.push(DEMO_CONNECTOR_SECRET.to_owned());
+        }
+        names
+    }
+}
+
+/// Secrets the operator gives the assistant; on a replay they are already in `secrets/`.
+#[derive(Debug, Default)]
+pub struct Provided {
+    pub smtp_url: Option<String>,
+    pub storage_access_key_id: Option<String>,
+    pub storage_secret_access_key: Option<String>,
+    pub explain_api_key: Option<String>,
+    /// The licence file Donka issued, copied into `secrets/`.
+    pub licence: Option<PathBuf>,
+}
+
+/// What happened to each file.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Outcome {
+    Written(PathBuf),
+    /// It existed: left as it was (a secret, or `donka.yaml` when replayed).
+    Kept(PathBuf),
+}
+
+/// Prepares a new installation in `dir` from `installation`: `donka.yaml`, then everything
+/// [`apply`] writes. An existing `donka.yaml` is kept and nothing else happens: run
+/// `init --config donka.yaml` to apply it.
+pub fn init(
+    dir: &Path,
+    installation: &Installation,
+    provided: &Provided,
+    random: impl FnMut(&mut [u8]) -> Result<(), String>,
+) -> Result<Vec<Outcome>, String> {
+    let config = dir.join(CONFIG);
+    if config.exists() {
+        return Ok(vec![Outcome::Kept(config)]);
+    }
+    installation.validate()?;
+    create_private_dir(dir)?;
+    let mut outcomes = apply(dir, installation, provided, random)?;
+    let yaml = serde_yaml_ng::to_string(installation).map_err(|err| err.to_string())?;
+    write_file(
+        &config,
+        &format!(
+            "# This installation's answers (donka-admin init). Change them here, then run\n\
+             # `donka-admin init --config donka.yaml`: it writes .env, runtime.env and\n\
+             # docker-compose.yml again, and keeps the secrets in secrets/.\n{yaml}"
+        ),
+        0o600,
+    )?;
+    outcomes.insert(0, Outcome::Written(config));
+    Ok(outcomes)
+}
+
+/// Writes the files Docker Compose reads from `installation`, and the secrets that are missing.
+/// Generated secrets are random; the others come from `provided`, or must already be there.
+pub fn apply(
+    dir: &Path,
+    installation: &Installation,
+    provided: &Provided,
+    mut random: impl FnMut(&mut [u8]) -> Result<(), String>,
+) -> Result<Vec<Outcome>, String> {
+    installation.validate()?;
+    let secrets = dir.join(SECRETS);
+    create_secrets_dir(&secrets)?;
+    let mut outcomes = Vec::new();
+    let mut secret = |name: &str, value: &mut dyn FnMut() -> Result<String, String>| {
+        let path = secrets.join(name);
+        if path.exists() {
+            outcomes.push(Outcome::Kept(path));
+            return Ok::<_, String>(());
+        }
+        write_file(&path, &value()?, 0o644)?;
+        outcomes.push(Outcome::Written(path));
+        Ok(())
+    };
+    let hex = |random: &mut dyn FnMut(&mut [u8]) -> Result<(), String>| {
+        let mut bytes = [0u8; 24];
+        random(&mut bytes)?;
+        Ok::<_, String>(bytes.iter().map(|b| format!("{b:02x}")).collect::<String>())
+    };
+    let password_path = secrets.join(POSTGRES_PASSWORD);
+    secret(POSTGRES_PASSWORD, &mut || hex(&mut random))?;
+    let password = read_secret(&password_path)?;
+    secret(DATABASE_URL, &mut || {
+        Ok(format!("postgres://donka:{password}@postgres:5432/donka"))
+    })?;
+    for name in [DECISION_LOG_KEY, SECOND_STEP_KEY, PERSON_INDEX_KEY] {
+        secret(name, &mut || {
+            let mut bytes = [0u8; 32];
+            random(&mut bytes)?;
+            Ok(B64.encode(bytes))
+        })?;
+    }
+    // The artifact signing pair (DNK-87): the seed stays in secrets/, only its
+    // public half ever leaves (runtime.env, and the guides for other Runtimes).
+    secret(ARTIFACT_SIGNING_KEY, &mut || {
+        use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64_URL;
+        use base64::Engine as _;
+        let mut seed = [0u8; 32];
+        random(&mut seed)?;
+        let id = artifact_key_id(&seed);
+        Ok(format!("{id}={}", B64_URL.encode(seed)))
+    })?;
+    let operator = |value: &Option<String>, name: &str, what: &'static str| {
+        from_operator(value.clone(), secrets.join(name), what)
+    };
+    if let Mail::Smtp { .. } = installation.mail {
+        secret(
+            SMTP_URL,
+            &mut operator(&provided.smtp_url, SMTP_URL, "the SMTP URL"),
+        )?;
+    }
+    if let Storage::S3 { .. } = installation.storage {
+        secret(
+            STORAGE_ACCESS_KEY_ID,
+            &mut operator(
+                &provided.storage_access_key_id,
+                STORAGE_ACCESS_KEY_ID,
+                "the S3 access key id",
+            ),
+        )?;
+        secret(
+            STORAGE_SECRET_ACCESS_KEY,
+            &mut operator(
+                &provided.storage_secret_access_key,
+                STORAGE_SECRET_ACCESS_KEY,
+                "the S3 secret access key",
+            ),
+        )?;
+    }
+    if installation.explanations != Explanations::Off {
+        secret(
+            EXPLAIN_API_KEY,
+            &mut operator(
+                &provided.explain_api_key,
+                EXPLAIN_API_KEY,
+                "the language model's API key",
+            ),
+        )?;
+    }
+    if installation.licence {
+        let source = provided.licence.clone();
+        secret(LICENCE, &mut || match &source {
+            Some(file) => std::fs::read_to_string(file)
+                .map_err(|err| format!("cannot read the licence file {}: {err}", file.display())),
+            None => Err(format!(
+                "{} is missing: copy Donka's licence file there",
+                secrets.join(LICENCE).display()
+            )),
+        })?;
+    }
+    for name in installation.connector_secrets() {
+        let file = connector_file(&name);
+        let demo = installation.demo && name == DEMO_CONNECTOR_SECRET;
+        let path = secrets.join(&file);
+        secret(&file, &mut || {
+            if demo {
+                hex(&mut random)
+            } else {
+                Err(format!(
+                    "{} is missing: write the connector secret {name} there",
+                    path.display()
+                ))
+            }
+        })?;
+    }
+    // The staging Runtime verifies artifacts with the public half of the
+    // signing pair (DNK-87); the previous key is listed while a rotation lasts.
+    let signing_public = |name: &str| -> Result<Option<String>, String> {
+        let path = secrets.join(name);
+        if !path.exists() {
+            return Ok(None);
+        }
+        artifact_public(&read_secret(&path)?).map(Some)
+    };
+    for (name, content) in [
+        (".env", env_file(installation)),
+        (
+            "runtime.env",
+            runtime_env(
+                installation,
+                signing_public(ARTIFACT_SIGNING_KEY)?.as_deref(),
+                signing_public(ARTIFACT_SIGNING_KEY_PREVIOUS)?.as_deref(),
+            ),
+        ),
+        ("docker-compose.yml", COMPOSE.to_owned()),
+    ] {
+        let path = dir.join(name);
+        replace_file(&path, &content)?;
+        outcomes.push(Outcome::Written(path));
+    }
+    Ok(outcomes)
+}
+
+/// A secret the operator gives: `value` when the assistant asked for it, otherwise it must
+/// already be in its file.
+fn from_operator(
+    value: Option<String>,
+    path: PathBuf,
+    what: &'static str,
+) -> impl FnMut() -> Result<String, String> {
+    move || match &value {
+        Some(value) => Ok(value.clone()),
+        None => Err(format!(
+            "{} is missing: write {what} there, then run init --config {CONFIG} again",
+            path.display()
+        )),
+    }
+}
+
+/// Records new image versions in `donka.yaml` and writes the files again (`donka-admin
+/// upgrade`). Only the two version lines change, so the operator's comments stay.
+pub fn set_versions(dir: &Path, studio: &str, runtime: &str) -> Result<(), String> {
+    let path = dir.join(CONFIG);
+    let text = std::fs::read_to_string(&path)
+        .map_err(|err| format!("cannot read {}: {err}", path.display()))?;
+    let text = with_versions(&text, studio, runtime);
+    replace_file(&path, &text)?;
+    let installation = Installation::read(dir)?;
+    apply(dir, &installation, &Provided::default(), |_| {
+        Err("an upgrade generates no secret".to_owned())
+    })?;
+    Ok(())
+}
+
+/// Records the modules turned on in `donka.yaml` (`None`: every module the licence includes) and
+/// writes the files again (`donka-admin modules`). Only the `modules` entry changes.
+pub fn set_modules(dir: &Path, modules: Option<&BTreeSet<Module>>) -> Result<(), String> {
+    let path = dir.join(CONFIG);
+    let text = std::fs::read_to_string(&path)
+        .map_err(|err| format!("cannot read {}: {err}", path.display()))?;
+    replace_file(&path, &with_modules(&text, modules))?;
+    let installation = Installation::read(dir)?;
+    apply(dir, &installation, &Provided::default(), |_| {
+        Err("changing modules generates no secret".to_owned())
+    })?;
+    Ok(())
+}
+
+/// `text` without its `modules` entry (inline or as a list), then the new one at the end.
+fn with_modules(text: &str, modules: Option<&BTreeSet<Module>>) -> String {
+    let mut in_modules = false;
+    let mut lines: Vec<&str> = Vec::new();
+    for line in text.lines() {
+        if !line.starts_with(' ') && !line.starts_with('-') && !line.starts_with('#') {
+            in_modules = line.starts_with("modules:");
+        } else if in_modules && line.starts_with('#') {
+            in_modules = false;
+        }
+        if !in_modules {
+            lines.push(line);
+        }
+    }
+    let mut text = lines.join("\n") + "\n";
+    if let Some(modules) = modules {
+        let names: Vec<&str> = modules.iter().map(|module| module.as_str()).collect();
+        text.push_str(&format!("modules: [{}]\n", names.join(", ")));
+    }
+    text
+}
+
+fn with_versions(text: &str, studio: &str, runtime: &str) -> String {
+    let mut in_images = false;
+    let mut lines: Vec<String> = Vec::new();
+    for line in text.lines() {
+        if !line.starts_with(' ') && !line.starts_with('#') {
+            in_images = line.trim_end() == "images:";
+        }
+        let replaced = match line.trim_start() {
+            l if in_images && l.starts_with("studio:") => Some(format!("  studio: '{studio}'")),
+            l if in_images && l.starts_with("runtime:") => Some(format!("  runtime: '{runtime}'")),
+            _ => None,
+        };
+        lines.push(replaced.unwrap_or_else(|| line.to_owned()));
+    }
+    lines.join("\n") + "\n"
+}
+
+/// A signing key's id: the first eight hex digits of its public key's
+/// SHA-256, so the id itself proves which key it names (DNK-87).
+pub fn artifact_key_id(seed: &[u8; 32]) -> String {
+    use sha2::Digest as _;
+    let key = ed25519_dalek::SigningKey::from_bytes(seed);
+    let digest = sha2::Sha256::digest(key.verifying_key().to_bytes());
+    digest[..4]
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+/// The public half of a signing secret file's content (`keyId=<base64 seed>`),
+/// as `ARTIFACT__PUBLIC_KEY` for a Runtime: `keyId=<base64 public key>`.
+/// Both sides of the wire are URL-safe base64, as Ed25519 tools write them.
+pub fn artifact_public(content: &str) -> Result<String, String> {
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64_URL;
+    use base64::Engine as _;
+    let (id, encoded) = content
+        .split_once('=')
+        .ok_or("the artifact signing key does not name its key")?;
+    let seed: [u8; 32] = B64_URL
+        .decode(encoded.trim())
+        .ok()
+        .or_else(|| B64.decode(encoded.trim()).ok())
+        .and_then(|bytes| bytes.try_into().ok())
+        .ok_or("the artifact signing key is not a 32-byte seed")?;
+    let key = ed25519_dalek::SigningKey::from_bytes(&seed);
+    Ok(format!(
+        "{id}={}",
+        B64_URL.encode(key.verifying_key().to_bytes())
+    ))
+}
+
+/// Rotates the artifact signing key without downtime (DNK-87): the current
+/// key becomes the previous one, a fresh key is generated, and the files are
+/// rewritten, so Runtimes verify with either key while Studio signs with the
+/// new one. The previous key file can be deleted once every Runtime and
+/// artifact has moved on.
+pub fn rotate_signing_key(
+    dir: &Path,
+    random: &mut dyn FnMut(&mut [u8]) -> Result<(), String>,
+) -> Result<Installation, String> {
+    let installation = Installation::read(dir)?;
+    let secrets = dir.join(SECRETS);
+    let current = read_secret(&secrets.join(ARTIFACT_SIGNING_KEY))?;
+    std::fs::write(
+        secrets.join(ARTIFACT_SIGNING_KEY_PREVIOUS),
+        format!("{current}\n"),
+    )
+    .map_err(|err| format!("cannot write the previous signing key: {err}"))?;
+    set_mode(&secrets.join(ARTIFACT_SIGNING_KEY_PREVIOUS), 0o600)?;
+    let mut seed = [0u8; 32];
+    random(&mut seed)?;
+    let id = artifact_key_id(&seed);
+    std::fs::write(
+        secrets.join(ARTIFACT_SIGNING_KEY),
+        format!("{id}={}\n", B64.encode(seed)),
+    )
+    .map_err(|err| format!("cannot write the new signing key: {err}"))?;
+    set_mode(&secrets.join(ARTIFACT_SIGNING_KEY), 0o600)?;
+    Ok(installation)
+}
+
+/// The value of a secret file, as the containers read it.
+pub fn read_secret(path: &Path) -> Result<String, String> {
+    std::fs::read_to_string(path)
+        .map(|value| value.trim_end_matches(['\n', '\r']).to_owned())
+        .map_err(|err| format!("cannot read {}: {err}", path.display()))
+}
+
+fn connector_file(name: &str) -> String {
+    format!("connector_{}", name.to_ascii_lowercase())
+}
+
+fn mounted(name: &str) -> String {
+    format!("{MOUNTED}/{name}")
+}
+
+/// How Compose writes the publish address: an IPv6 address needs its brackets
+/// (`[::1]:8080:8080`).
+fn publish_for_compose(address: &str) -> String {
+    match address.parse::<std::net::IpAddr>() {
+        Ok(ip) if ip.is_ipv6() => format!("[{ip}]"),
+        _ => address.to_owned(),
+    }
+}
+
+/// `.env`: what Compose interpolates and Studio reads. No secret, only the files holding them.
+fn env_file(installation: &Installation) -> String {
+    let i = installation;
+    let mut lines = vec![
+        "# Written by donka-admin init from donka.yaml: change donka.yaml, then run".to_owned(),
+        "# `donka-admin init --config donka.yaml`. Secrets are files in secrets/.".to_owned(),
+        String::new(),
+        format!("DONKA_VERSION={}", i.images.studio),
+        format!("DONKA_RUNTIME_VERSION={}", i.images.runtime),
+    ];
+    if let Some(registry) = &i.images.registry {
+        lines.push(format!("DONKA_REGISTRY={registry}"));
+    }
+    lines.push(format!("DONKA_INSTALLATION_ROLE={}", i.role.as_str()));
+    // Compose publishes Studio's and the Runtime's ports on this address, and
+    // `donka-admin doctor` reads it back to warn about plain HTTP (DNK-86).
+    lines.push(format!(
+        "DONKA_PUBLISH_ADDRESS={}",
+        publish_for_compose(&i.publish_address)
+    ));
+    let profiles: Vec<&str> = [(i.demo, "demo"), (i.auto_upgrade.is_some(), UPGRADER)]
+        .into_iter()
+        .filter_map(|(on, profile)| on.then_some(profile))
+        .collect();
+    if !profiles.is_empty() {
+        lines.push(format!("COMPOSE_PROFILES={}", profiles.join(",")));
+    }
+    lines.extend([
+        String::new(),
+        format!("DONKA_PUBLIC_URL={}", i.public_url),
+        format!(
+            "DONKA_COOKIE_SECURE={}",
+            i.public_url.starts_with("https://")
+        ),
+        format!("DONKA_BOOTSTRAP_ADMIN_EMAIL={}", i.administrator),
+        format!("DONKA_DEFAULT_LOCALE={}", i.language.as_str()),
+        format!("DONKA_MFA_REQUIRED={}", i.second_step.as_str()),
+        String::new(),
+        format!("DATABASE_URL_FILE={}", mounted(DATABASE_URL)),
+        format!(
+            "DONKA_ARTIFACT_SIGNING_KEY_FILE={}",
+            mounted(ARTIFACT_SIGNING_KEY)
+        ),
+        format!("DONKA_DECISION_LOG_KEY_FILE={}", mounted(DECISION_LOG_KEY)),
+        format!("DONKA_SECOND_STEP_KEY_FILE={}", mounted(SECOND_STEP_KEY)),
+        format!("DONKA_PERSON_INDEX_KEY_FILE={}", mounted(PERSON_INDEX_KEY)),
+    ]);
+    match &i.mail {
+        Mail::Mailpit => lines.extend([
+            "DONKA_SMTP_URL=smtp://mailpit:1025".to_owned(),
+            "DONKA_SMTP_FROM=Donka <donka@localhost>".to_owned(),
+        ]),
+        Mail::Smtp { from } => lines.extend([
+            format!("DONKA_SMTP_URL_FILE={}", mounted(SMTP_URL)),
+            format!("DONKA_SMTP_FROM={from}"),
+        ]),
+    }
+    match &i.storage {
+        Storage::Disk => lines.push("DONKA_STORAGE_URL=file:///var/lib/donka/releases".to_owned()),
+        Storage::S3 {
+            bucket,
+            region,
+            endpoint,
+        } => {
+            lines.extend([
+                format!("DONKA_STORAGE_URL=s3://{bucket}"),
+                format!("DONKA_STORAGE_REGION={region}"),
+                format!(
+                    "DONKA_STORAGE_ACCESS_KEY_ID_FILE={}",
+                    mounted(STORAGE_ACCESS_KEY_ID)
+                ),
+                format!(
+                    "DONKA_STORAGE_SECRET_ACCESS_KEY_FILE={}",
+                    mounted(STORAGE_SECRET_ACCESS_KEY)
+                ),
+            ]);
+            if let Some(endpoint) = endpoint {
+                lines.push(format!("DONKA_STORAGE_ENDPOINT={endpoint}"));
+            }
+        }
+    }
+    let explain = |api: &str, url: &str, model: &str| {
+        [
+            format!("DONKA_EXPLAIN_API={api}"),
+            format!("DONKA_EXPLAIN_URL={url}"),
+            format!("DONKA_EXPLAIN_MODEL={model}"),
+            format!("DONKA_EXPLAIN_API_KEY_FILE={}", mounted(EXPLAIN_API_KEY)),
+        ]
+    };
+    match &i.explanations {
+        Explanations::Off => {}
+        Explanations::Anthropic { url, model } => lines.extend(explain("anthropic", url, model)),
+        Explanations::Openai { url, model } => lines.extend(explain("openai", url, model)),
+    }
+    if i.licence {
+        lines.push(format!("DONKA_LICENCE_FILE={}", mounted(LICENCE)));
+    }
+    if i.demo {
+        lines.push("DONKA_DEMO=true".to_owned());
+    }
+    if i.offline {
+        lines.push("DONKA_UPDATE_CHECK=false".to_owned());
+    }
+    if let Some(window) = &i.auto_upgrade {
+        lines.push(format!("DONKA_AUTO_UPGRADE_WINDOW={window}"));
+    }
+    if let Some(modules) = &i.modules {
+        let names: Vec<&str> = modules.iter().map(|module| module.as_str()).collect();
+        lines.push(format!("DONKA_MODULES={}", names.join(",")));
+    }
+    // The Runtime's connector destinations, so Studio warns about connectors it would refuse.
+    let allowed = i.connector_allowed_hosts();
+    if !allowed.is_empty() {
+        let hosts: Vec<String> = allowed.into_iter().collect();
+        lines.push(format!("DONKA_CONNECTOR_ALLOWED_HOSTS={}", hosts.join(",")));
+        let secrets: Vec<String> = i
+            .connector_hosts()
+            .into_iter()
+            .map(|(name, hosts)| format!("{name}={}", hosts.join(",")))
+            .collect();
+        lines.push(format!("DONKA_CONNECTOR_HOSTS={}", secrets.join(";")));
+    }
+    lines.join("\n") + "\n"
+}
+
+/// `runtime.env`: the staging Runtime's settings, and the files holding its secrets.
+/// `signing` and `signing_previous` are the public halves (`keyId=<base64 key>`)
+/// of the artifact signing pair, when the secrets exist (DNK-87).
+fn runtime_env(
+    installation: &Installation,
+    signing: Option<&str>,
+    signing_previous: Option<&str>,
+) -> String {
+    let mut lines = vec![
+        "# Written by donka-admin init from donka.yaml: the staging Runtime's settings.".to_owned(),
+        "DECISION_LOG__URL=http://app:8080/api/v1/decision-log/records".to_owned(),
+        "DECISION_LOG__TOKEN_FILE=/var/lib/donka/wiring/staging-decision-log-token".to_owned(),
+    ];
+    if let Some(public) = signing {
+        lines.push(format!("ARTIFACT__PUBLIC_KEY={public}"));
+    }
+    if let Some(previous) = signing_previous {
+        lines.push(format!("ARTIFACT__PUBLIC_KEY_PREVIOUS={previous}"));
+    }
+    match &installation.storage {
+        Storage::Disk => lines.extend([
+            "PROVIDER__TYPE=Zip".to_owned(),
+            "PROVIDER__ROOT_DIR=/var/lib/donka/releases/staging".to_owned(),
+            "PROVIDER__WATCH=true".to_owned(),
+        ]),
+        Storage::S3 {
+            bucket,
+            region,
+            endpoint,
+        } => {
+            lines.extend([
+                "PROVIDER__TYPE=S3".to_owned(),
+                format!("PROVIDER__BUCKET={bucket}"),
+                format!("PROVIDER__REGION={region}"),
+                "PROVIDER__PREFIX=staging/".to_owned(),
+                format!("AWS_ACCESS_KEY_ID_FILE={}", mounted(STORAGE_ACCESS_KEY_ID)),
+                format!(
+                    "AWS_SECRET_ACCESS_KEY_FILE={}",
+                    mounted(STORAGE_SECRET_ACCESS_KEY)
+                ),
+            ]);
+            if let Some(endpoint) = endpoint {
+                lines.extend([
+                    format!("PROVIDER__ENDPOINT={endpoint}"),
+                    "PROVIDER__FORCE_PATH_STYLE=true".to_owned(),
+                ]);
+            }
+        }
+    }
+    for name in installation.connector_secrets() {
+        lines.push(format!(
+            "DONKA_SECRET_{name}_FILE={}",
+            mounted(&connector_file(&name))
+        ));
+    }
+    // Where connectors may call, and where each secret may go (DNK-84).
+    let allowed = installation.connector_allowed_hosts();
+    if !allowed.is_empty() {
+        let hosts: Vec<String> = allowed.into_iter().collect();
+        lines.push(format!("CONNECTORS__ALLOWED_HOSTS={}", hosts.join(",")));
+    }
+    for (name, hosts) in installation.connector_hosts() {
+        lines.push(format!("CONNECTORS__HOSTS__{name}={}", hosts.join(",")));
+    }
+    lines.join("\n") + "\n"
+}
+
+/// A host name, or `host:port`: no scheme, path, space or list separator.
+fn valid_host(host: &str) -> bool {
+    let (name, port) = match host.rsplit_once(':') {
+        Some((name, port)) => (name, Some(port)),
+        None => (host, None),
+    };
+    !name.is_empty()
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-')
+        && port.is_none_or(|port| port.parse::<u16>().is_ok_and(|port| port > 0))
+}
+
+/// The installation folder holds the secrets: only its owner may enter it.
+fn create_private_dir(dir: &Path) -> Result<(), String> {
+    std::fs::create_dir_all(dir)
+        .map_err(|err| format!("cannot create {}: {err}", dir.display()))?;
+    set_mode(dir, 0o700)
+}
+
+/// Containers run as other users: they may read a secret by name, but not list the folder.
+/// The installation folder around it keeps everyone else out.
+fn create_secrets_dir(dir: &Path) -> Result<(), String> {
+    std::fs::create_dir_all(dir)
+        .map_err(|err| format!("cannot create {}: {err}", dir.display()))?;
+    set_mode(dir, 0o711)
+}
+
+fn set_mode(path: &Path, mode: u32) -> Result<(), String> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))
+            .map_err(|err| format!("cannot protect {}: {err}", path.display()))?;
+    }
+    #[cfg(not(unix))]
+    let _ = (path, mode);
+    Ok(())
+}
+
+/// Creates `path`, which must not exist yet.
+fn write_file(path: &Path, content: &str, mode: u32) -> Result<(), String> {
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        options.mode(mode);
+    }
+    #[cfg(not(unix))]
+    let _ = mode;
+    let mut file = options
+        .open(path)
+        .map_err(|err| format!("cannot create {}: {err}", path.display()))?;
+    file.write_all(content.as_bytes())
+        .map_err(|err| format!("cannot write {}: {err}", path.display()))
+}
+
+/// Writes `path` whole, through a temporary file, readable by its owner only. A file that
+/// existed keeps its owner, so the operator keeps their files when the auto-upgrade service,
+/// which runs as root, writes them.
+fn replace_file(path: &Path, content: &str) -> Result<(), String> {
+    let temp = path.with_extension("tmp");
+    let _ = std::fs::remove_file(&temp);
+    write_file(&temp, content, 0o600)?;
+    #[cfg(unix)]
+    if let Ok(old) = std::fs::metadata(path) {
+        use std::os::unix::fs::MetadataExt as _;
+        // Only root may give a file away; anyone else already owns what they write.
+        let _ = std::os::unix::fs::chown(&temp, Some(old.uid()), Some(old.gid()));
+    }
+    std::fs::rename(&temp, path).map_err(|err| format!("cannot write {}: {err}", path.display()))
+}
+
+#[cfg(test)]
+mod tests;

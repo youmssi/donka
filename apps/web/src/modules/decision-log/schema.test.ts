@@ -1,0 +1,69 @@
+import { duration, fieldLines, isEmptyRange, readFilters, settingsSchema, toQuery } from './schema';
+
+it('reads the filters from the address and drops what the API would refuse', () => {
+  const params = new URLSearchParams({
+    reference: ' APP-1 ',
+    batchId: '2b5a7ac0-e9ce-4d93-b923-37c718b220b6',
+    decision: 'person-score',
+    outcome: 'approve',
+    environment: 'production',
+    status: 'failed',
+    from: '2026-09-01',
+    to: 'yesterday',
+  });
+  expect(readFilters(params)).toEqual({
+    reference: 'APP-1',
+    batchId: '2b5a7ac0-e9ce-4d93-b923-37c718b220b6',
+    decision: 'person-score',
+    outcome: 'approve',
+    environment: 'production',
+    status: 'failed',
+    from: '2026-09-01',
+    to: undefined,
+  });
+  expect(readFilters(new URLSearchParams({ environment: 'qa', status: 'maybe', batchId: 'nope' }))).toEqual({
+    reference: undefined,
+    batchId: undefined,
+    decision: undefined,
+    outcome: undefined,
+    environment: undefined,
+    status: undefined,
+    from: undefined,
+    to: undefined,
+  });
+});
+
+it('asks the API for whole days, the last one included', () => {
+  const query = toQuery({ decision: 'limit', from: '2026-09-01', to: '2026-09-02' });
+  expect(query).toEqual({
+    reference: undefined,
+    batchId: undefined,
+    decisionKey: 'limit',
+    outcome: undefined,
+    environment: undefined,
+    status: undefined,
+    from: new Date(2026, 8, 1).toISOString(),
+    until: new Date(2026, 8, 3).toISOString(),
+  });
+  expect(isEmptyRange({ from: '2026-09-02', to: '2026-09-01' })).toBe(true);
+});
+
+it('shows durations in the unit that reads best', () => {
+  expect(duration(420, 'en')).toBe('420 µs');
+  expect(duration(1840, 'en')).toBe('1.8 ms');
+  expect(duration(1840, 'fr')).toBe('1,8 ms');
+});
+
+it('takes an outcome field as dotted names, or nothing', () => {
+  const valid = (outcomeField: string) => settingsSchema.safeParse({ outcomeField, redactedFields: '' }).success;
+  for (const good of ['', 'decision', 'result.band']) expect(valid(good)).toBe(true);
+  for (const bad of ['1st', 'a-b', 'a..b']) expect(valid(bad)).toBe(false);
+});
+
+it('takes redacted fields one per line, at most 50', () => {
+  const valid = (redactedFields: string) => settingsSchema.safeParse({ outcomeField: '', redactedFields }).success;
+  expect(fieldLines(' applicant.nationalId \n\n iban ')).toEqual(['applicant.nationalId', 'iban']);
+  expect(valid('applicant.nationalId\niban\n')).toBe(true);
+  expect(valid('applicant national id')).toBe(false);
+  expect(valid(Array.from({ length: 51 }, (_, i) => `f${i}`).join('\n'))).toBe(false);
+});

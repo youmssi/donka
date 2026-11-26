@@ -1,0 +1,391 @@
+{
+  "machine": "GitHub ubuntu-latest runner: 4 vCPU, 16 GB",
+  "targets": {
+    "runtime": {
+      "rate": 100,
+      "p95_ms": 20,
+      "p99_ms": 50
+    },
+    "feed": {
+      "lag_seconds": 5
+    },
+    "studio": {
+      "search_p95_ms": 1000,
+      "replay_p95_ms": 2000
+    }
+  },
+  "margin": 0.2,
+  "margin_floor_ms": 10,
+  "baseline": {
+    "measured": "Runtime: CI runs from 2026-11-05 to 2026-11-20 for the Intel 8573C, AMD 9V74 and AMD 9V45 profiles, each a mean over every collected run on that model; AMD 7763 from 2026-10-31 to 2026-11-05, independently confirmed within 3.2% of its 30-run mean on 2026-11-20",
+    "runtime": {
+      "margin": 0.3,
+      "method": "mean of the historical maximum-throughput result of each CI run on the CPU model, over every run whose samples had no request errors; compare current three-window medians; no cross-model averaging. Measured run-to-run spread on one model is 3 to 12% relative standard deviation: a single observation is not a baseline, and a 20% floor sat under two standard deviations and failed runs that had no error, so the throughput margin here is 30%. Studio latency keeps the shared 20% margin in the top-level margin field",
+      "profiles": [
+        {
+          "machine": {
+            "cpuModel": "AMD EPYC 7763 64-Core Processor",
+            "cpus": 4,
+            "arch": "x86_64"
+          },
+          "source": {
+            "runs": [
+              41185166791,
+              41188145193,
+              41855811359,
+              41921085046,
+              41965398095,
+              41969652954,
+              41969675926
+            ]
+          },
+          "decisions": {
+            "kyc-risk-rating/risk-rating": {
+              "maximum": {
+                "throughput": 3512
+              }
+            },
+            "mobile-money-limits/transaction-limits": {
+              "maximum": {
+                "throughput": 6558
+              }
+            },
+            "retail-credit/credit-application": {
+              "maximum": {
+                "throughput": 2138
+              }
+            },
+            "retail-credit/scorecard": {
+              "maximum": {
+                "throughput": 3017
+              }
+            },
+            "sme-treasury/evaluation": {
+              "maximum": {
+                "throughput": 3014
+              }
+            }
+          }
+        },
+        {
+          "machine": {
+            "cpuModel": "INTEL(R) XEON(R) PLATINUM 8573C",
+            "cpus": 4,
+            "arch": "x86_64"
+          },
+          "source": {
+            "runs": [
+              42045228970,
+              42066949538,
+              42662928572,
+              43255453087,
+              43873689467,
+              44045396211,
+              44113328436
+            ],
+            "samples": 7,
+            "window": "2026-11-05 to 2026-11-17"
+          },
+          "decisions": {
+            "kyc-risk-rating/risk-rating": {
+              "maximum": {
+                "throughput": 4326
+              }
+            },
+            "mobile-money-limits/transaction-limits": {
+              "maximum": {
+                "throughput": 8368
+              }
+            },
+            "retail-credit/credit-application": {
+              "maximum": {
+                "throughput": 2583
+              }
+            },
+            "retail-credit/scorecard": {
+              "maximum": {
+                "throughput": 3526
+              }
+            },
+            "sme-treasury/evaluation": {
+              "maximum": {
+                "throughput": 3662
+              }
+            }
+          }
+        },
+        {
+          "machine": {
+            "cpuModel": "AMD EPYC 9V74 80-Core Processor",
+            "cpus": 4,
+            "arch": "x86_64"
+          },
+          "source": {
+            "runs": [
+              42005577933,
+              42017346117,
+              42028319509,
+              42037619926,
+              42092485909,
+              42191614318,
+              42643146536,
+              42652439569,
+              42659350943,
+              43278010528,
+              43751314966,
+              43795395925,
+              43920438620,
+              44063361335,
+              44078928857,
+              44099974550,
+              44113311415,
+              44326067302,
+              44337313042,
+              44517481926,
+              44697237498,
+              44713654373,
+              44718163123,
+              44720846900
+            ],
+            "samples": 24,
+            "window": "2026-11-05 to 2026-11-20"
+          },
+          "decisions": {
+            "kyc-risk-rating/risk-rating": {
+              "maximum": {
+                "throughput": 5286
+              }
+            },
+            "mobile-money-limits/transaction-limits": {
+              "maximum": {
+                "throughput": 9445
+              }
+            },
+            "retail-credit/credit-application": {
+              "maximum": {
+                "throughput": 3042
+              }
+            },
+            "retail-credit/scorecard": {
+              "maximum": {
+                "throughput": 4131
+              }
+            },
+            "sme-treasury/evaluation": {
+              "maximum": {
+                "throughput": 4212
+              }
+            }
+          }
+        },
+        {
+          "machine": {
+            "cpuModel": "AMD EPYC 9V45 96-Core Processor",
+            "cpus": 4,
+            "arch": "x86_64"
+          },
+          "source": {
+            "runs": [
+              42011432587,
+              42060311360,
+              42275919010,
+              43038674029,
+              43747771250,
+              44373806456,
+              44507917059,
+              44537837886,
+              44719484806
+            ],
+            "samples": 9,
+            "window": "2026-11-05 to 2026-11-20"
+          },
+          "decisions": {
+            "kyc-risk-rating/risk-rating": {
+              "maximum": {
+                "throughput": 7464
+              }
+            },
+            "mobile-money-limits/transaction-limits": {
+              "maximum": {
+                "throughput": 14040
+              }
+            },
+            "retail-credit/credit-application": {
+              "maximum": {
+                "throughput": 4281
+              }
+            },
+            "retail-credit/scorecard": {
+              "maximum": {
+                "throughput": 5915
+              }
+            },
+            "sme-treasury/evaluation": {
+              "maximum": {
+                "throughput": 6188
+              }
+            }
+          }
+        }
+      ]
+    },
+    "studio": {
+      "method": "mean of the pooled p95 of each CI run on the CPU model (three 1000-request rounds per run); no averaging across hardware models",
+      "sample": {
+        "records": 100000,
+        "months": 60,
+        "samples": 1000,
+        "warmup": 50,
+        "rounds": 3
+      },
+      "corpus": {
+        "after": 100000
+      },
+      "profiles": [
+        {
+          "machine": {
+            "cpus": 4,
+            "cpuModel": "AMD EPYC 7763 64-Core Processor",
+            "arch": "x64",
+            "node": "22.23.4"
+          },
+          "source": {
+            "runs": [
+              41121411427,
+              41185166791,
+              41188145193,
+              41855811359,
+              41921085046,
+              41965398095,
+              41969652954,
+              41969675926,
+              41981822104
+            ]
+          },
+          "search": {
+            "newest": {
+              "p95_ms": 20.72
+            },
+            "reference": {
+              "p95_ms": 5.58
+            },
+            "decisionAndDate": {
+              "p95_ms": 4.48
+            },
+            "status": {
+              "p95_ms": 41.56
+            }
+          },
+          "replay": {
+            "p95_ms": 5.73
+          }
+        },
+        {
+          "machine": {
+            "cpus": 4,
+            "cpuModel": "AMD EPYC 9V74 80-Core Processor",
+            "arch": "x64",
+            "node": "22.23.4"
+          },
+          "source": {
+            "runs": [
+              41121411427,
+              41925746371
+            ]
+          },
+          "search": {
+            "newest": {
+              "p95_ms": 19.49
+            },
+            "reference": {
+              "p95_ms": 4.42
+            },
+            "decisionAndDate": {
+              "p95_ms": 3.14
+            },
+            "status": {
+              "p95_ms": 36.99
+            }
+          },
+          "replay": {
+            "p95_ms": 5.25
+          }
+        },
+        {
+          "machine": {
+            "cpus": 4,
+            "cpuModel": "INTEL(R) XEON(R) PLATINUM 8573C",
+            "arch": "x64",
+            "node": "22.23.4"
+          },
+          "source": {
+            "runs": [
+              41121411427,
+              41914823350,
+              41985488002,
+              41985501824
+            ]
+          },
+          "search": {
+            "newest": {
+              "p95_ms": 18.0
+            },
+            "reference": {
+              "p95_ms": 4.2
+            },
+            "decisionAndDate": {
+              "p95_ms": 3.67
+            },
+            "status": {
+              "p95_ms": 29.52
+            }
+          },
+          "replay": {
+            "p95_ms": 4.7
+          }
+        },
+        {
+          "machine": {
+            "cpus": 4,
+            "cpuModel": "AMD EPYC 9V45 96-Core Processor",
+            "arch": "x64",
+            "node": "22.23.4"
+          },
+          "source": {
+            "runs": [
+              41183908484
+            ]
+          },
+          "search": {
+            "newest": {
+              "p95_ms": 19.27
+            },
+            "reference": {
+              "p95_ms": 5.63
+            },
+            "decisionAndDate": {
+              "p95_ms": 4.33
+            },
+            "status": {
+              "p95_ms": 40.87
+            }
+          },
+          "replay": {
+            "p95_ms": 5.37
+          }
+        }
+      ]
+    }
+  },
+  "sample": {
+    "studio": {
+      "records": 100000,
+      "full_records": 1000000,
+      "months": 60,
+      "samples": 1000,
+      "full_samples": 1000,
+      "warmup": 50,
+      "rounds": 3
+    }
+  }
+}

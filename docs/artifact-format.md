@@ -1,0 +1,168 @@
+# Release artifact format
+
+The release artifact is the contract between Donka Studio and Donka Runtime (ADR-001). Studio
+writes it; the Runtime reads it. Changes are **additive only**, and the Runtime ships first when
+the format changes.
+
+## Layout
+
+One zip per project and environment, stored at `<environment>/<project-key>` in the bucket (no
+extension):
+
+```
+.config/project.json                               release metadata and the tokens it accepts
+.config/contracts/person-score/input.schema.json   a decision's input contract, when it has one
+person-score                                       a JDM decision graph, named by its key (no extension)
+bureau/normalize                                   decisions in folders keep their path
+```
+
+An entry is named exactly by the decision key, so a decision node that calls `bureau/normalize`
+and a client that evaluates `/api/projects/<project>/evaluate/bureau/normalize` both find it.
+
+## Signature (DNK-87)
+
+Studio signs each artifact with the installation's Ed25519 key. One additive entry carries it:
+
+```
+.config/signature.json   { "format": "donka-artifact/1", "keyId": "…", "digest": "…", "signature": "…" }
+```
+
+`digest` is the SHA-256 (hex) of the canonical content: every entry except
+`.config/signature.json`, sorted by entry name, the name's bytes and the entry's bytes each
+followed by one zero byte. `signature` is Ed25519 over those digest bytes (URL-safe base64).
+`keyId` names the signing key (the first eight hex digits of its public key's SHA-256), so a
+Runtime holding the current and previous public keys verifies through a rotation.
+
+A Runtime given the keys refuses an artifact that is unsigned, altered, or signed by another
+key, keeps serving the last valid one, and logs why. Without keys it serves as before and says
+so at start, so existing installations upgrade in order. Runtimes that predate this entry skip
+everything under `.config/` when loading decisions, as they already did.
+
+## `.config/project.json`
+
+Current version: **2**.
+
+```json
+{
+  "version": "2",
+  "project": { "id": "…", "key": "credit-pme", "name": "Crédit PME" },
+  "release": { "id": "…", "version": "1.4.0", "name": "Q3 limits", "status": "published" },
+  "environment": { "id": "…", "key": "production", "name": "Production" },
+  "accessTokenHashes": [
+    {
+      "id": "…",
+      "environment": "production",
+      "algorithm": "sha256",
+      "hash": "d4d813b79f07c455e68458c955824329d902dd5f8e7b0c250fb3f05b3f68c840"
+    }
+  ]
+}
+```
+
+| Field | Since | Meaning |
+|---|---|---|
+| `version` | 1 | Format version, a string. |
+| `project` | 1 | `id`, `key`, `name` of the project. |
+| `release` | 1 | `id`, `version` (semantic), `name`, `status` of the release. |
+| `environment` | 1 | `id`, `key` (`staging` or `production`), `name` of the environment deployed to. |
+| `accessTokens` | 1 | Plain tokens. **Studio never writes them**; the Runtime still accepts them so older artifacts keep working. |
+| `accessTokenHashes` | 2 | The tokens issued for this environment, as hashes. |
+
+Each `accessTokenHashes` entry:
+
+| Field | Meaning |
+|---|---|
+| `id` | The token's id in Studio, to tell tokens apart without revealing them. |
+| `environment` | The environment the token was issued for. |
+| `algorithm` | `sha256`, the only one today. An entry naming another algorithm never matches. |
+| `hash` | Lowercase hex SHA-256 of the token's UTF-8 bytes. |
+
+A release pulled by a CI pipeline outside an environment (`release:`, `commit:` or `main`,
+[`rules-sync.md`](rules-sync.md)) has no `environment` and no `deployment`, and an empty
+`accessTokenHashes`: a Runtime given it refuses every request, as no token is listed.
+
+## Token rules
+
+- A token is a long random secret: at least 32 random bytes, shown once when Studio issues it
+  and never stored or written anywhere in plain form. Because it is random, an unsalted SHA-256
+  is enough to keep it out of the artifact; the Runtime compares digests in constant time.
+- A client sends the token in the `X-Access-Token` header.
+- An artifact deployed to an environment accepts only entries whose `environment` equals its
+  `environment.key`: a token issued for staging is refused by the production Runtime, even if
+  its hash were listed there.
+- A malformed entry is skipped (and logged) by the Runtime; it never invalidates the rest of the
+  file.
+
+Test vector: the token `dnk_test_token` hashes to
+`d4d813b79f07c455e68458c955824329d902dd5f8e7b0c250fb3f05b3f68c840`. The Runtime checks it in its
+tests; Studio checks it too once it issues tokens (DNK-14).
+
+## Input contracts
+
+Since DNK-37 (additive). A decision whose input node holds a JSON Schema has that schema written,
+as a JSON object, at `.config/contracts/<decision key>/input.schema.json`. It is the same schema
+the graph's input node carries, so the engine validates requests against exactly what the file
+says; the file exists so that a form or a pipeline (Donka CLI, DNK-38) can read the contract of
+a release without parsing graphs.
+
+- Draft-07, the version the engine validates with. The root is always `"type": "object"`: the
+  request's `context`.
+- Presentation hints sit beside the standard keywords under `x-donka`, which validation ignores:
+  `label` and `help` (`{ "en": …, "fr": … }`), `widget`, `order`, `step`, and `pii: true` for
+  personal data. Studio removes `pii` fields from what it sends to be explained.
+- Entries under `.config/` are not decisions: Runtimes skip them when loading, so older Runtimes
+  read these artifacts unchanged.
+- A Runtime refuses a request that breaks the contract with `400`; see the Runtime's
+  `docs/contracts.md` for the answer's shape.
+- Since zen-engine 2.1 (DNK-62), `null` in an optional field counts as the field left out, and a
+  field declared `"format": "date"` or `"date-time"` reaches the rules as a date. A required
+  field holding `null` is still refused.
+
+## Connector nodes
+
+A decision may call an outside service through a connector node (DNK-17): a JDM `customNode`
+whose `content.kind` is `donka.connector`. The Runtime POSTs `body` to `url` and adds the JSON
+answer to the node's output under `outputKey`; Studio answers with `mock` instead.
+
+```json
+{
+  "id": "bureau", "name": "bureau", "type": "customNode", "position": { "x": 300, "y": 40 },
+  "content": {
+    "kind": "donka.connector",
+    "config": {
+      "preset": "bureau-score",
+      "url": "https://api.bureau.example/v2/score",
+      "auth": { "type": "header", "header": "X-Api-Key", "secret": "BUREAU_API_KEY" },
+      "body": { "nationalId": "{{ applicant.nationalId }}" },
+      "outputKey": "bureau",
+      "timeoutMs": 3000,
+      "retries": 1,
+      "onError": "fallback",
+      "fallback": { "score": null, "available": false },
+      "mock": { "score": 712, "available": true }
+    }
+  }
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `preset` | `http` or `bureau-score`; informational. |
+| `url` | `http://` or `https://`. |
+| `auth` | `{ "type": "none" }`, `{ "type": "bearer", "secret" }`, `{ "type": "header", "header", "secret" }` or `{ "type": "oauth2", "tokenUrl", "clientId", "secret", "scopes" }` (OAuth2 client credentials, DNK-63). `secret` is a **name** (capital letters, digits, `_`, at most 64); the Runtime reads the value from `DONKA_SECRET_<NAME>` or the file `DONKA_SECRET_<NAME>_FILE` names. |
+| `tls` | Optional, mutual TLS (DNK-63): `{ "certificate", "key", "ca" }`, the **names** of the secrets holding the client certificate, its key and an optional CA bundle (PEM). |
+| `body` | Any JSON; string values may be templates over the node's input. |
+| `outputKey` | Letters, digits and `_`. |
+| `timeoutMs`, `retries` | Optional; capped by the Runtime (`CONNECTORS__*`). |
+| `onError` | `fail` (default) or `fallback`, which answers `fallback` when the service fails. |
+| `mock` | The answer in Studio's simulator and test scenarios; required to simulate. |
+
+Unknown fields are refused, so a secret value cannot ride along in the node. The node's trace
+holds the mode, outcome, attempts, status and an error code, never a secret or the answer.
+
+## History
+
+| Version | Change |
+|---|---|
+| 1 | Format inherited from the GoRules agent: plain `accessTokens`. |
+| 2 | `accessTokenHashes`, per environment (DNK-13). `accessTokens` no longer written. |

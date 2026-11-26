@@ -1,0 +1,120 @@
+# Disposable services for the live feature suite. Use with docker-compose.yml.
+# Never add this override to a customer installation.
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.2
+    command: [start-dev, --import-realm, --http-port=8180]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: feature-keycloak-admin
+      KC_HOSTNAME: http://keycloak:8180
+      KC_HOSTNAME_STRICT: 'false'
+      KC_HEALTH_ENABLED: 'true'
+    volumes: ['./scripts/keycloak:/opt/keycloak/data/import:ro']
+    ports: ['127.0.0.1:8180:8180']
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          bash -c 'exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf "GET /health/ready HTTP/1.0\r\n\r\n" >&3 &&
+          read -r response <&3 && [[ "$$response" == *"200 OK"* ]]'
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+  app:
+    # Trusts the development licence key; CI issues the licence (scripts/dev-licence.sh). A
+    # release version, so that the disposable feed's 99.0.0 is newer (CI sets the same in bake).
+    build:
+      args:
+        CARGO_FEATURES: development-licence-key
+        SERVICE_VERSION: 1.0.0
+    environment:
+      DONKA_LICENCE_FILE: /etc/donka/licence.json
+      DONKA_UPDATE_CHECK_URL: http://feature-releases:8101/releases/latest
+    volumes: ['./.feature-licence.json:/etc/donka/licence.json:ro']
+    depends_on:
+      feature-releases: { condition: service_started }
+      keycloak: { condition: service_healthy }
+  app-oidc:
+    # Isolate the provider-enabled application from workflows that exercise local admin login.
+    profiles: [oidc]
+    extends:
+      file: docker-compose.yml
+      service: app
+    environment:
+      DONKA_PUBLIC_URL: http://localhost:8084
+      DONKA_OIDC_ISSUER: http://keycloak:8180/realms/donka
+      DONKA_OIDC_CLIENT_ID: donka-studio
+      DONKA_OIDC_CLIENT_SECRET: feature-oidc-client-secret
+      DONKA_OIDC_ADMIN_GROUP: studio-admins
+      DONKA_OIDC_ALLOW_HTTP: 'true'
+    ports: !override ['127.0.0.1:8084:8080']
+    depends_on:
+      app: { condition: service_started }
+      keycloak: { condition: service_healthy }
+  # The release feed Studio checks for a newer Donka (DNK-64), announcing 99.0.0.
+  feature-releases:
+    image: python:3.13-alpine
+    command: [python, -m, http.server, '8101', --directory, /feed]
+    volumes: ['./scripts/feature-releases:/feed:ro']
+  feature-explain:
+    image: python:3.13-alpine
+    command: [python, /fixture/feature-explain.py, 0.0.0.0, '8100']
+    environment:
+      FEATURE_EXPLAIN_KEY: feature-explain-secret
+    volumes: ['./scripts/feature-explain.py:/fixture/feature-explain.py:ro']
+    ports: ['127.0.0.1:8100:8100']
+  app-explanations:
+    # Start after the main app has bootstrapped its first administrator.
+    profiles: !override [feature-explanations]
+    extends:
+      file: docker-compose.yml
+      service: app
+    environment:
+      DONKA_PUBLIC_URL: http://localhost:8083
+      DONKA_EXPLAIN_URL: http://feature-explain:8100/v1/messages
+      DONKA_EXPLAIN_API_KEY: feature-explain-secret
+      DONKA_EXPLAIN_API: anthropic
+      DONKA_EXPLAIN_MODEL: feature-explain-model
+    ports: !override ['127.0.0.1:8083:8080']
+  feature-bureau:
+    image: python:3.13-alpine
+    command: [python, /fixture/feature-bureau.py, 0.0.0.0, '8099']
+    environment:
+      FAKE_BUREAU_KEY: feature-test-secret
+    volumes: ['./scripts/feature-bureau.py:/fixture/feature-bureau.py:ro']
+    ports: ['127.0.0.1:8099:8099']
+  runtime:
+    env_file:
+      - path: .feature-runtime.env
+        required: false
+    environment:
+      DONKA_SECRET_E2E_BUREAU_KEY: feature-test-secret
+      # The Runtime calls only listed hosts and sends each secret only to its own (DNK-84).
+      # E2E_UNCONFIGURED is listed so the test reaches the missing-secret error it checks.
+      CONNECTORS__ALLOWED_HOSTS: feature-bureau
+      CONNECTORS__HOSTS__E2E_BUREAU_KEY: feature-bureau
+      CONNECTORS__HOSTS__E2E_UNCONFIGURED: feature-bureau
+  runtime-production:
+    extends:
+      file: docker-compose.yml
+      service: runtime
+    # Its own production feed token: the decision log refuses a record whose
+    # environment is not the token's, and the analysis of a proposed release
+    # reads the production decisions this Runtime records (DNK-56).
+    env_file:
+      - path: .feature-runtime-production.env
+        required: false
+    environment:
+      PROVIDER__PREFIX: production/
+    ports: !override ['127.0.0.1:8091:8080']
+  runtime-limited:
+    extends:
+      file: docker-compose.yml
+      service: runtime
+    environment:
+      RATE_LIMIT__REQUESTS: '3'
+      RATE_LIMIT__WINDOW: '60000'
+    ports: !override ['127.0.0.1:8092:8080']

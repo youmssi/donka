@@ -1,0 +1,2034 @@
+#![allow(clippy::unwrap_used)] // tests fail loudly on purpose
+
+mod support;
+
+use axum::body::Body;
+use axum::http::{header, Request, StatusCode};
+use chrono::{DateTime, Duration, TimeZone, Utc};
+use donka_db::PgPool;
+use donka_decision_log::Cipher;
+use serde_json::{json, Value};
+use support::*;
+use uuid::Uuid;
+
+const GRACE: &str = "grace@bank.example";
+const VIEWER: &str = "vera@bank.example";
+const OUTSIDER: &str = "otto@bank.example";
+
+async fn call(
+    app: &TestApp,
+    method: &str,
+    path: &str,
+    body: Option<Value>,
+    session: &str,
+) -> Reply {
+    send(
+        &app.router,
+        request(
+            method,
+            &format!("{BASE}{path}"),
+            body.as_ref(),
+            Some(session),
+        ),
+    )
+    .await
+}
+
+/// A batch as a Runtime sends it: a bearer token, no cookie, no CSRF header.
+async fn feed(app: &TestApp, token: Option<&str>, records: Value) -> Reply {
+    let mut req = Request::post(format!("{BASE}/decision-log/records"))
+        .header(header::CONTENT_TYPE, "application/json");
+    if let Some(token) = token {
+        req = req.header(header::AUTHORIZATION, format!("Bearer {token}"));
+    }
+    send(
+        &app.router,
+        req.body(Body::from(json!({ "records": records }).to_string()))
+            .unwrap(),
+    )
+    .await
+}
+
+fn table() -> Value {
+    let path = format!(
+        "{}/../../crates/engine/tests/fixtures/table.json",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
+}
+
+/// A project whose release 1.0.0 (`limit`, a table: input 12 → output 10) is
+/// live on staging. Returns (admin session, project id, release id).
+async fn released(app: &TestApp) -> (String, String, String) {
+    released_with(app, table()).await
+}
+
+/// [`released`], with `content` as the decision `limit`.
+async fn released_with(app: &TestApp, content: Value) -> (String, String, String) {
+    let admin = signed_in_admin(app).await;
+    let p = call(
+        app,
+        "POST",
+        "/projects",
+        Some(json!({ "key": "credit-pme", "name": "Crédit PME" })),
+        &admin,
+    )
+    .await
+    .body["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let d = call(
+        app,
+        "POST",
+        &format!("/projects/{p}/decisions"),
+        Some(json!({ "key": "limit", "content": content })),
+        &admin,
+    )
+    .await;
+    assert_eq!(d.status, StatusCode::CREATED, "{}", d.body);
+    let v = call(
+        app,
+        "POST",
+        &format!(
+            "/projects/{p}/decisions/{}/versions",
+            d.body["id"].as_str().unwrap()
+        ),
+        Some(json!({ "message": "First", "revision": 1 })),
+        &admin,
+    )
+    .await;
+    assert_eq!(v.status, StatusCode::CREATED, "{}", v.body);
+    let r = call(
+        app,
+        "POST",
+        &format!("/projects/{p}/releases"),
+        Some(json!({ "bump": "major", "notes": "First release" })),
+        &admin,
+    )
+    .await;
+    assert_eq!(r.status, StatusCode::CREATED, "{}", r.body);
+    let rid = r.body["id"].as_str().unwrap().to_owned();
+    let deployed = call(
+        app,
+        "POST",
+        &format!("/projects/{p}/environments/staging/deployments"),
+        Some(json!({ "releaseId": rid })),
+        &admin,
+    )
+    .await;
+    assert_eq!(deployed.status, StatusCode::ACCEPTED, "{}", deployed.body);
+    app.releases.publish_due().await.unwrap();
+    (admin, p, rid)
+}
+
+async fn issue(app: &TestApp, session: &str, environment: &str) -> Reply {
+    call(
+        app,
+        "POST",
+        "/decision-log/tokens",
+        Some(json!({ "environment": environment, "name": "runtime-1" })),
+        session,
+    )
+    .await
+}
+
+async fn staging_token(app: &TestApp, admin: &str) -> String {
+    let reply = issue(app, admin, "staging").await;
+    assert_eq!(reply.status, StatusCode::CREATED, "{}", reply.body);
+    reply.body["token"].as_str().unwrap().to_owned()
+}
+
+/// A record as the Runtime builds it.
+fn record(project: &str, release: &str, evaluated_at: DateTime<Utc>, extra: Value) -> Value {
+    let mut record = json!({
+        "id": Uuid::new_v4(),
+        "projectId": project,
+        "releaseId": release,
+        "environment": "staging",
+        "decisionKey": "limit",
+        "evaluatedAt": evaluated_at,
+        "durationUs": 420,
+        "status": "succeeded",
+        "input": { "input": 12, "applicant": { "nationalId": "CM-1984-0042" } },
+        "output": { "output": 10 },
+        "trace": { "node": { "output": { "output": 10 } } }
+    });
+    for (key, value) in extra.as_object().unwrap() {
+        record[key] = value.clone();
+    }
+    record
+}
+
+fn now(app: &TestApp) -> DateTime<Utc> {
+    use donka_shared::clock::Clock;
+    app.clock.now()
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn a_runtime_sends_records_that_members_search_open_and_replay(db: PgPool) {
+    let app = with_database(db.clone());
+    let (admin, p, rid) = released(&app).await;
+    let token = staging_token(&app, &admin).await;
+    let at = now(&app);
+    let batch_id = Uuid::new_v4();
+
+    // The project reads its outcome from the `output` field of each answer.
+    let settings = call(
+        &app,
+        "PUT",
+        &format!("/projects/{p}/decision-log/settings"),
+        Some(json!({ "outcomeField": "output" })),
+        &admin,
+    )
+    .await;
+    assert_eq!(settings.status, StatusCode::OK, "{}", settings.body);
+    assert_eq!(settings.body["outcomeField"], "output");
+
+    let approved = record(
+        &p,
+        &rid,
+        at,
+        json!({ "reference": "APP-2026-0042", "batchId": batch_id }),
+    );
+    let failed = record(
+        &p,
+        &rid,
+        at + Duration::seconds(1),
+        json!({ "status": "failed", "output": null, "error": { "message": "boom" }, "reference": "APP-2026-0043", "batchId": batch_id }),
+    );
+    let production = record(&p, &rid, at, json!({ "environment": "production" }));
+    let unknown_release = record(&p, &Uuid::new_v4().to_string(), at, json!({}));
+    let malformed = record(&p, &rid, at, json!({ "decisionKey": "" }));
+    let batch = json!([approved, failed, production, unknown_release, malformed]);
+
+    let receipt = feed(&app, Some(&token), batch.clone()).await;
+    assert_eq!(receipt.status, StatusCode::OK, "{}", receipt.body);
+    assert_eq!(receipt.body["accepted"], 2);
+    let rejected: Vec<(Value, Value)> = receipt.body["rejected"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| (r["id"].clone(), r["code"].clone()))
+        .collect();
+    assert_eq!(
+        rejected,
+        vec![
+            (production["id"].clone(), json!("wrong_environment")),
+            (unknown_release["id"].clone(), json!("unknown_release")),
+            (malformed["id"].clone(), json!("invalid")),
+        ]
+    );
+
+    // A batch sent again (a retry) is stored once.
+    let again = feed(&app, Some(&token), batch).await;
+    assert_eq!(again.body["accepted"], 2);
+    let list = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/decision-log"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(list.status, StatusCode::OK, "{}", list.body);
+    assert_eq!(list.body["total"], 2);
+    // Newest first, with nothing the decision read or answered.
+    assert_eq!(list.body["items"][0]["id"], failed["id"]);
+    assert_eq!(list.body["items"][0]["outcome"], "error");
+    assert_eq!(list.body["items"][1]["outcome"], "10");
+    assert!(!list.body.to_string().contains("CM-1984-0042"));
+
+    // What was read and answered is encrypted at rest.
+    let (payload,): (Vec<u8>,) =
+        sqlx::query_as("SELECT payload FROM decision_records WHERE id = $1")
+            .bind(Uuid::parse_str(approved["id"].as_str().unwrap()).unwrap())
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert!(!String::from_utf8_lossy(&payload).contains("CM-1984-0042"));
+
+    // Search by batch, reference, decision, outcome, status, environment and date.
+    let search = |query: &str| {
+        let path = format!("/projects/{p}/decision-log?{query}");
+        let app = &app;
+        let admin = admin.clone();
+        async move { call(app, "GET", &path, None, &admin).await.body }
+    };
+    let ids = |body: Value| -> Vec<Value> {
+        body["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| r["id"].clone())
+            .collect()
+    };
+    assert_eq!(
+        ids(search(&format!("batchId={batch_id}")).await),
+        vec![failed["id"].clone(), approved["id"].clone()]
+    );
+    assert_eq!(
+        ids(search(&format!("batchId={}", Uuid::new_v4())).await),
+        Vec::<Value>::new()
+    );
+    assert_eq!(
+        ids(search("reference=APP-2026-0042").await),
+        vec![approved["id"].clone()]
+    );
+    assert_eq!(
+        ids(search("outcome=10").await),
+        vec![approved["id"].clone()]
+    );
+    assert_eq!(
+        ids(search("status=failed").await),
+        vec![failed["id"].clone()]
+    );
+    assert_eq!(search("decisionKey=limit").await["total"], 2);
+    assert_eq!(search("decisionKey=other").await["total"], 0);
+    assert_eq!(search("environment=production").await["total"], 0);
+    let after = (at + Duration::milliseconds(500))
+        .to_rfc3339()
+        .replace('+', "%2B");
+    assert_eq!(
+        ids(search(&format!("from={after}")).await),
+        vec![failed["id"].clone()]
+    );
+    assert_eq!(
+        ids(search(&format!("until={after}")).await),
+        vec![approved["id"].clone()]
+    );
+    let page = search("limit=1&offset=1").await;
+    assert_eq!(
+        (page["total"].clone(), ids(page)),
+        (json!(2), vec![approved["id"].clone()])
+    );
+
+    // Opening a record shows it all, and is audited.
+    let id = approved["id"].as_str().unwrap();
+    let opened = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/decision-log/{id}"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(opened.status, StatusCode::OK, "{}", opened.body);
+    assert_eq!(opened.body["input"], approved["input"]);
+    assert_eq!(opened.body["output"], json!({ "output": 10 }));
+    assert_eq!(opened.body["trace"], approved["trace"]);
+    assert_eq!(opened.body["releaseVersion"], "1.0.0");
+    assert_eq!(opened.body["reference"], "APP-2026-0042");
+
+    // Replay gives the recorded answer with the same release.
+    let replayed = call(
+        &app,
+        "POST",
+        &format!("/projects/{p}/decision-log/{id}/replay"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(replayed.status, StatusCode::OK, "{}", replayed.body);
+    assert_eq!(replayed.body["identical"], true);
+    assert_eq!(replayed.body["output"], json!({ "output": 10 }));
+
+    // A record whose recorded answer differs from the release's is flagged.
+    let altered = record(&p, &rid, at, json!({ "output": { "output": 11 } }));
+    feed(&app, Some(&token), json!([altered])).await;
+    let altered_id = altered["id"].as_str().unwrap();
+    let replayed = call(
+        &app,
+        "POST",
+        &format!("/projects/{p}/decision-log/{altered_id}/replay"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(replayed.body["identical"], false, "{}", replayed.body);
+    assert_eq!(replayed.body["output"], json!({ "output": 10 }));
+
+    let audit = call(&app, "GET", &format!("/projects/{p}/audit"), None, &admin).await;
+    let actions: Vec<&str> = audit.body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["action"].as_str().unwrap())
+        .collect();
+    assert!(actions.contains(&"decision_record.viewed"), "{actions:?}");
+    assert_eq!(
+        actions
+            .iter()
+            .filter(|a| **a == "decision_record.replayed")
+            .count(),
+        2
+    );
+    assert!(actions.contains(&"decision_log.settings_updated"));
+    // A list is not an opening: no other decision-log event.
+    assert_eq!(
+        actions
+            .iter()
+            .filter(|a| a.starts_with("decision_record."))
+            .count(),
+        3
+    );
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn the_feed_needs_a_live_token_for_its_environment(db: PgPool) {
+    let app = with_database(db);
+    let (admin, p, rid) = released(&app).await;
+    let at = now(&app);
+    let one = || json!([record(&p, &rid, at, json!({}))]);
+
+    assert_error(
+        &feed(&app, None, one()).await,
+        StatusCode::UNAUTHORIZED,
+        "INVALID_TOKEN",
+    );
+    assert_error(
+        &feed(&app, Some("dnk_log_not-a-token"), one()).await,
+        StatusCode::UNAUTHORIZED,
+        "INVALID_TOKEN",
+    );
+
+    // Tokens are shown once, listed by hint, and only administrators manage them.
+    let grace = signed_in_user(&app, GRACE, false).await;
+    assert_error(
+        &issue(&app, &grace, "staging").await,
+        StatusCode::FORBIDDEN,
+        "FORBIDDEN",
+    );
+    assert_error(
+        &call(&app, "GET", "/decision-log/tokens", None, &grace).await,
+        StatusCode::FORBIDDEN,
+        "FORBIDDEN",
+    );
+    let issued = issue(&app, &admin, "staging").await;
+    let token = issued.body["token"].as_str().unwrap().to_owned();
+    assert!(token.starts_with("dnk_log_"));
+    assert_eq!(issued.body["environment"], "staging");
+    let list = call(&app, "GET", "/decision-log/tokens", None, &admin).await;
+    assert_eq!(list.body["items"][0]["hint"], token[token.len() - 4..]);
+    assert!(!list.body.to_string().contains(&token));
+    let blank = call(
+        &app,
+        "POST",
+        "/decision-log/tokens",
+        Some(json!({ "environment": "staging", "name": " " })),
+        &admin,
+    )
+    .await;
+    assert_error(&blank, StatusCode::BAD_REQUEST, "INVALID_REQUEST");
+
+    // A production token cannot write staging records.
+    let production = issue(&app, &admin, "production").await.body["token"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let receipt = feed(&app, Some(&production), one()).await;
+    assert_eq!(receipt.body["accepted"], 0);
+    assert_eq!(receipt.body["rejected"][0]["code"], "wrong_environment");
+
+    assert_eq!(feed(&app, Some(&token), one()).await.body["accepted"], 1);
+    let too_many: Vec<Value> = (0..=donka_decision_log::MAX_BATCH_RECORDS)
+        .map(|_| json!({}))
+        .collect();
+    assert_error(
+        &feed(&app, Some(&token), json!(too_many)).await,
+        StatusCode::BAD_REQUEST,
+        "TOO_MANY_RECORDS",
+    );
+
+    // A revoked token is refused from then on.
+    let id = issued.body["id"].as_str().unwrap();
+    let revoked = call(
+        &app,
+        "DELETE",
+        &format!("/decision-log/tokens/{id}"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(revoked.status, StatusCode::NO_CONTENT, "{}", revoked.body);
+    assert_error(
+        &feed(&app, Some(&token), one()).await,
+        StatusCode::UNAUTHORIZED,
+        "INVALID_TOKEN",
+    );
+    assert_error(
+        &call(
+            &app,
+            "DELETE",
+            &format!("/decision-log/tokens/{id}"),
+            None,
+            &admin,
+        )
+        .await,
+        StatusCode::NOT_FOUND,
+        "TOKEN_NOT_FOUND",
+    );
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn every_member_reads_the_log_and_other_projects_see_nothing(db: PgPool) {
+    let app = with_database(db);
+    let (admin, p, rid) = released(&app).await;
+    let token = staging_token(&app, &admin).await;
+    let logged = record(&p, &rid, now(&app), json!({}));
+    feed(&app, Some(&token), json!([logged])).await;
+    let id = logged["id"].as_str().unwrap();
+
+    let vera = signed_in_user(&app, VIEWER, false).await;
+    let otto = signed_in_user(&app, OUTSIDER, false).await;
+    let added = call(
+        &app,
+        "POST",
+        &format!("/projects/{p}/members"),
+        Some(json!({ "email": VIEWER, "role": "viewer" })),
+        &admin,
+    )
+    .await;
+    assert_eq!(added.status, StatusCode::CREATED, "{}", added.body);
+
+    // A viewer searches, opens and replays.
+    assert_eq!(
+        call(
+            &app,
+            "GET",
+            &format!("/projects/{p}/decision-log"),
+            None,
+            &vera
+        )
+        .await
+        .body["total"],
+        1
+    );
+    assert_eq!(
+        call(
+            &app,
+            "GET",
+            &format!("/projects/{p}/decision-log/{id}"),
+            None,
+            &vera
+        )
+        .await
+        .status,
+        StatusCode::OK
+    );
+    assert_eq!(
+        call(
+            &app,
+            "POST",
+            &format!("/projects/{p}/decision-log/{id}/replay"),
+            None,
+            &vera
+        )
+        .await
+        .status,
+        StatusCode::OK
+    );
+    // …but cannot change the settings.
+    assert_error(
+        &call(
+            &app,
+            "PUT",
+            &format!("/projects/{p}/decision-log/settings"),
+            Some(json!({ "outcomeField": "decision" })),
+            &vera,
+        )
+        .await,
+        StatusCode::FORBIDDEN,
+        "FORBIDDEN",
+    );
+
+    // Someone outside the project sees nothing of it.
+    for (method, path) in [
+        ("GET", format!("/projects/{p}/decision-log")),
+        ("GET", format!("/projects/{p}/decision-log/{id}")),
+        ("POST", format!("/projects/{p}/decision-log/{id}/replay")),
+        ("GET", format!("/projects/{p}/decision-log/settings")),
+    ] {
+        assert_error(
+            &call(&app, method, &path, None, &otto).await,
+            StatusCode::NOT_FOUND,
+            "PROJECT_NOT_FOUND",
+        );
+    }
+
+    // A record of another project is not found through this one.
+    let other = call(
+        &app,
+        "POST",
+        "/projects",
+        Some(json!({ "key": "other", "name": "Other" })),
+        &admin,
+    )
+    .await
+    .body["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert_error(
+        &call(
+            &app,
+            "GET",
+            &format!("/projects/{other}/decision-log/{id}"),
+            None,
+            &admin,
+        )
+        .await,
+        StatusCode::NOT_FOUND,
+        "RECORD_NOT_FOUND",
+    );
+    assert_error(
+        &call(
+            &app,
+            "GET",
+            &format!("/projects/{p}/decision-log/not-a-uuid"),
+            None,
+            &admin,
+        )
+        .await,
+        StatusCode::NOT_FOUND,
+        "RECORD_NOT_FOUND",
+    );
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn the_outcome_field_is_a_dotted_path_set_by_owners(db: PgPool) {
+    let app = with_database(db);
+    let (admin, p, _) = released(&app).await;
+    let path = format!("/projects/{p}/decision-log/settings");
+
+    assert_eq!(
+        call(&app, "GET", &path, None, &admin).await.body["outcomeField"],
+        Value::Null
+    );
+    for bad in ["1st", "a-b", "a..b", "result."] {
+        assert_error(
+            &call(
+                &app,
+                "PUT",
+                &path,
+                Some(json!({ "outcomeField": bad })),
+                &admin,
+            )
+            .await,
+            StatusCode::BAD_REQUEST,
+            "INVALID_REQUEST",
+        );
+    }
+    let set = call(
+        &app,
+        "PUT",
+        &path,
+        Some(json!({ "outcomeField": "result.band" })),
+        &admin,
+    )
+    .await;
+    assert_eq!(set.body["outcomeField"], "result.band");
+    let cleared = call(
+        &app,
+        "PUT",
+        &path,
+        Some(json!({ "outcomeField": null })),
+        &admin,
+    )
+    .await;
+    assert_eq!(cleared.body["outcomeField"], Value::Null);
+    assert_eq!(
+        call(&app, "GET", &path, None, &admin).await.body["outcomeField"],
+        Value::Null
+    );
+}
+
+/// The test clock's day, at `hour`: the clock starts on 2026-09-28.
+fn day(year: i32, month: u32, day: u32, hour: u32) -> DateTime<Utc> {
+    Utc.with_ymd_and_hms(year, month, day, hour, 0, 0).unwrap()
+}
+
+async fn partitions(db: &PgPool) -> Vec<String> {
+    sqlx::query_scalar("SELECT name FROM decision_records_partitions ORDER BY name")
+        .fetch_all(db)
+        .await
+        .unwrap()
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn records_past_retention_are_purged_and_each_purge_is_audited(db: PgPool) {
+    let app = with_database(db.clone());
+    let (admin, p, rid) = released(&app).await;
+    let token = staging_token(&app, &admin).await;
+    // The clock reads 2026-09-28 09:00; records are kept 30 days.
+    let august = [day(2026, 8, 30, 10), day(2026, 8, 31, 10)];
+    let early_september = day(2026, 9, 2, 10);
+    let kept = [day(2026, 9, 20, 10), day(2026, 9, 28, 8)];
+    let records: Vec<Value> = august
+        .iter()
+        .chain([&early_september])
+        .chain(kept.iter())
+        .map(|at| record(&p, &rid, *at, json!({})))
+        .collect();
+    let sent = feed(&app, Some(&token), json!(records)).await;
+    assert_eq!(sent.body["accepted"], 5, "{}", sent.body);
+    // Each month has its partition; the coming months are made ahead.
+    app.decision_log.ensure_partitions().await.unwrap();
+    assert_eq!(
+        partitions(&db).await,
+        ["2026_08", "2026_09", "2026_10", "2026_11", "2026_12"]
+            .map(|m| format!("decision_records_{m}"))
+    );
+
+    // Records cannot be changed or deleted outside the purge, nor a partition dropped.
+    for statement in [
+        "UPDATE decision_records SET outcome = 'approve'",
+        "DELETE FROM decision_records",
+        "TRUNCATE decision_records",
+        "TRUNCATE decision_records_2026_08",
+        "UPDATE decision_records_2026_08 SET outcome = 'approve'",
+        "SELECT donka_drop_decision_records_partition('decision_records_2026_08')",
+    ] {
+        let err = sqlx::query(statement).execute(&db).await.unwrap_err();
+        assert!(
+            [
+                "append-only",
+                "permission denied",
+                "not past the retention period"
+            ]
+            .iter()
+            .any(|reason| err.to_string().contains(reason)),
+            "{statement}: {err}"
+        );
+    }
+
+    // Five days on, records before 2026-09-03 09:00 are past retention: August goes as a
+    // whole partition, early September record by record.
+    app.clock.advance(Duration::days(5));
+    // Signed in again: the session did not outlive those days.
+    let admin = session_from(&sign_in(&app, ADMIN_EMAIL, ADMIN_PASSWORD).await);
+    assert_eq!(app.decision_log.purge().await.unwrap(), 3);
+    assert_eq!(
+        app.decision_log.purge().await.unwrap(),
+        0,
+        "nothing left to purge"
+    );
+    assert!(!partitions(&db)
+        .await
+        .contains(&"decision_records_2026_08".to_owned()));
+    let list = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/decision-log"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(list.body["total"], 2);
+    let ids: Vec<&Value> = list.body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| &r["id"])
+        .collect();
+    assert_eq!(ids, [&records[4]["id"], &records[3]["id"]]);
+
+    // One audit event for the purge that removed something, none for the empty one.
+    let audit = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/audit?action=decision_log.purged"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(audit.body["total"], 1, "{}", audit.body);
+    let event = &audit.body["items"][0];
+    assert_eq!(event["actor"], Value::Null);
+    assert_eq!(event["details"]["records"], 3);
+    assert_eq!(event["details"]["retentionDays"], RETENTION_DAYS);
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn a_record_is_kept_once_and_only_when_its_month_can_be_kept(db: PgPool) {
+    let app = with_database(db.clone());
+    let (admin, p, rid) = released(&app).await;
+    let token = staging_token(&app, &admin).await;
+    let at = now(&app);
+    let first = record(&p, &rid, at, json!({}));
+    // The Runtime sends a record again, here with another time: it is stored once.
+    let mut again = first.clone();
+    again["evaluatedAt"] = json!(at - Duration::hours(2));
+    let too_old = record(&p, &rid, at - Duration::days(RETENTION_DAYS + 1), json!({}));
+    let ahead = record(&p, &rid, at + Duration::days(2), json!({}));
+    let sent = feed(&app, Some(&token), json!([first, again, too_old, ahead])).await;
+    assert_eq!(sent.status, StatusCode::OK, "{}", sent.body);
+    let stored: i64 = sqlx::query_scalar("SELECT count(*) FROM decision_records")
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(stored, 1);
+    let rejected: Vec<&Value> = sent.body["rejected"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| &r["id"])
+        .collect();
+    assert_eq!(rejected, [&too_old["id"], &ahead["id"]], "{}", sent.body);
+    assert!(sent.body["rejected"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|r| r["code"] == "invalid"));
+}
+
+/// The migration that partitions the log moves the records already kept as they are: same
+/// sealed bytes, each in its month, and they still open.
+#[sqlx::test(migrations = false)]
+async fn partitioning_moves_existing_records_without_re_encrypting_them(db: PgPool) {
+    const PARTITIONED: i64 = 20261028000002;
+    donka_db::MIGRATOR
+        .run_to(PARTITIONED - 1, &db)
+        .await
+        .unwrap();
+    let app = with_database(db.clone());
+    let (admin, p, rid) = released(&app).await;
+    staging_token(&app, &admin).await;
+    let token: Uuid = sqlx::query_scalar("SELECT id FROM decision_log_tokens")
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let cipher = Cipher::from_base64(DECISION_LOG_KEY).unwrap();
+    let mut before = Vec::new();
+    for (n, at) in [
+        day(2026, 8, 30, 10),
+        day(2026, 9, 20, 10),
+        day(2026, 9, 28, 8),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let id = Uuid::new_v4();
+        let payload = json!({ "input": { "applicant": n }, "output": { "output": 10 } });
+        let sealed = cipher.seal(id, payload.to_string().as_bytes()).unwrap();
+        sqlx::query(
+            "INSERT INTO decision_records (id, project_id, release_id, environment, decision_key, \
+             status, evaluated_at, duration_us, received_at, token_id, key_id, nonce, payload) \
+             VALUES ($1, $2::uuid, $3::uuid, 'staging', 'limit', 'succeeded', $4, 420, $4, $5, $6, $7, $8)",
+        )
+        .bind(id)
+        .bind(&p)
+        .bind(&rid)
+        .bind(at)
+        .bind(token)
+        .bind(&sealed.key_id)
+        .bind(&sealed.nonce)
+        .bind(&sealed.ciphertext)
+        .execute(&db)
+        .await
+        .unwrap();
+        before.push((id, sealed.nonce, sealed.ciphertext, n));
+    }
+
+    donka_db::MIGRATOR.run(&db).await.unwrap();
+    for (id, nonce, payload, n) in before {
+        let (partition, now_nonce, now_payload): (String, Vec<u8>, Vec<u8>) = sqlx::query_as(
+            "SELECT tableoid::regclass::text, nonce, payload FROM decision_records WHERE id = $1",
+        )
+        .bind(id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+        assert_eq!(
+            (now_nonce, now_payload),
+            (nonce, payload),
+            "the sealed bytes moved as they were"
+        );
+        let month = if n == 0 { "2026_08" } else { "2026_09" };
+        assert_eq!(partition, format!("decision_records_{month}"));
+        let opened = call(
+            &app,
+            "GET",
+            &format!("/projects/{p}/decision-log/{id}"),
+            None,
+            &admin,
+        )
+        .await;
+        assert_eq!(opened.status, StatusCode::OK, "{}", opened.body);
+        assert_eq!(opened.body["input"]["applicant"], n);
+    }
+}
+
+// ----- Key rotation (DNK-40) -------------------------------------------------
+
+/// The key after a rotation, in tests.
+const NEW_KEY: &str = "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8=";
+
+async fn key_of(db: &PgPool, id: &Value) -> String {
+    sqlx::query_scalar("SELECT key_id FROM decision_records WHERE id = $1::uuid")
+        .bind(id.as_str().unwrap())
+        .fetch_one(db)
+        .await
+        .unwrap()
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn a_rotated_key_reads_old_records_and_reseal_moves_them_to_it(db: PgPool) {
+    let before = with_database(db.clone());
+    let (admin, p, rid) = released(&before).await;
+    let token = staging_token(&before, &admin).await;
+    let at = now(&before);
+    let old: Vec<Value> = (0..3)
+        .map(|i| record(&p, &rid, at - Duration::minutes(i), json!({})))
+        .collect();
+    feed(&before, Some(&token), json!(old)).await;
+    let old_key = key_of(&db, &old[0]["id"]).await;
+
+    // Studio restarted with the new key, the old one kept as previous.
+    let rotated = with_decision_log_keys(db.clone(), NEW_KEY, &[DECISION_LOG_KEY]);
+    let id = old[0]["id"].as_str().unwrap();
+    let view = call(
+        &rotated,
+        "GET",
+        &format!("/projects/{p}/decision-log/{id}"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(view.status, StatusCode::OK, "{}", view.body);
+    assert_eq!(view.body["output"]["output"], 10);
+
+    // New records are sealed with the new key only.
+    let new = record(&p, &rid, at, json!({}));
+    feed(&rotated, Some(&token), json!([new])).await;
+    let new_key = rotated.decision_log.key_id().to_owned();
+    assert_ne!(new_key, old_key);
+    assert_eq!(key_of(&db, &new["id"]).await, new_key);
+
+    // Without the previous key, the old records cannot be read, and the
+    // re-seal refuses to start, naming the key that is missing.
+    let without = with_decision_log_keys(db.clone(), NEW_KEY, &[]);
+    let unreadable = call(
+        &without,
+        "GET",
+        &format!("/projects/{p}/decision-log/{id}"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_ne!(unreadable.status, StatusCode::OK);
+    let mut out = Vec::new();
+    let err = donka_app::reseal::run(&without.decision_log, &mut out)
+        .await
+        .unwrap_err();
+    assert!(err.contains(&format!("{old_key} (3 records)")), "{err}");
+
+    // Batches commit one by one: stopping after the first loses nothing.
+    assert_eq!(rotated.decision_log.reseal_batch(2).await.unwrap(), 2);
+    let mut out = Vec::new();
+    assert_eq!(
+        donka_app::reseal::run(&rotated.decision_log, &mut out)
+            .await
+            .unwrap(),
+        1
+    );
+    let out = String::from_utf8(out).unwrap();
+    assert!(out.contains("Done: 1 records re-sealed"), "{out}");
+    assert!(
+        out.contains(&format!("No record uses {old_key} any more")),
+        "{out}"
+    );
+    assert_eq!(rotated.decision_log.reseal_batch(10).await.unwrap(), 0);
+
+    // Afterwards the new key alone reads every record.
+    for record in old.iter().chain([&new]) {
+        assert_eq!(key_of(&db, &record["id"]).await, new_key);
+        let id = record["id"].as_str().unwrap();
+        let view = call(
+            &without,
+            "GET",
+            &format!("/projects/{p}/decision-log/{id}"),
+            None,
+            &admin,
+        )
+        .await;
+        assert_eq!(view.status, StatusCode::OK, "{}", view.body);
+    }
+
+    // Each batch is audited, without an actor.
+    let audit = call(
+        &rotated,
+        "GET",
+        &format!("/projects/{p}/audit?action=decision_log.resealed"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(audit.body["total"], 2, "{}", audit.body);
+    let records: Vec<i64> = audit.body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|event| event["details"]["records"].as_i64().unwrap())
+        .collect();
+    assert_eq!(records.iter().sum::<i64>(), 3);
+    for event in audit.body["items"].as_array().unwrap() {
+        assert_eq!(event["actor"], Value::Null);
+        assert_eq!(event["details"]["fromKeys"], json!([old_key]));
+        assert_eq!(event["details"]["toKey"], new_key);
+    }
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn re_sealing_is_the_only_change_a_record_accepts(db: PgPool) {
+    let app = with_database(db.clone());
+    let (admin, p, rid) = released(&app).await;
+    let token = staging_token(&app, &admin).await;
+    feed(
+        &app,
+        Some(&token),
+        json!([record(&p, &rid, now(&app), json!({}))]),
+    )
+    .await;
+
+    let reseal = "SELECT set_config('donka.reseal', 'on', true)";
+    for (marked, statement) in [
+        // Not marked as a re-seal.
+        (
+            false,
+            "UPDATE decision_records SET key_id = 'other', nonce = nonce",
+        ),
+        // Marked, but changing something else too.
+        (
+            true,
+            "UPDATE decision_records SET key_id = 'other', outcome = 'approve'",
+        ),
+        // Marked, but keeping the same key.
+        (true, "UPDATE decision_records SET payload = payload"),
+        // Marked, but a column the grant does not cover.
+        (true, "UPDATE decision_records SET reference = 'x'"),
+    ] {
+        let mut tx = db.begin().await.unwrap();
+        if marked {
+            sqlx::query(reseal).execute(&mut *tx).await.unwrap();
+        }
+        let err = sqlx::query(statement).execute(&mut *tx).await.unwrap_err();
+        assert!(
+            err.to_string().contains("append-only")
+                || err.to_string().contains("permission denied"),
+            "{statement}: {err}"
+        );
+    }
+}
+
+// ----- Explanations (DNK-19) -------------------------------------------------
+
+/// A fake LLM endpoint: records what it is sent, answers what it is told.
+#[derive(Clone)]
+struct Llm {
+    sent: std::sync::Arc<std::sync::Mutex<Vec<Value>>>,
+    answer: std::sync::Arc<std::sync::Mutex<(StatusCode, Value)>>,
+}
+
+impl Llm {
+    async fn start() -> (Self, String) {
+        use axum::routing::post;
+        let llm = Llm {
+            sent: Default::default(),
+            answer: std::sync::Arc::new(std::sync::Mutex::new(answering("No answer set."))),
+        };
+        let app = axum::Router::new()
+            .route(
+                "/v1/messages",
+                post(
+                    |axum::extract::State(llm): axum::extract::State<Llm>,
+                     axum::Json(body): axum::Json<Value>| async move {
+                        llm.sent.lock().unwrap().push(body);
+                        let (status, answer) = llm.answer.lock().unwrap().clone();
+                        (status, axum::Json(answer))
+                    },
+                ),
+            )
+            .with_state(llm.clone());
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/v1/messages", listener.local_addr().unwrap());
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        (llm, url)
+    }
+
+    fn answer(&self, status: StatusCode, body: Value) {
+        *self.answer.lock().unwrap() = (status, body);
+    }
+
+    /// The text of the last request's user message.
+    fn last_prompt(&self) -> String {
+        let sent = self.sent.lock().unwrap();
+        sent.last().unwrap()["messages"][0]["content"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    }
+}
+
+fn answering(text: &str) -> (StatusCode, Value) {
+    (
+        StatusCode::OK,
+        json!({ "model": "bank-llm", "stop_reason": "end_turn", "content": [{ "type": "text", "text": text }] }),
+    )
+}
+
+async fn explaining_app(db: PgPool) -> (TestApp, Llm) {
+    let (llm, url) = Llm::start().await;
+    let app = with_explainer(
+        db,
+        donka_explain::Settings {
+            url,
+            api_key: "llm-key".into(),
+            protocol: donka_explain::Protocol::Anthropic,
+            model: "bank-llm".into(),
+            timeout: std::time::Duration::from_secs(5),
+            fallbacks: false,
+        },
+    );
+    (app, llm)
+}
+
+async fn explain(app: &TestApp, session: &str, p: &str, id: &str, language: &str) -> Reply {
+    call(
+        app,
+        "POST",
+        &format!("/projects/{p}/decision-log/{id}/explain"),
+        Some(json!({ "language": language })),
+        session,
+    )
+    .await
+}
+
+async fn actions(app: &TestApp, admin: &str, p: &str) -> Vec<String> {
+    call(app, "GET", &format!("/projects/{p}/audit"), None, admin)
+        .await
+        .body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["action"].as_str().unwrap().to_owned())
+        .collect()
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn explanations_are_off_unless_configured(db: PgPool) {
+    let app = with_database(db);
+    let (admin, p, rid) = released(&app).await;
+    let token = staging_token(&app, &admin).await;
+    let logged = record(&p, &rid, now(&app), json!({}));
+    feed(&app, Some(&token), json!([logged])).await;
+    let id = logged["id"].as_str().unwrap();
+
+    let opened = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/decision-log/{id}"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(opened.body["explainable"], false);
+    let settings = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/decision-log/settings"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(settings.body["explainEnabled"], false);
+    assert_eq!(settings.body["redactedFields"], json!([]));
+
+    assert_error(
+        &explain(&app, &admin, &p, id, "en").await,
+        StatusCode::NOT_FOUND,
+        "NOT_FOUND",
+    );
+    assert!(!actions(&app, &admin, &p)
+        .await
+        .contains(&"decision_record.explained".to_owned()));
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn a_member_reads_an_explanation_without_the_redacted_fields(db: PgPool) {
+    let (app, llm) = explaining_app(db).await;
+    let (admin, p, rid) = released(&app).await;
+    let token = staging_token(&app, &admin).await;
+    let logged = record(&p, &rid, now(&app), json!({ "reference": "APP-7" }));
+    feed(&app, Some(&token), json!([logged])).await;
+    let id = logged["id"].as_str().unwrap();
+
+    let settings = call(
+        &app,
+        "PUT",
+        &format!("/projects/{p}/decision-log/settings"),
+        Some(json!({ "outcomeField": "output", "redactedFields": ["applicant.nationalId"] })),
+        &admin,
+    )
+    .await;
+    assert_eq!(settings.status, StatusCode::OK, "{}", settings.body);
+    assert_eq!(
+        settings.body["redactedFields"],
+        json!(["applicant.nationalId"])
+    );
+    assert_eq!(settings.body["explainEnabled"], true);
+
+    let vera = signed_in_user(&app, VIEWER, false).await;
+    call(
+        &app,
+        "POST",
+        &format!("/projects/{p}/members"),
+        Some(json!({ "email": VIEWER, "role": "viewer" })),
+        &admin,
+    )
+    .await;
+    let opened = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/decision-log/{id}"),
+        None,
+        &vera,
+    )
+    .await;
+    assert_eq!(opened.body["explainable"], true);
+    // Opening still shows everything; only what leaves Studio is redacted.
+    assert_eq!(
+        opened.body["input"]["applicant"]["nationalId"],
+        "CM-1984-0042"
+    );
+
+    let (status, body) = answering("Le revenu dépasse le seuil de la table.");
+    llm.answer(status, body);
+    let explained = explain(&app, &vera, &p, id, "fr").await;
+    assert_eq!(explained.status, StatusCode::OK, "{}", explained.body);
+    assert_eq!(
+        explained.body["explanation"],
+        "Le revenu dépasse le seuil de la table."
+    );
+    assert_eq!(explained.body["model"], "bank-llm");
+
+    let prompt = llm.last_prompt();
+    assert!(!prompt.contains("CM-1984-0042"), "{prompt}");
+    assert!(!prompt.contains("nationalId"), "{prompt}");
+    assert!(prompt.contains("\"input\":12"), "{prompt}");
+    assert!(prompt.contains("\"release\":\"1.0.0\""), "{prompt}");
+    assert!(prompt.ends_with("Write the explanation in French."));
+
+    // Each explanation is audited for the reader who asked.
+    let audit = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/audit?action=decision_record.explained"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(audit.body["total"], 1, "{}", audit.body);
+    assert_eq!(audit.body["items"][0]["actor"]["email"], VIEWER);
+    assert_eq!(audit.body["items"][0]["details"]["reference"], "APP-7");
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn a_failed_or_declined_explanation_says_so(db: PgPool) {
+    let (app, llm) = explaining_app(db).await;
+    let (admin, p, rid) = released(&app).await;
+    let token = staging_token(&app, &admin).await;
+    let logged = record(&p, &rid, now(&app), json!({}));
+    feed(&app, Some(&token), json!([logged])).await;
+    let id = logged["id"].as_str().unwrap();
+
+    llm.answer(
+        StatusCode::INTERNAL_SERVER_ERROR,
+        json!({ "error": "overloaded" }),
+    );
+    assert_error(
+        &explain(&app, &admin, &p, id, "en").await,
+        StatusCode::BAD_GATEWAY,
+        "EXPLAIN_UNAVAILABLE",
+    );
+    llm.answer(
+        StatusCode::OK,
+        json!({ "stop_reason": "refusal", "content": [] }),
+    );
+    assert_error(
+        &explain(&app, &admin, &p, id, "en").await,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "EXPLAIN_DECLINED",
+    );
+    // The record was sent both times, so both are audited.
+    let explained = actions(&app, &admin, &p)
+        .await
+        .into_iter()
+        .filter(|a| a == "decision_record.explained")
+        .count();
+    assert_eq!(explained, 2);
+
+    // Nothing is sent for a record that is not there or a project one cannot see.
+    let sent = llm.sent.lock().unwrap().len();
+    assert_error(
+        &explain(&app, &admin, &p, &Uuid::new_v4().to_string(), "en").await,
+        StatusCode::NOT_FOUND,
+        "RECORD_NOT_FOUND",
+    );
+    let otto = signed_in_user(&app, OUTSIDER, false).await;
+    assert_error(
+        &explain(&app, &otto, &p, id, "en").await,
+        StatusCode::NOT_FOUND,
+        "PROJECT_NOT_FOUND",
+    );
+    assert_error(
+        &explain(&app, &admin, &p, id, "de").await,
+        StatusCode::BAD_REQUEST,
+        "INVALID_REQUEST",
+    );
+    assert_eq!(llm.sent.lock().unwrap().len(), sent);
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn owners_list_the_redacted_fields(db: PgPool) {
+    let app = with_database(db);
+    let (admin, p, _) = released(&app).await;
+    let path = format!("/projects/{p}/decision-log/settings");
+    let put = |body: Value| {
+        let (app, admin, path) = (&app, admin.clone(), path.clone());
+        async move { call(app, "PUT", &path, Some(body), &admin).await }
+    };
+
+    for bad in [
+        json!(["a-b"]),
+        json!([""]),
+        json!((0..=50).map(|i| format!("f{i}")).collect::<Vec<_>>()),
+    ] {
+        assert_error(
+            &put(json!({ "outcomeField": null, "redactedFields": bad })).await,
+            StatusCode::BAD_REQUEST,
+            "INVALID_REQUEST",
+        );
+    }
+    let set = put(json!({ "outcomeField": "decision", "redactedFields": [" applicant.name ", "applicant.name", "iban"] })).await;
+    assert_eq!(
+        set.body["redactedFields"],
+        json!(["applicant.name", "iban"])
+    );
+    // Left out, the list stays; the outcome field is replaced as before.
+    let kept = put(json!({ "outcomeField": null })).await;
+    assert_eq!(
+        kept.body["redactedFields"],
+        json!(["applicant.name", "iban"])
+    );
+    assert_eq!(kept.body["outcomeField"], Value::Null);
+
+    let audit = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/audit?action=decision_log.settings_updated"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(
+        audit.body["items"][1]["details"]["to"]["redactedFields"],
+        json!(["applicant.name", "iban"])
+    );
+
+    let vera = signed_in_user(&app, VIEWER, false).await;
+    call(
+        &app,
+        "POST",
+        &format!("/projects/{p}/members"),
+        Some(json!({ "email": VIEWER, "role": "editor" })),
+        &admin,
+    )
+    .await;
+    assert_error(
+        &call(
+            &app,
+            "PUT",
+            &path,
+            Some(json!({ "outcomeField": null, "redactedFields": [] })),
+            &vera,
+        )
+        .await,
+        StatusCode::FORBIDDEN,
+        "FORBIDDEN",
+    );
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn fields_the_contract_marks_as_personal_data_never_leave_studio(db: PgPool) {
+    let (app, llm) = explaining_app(db).await;
+    // The decision's input contract marks the national ID as personal data (DNK-37); the
+    // project's own list stays empty.
+    let mut content = table();
+    let schema = json!({
+        "type": "object",
+        "properties": {
+            "input": { "type": "number" },
+            "applicant": { "type": "object", "properties": {
+                "nationalId": { "type": "string", "x-donka": { "pii": true } }
+            }}
+        }
+    });
+    for node in content["nodes"].as_array_mut().unwrap() {
+        if node["type"] == "inputNode" {
+            node["content"] = json!({ "schema": schema.to_string() });
+        }
+    }
+    let (admin, p, rid) = released_with(&app, content).await;
+    let token = staging_token(&app, &admin).await;
+    let logged = record(&p, &rid, now(&app), json!({}));
+    feed(&app, Some(&token), json!([logged])).await;
+    let id = logged["id"].as_str().unwrap();
+
+    let (status, body) = answering("The amount is above the table's threshold.");
+    llm.answer(status, body);
+    let explained = explain(&app, &admin, &p, id, "en").await;
+    assert_eq!(explained.status, StatusCode::OK, "{}", explained.body);
+    let prompt = llm.last_prompt();
+    assert!(!prompt.contains("CM-1984-0042"), "{prompt}");
+    assert!(!prompt.contains("nationalId"), "{prompt}");
+    assert!(prompt.contains("\"input\":12"), "{prompt}");
+}
+
+// ----- Rights of the people decisions are about (DNK-75) ---------------------
+
+const NATIONAL_ID: &str = "CM-1984-0042";
+
+/// The `limit` table, its contract marking the national ID as an identifier and the phone as
+/// personal data.
+fn identifying_table() -> Value {
+    let mut content = table();
+    let schema = json!({
+        "type": "object",
+        "properties": {
+            "input": { "type": "number" },
+            "applicant": { "type": "object", "properties": {
+                "nationalId": { "type": "string", "x-donka": { "identifier": true } },
+                "phone": { "type": "string", "x-donka": { "pii": true } },
+                "segment": { "type": "string" }
+            }}
+        }
+    });
+    for node in content["nodes"].as_array_mut().unwrap() {
+        if node["type"] == "inputNode" {
+            node["content"] = json!({ "schema": schema.to_string() });
+        }
+    }
+    content
+}
+
+/// A record about the applicant with this national ID.
+fn about(project: &str, release: &str, at: DateTime<Utc>, national_id: &str) -> Value {
+    let applicant =
+        json!({ "nationalId": national_id, "phone": "+237 650 00 00 00", "segment": "sme" });
+    record(
+        project,
+        release,
+        at,
+        json!({
+            "input": { "input": 12, "applicant": applicant },
+            "trace": { "node": { "input": { "applicant": applicant }, "output": { "output": 10 } } }
+        }),
+    )
+}
+
+async fn person(app: &TestApp, session: &str, p: &str, action: &str, identifier: &str) -> Reply {
+    call(
+        app,
+        "POST",
+        &format!("/projects/{p}/people/{action}"),
+        Some(json!({ "identifier": identifier })),
+        session,
+    )
+    .await
+}
+
+fn ids(reply: &Reply) -> Vec<Value> {
+    reply.body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r["id"].clone())
+        .collect()
+}
+
+async fn index_rows(db: &PgPool) -> i64 {
+    sqlx::query_scalar("SELECT count(*) FROM decision_record_people")
+        .fetch_one(db)
+        .await
+        .unwrap()
+}
+
+async fn audit_of(app: &TestApp, admin: &str, p: &str, action: &str) -> Value {
+    call(
+        app,
+        "GET",
+        &format!("/projects/{p}/audit?action={action}"),
+        None,
+        admin,
+    )
+    .await
+    .body
+}
+
+/// A viewer of the project, signed in.
+async fn viewer(app: &TestApp, admin: &str, p: &str) -> String {
+    let vera = signed_in_user(app, VIEWER, false).await;
+    let added = call(
+        app,
+        "POST",
+        &format!("/projects/{p}/members"),
+        Some(json!({ "email": VIEWER, "role": "viewer" })),
+        admin,
+    )
+    .await;
+    assert_eq!(added.status, StatusCode::CREATED, "{}", added.body);
+    vera
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn an_owner_finds_a_persons_records_across_months_without_decrypting_the_log(db: PgPool) {
+    let app = with_database(db.clone());
+    let (admin, p, rid) = released_with(&app, identifying_table()).await;
+    let token = staging_token(&app, &admin).await;
+    // The clock reads 2026-09-28 09:00: August and September are two partitions.
+    let records = [
+        about(&p, &rid, day(2026, 8, 30, 10), NATIONAL_ID),
+        about(&p, &rid, day(2026, 9, 20, 10), "cm 1984.0042"),
+        about(&p, &rid, day(2026, 9, 21, 10), "CM-2001-0007"),
+        record(
+            &p,
+            &rid,
+            day(2026, 9, 22, 10),
+            json!({ "input": { "input": 12 } }),
+        ),
+    ];
+    let sent = feed(&app, Some(&token), json!(records)).await;
+    assert_eq!(sent.body["accepted"], 4, "{}", sent.body);
+
+    // Written another way, the same identifier finds both of the person's records, newest
+    // first, across the two months; not the other applicant's, not the record without one.
+    let found = person(&app, &admin, &p, "search", "cm19840042").await;
+    assert_eq!(found.status, StatusCode::OK, "{}", found.body);
+    assert_eq!(
+        ids(&found),
+        [&records[1]["id"], &records[0]["id"]].map(Clone::clone)
+    );
+    assert_eq!(found.body["items"][0]["anonymisedAt"], Value::Null);
+    assert_eq!(found.body["items"][0]["decisionKey"], "limit");
+    assert_eq!(
+        person(&app, &admin, &p, "search", "CM-1999-0000")
+            .await
+            .body["items"],
+        json!([])
+    );
+
+    // The index holds keyed hashes only: one per identifier, none of them the value.
+    assert_eq!(index_rows(&db).await, 3);
+    let in_clear: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM decision_record_people \
+         WHERE position(convert_to('1984', 'UTF8') IN hash) > 0 OR length(hash) <> 32",
+    )
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!(in_clear, 0);
+
+    // Each search is audited without the identifier; only owners search.
+    let audit = audit_of(&app, &admin, &p, "person.records_searched").await;
+    assert_eq!(audit["total"], 2, "{audit}");
+    assert_eq!(audit["items"][1]["details"], json!({ "records": 2 }));
+    assert!(!audit.to_string().contains("1984"), "{audit}");
+    let vera = viewer(&app, &admin, &p).await;
+    assert_error(
+        &person(&app, &vera, &p, "search", NATIONAL_ID).await,
+        StatusCode::FORBIDDEN,
+        "FORBIDDEN",
+    );
+    assert_error(
+        &person(&app, &admin, &p, "search", " -. ").await,
+        StatusCode::BAD_REQUEST,
+        "INVALID_REQUEST",
+    );
+
+    // The purge takes the index rows of the records it removes.
+    app.clock.advance(Duration::days(5));
+    let admin = session_from(&sign_in(&app, ADMIN_EMAIL, ADMIN_PASSWORD).await);
+    assert_eq!(app.decision_log.purge().await.unwrap(), 1);
+    assert_eq!(index_rows(&db).await, 2);
+    let found = person(&app, &admin, &p, "search", NATIONAL_ID).await;
+    assert_eq!(ids(&found), [records[1]["id"].clone()]);
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn records_stored_before_are_indexed_by_a_resumable_audited_job(db: PgPool) {
+    let app = with_database(db.clone());
+    let (admin, p, rid) = released_with(&app, identifying_table()).await;
+    let token = staging_token(&app, &admin).await;
+    let records: Vec<Value> = [
+        day(2026, 8, 30, 10),
+        day(2026, 9, 1, 10),
+        day(2026, 9, 20, 10),
+    ]
+    .iter()
+    .map(|at| about(&p, &rid, *at, NATIONAL_ID))
+    .collect();
+    feed(&app, Some(&token), json!(records)).await;
+    // As if they had arrived before the index existed: they were received before the
+    // migration's cut-off (the test clock is behind the database's).
+    sqlx::query("DELETE FROM decision_record_people")
+        .execute(&db)
+        .await
+        .unwrap();
+    assert_eq!(
+        person(&app, &admin, &p, "search", NATIONAL_ID).await.body["items"],
+        json!([])
+    );
+    assert!(!app.decision_log.people_index_finished().await.unwrap());
+
+    // A batch stops where it got to; the command carries on from there.
+    let first = app.decision_log.index_people_batch(2).await.unwrap();
+    assert_eq!((first.records, first.finished), (2, false));
+    assert_eq!(index_rows(&db).await, 2);
+    let mut out = Vec::new();
+    let done = donka_app::index_people::run(&app.decision_log, &mut out)
+        .await
+        .unwrap();
+    assert_eq!(done, 1);
+    assert!(String::from_utf8(out)
+        .unwrap()
+        .contains("Done: 1 records indexed."));
+    assert!(app.decision_log.people_index_finished().await.unwrap());
+    let found = person(&app, &admin, &p, "search", NATIONAL_ID).await;
+    assert_eq!(found.body["items"].as_array().unwrap().len(), 3);
+
+    // Done is done: running it again reads nothing.
+    let mut out = Vec::new();
+    assert_eq!(
+        donka_app::index_people::run(&app.decision_log, &mut out)
+            .await
+            .unwrap(),
+        0
+    );
+    assert!(String::from_utf8(out).unwrap().contains("already indexed"));
+
+    // Each batch is audited per project, by no one: an operator runs the command.
+    let audit = audit_of(&app, &admin, &p, "decision_log.people_indexed").await;
+    assert_eq!(audit["total"], 2, "{audit}");
+    assert_eq!(audit["items"][0]["actor"], Value::Null);
+    assert_eq!(
+        audit["items"][1]["details"],
+        json!({ "records": 2, "withIdentifiers": 2 })
+    );
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn anonymising_removes_the_persons_fields_unless_a_retention_rule_runs(db: PgPool) {
+    let app = with_database(db.clone());
+    let (admin, p, rid) = released_with(&app, identifying_table()).await;
+    let token = staging_token(&app, &admin).await;
+    let records = [
+        about(&p, &rid, day(2026, 8, 30, 10), NATIONAL_ID),
+        about(&p, &rid, day(2026, 9, 20, 10), NATIONAL_ID),
+        about(&p, &rid, day(2026, 9, 21, 10), "CM-2001-0007"),
+    ];
+    feed(&app, Some(&token), json!(records)).await;
+    let id = records[1]["id"].as_str().unwrap();
+    let before = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/decision-log/{id}"),
+        None,
+        &admin,
+    )
+    .await;
+
+    // A rule documented until tomorrow blocks anonymisation, and says why.
+    let rule = call(
+        &app,
+        "POST",
+        &format!("/projects/{p}/retention-rules"),
+        Some(json!({
+            "description": "Loan dispute with the applicant",
+            "legalReference": "Court case 2026/118",
+            "until": "2026-09-29"
+        })),
+        &admin,
+    )
+    .await;
+    assert_eq!(rule.status, StatusCode::CREATED, "{}", rule.body);
+    assert_eq!(rule.body["running"], true);
+    let refused = person(&app, &admin, &p, "anonymise", NATIONAL_ID).await;
+    assert_error(&refused, StatusCode::CONFLICT, "RETENTION_RULE_RUNS");
+    assert_eq!(
+        refused.body["details"]["rule"]["description"],
+        "Loan dispute with the applicant"
+    );
+    assert_eq!(refused.body["details"]["rule"]["until"], "2026-09-29");
+
+    // A rule cannot end in the past; viewers neither document nor anonymise.
+    let past = call(
+        &app,
+        "POST",
+        &format!("/projects/{p}/retention-rules"),
+        Some(json!({ "description": "Old file", "until": "2026-09-27" })),
+        &admin,
+    )
+    .await;
+    assert_error(&past, StatusCode::BAD_REQUEST, "INVALID_REQUEST");
+    let vera = viewer(&app, &admin, &p).await;
+    assert_error(
+        &person(&app, &vera, &p, "anonymise", NATIONAL_ID).await,
+        StatusCode::FORBIDDEN,
+        "FORBIDDEN",
+    );
+    let rules = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/retention-rules"),
+        None,
+        &vera,
+    )
+    .await;
+    assert_eq!(rules.body["items"].as_array().unwrap().len(), 1);
+
+    // An owner ends a rule early; one past its last day no longer runs either.
+    let rule_id = rule.body["id"].as_str().unwrap();
+    let second = call(
+        &app,
+        "POST",
+        &format!("/projects/{p}/retention-rules"),
+        Some(json!({ "description": "Anti-money-laundering file", "until": "2026-09-28" })),
+        &admin,
+    )
+    .await;
+    let ended = call(
+        &app,
+        "POST",
+        &format!("/projects/{p}/retention-rules/{rule_id}/end"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(ended.status, StatusCode::OK, "{}", ended.body);
+    assert_eq!(ended.body["running"], false);
+    assert_error(
+        &person(&app, &admin, &p, "anonymise", NATIONAL_ID).await,
+        StatusCode::CONFLICT,
+        "RETENTION_RULE_RUNS",
+    );
+    app.clock.advance(Duration::days(1));
+    let admin = session_from(&sign_in(&app, ADMIN_EMAIL, ADMIN_PASSWORD).await);
+    let rules = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/retention-rules"),
+        None,
+        &admin,
+    )
+    .await;
+    assert!(rules.body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|r| r["running"] == false));
+    assert_eq!(second.body["running"], true);
+
+    // The person's fields leave input, output and trace of both months' records; the rest stays.
+    let done = person(&app, &admin, &p, "anonymise", "cm19840042").await;
+    assert_eq!(done.status, StatusCode::OK, "{}", done.body);
+    assert_eq!(done.body["records"], 2);
+    let after = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/decision-log/{id}"),
+        None,
+        &admin,
+    )
+    .await;
+    let text = after.body.to_string();
+    assert!(!text.contains("1984") && !text.contains("650 00"), "{text}");
+    assert_eq!(
+        after.body["input"],
+        json!({ "input": 12, "applicant": { "segment": "sme" } })
+    );
+    assert_eq!(
+        after.body["trace"]["node"]["input"],
+        json!({ "applicant": { "segment": "sme" } })
+    );
+    for key in [
+        "outcome",
+        "output",
+        "status",
+        "evaluatedAt",
+        "releaseId",
+        "releaseVersion",
+        "decisionKey",
+    ] {
+        assert_eq!(after.body[key], before.body[key], "{key}");
+    }
+    assert!(after.body["anonymisedAt"].is_string());
+    let other = records[2]["id"].as_str().unwrap();
+    let untouched = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/decision-log/{other}"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(
+        untouched.body["input"]["applicant"]["nationalId"],
+        "CM-2001-0007"
+    );
+    assert_eq!(untouched.body["anonymisedAt"], Value::Null);
+
+    // They leave the index: nothing is found, and anonymising again changes nothing.
+    assert_eq!(
+        person(&app, &admin, &p, "search", NATIONAL_ID).await.body["items"],
+        json!([])
+    );
+    assert_eq!(
+        person(&app, &admin, &p, "anonymise", NATIONAL_ID)
+            .await
+            .body["records"],
+        0
+    );
+
+    // It cannot be undone, even by a transaction allowed to anonymise.
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('donka.anonymise', 'on', true)")
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let err = sqlx::query("UPDATE decision_records SET anonymised_at = NULL WHERE id = $1")
+        .bind(Uuid::parse_str(id).unwrap())
+        .execute(&mut *tx)
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("append-only"), "{err}");
+    drop(tx);
+
+    let audit = audit_of(&app, &admin, &p, "person.records_anonymised").await;
+    assert_eq!(audit["total"], 2, "{audit}");
+    assert_eq!(audit["items"][1]["details"]["records"], 2);
+    for action in ["retention_rule.created", "retention_rule.ended"] {
+        assert!(
+            audit_of(&app, &admin, &p, action).await["total"]
+                .as_i64()
+                .unwrap()
+                >= 1,
+            "{action}"
+        );
+    }
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn a_contest_and_its_review_are_recorded_on_the_decision(db: PgPool) {
+    let app = with_database(db.clone());
+    let (admin, p, rid) = released_with(&app, identifying_table()).await;
+    let token = staging_token(&app, &admin).await;
+    let logged = about(&p, &rid, day(2026, 8, 30, 10), NATIONAL_ID);
+    feed(&app, Some(&token), json!([logged])).await;
+    let id = logged["id"].as_str().unwrap();
+    let path = format!("/projects/{p}/decision-log/{id}/contests");
+
+    let open = |reason: &str| json!({ "reason": reason });
+    let first = call(
+        &app,
+        "POST",
+        &path,
+        Some(open("My income was not counted.")),
+        &admin,
+    )
+    .await;
+    assert_eq!(first.status, StatusCode::CREATED, "{}", first.body);
+    assert_eq!(first.body["status"], "open");
+    // One contest under review at a time; a reason is required.
+    assert_error(
+        &call(&app, "POST", &path, Some(open("Again")), &admin).await,
+        StatusCode::CONFLICT,
+        "CONTEST_OPEN",
+    );
+    assert_error(
+        &call(
+            &app,
+            "POST",
+            &format!("/projects/{p}/decision-log/{}/contests", Uuid::new_v4()),
+            Some(open("Why")),
+            &admin,
+        )
+        .await,
+        StatusCode::NOT_FOUND,
+        "RECORD_NOT_FOUND",
+    );
+
+    // The review revises the decision with its new outcome, once.
+    let contest = first.body["id"].as_str().unwrap();
+    let review = format!("/projects/{p}/contests/{contest}/review");
+    assert_error(
+        &call(
+            &app,
+            "POST",
+            &review,
+            Some(json!({ "status": "revised", "review": "Income checked" })),
+            &admin,
+        )
+        .await,
+        StatusCode::BAD_REQUEST,
+        "INVALID_REQUEST",
+    );
+    let revised = call(
+        &app,
+        "POST",
+        &review,
+        Some(json!({ "status": "revised", "review": "Income checked: salary slips", "revisedOutcome": "approve" })),
+        &admin,
+    )
+    .await;
+    assert_eq!(revised.status, StatusCode::OK, "{}", revised.body);
+    assert_eq!(revised.body["status"], "revised");
+    assert_eq!(revised.body["revisedOutcome"], "approve");
+    assert_error(
+        &call(
+            &app,
+            "POST",
+            &review,
+            Some(json!({ "status": "upheld", "review": "No" })),
+            &admin,
+        )
+        .await,
+        StatusCode::CONFLICT,
+        "CONTEST_REVIEWED",
+    );
+
+    // A second contest is upheld; viewers read the history but neither open nor review.
+    let second = call(
+        &app,
+        "POST",
+        &path,
+        Some(open("The phone is not mine.")),
+        &admin,
+    )
+    .await;
+    let upheld = call(
+        &app,
+        "POST",
+        &format!(
+            "/projects/{p}/contests/{}/review",
+            second.body["id"].as_str().unwrap()
+        ),
+        Some(json!({ "status": "upheld", "review": "The phone was verified." })),
+        &admin,
+    )
+    .await;
+    assert_eq!(upheld.body["status"], "upheld");
+    assert_eq!(upheld.body["revisedOutcome"], Value::Null);
+    let vera = viewer(&app, &admin, &p).await;
+    let history = call(&app, "GET", &path, None, &vera).await;
+    let statuses: Vec<&Value> = history.body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| &c["status"])
+        .collect();
+    assert_eq!(statuses, [&json!("revised"), &json!("upheld")]);
+    assert_error(
+        &call(&app, "POST", &path, Some(open("Me too")), &vera).await,
+        StatusCode::FORBIDDEN,
+        "FORBIDDEN",
+    );
+
+    assert_eq!(
+        audit_of(&app, &admin, &p, "decision_contest.opened").await["total"],
+        2
+    );
+    let reviewed = audit_of(&app, &admin, &p, "decision_contest.reviewed").await;
+    assert_eq!(reviewed["total"], 2);
+    assert_eq!(reviewed["items"][1]["details"]["status"], "revised");
+
+    // The purge removes a record's contests with it.
+    app.clock.advance(Duration::days(5));
+    assert_eq!(app.decision_log.purge().await.unwrap(), 1);
+    let left: i64 = sqlx::query_scalar("SELECT count(*) FROM decision_contests")
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(left, 0);
+}
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn the_access_report_holds_every_record_in_the_persons_language(db: PgPool) {
+    let (app, llm) = explaining_app(db).await;
+    let (admin, p, rid) = released_with(&app, identifying_table()).await;
+    let token = staging_token(&app, &admin).await;
+    let records = [
+        about(&p, &rid, day(2026, 8, 30, 10), NATIONAL_ID),
+        about(&p, &rid, day(2026, 9, 20, 10), NATIONAL_ID),
+    ];
+    feed(&app, Some(&token), json!(records)).await;
+    let (status, body) = answering("Le montant dépasse le seuil de la table.");
+    llm.answer(status, body);
+
+    let report = |language: &str, explain: bool| json!({ "identifier": NATIONAL_ID, "language": language, "explain": explain });
+    let pdf = call(
+        &app,
+        "POST",
+        &format!("/projects/{p}/people/report"),
+        Some(report("fr", true)),
+        &admin,
+    )
+    .await;
+    assert_eq!(pdf.status, StatusCode::OK);
+    assert!(pdf.body.as_str().unwrap().starts_with("%PDF"));
+    // Each record was explained without the person's fields.
+    let sent = llm.sent.lock().unwrap().clone();
+    assert_eq!(sent.len(), 2);
+    for request in &sent {
+        let prompt = request["messages"][0]["content"].as_str().unwrap();
+        assert!(
+            !prompt.contains("1984") && !prompt.contains("650 00"),
+            "{prompt}"
+        );
+    }
+
+    let plain = call(
+        &app,
+        "POST",
+        &format!("/projects/{p}/people/report"),
+        Some(report("en", false)),
+        &admin,
+    )
+    .await;
+    assert_eq!(plain.status, StatusCode::OK);
+    assert_eq!(llm.sent.lock().unwrap().len(), 2, "no explanation asked");
+
+    let audit = audit_of(&app, &admin, &p, "person.report_exported").await;
+    assert_eq!(audit["total"], 2);
+    assert_eq!(
+        audit["items"][0]["details"],
+        json!({ "records": 2, "explained": false })
+    );
+    assert_eq!(
+        audit["items"][1]["details"],
+        json!({ "records": 2, "explained": true })
+    );
+    let vera = viewer(&app, &admin, &p).await;
+    assert_error(
+        &call(
+            &app,
+            "POST",
+            &format!("/projects/{p}/people/report"),
+            Some(report("en", false)),
+            &vera,
+        )
+        .await,
+        StatusCode::FORBIDDEN,
+        "FORBIDDEN",
+    );
+}

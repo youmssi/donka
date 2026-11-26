@@ -1,0 +1,697 @@
+//! Shared helpers for the HTTP tests.
+#![allow(clippy::unwrap_used, dead_code)] // each test binary uses a subset
+
+use axum::body::Body;
+use axum::http::{header, Request, StatusCode};
+use axum::Router;
+use chrono::{TimeZone, Utc};
+use donka_app::auth::{CookieSettings, CSRF_HEADER, PENDING_COOKIE, SESSION_COOKIE};
+use donka_app::config::MfaRequired;
+use donka_app::rate_limit::AuthLimits;
+use donka_app::updates::Updates;
+use donka_app::{router, AppState};
+use donka_audit::AuditLog;
+use donka_db::{DbOptions, PgPool};
+use donka_decision::Decisions;
+use donka_decision_log::{Cipher, DecisionLog};
+use donka_engine::{DecisionRuntime, ZenRuntime};
+use donka_identity::{Identity, Locale, Policy};
+use donka_licence::{Licence, Module, SigningKeyPair};
+use donka_mail::testing::RecordingMailer;
+use donka_mail::Email;
+use donka_project::Projects;
+use donka_release::{ReleaseSettings, Releases};
+use donka_shared::clock::{Clock, ManualClock};
+use donka_storage::MemoryStore;
+use http_body_util::BodyExt;
+use serde_json::Value;
+use std::sync::Arc;
+use tower::ServiceExt;
+
+pub const BASE: &str = "/api/v1";
+pub const ADMIN_EMAIL: &str = "ada@bank.example";
+pub const ADMIN_PASSWORD: &str = "correct horse battery staple";
+
+pub const PUBLIC_URL: &str = "https://studio.bank.example";
+/// The decision-log key in tests (32 bytes, base64).
+pub const DECISION_LOG_KEY: &str = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=";
+/// The key identifiers are hashed with in tests (DNK-75).
+pub const PERSON_INDEX_KEY: &str = "QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl8=";
+/// The second-step key in tests (32 bytes, base64).
+pub const SECOND_STEP_KEY: &str = "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8=";
+/// How long decision records are kept, in tests.
+pub const RETENTION_DAYS: i64 = 30;
+
+pub struct TestApp {
+    pub router: Router,
+    pub identity: Identity,
+    pub clock: Arc<ManualClock>,
+    pub mailer: Arc<RecordingMailer>,
+    /// The bucket deployments write to.
+    pub store: Arc<MemoryStore>,
+    /// Runs the publisher (`publish_due`) on demand.
+    pub releases: Releases,
+    pub projects: Projects,
+    pub packs: donka_pack::Packs,
+    /// Runs the retention purge on demand.
+    pub decision_log: DecisionLog,
+    /// The installation's licence (DNK-77): reload it after rewriting the file.
+    pub licensing: donka_app::licence::Licensing,
+    /// The licence file; `None` in evaluation.
+    pub licence_file: Option<std::path::PathBuf>,
+    /// Signs licences the test app trusts.
+    pub licence_signer: Arc<SigningKeyPair>,
+    /// The release check (DNK-64): off unless the app was built `with_update_feed`.
+    pub updates: Updates,
+    pub installation: donka_installation::Installation,
+}
+
+/// The key the test app trusts, standing for Donka's.
+pub const LICENCE_SEED: [u8; 32] = [7; 32];
+
+/// A licence for "Bank of Example" valid from `from` to `until` (YYYY-MM-DD) with `modules`.
+pub fn licence(modules: &[Module], from: &str, until: &str) -> Licence {
+    Licence {
+        id: uuid::Uuid::new_v4(),
+        customer: "Bank of Example".into(),
+        issued_at: Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap(),
+        valid_from: from.parse().unwrap(),
+        valid_until: until.parse().unwrap(),
+        modules: modules.iter().copied().collect(),
+    }
+}
+
+/// Replaces the licence file's content and reloads it, as `SIGHUP` would.
+pub fn install_licence(app: &TestApp, text: &str) {
+    let file = app
+        .licence_file
+        .as_ref()
+        .expect("this app runs in evaluation");
+    std::fs::write(file, text).unwrap();
+    app.licensing.reload();
+}
+
+/// Signs `licence` with the trusted key and installs it.
+pub fn install_signed(app: &TestApp, licence: &Licence) {
+    install_licence(app, &app.licence_signer.issue(licence).unwrap());
+}
+
+/// Failed writes before a deployment is given up, in tests.
+pub const PUBLISH_MAX_ATTEMPTS: u32 = 3;
+
+pub fn policy() -> Policy {
+    Policy::default()
+}
+
+pub fn build(db: PgPool, runtime: Arc<dyn DecisionRuntime>, base: &str) -> TestApp {
+    build_with_web(db, runtime, base, None)
+}
+
+pub fn build_with_web(
+    db: PgPool,
+    runtime: Arc<dyn DecisionRuntime>,
+    base: &str,
+    web_dir: Option<&std::path::Path>,
+) -> TestApp {
+    assemble(db, runtime, base, web_dir, None, generous_limits())
+}
+
+/// An app without a licence file (evaluation): nothing reaches production (DNK-77).
+pub fn in_evaluation(db: PgPool) -> TestApp {
+    assemble_with_cipher(
+        db,
+        Arc::new(ZenRuntime::new(1)),
+        BASE,
+        None,
+        None,
+        generous_limits(),
+        Cipher::from_base64(DECISION_LOG_KEY).unwrap(),
+        SecondStep::default(),
+        Licensed::Evaluation,
+        Updates::new("1.4.0", None),
+    )
+}
+
+/// An app of version 1.4.0 that checks the release feed at `url` (DNK-64).
+pub fn with_update_feed(db: PgPool, url: &str) -> TestApp {
+    assemble_with_cipher(
+        db,
+        Arc::new(ZenRuntime::new(1)),
+        BASE,
+        None,
+        None,
+        generous_limits(),
+        Cipher::from_base64(DECISION_LOG_KEY).unwrap(),
+        SecondStep::default(),
+        Licensed::Modules(None),
+        Updates::new("1.4.0", Some(url.to_owned())),
+    )
+}
+
+/// Limits no ordinary test reaches: every request in tests comes from the same address.
+fn generous_limits() -> AuthLimits {
+    AuthLimits::new(10_000, 10_000, Vec::new())
+}
+
+/// An app with the given sign-in and password-reset limits.
+pub fn with_auth_limits(db: PgPool, limits: AuthLimits) -> TestApp {
+    assemble(db, Arc::new(ZenRuntime::new(1)), BASE, None, None, limits)
+}
+
+/// An app that explains decisions with the endpoint in `settings`.
+pub fn with_explainer(db: PgPool, settings: donka_explain::Settings) -> TestApp {
+    let explainer = donka_explain::Explainer::new(settings).unwrap();
+    assemble(
+        db,
+        Arc::new(ZenRuntime::new(1)),
+        BASE,
+        None,
+        Some(explainer),
+        generous_limits(),
+    )
+}
+
+fn assemble(
+    db: PgPool,
+    runtime: Arc<dyn DecisionRuntime>,
+    base: &str,
+    web_dir: Option<&std::path::Path>,
+    explainer: Option<donka_explain::Explainer>,
+    auth_limits: AuthLimits,
+) -> TestApp {
+    let cipher = Cipher::from_base64(DECISION_LOG_KEY).unwrap();
+    assemble_with_cipher(
+        db,
+        runtime,
+        base,
+        web_dir,
+        explainer,
+        auth_limits,
+        cipher,
+        SecondStep::default(),
+        Licensed::Modules(None),
+        Updates::new("1.4.0", None),
+    )
+}
+
+/// The second sign-in step settings of a test app (DNK-59).
+pub struct SecondStep {
+    pub required: MfaRequired,
+    pub keys: Cipher,
+}
+
+impl Default for SecondStep {
+    fn default() -> Self {
+        Self {
+            required: MfaRequired::None,
+            keys: Cipher::from_base64(SECOND_STEP_KEY).unwrap(),
+        }
+    }
+}
+
+/// An app with this second-step policy and keys (`current`, then previous ones).
+pub fn with_second_step(db: PgPool, required: MfaRequired, keys: &[&str]) -> TestApp {
+    let keys = Cipher::from_base64(keys[0])
+        .unwrap()
+        .with_previous(keys[1..].iter().copied())
+        .unwrap();
+    assemble_with_cipher(
+        db,
+        Arc::new(ZenRuntime::new(1)),
+        BASE,
+        None,
+        None,
+        generous_limits(),
+        Cipher::from_base64(DECISION_LOG_KEY).unwrap(),
+        SecondStep { required, keys },
+        Licensed::Modules(None),
+        Updates::new("1.4.0", None),
+    )
+}
+
+/// An app whose decision log seals with `current` and also opens records sealed
+/// with `previous` (a key rotation, DNK-40).
+pub fn with_decision_log_keys(db: PgPool, current: &str, previous: &[&str]) -> TestApp {
+    let cipher = Cipher::from_base64(current)
+        .unwrap()
+        .with_previous(previous.iter().copied())
+        .unwrap();
+    assemble_with_cipher(
+        db,
+        Arc::new(ZenRuntime::new(1)),
+        BASE,
+        None,
+        None,
+        generous_limits(),
+        cipher,
+        SecondStep::default(),
+        Licensed::Modules(None),
+        Updates::new("1.4.0", None),
+    )
+}
+
+/// The licence of a test app: none (evaluation), or one with every module, of which the
+/// installation turns on `Some(modules)` only (`DONKA_MODULES`, DNK-74).
+pub enum Licensed {
+    Evaluation,
+    Modules(Option<std::collections::BTreeSet<Module>>),
+}
+
+/// An app whose licence includes every module, with only `modules` turned on.
+pub fn with_modules(db: PgPool, modules: &[Module]) -> TestApp {
+    assemble_with_cipher(
+        db,
+        Arc::new(ZenRuntime::new(1)),
+        BASE,
+        None,
+        None,
+        generous_limits(),
+        Cipher::from_base64(DECISION_LOG_KEY).unwrap(),
+        SecondStep::default(),
+        Licensed::Modules(Some(modules.iter().copied().collect())),
+        Updates::new("1.4.0", None),
+    )
+}
+
+/// An app that knows where the installation's Runtime lets connectors call (DNK-84).
+pub fn with_connector_hosts(db: PgPool, destinations: donka_engine::Destinations) -> TestApp {
+    assemble_full(
+        db,
+        Arc::new(ZenRuntime::new(1)),
+        BASE,
+        None,
+        None,
+        generous_limits(),
+        Cipher::from_base64(DECISION_LOG_KEY).unwrap(),
+        SecondStep::default(),
+        Licensed::Modules(None),
+        Updates::new("1.4.0", None),
+        Some(destinations),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn assemble_with_cipher(
+    db: PgPool,
+    runtime: Arc<dyn DecisionRuntime>,
+    base: &str,
+    web_dir: Option<&std::path::Path>,
+    explainer: Option<donka_explain::Explainer>,
+    auth_limits: AuthLimits,
+    cipher: Cipher,
+    second_step: SecondStep,
+    licensed: Licensed,
+    updates: Updates,
+) -> TestApp {
+    assemble_full(
+        db,
+        runtime,
+        base,
+        web_dir,
+        explainer,
+        auth_limits,
+        cipher,
+        second_step,
+        licensed,
+        updates,
+        None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn assemble_full(
+    db: PgPool,
+    runtime: Arc<dyn DecisionRuntime>,
+    base: &str,
+    web_dir: Option<&std::path::Path>,
+    explainer: Option<donka_explain::Explainer>,
+    auth_limits: AuthLimits,
+    cipher: Cipher,
+    second_step: SecondStep,
+    licensed: Licensed,
+    updates: Updates,
+    connector_destinations: Option<donka_engine::Destinations>,
+) -> TestApp {
+    let clock = Arc::new(ManualClock::new(
+        Utc.with_ymd_and_hms(2026, 9, 28, 9, 0, 0).unwrap(),
+    ));
+    // Unless a test says otherwise, a licence with every module, valid around the test clock.
+    let licence_signer = Arc::new(SigningKeyPair::from_seed(LICENCE_SEED));
+    let modules = match &licensed {
+        Licensed::Evaluation => None,
+        Licensed::Modules(modules) => modules.clone(),
+    };
+    let licence_file = matches!(licensed, Licensed::Modules(_)).then(|| {
+        let file =
+            std::env::temp_dir().join(format!("donka-licence-{}.json", uuid::Uuid::new_v4()));
+        let all = licence(&Module::ALL, "2026-01-01", "2027-12-31");
+        std::fs::write(&file, licence_signer.issue(&all).unwrap()).unwrap();
+        file
+    });
+    let licensing = donka_app::licence::Licensing::new(
+        licence_file.clone(),
+        modules,
+        licence_signer.public_key(),
+        clock.clone(),
+    );
+    let identity = Identity::new(
+        db.clone(),
+        clock.clone(),
+        policy(),
+        Arc::new(second_step.keys),
+    );
+    let projects = Projects::new(db.clone(), clock.clone());
+    let decisions = Decisions::new(db.clone(), clock.clone(), runtime.clone());
+    let store = Arc::new(MemoryStore::default());
+    let releases = Releases::new(
+        db.clone(),
+        clock.clone(),
+        decisions.clone(),
+        projects.clone(),
+        store.clone(),
+        ReleaseSettings {
+            publish_max_attempts: PUBLISH_MAX_ATTEMPTS,
+            email_max_attempts: policy().email_max_attempts,
+            public_url: PUBLIC_URL.into(),
+            signing: None,
+        },
+    );
+    let audit = AuditLog::new(db.clone());
+    let decision_log = DecisionLog::new(
+        db.clone(),
+        clock.clone(),
+        Arc::new(cipher),
+        Arc::new(donka_decision_log::PersonKey::from_base64(PERSON_INDEX_KEY).unwrap()),
+        releases.clone(),
+        runtime.clone(),
+        chrono::Duration::days(RETENTION_DAYS),
+    );
+    let analysis = donka_analysis::Analysis::new(
+        db.clone(),
+        decision_log.clone(),
+        releases.clone(),
+        runtime.clone(),
+        true,
+        10_000,
+    );
+    let packs = donka_pack::Packs::new(
+        db.clone(),
+        clock.clone(),
+        projects.clone(),
+        decisions.clone(),
+        decision_log.clone(),
+        releases.clone(),
+    );
+    let installation = donka_installation::Installation::new(db.clone(), clock.clone());
+    let router = router(
+        AppState {
+            oidc: None,
+            local_sign_in_allowlist: Vec::new(),
+            runtime,
+            db,
+            identity: identity.clone(),
+            projects: projects.clone(),
+            decisions,
+            releases: releases.clone(),
+            decision_log: decision_log.clone(),
+            analysis,
+            explainer,
+            audit,
+            packs: packs.clone(),
+            catalogue: Arc::new(catalogue()),
+            cookies: CookieSettings {
+                secure: true,
+                max_age_seconds: 8 * 3600,
+            },
+            auth_limits,
+            mfa_required: second_step.required,
+            licensing: licensing.clone(),
+            updates: updates.clone(),
+            installation: installation.clone(),
+            connector_destinations: connector_destinations.map(Arc::new),
+            public_url: PUBLIC_URL.into(),
+        },
+        base,
+        web_dir,
+    );
+    TestApp {
+        router,
+        identity,
+        clock,
+        mailer: Arc::new(RecordingMailer::default()),
+        store,
+        releases,
+        projects,
+        packs,
+        decision_log,
+        licensing,
+        licence_file,
+        licence_signer,
+        updates,
+        installation,
+    }
+}
+
+/// The repository's packs, offered by every test app.
+pub fn catalogue() -> donka_pack::Catalogue {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packs");
+    donka_pack::Catalogue::load(&dir).unwrap()
+}
+
+/// An app whose database is unreachable (port 1 refuses immediately): only
+/// routes that never touch the database can succeed with it.
+pub fn without_database() -> TestApp {
+    let options = DbOptions {
+        acquire_timeout: std::time::Duration::from_millis(300),
+        ..DbOptions::default()
+    };
+    let db = donka_db::connect_lazy("postgres://nobody@127.0.0.1:1/none", &options).unwrap();
+    build(db, Arc::new(ZenRuntime::new(1)), BASE)
+}
+
+pub fn with_database(db: PgPool) -> TestApp {
+    build(db, Arc::new(ZenRuntime::new(1)), BASE)
+}
+
+pub struct Reply {
+    pub status: StatusCode,
+    pub request_id: Option<String>,
+    pub set_cookie: Option<String>,
+    pub body: Value,
+}
+
+pub async fn send(app: &Router, req: Request<Body>) -> Reply {
+    let res = app.clone().oneshot(req).await.unwrap();
+    let status = res.status();
+    // Read headers in their own scope so no borrow of `res` lives across the await.
+    let (request_id, set_cookie) = {
+        let header_text = |name: &str| {
+            res.headers()
+                .get(name)
+                .map(|v| v.to_str().unwrap().to_owned())
+        };
+        (
+            header_text("x-request-id"),
+            header_text(header::SET_COOKIE.as_str()),
+        )
+    };
+    let bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let body = serde_json::from_slice(&bytes)
+        .unwrap_or_else(|_| Value::String(String::from_utf8_lossy(&bytes).into_owned()));
+    Reply {
+        status,
+        request_id,
+        set_cookie,
+        body,
+    }
+}
+
+pub fn get(path: &str, session: Option<&str>) -> Request<Body> {
+    let mut req = Request::get(path);
+    if let Some(token) = session {
+        req = req.header(header::COOKIE, format!("{SESSION_COOKIE}={token}"));
+    }
+    req.body(Body::empty()).unwrap()
+}
+
+/// A JSON POST as Studio's own pages send it: with the CSRF header.
+pub fn post(path: &str, body: &Value, session: Option<&str>) -> Request<Body> {
+    let mut req = Request::post(path)
+        .header(header::CONTENT_TYPE, "application/json")
+        .header(CSRF_HEADER, "1");
+    if let Some(token) = session {
+        req = req.header(header::COOKIE, format!("{SESSION_COOKIE}={token}"));
+    }
+    req.body(Body::from(body.to_string())).unwrap()
+}
+
+/// The session token from a `Set-Cookie` header.
+pub fn session_from(reply: &Reply) -> String {
+    let cookie = reply.set_cookie.as_deref().expect("a Set-Cookie header");
+    cookie
+        .strip_prefix(&format!("{SESSION_COOKIE}="))
+        .and_then(|rest| rest.split(';').next())
+        .unwrap()
+        .to_owned()
+}
+
+/// The pending sign-in token from a 202 answer's `Set-Cookie` header.
+pub fn pending_from(reply: &Reply) -> String {
+    let cookie = reply.set_cookie.as_deref().expect("a Set-Cookie header");
+    cookie
+        .strip_prefix(&format!("{PENDING_COOKIE}="))
+        .and_then(|rest| rest.split(';').next())
+        .unwrap()
+        .to_owned()
+}
+
+/// A JSON POST carrying the pending sign-in cookie.
+pub fn post_pending(path: &str, body: &Value, pending: &str) -> Request<Body> {
+    Request::post(path)
+        .header(header::CONTENT_TYPE, "application/json")
+        .header(CSRF_HEADER, "1")
+        .header(header::COOKIE, format!("{PENDING_COOKIE}={pending}"))
+        .body(Body::from(body.to_string()))
+        .unwrap()
+}
+
+/// The authenticator code for `key` (base32) at the app's current time.
+pub fn code_at(app: &TestApp, key: &str) -> String {
+    let secret = totp_rs::Secret::try_from_base32(key).unwrap();
+    let totp = totp_rs::Builder::new()
+        .with_secret(secret)
+        .with_account_name("test")
+        .build()
+        .unwrap();
+    let now = u64::try_from(app.clock.now().timestamp()).unwrap();
+    totp.generate(now).to_string()
+}
+
+/// Creates the first administrator with a password.
+pub async fn admin_with_password(app: &TestApp) {
+    let token = app
+        .identity
+        .bootstrap_admin(ADMIN_EMAIL, Locale::En)
+        .await
+        .unwrap()
+        .unwrap();
+    app.identity
+        .complete_password_setup(token.expose(), ADMIN_PASSWORD)
+        .await
+        .unwrap();
+}
+
+pub async fn sign_in(app: &TestApp, email: &str, password: &str) -> Reply {
+    let body = serde_json::json!({ "email": email, "password": password });
+    send(
+        &app.router,
+        post(&format!("{BASE}/auth/sign-in"), &body, None),
+    )
+    .await
+}
+
+/// An administrator who is signed in; returns the session token.
+pub async fn signed_in_admin(app: &TestApp) -> String {
+    admin_with_password(app).await;
+    let reply = sign_in(app, ADMIN_EMAIL, ADMIN_PASSWORD).await;
+    assert_eq!(reply.status, StatusCode::OK, "{}", reply.body);
+    session_from(&reply)
+}
+
+pub fn assert_error(reply: &Reply, status: StatusCode, code: &str) {
+    assert_eq!(reply.status, status, "{}", reply.body);
+    assert_eq!(reply.body["code"], code, "{}", reply.body);
+    assert!(reply.body["message"]
+        .as_str()
+        .is_some_and(|m| !m.is_empty()));
+    let id = reply.body["requestId"].as_str().expect("requestId in body");
+    assert_eq!(
+        Some(id),
+        reply.request_id.as_deref(),
+        "body and header ids match"
+    );
+}
+
+/// Runs one pass of the email worker; returns how many emails were sent.
+pub async fn deliver(app: &TestApp) -> usize {
+    app.identity
+        .deliver_due_emails(
+            app.mailer.as_ref(),
+            PUBLIC_URL,
+            app.installation.organisation().await.unwrap().as_deref(),
+        )
+        .await
+        .unwrap()
+}
+
+/// Emails sent so far to `to`, oldest first.
+pub fn emails_to(app: &TestApp, to: &str) -> Vec<Email> {
+    app.mailer
+        .sent()
+        .into_iter()
+        .filter(|e| e.to == to)
+        .collect()
+}
+
+/// The one-time token in the link of an email, checking the link opens the
+/// setup page in `locale`.
+pub fn token_in_locale(email: &Email, locale: &str) -> String {
+    let prefix = format!("{PUBLIC_URL}/{locale}/setup-password/?token=");
+    let start = email.text.find(&prefix).expect("a setup link") + prefix.len();
+    email.text[start..]
+        .split_whitespace()
+        .next()
+        .unwrap()
+        .to_owned()
+}
+
+/// The one-time token in the link of an email sent in English.
+pub fn token_in(email: &Email) -> String {
+    token_in_locale(email, "en")
+}
+
+/// A JSON request with any method, as Studio's pages send it (CSRF header included).
+pub fn request(
+    method: &str,
+    path: &str,
+    body: Option<&Value>,
+    session: Option<&str>,
+) -> Request<Body> {
+    let mut req = Request::builder()
+        .method(method)
+        .uri(path)
+        .header(CSRF_HEADER, "1");
+    if let Some(token) = session {
+        req = req.header(header::COOKIE, format!("{SESSION_COOKIE}={token}"));
+    }
+    match body {
+        Some(body) => req
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(body.to_string()))
+            .unwrap(),
+        None => req.body(Body::empty()).unwrap(),
+    }
+}
+
+/// A signed-in user invited by the first administrator, who must exist already.
+/// Returns their session.
+pub async fn signed_in_user(app: &TestApp, email: &str, is_admin: bool) -> String {
+    let admin = app
+        .identity
+        .find_by_email(ADMIN_EMAIL)
+        .await
+        .unwrap()
+        .unwrap();
+    app.identity
+        .invite(&admin, email, Locale::En, is_admin)
+        .await
+        .unwrap();
+    deliver(app).await;
+    let token = token_in(emails_to(app, email).last().unwrap());
+    let password = "a long enough passphrase";
+    app.identity
+        .complete_password_setup(&token, password)
+        .await
+        .unwrap();
+    session_from(&sign_in(app, email, password).await)
+}

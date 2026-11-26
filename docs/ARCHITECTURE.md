@@ -7,7 +7,7 @@ It stores everything in Postgres and publishes immutable release artifacts.
 
 **Data plane: Donka Runtime** (`youmssi/donka-runtime`). Customer systems call it. It reads
 release artifacts from storage, hot-reloads them, and evaluates. If Studio is down, decisions
-keep flowing. A bank can run the Runtime inside its own network zone.
+keep flowing. An organisation can run the Runtime inside its own network zone.
 
 The only coupling between the planes is the **release artifact** and the **decision log feed**.
 
@@ -18,10 +18,12 @@ One zip per project and environment, the format the Runtime already understands:
 ```
 <project-key>                  (object name, no extension)
 ├── .config/project.json       release id + version, environment, hashed access tokens
-├── person-score.json          JDM graph
-├── sme-treasury.json
-└── bureau/normalize.json      sub-decisions keep their folder path
+├── person-score               JDM graph, named by its decision key
+├── sme-treasury
+└── bureau/normalize           sub-decisions keep their folder path
 ```
+
+The format of `.config/project.json` and the token rules: [`artifact-format.md`](artifact-format.md).
 
 Studio writes `staging/<project>` and `production/<project>` in the bucket. The Runtime polls
 every 5 s and reloads on change. Releases are immutable. Rollback means redeploying an older
@@ -33,34 +35,113 @@ artifact.
 |---|---|---|
 | `apps/web` | Next.js (static export), shadcn/ui + Radix + Tailwind, `@gorules/jdm-editor` (client-only) | All screens. Talks only to `apps/app`. |
 | `apps/app` | Rust, Axum, sqlx, Postgres | Auth, projects, versions, tests, releases, approvals, audit, decision log, AI explain, rules-sync API |
-| `crates/engine` | Rust, zen-engine 2.0.1 | `DecisionRuntime` trait + `ZenRuntime`. The only code that imports `zen_engine`. |
+| `crates/engine` | Rust, zen-engine 2.1.6 | `DecisionRuntime` trait + `ZenRuntime`. The only code that imports `zen_engine`. |
 | Donka Runtime | Rust (agent fork) | Evaluate endpoints, OpenAPI per project, token checks, connector handler, decision-log emitter |
 | Postgres | 16+ | Users, projects, versions, releases, approvals, append-only audit, decision log |
 | MinIO / S3 | | Release artifacts |
 
 ## Request flows
 
-1. **Author and test.** web → `POST /api/simulate` with the whole draft project → `ZenRuntime`
+1. **Author and test.** web → `POST /api/v1/simulate` with the whole draft project → `ZenRuntime`
    evaluates with trace → web shows the result per node. Connector nodes run in mock mode.
 2. **Release.** Save creates an immutable version, and tests run. A release freezes one version of
    every decision in the project. Deploying to staging writes the artifact. Production needs one
    approval from someone other than the author, then the artifact is written.
 3. **Evaluate.** Customer backend → Runtime `POST /api/rules/{project}/evaluate/{key}` with a
-   bearer token → result + reason codes + release id. The Runtime ships the decision record to
-   Studio asynchronously.
+   bearer token (and optionally `X-Donka-Reference`) → result + release id + `X-Decision-Id`.
+   The Runtime ships the decision record to Studio asynchronously, in batches.
 4. **Explain / replay.** Studio loads a logged decision, re-evaluates it against the same release
    (identical result), and can ask the customer's LLM for a plain-language explanation.
 
 ## Connectors (bureau, KYC, AML)
 
-Implemented once, in Rust, as a zen-engine custom-node adapter (`DecisionEngine::with_adapter`),
-shared by the Studio simulator and the Runtime. Graphs store the connector configuration and the
-**name** of a secret. Values come from the Runtime's environment or vault. Timeouts, retries and a
-circuit breaker are enforced by the handler, not by rule authors.
+Implemented once, in Rust, as a zen-engine custom-node adapter (`DecisionEngine::with_adapter`):
+the MIT crate `donka-connectors` in `donka-runtime/crates/connectors`. Studio depends on it
+without its `live` feature, so the simulator and test scenarios answer with each node's mock and
+no call leaves Studio; the Runtime makes the real calls. Graphs store the connector
+configuration and the **name** of a secret; values come from the Runtime's environment
+(`DONKA_SECRET_<NAME>`). Timeouts, retries and a circuit breaker are enforced by the handler, not
+by rule authors. The node format is in `docs/artifact-format.md`.
+
+Connectors are the only way a rule reaches another system. JavaScript function nodes have no
+network access in Studio or the Runtime: the engine's `http` module refuses every request
+(`HTTP requests from function nodes are disabled`) and attaches no cloud credentials (DNK-83).
+
+## Input contracts
+
+A decision's input contract is the JSON Schema on its input node (draft-07, what zen-engine
+validates with), edited in Studio as a table of **Input fields** or as raw JSON. It travels with
+the graph, so each version and each release freezes it, and every Runtime enforces it: a request
+that breaks it gets `400` naming the field. `crates/engine/src/contract.rs` holds everything
+Studio does with it: refusing an unusable schema when a version is saved, warning when rules read
+undeclared fields or nobody reads a required one, telling breaking from compatible changes on
+the approval screen, and finding the `pii` fields removed before an explanation. Artifacts also
+carry each contract as `.config/contracts/<key>/input.schema.json` for forms and pipelines.
+
+## Decision log
+
+Every decision a Runtime makes is sent to Studio in the background (`src/decision_log.rs` in the
+Runtime): a bounded queue, batches, retries with backoff; when the queue is full, records are
+dropped and counted rather than slowing answers. The Runtime authenticates with a
+**decision-log token** an administrator issued for its environment, so a staging Runtime cannot
+write production records. Studio stores a record only when its release was published to that
+environment of its project. The feed format: [`decision-log-feed.md`](decision-log-feed.md).
+
+`crates/decision-log` owns the records. Search fields stay readable; what the decision read and
+answered is encrypted with AES-256-GCM (`DONKA_DECISION_LOG_KEY`). Every member can search;
+opening and replaying a record are audited. Replay evaluates the record's input with its
+release, connector nodes answering from the recorded trace (`ConnectorAdapter::replay`), and
+says whether the result is identical. A worker purges records past
+`DONKA_DECISION_LOG_RETENTION_DAYS`, one audit event per project purged.
+
+## Rules sync
+
+CI pipelines pull a project's artifact with a **CI token** an owner issued in the project's
+settings (read-only, one project, hashed). `POST /api/v1/rules-sync` resolves `main` (newest
+release), `commit:<release id>`, `release:<version>` or `env:<key>` and answers where to
+download the artifact and its SHA-256; a token reaching another project gets `no_access`, and
+its downloads `404`. Artifacts are rebuilt from the database, reproducibly, so the checksum
+holds. Contract: [`rules-sync.md`](rules-sync.md).
+
+## Explanations
+
+When the installation sets `DONKA_EXPLAIN_URL`, any project member can ask Studio to explain a
+logged decision in plain language (`crates/explain`). Studio removes the project's redacted
+fields (dotted paths, owners list them in Settings) from the record's input, output and trace,
+records `decision_record.explained` in the audit log, then sends the rest to the customer's own
+LLM endpoint: Anthropic's Messages API or any OpenAI-compatible chat completions endpoint. The
+explanation is written in the reader's language and only shown; the model has no tools and
+nothing it says is stored or acted on. With the feature off, the endpoint answers `404` and the
+web app shows no explain control.
+
+## Observability
+
+Studio logs to standard output. With `DONKA_OTEL_ENABLED=true` it also exports traces and the
+`http.server.request.duration` metric over OTLP (HTTP), to wherever the standard
+`OTEL_EXPORTER_OTLP_*` variables point; nothing leaves the process otherwise
+(`apps/app/src/telemetry.rs`). Every span carries the request id (`donka.request_id`, the
+`x-request-id` a user can quote) and the route template (`/projects/{id}`), never the raw path,
+the query string, headers or bodies. The Runtime has its own switch (`OTEL_ENABLED`).
 
 ## Security baseline
 
 - Session cookies (argon2 password hashes) for Studio users. Owner / editor / viewer per project.
+- Sign-in locks an account after repeated failures, and sign-in and password reset are limited
+  per client address (429 with `Retry-After`); `X-Forwarded-For` is read only from trusted proxies.
 - Runtime access tokens are hashed, scoped to one environment, and rotatable.
-- Audit and decision-log tables are append-only at the database level.
+- Logs and exported spans name routes, not paths or query strings: no tokens or personal data.
+- Audit and decision-log tables are append-only at the database level; decision records can
+  only be deleted by the retention purge, which the table's trigger lets through.
+- Decision records are encrypted at rest; decision-log tokens are hashed and scoped to one
+  environment.
+- CI tokens are read-only, scoped to one project, hashed and revocable.
+- Explanations are off by default; a record leaves Studio only without its project's redacted
+  fields, and each time is audited.
 - The browser never holds a Runtime token. Fieldkit calls the Runtime through the customer's backend.
+
+## Planned authoring workflow
+
+Phase 2 adds document-assisted rule drafting, Fieldkit form/connector mappings, a playground
+and chat edits. The owner must accept the proposed diff before it changes an editable draft;
+the existing release/approval path still governs deployment. This scope is approved, while
+its architecture and detailed stories remain for phase entry. See [Delivery plan](delivery-plan.md).

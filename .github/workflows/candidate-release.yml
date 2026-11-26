@@ -1,0 +1,202 @@
+name: Candidate release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Studio candidate version in X.Y.Z-rc.N format.
+        required: true
+        type: string
+      runtime_version:
+        description: Published Runtime candidate version to use for the staging install check.
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: candidate-release-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      version: ${{ steps.plan.outputs.version }}
+      release_tag: ${{ steps.plan.outputs.release_tag }}
+      asset_name: ${{ steps.plan.outputs.asset_name }}
+      runtime_version: ${{ steps.runtime.outputs.version }}
+      runtime_digest: ${{ steps.runtime.outputs.digest }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Validate Studio candidate source and version
+        id: plan
+        env:
+          VERSION: ${{ inputs.version }}
+          REF: ${{ github.ref_name }}
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: node scripts/candidate-release.mjs "$VERSION" "$REF" "$SOURCE_COMMIT"
+      - name: Validate and download the immutable Runtime candidate
+        id: runtime
+        env:
+          RUNTIME_VERSION: ${{ inputs.runtime_version }}
+          RUNTIME_RELEASE_TAG: v${{ inputs.runtime_version }}
+          SOURCE_COMMIT: ${{ github.sha }}
+          RUNTIME_IMAGE: ghcr.io/youmssi/donka-runtime
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          node scripts/candidate-release.mjs "$RUNTIME_VERSION" develop "$SOURCE_COMMIT" >> "$GITHUB_OUTPUT"
+          runtime_release=$(curl --fail --location --silent --show-error \
+            "https://api.github.com/repos/youmssi/donka-runtime/releases/tags/$RUNTIME_RELEASE_TAG")
+          echo "$runtime_release" | jq -e --arg tag "$RUNTIME_RELEASE_TAG" \
+            '.draft == false and .prerelease == true and .immutable == true and .tag_name == $tag'
+          mkdir -p "$RUNNER_TEMP/runtime-candidate"
+          asset_url=$(echo "$runtime_release" | jq -er --arg name "candidate-$RUNTIME_VERSION.json" \
+            '.assets[] | select(.name == $name) | .browser_download_url')
+          curl --fail --location --silent --show-error "$asset_url" \
+            --output "$RUNNER_TEMP/runtime-candidate/candidate-$RUNTIME_VERSION.json"
+          digest=$(node --input-type=module -e '
+            import { readFile } from "node:fs/promises";
+            const manifest = JSON.parse(await readFile(process.argv[1], "utf8"));
+            if (manifest.repository !== "youmssi/donka-runtime" || manifest.version !== process.env.RUNTIME_VERSION ||
+                manifest.releaseTag !== process.env.RUNTIME_RELEASE_TAG || !/^sha256:[a-f0-9]{64}$/.test(manifest.image?.digest) ||
+                manifest.image.ref !== `${process.env.RUNTIME_IMAGE}@${manifest.image.digest}`) {
+              throw new Error("Runtime candidate manifest does not match the requested immutable release.");
+            }
+            process.stdout.write(manifest.image.digest);
+          ' "$RUNNER_TEMP/runtime-candidate/candidate-$RUNTIME_VERSION.json")
+          echo "version=$RUNTIME_VERSION" >> "$GITHUB_OUTPUT"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+      - uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
+        with:
+          cosign-release: v2.5.2
+      - name: Verify the Runtime candidate digest
+        env:
+          RUNTIME_RELEASE_TAG: v${{ inputs.runtime_version }}
+          RUNTIME_VERSION: ${{ inputs.runtime_version }}
+          RUNTIME_DIGEST: ${{ steps.runtime.outputs.digest }}
+          RUNTIME_IMAGE: ghcr.io/youmssi/donka-runtime
+        run: |
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/youmssi/donka-runtime/$RUNTIME_RELEASE_TAG/cosign.pub" \
+            --output "$RUNNER_TEMP/runtime-cosign.pub"
+          cosign verify --key "$RUNNER_TEMP/runtime-cosign.pub" --insecure-ignore-tlog \
+            "$RUNTIME_IMAGE@$RUNTIME_DIGEST" >/dev/null
+      - name: Reject reused Studio references
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.plan.outputs.release_tag }}
+          IMAGE_TAG: ${{ steps.plan.outputs.image_tag }}
+          IMAGE: ghcr.io/youmssi/donka-studio
+          ACTOR: ${{ github.actor }}
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "::error::Candidate release tag already exists; choose a new -rc.N version."
+            exit 1
+          else
+            result=$?
+            [ "$result" -eq 2 ] || exit "$result"
+          fi
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+          if docker manifest inspect "$IMAGE:$IMAGE_TAG" >/dev/null 2>"$RUNNER_TEMP/candidate-manifest-error"; then
+            echo "::error::Candidate image tag already exists; choose a new -rc.N version."
+            exit 1
+          elif grep -Eqi 'manifest unknown|no such manifest' "$RUNNER_TEMP/candidate-manifest-error"; then
+            echo "Candidate image tag is not present."
+          else
+            cat "$RUNNER_TEMP/candidate-manifest-error"
+            echo "::error::Could not confirm that the candidate image tag is unused."
+            exit 1
+          fi
+      - name: Create the Studio candidate draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.plan.outputs.release_tag }}
+          VERSION: ${{ steps.plan.outputs.version }}
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          gh release create "$RELEASE_TAG" --target "$SOURCE_COMMIT" --draft --prerelease --latest=false \
+            --title "Donka Studio $VERSION candidate" \
+            --notes "Signed Studio candidate $VERSION from $SOURCE_COMMIT. Uses Runtime candidate ${{ inputs.runtime_version }}. This prerelease is for isolated staging, not production."
+
+  image:
+    needs: prepare
+    uses: ./.github/workflows/images.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+      candidate: true
+      runtime_version: ${{ needs.prepare.outputs.runtime_version }}
+      runtime_digest: ${{ needs.prepare.outputs.runtime_digest }}
+    secrets: inherit
+    permissions:
+      contents: write
+      packages: write
+
+  publish:
+    needs: [prepare, image]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      packages: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
+        with:
+          cosign-release: v2.5.2
+      - name: Verify and record both staged image digests
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
+          SOURCE_COMMIT: ${{ github.sha }}
+          STUDIO_IMAGE: ghcr.io/youmssi/donka-studio
+          STUDIO_DIGEST: ${{ needs.image.outputs.digest }}
+          RUNTIME_VERSION: ${{ needs.prepare.outputs.runtime_version }}
+          RUNTIME_DIGEST: ${{ needs.prepare.outputs.runtime_digest }}
+          RUNTIME_IMAGE: ghcr.io/youmssi/donka-runtime
+          ASSET_NAME: ${{ needs.prepare.outputs.asset_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cosign verify --key cosign.pub --insecure-ignore-tlog "$STUDIO_IMAGE@$STUDIO_DIGEST" >/dev/null
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/youmssi/donka-runtime/v$RUNTIME_VERSION/cosign.pub" \
+            --output "$RUNNER_TEMP/runtime-cosign.pub"
+          cosign verify --key "$RUNNER_TEMP/runtime-cosign.pub" --insecure-ignore-tlog \
+            "$RUNTIME_IMAGE@$RUNTIME_DIGEST" >/dev/null
+          node --input-type=module -e '
+            import { writeFile } from "node:fs/promises";
+            const manifest = {
+              repository: "youmssi/donka",
+              version: process.env.VERSION,
+              releaseTag: process.env.RELEASE_TAG,
+              sourceCommit: process.env.SOURCE_COMMIT,
+              installCheck: "passed using both recorded digests",
+              images: {
+                studio: { ref: `${process.env.STUDIO_IMAGE}@${process.env.STUDIO_DIGEST}`, digest: process.env.STUDIO_DIGEST },
+                runtime: {
+                  version: process.env.RUNTIME_VERSION,
+                  ref: `${process.env.RUNTIME_IMAGE}@${process.env.RUNTIME_DIGEST}`,
+                  digest: process.env.RUNTIME_DIGEST,
+                },
+              },
+            };
+            await writeFile(process.env.ASSET_NAME, `${JSON.stringify(manifest, null, 2)}\n`);
+          '
+          gh release upload "$RELEASE_TAG" "$ASSET_NAME"
+          release_id=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" --jq '.id')
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$release_id" \
+            -F draft=false -F prerelease=true -f make_latest=false >/dev/null
+          gh release view "$RELEASE_TAG" --json isImmutable,isPrerelease,tagName \
+            | jq -e --arg tag "$RELEASE_TAG" '.isImmutable == true and .isPrerelease == true and .tagName == $tag'

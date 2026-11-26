@@ -1,0 +1,239 @@
+[
+  {
+    "decision": "transaction-limits",
+    "name": "Transfer within limits",
+    "input": {
+      "wallet": {
+        "tier": 2,
+        "balance": 300000,
+        "dailyOutgoing": 0,
+        "monthlyOutgoing": 0
+      },
+      "transaction": {
+        "type": "transfer",
+        "amount": 50000,
+        "crossBorder": false
+      }
+    },
+    "expected": {
+      "decision": "allow",
+      "fee": 250,
+      "balanceAfter": 249750,
+      "dailyRemaining": 1450000,
+      "monthlyRemaining": 4950000,
+      "reasons": []
+    },
+    "match": "partial"
+  },
+  {
+    "decision": "transaction-limits",
+    "name": "Merchant payment, no fee",
+    "input": {
+      "wallet": {
+        "tier": 1,
+        "balance": 20000,
+        "dailyOutgoing": 0,
+        "monthlyOutgoing": 0
+      },
+      "transaction": {
+        "type": "merchant-payment",
+        "amount": 15000,
+        "crossBorder": false
+      }
+    },
+    "expected": {
+      "decision": "allow",
+      "fee": 0,
+      "balanceAfter": 5000
+    },
+    "match": "partial"
+  },
+  {
+    "decision": "transaction-limits",
+    "name": "Tier 1 above its limit per transaction",
+    "input": {
+      "wallet": {
+        "tier": 1,
+        "balance": 450000,
+        "dailyOutgoing": 0,
+        "monthlyOutgoing": 0
+      },
+      "transaction": {
+        "type": "transfer",
+        "amount": 250000,
+        "crossBorder": false
+      }
+    },
+    "expected": {
+      "decision": "decline",
+      "upgradeTo": 2,
+      "fee": 0,
+      "balanceAfter": 450000,
+      "reasons": [
+        {
+          "code": "M01",
+          "en": "Above the tier's limit per transaction.",
+          "fr": "Au-dessus du plafond par opération du niveau."
+        }
+      ]
+    },
+    "match": "partial"
+  },
+  {
+    "decision": "transaction-limits",
+    "name": "Daily limit already used",
+    "input": {
+      "wallet": {
+        "tier": 2,
+        "balance": 1800000,
+        "dailyOutgoing": 1400000,
+        "monthlyOutgoing": 2000000
+      },
+      "transaction": {
+        "type": "withdrawal",
+        "amount": 200000,
+        "crossBorder": false
+      }
+    },
+    "expected": {
+      "decision": "decline",
+      "upgradeTo": 3,
+      "dailyRemaining": 100000
+    },
+    "match": "partial"
+  },
+  {
+    "decision": "transaction-limits",
+    "name": "Not enough balance for amount and fee",
+    "input": {
+      "wallet": {
+        "tier": 2,
+        "balance": 50100,
+        "dailyOutgoing": 0,
+        "monthlyOutgoing": 0
+      },
+      "transaction": {
+        "type": "transfer",
+        "amount": 50000,
+        "crossBorder": false
+      }
+    },
+    "expected": {
+      "decision": "decline",
+      "reasons": [
+        {
+          "code": "M04",
+          "en": "The balance does not cover the amount and the fee.",
+          "fr": "Le solde ne couvre pas le montant et les frais."
+        }
+      ]
+    },
+    "match": "partial"
+  },
+  {
+    "decision": "transaction-limits",
+    "name": "Deposit above the maximum balance",
+    "input": {
+      "wallet": {
+        "tier": 1,
+        "balance": 450000,
+        "dailyOutgoing": 0,
+        "monthlyOutgoing": 0
+      },
+      "transaction": {
+        "type": "deposit",
+        "amount": 100000,
+        "crossBorder": false
+      }
+    },
+    "expected": {
+      "decision": "decline",
+      "upgradeTo": 2,
+      "reasons": [
+        {
+          "code": "M05",
+          "en": "The balance would exceed the tier's maximum.",
+          "fr": "Le solde dépasserait le plafond du niveau."
+        }
+      ]
+    },
+    "match": "partial"
+  },
+  {
+    "decision": "transaction-limits",
+    "name": "Deposit within the maximum balance",
+    "input": {
+      "wallet": {
+        "tier": 1,
+        "balance": 100000,
+        "dailyOutgoing": 300000,
+        "monthlyOutgoing": 0
+      },
+      "transaction": {
+        "type": "deposit",
+        "amount": 100000,
+        "crossBorder": false
+      }
+    },
+    "expected": {
+      "decision": "allow",
+      "fee": 0,
+      "balanceAfter": 200000,
+      "dailyRemaining": 0
+    },
+    "match": "partial"
+  },
+  {
+    "decision": "transaction-limits",
+    "name": "Tier 1 transfer to Gabon",
+    "input": {
+      "wallet": {
+        "tier": 1,
+        "balance": 300000,
+        "dailyOutgoing": 0,
+        "monthlyOutgoing": 0
+      },
+      "transaction": {
+        "type": "transfer",
+        "amount": 50000,
+        "crossBorder": true
+      }
+    },
+    "expected": {
+      "decision": "decline",
+      "upgradeTo": 2,
+      "reasons": [
+        {
+          "code": "M06",
+          "en": "Transfers to another CEMAC country need tier 2 or more.",
+          "fr": "Les transferts vers un autre pays de la CEMAC demandent le niveau 2 ou plus."
+        }
+      ]
+    },
+    "match": "partial"
+  },
+  {
+    "decision": "transaction-limits",
+    "name": "Tier 3 large transfer to Chad",
+    "input": {
+      "wallet": {
+        "tier": 3,
+        "balance": 6000000,
+        "dailyOutgoing": 0,
+        "monthlyOutgoing": 10000000
+      },
+      "transaction": {
+        "type": "transfer",
+        "amount": 4000000,
+        "crossBorder": true
+      }
+    },
+    "expected": {
+      "decision": "allow",
+      "fee": 2500,
+      "balanceAfter": 1997500,
+      "monthlyRemaining": 11000000
+    },
+    "match": "partial"
+  }
+]

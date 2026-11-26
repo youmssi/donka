@@ -1,0 +1,22 @@
+[package]
+name = "donka-mail"
+description = "Outgoing email: the Mailer interface and its SMTP implementation"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+publish = false
+
+[features]
+# Exposes RecordingMailer to other crates' tests.
+testing = []
+
+[dependencies]
+async-trait = { workspace = true }
+lettre = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+
+[lints]
+workspace = true
