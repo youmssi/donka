@@ -1984,15 +1984,68 @@ Do not publish a candidate as part of this implementation story.
 
 #### Acceptance criteria
 
-- [ ] Candidate runs are manually dispatched from `develop` and are bound to the exact reviewed commit; invalid refs and versions outside `X.Y.Z-rc.N` fail before publishing.
+- [x] Candidate runs are manually dispatched from `develop` and are bound to the exact reviewed commit; invalid refs and versions outside `X.Y.Z-rc.N` fail before publishing.
 - [ ] Studio and Runtime candidate image tags contain only the requested `-rc.N` version. Candidate jobs never write `edge`, `latest`, stable SemVer tags, or stable minor aliases; a pre-existing candidate tag or registry reference fails closed.
-- [ ] Both candidate images include SBOM and provenance, are signed by their repository-specific Cosign key, and verify against the public key from the same tagged commit. The run records image digests for staging.
-- [ ] CLI candidate tarballs are signed and verified with a distinct CLI key and public key; no npm publication occurs.
-- [ ] Each GitHub candidate release is a prerelease tied to the exact reviewed commit. Assets are complete before publication; published release assets and tags are protected by GitHub immutable releases, and `-rc` tags cannot be updated or deleted by the workflow.
+- [x] Both candidate images include SBOM and provenance, are signed by their repository-specific Cosign key, and verify against the public key from the same tagged commit. The run records image digests for staging.
+- [x] CLI candidate tarballs are signed and verified with a distinct CLI key and public key; no npm publication occurs.
+- [x] Each GitHub candidate release is a prerelease tied to the exact reviewed commit. Assets are complete before publication; published release assets and tags are protected by GitHub immutable releases, and `-rc` tags cannot be updated or deleted by the workflow.
 - [ ] Tests exercise invalid version/ref, duplicate candidate, signing verification, the exact candidate tag set, and the invariant that stable aliases remain untouched.
-- [ ] A candidate installation/upgrade smoke run uses the selected Runtime and Studio RC digests and passes before the candidate is declared ready for staging.
-- [ ] CI and documentation describe dispatch, verification, retry/failure behavior, key separation, and the owner settings required for immutable releases.
-- [ ] The operator guide explains that GitHub exposes manual workflows only after they reach the default branch; promote the reviewed Phase 1 source to `main` first, then dispatch each candidate workflow from `develop`.
+- [x] A candidate installation/upgrade smoke run uses the selected Runtime and Studio RC digests and passes before the candidate is declared ready for staging.
+- [x] CI and documentation describe dispatch, verification, retry/failure behavior, key separation, and the owner settings required for immutable releases.
+- [x] The operator guide explains that GitHub exposes manual workflows only after they reach the default branch; promote the reviewed Phase 1 source to `main` first, then dispatch each candidate workflow from `develop`.
+
+#### Rehearsal evidence (2026-11-26)
+
+The owner authorised a rehearsal separately from this implementation story. Candidates were
+dispatched from `develop` in the required Runtime → Studio → CLI order, each after its promotion
+had put the workflow on the default branch.
+
+| Product | Candidate | Source commit | Published artefact |
+|---|---|---|---|
+| Runtime | `1.29.0-rc.1` | `b7d7b594369959d91007f038ef122dbd99f151e7` | `ghcr.io/youmssi/donka-runtime@sha256:7f6df80c64e3cd6dc1197ead08c2b86d3a1626a4f432685d6af81e84d7c52b19` |
+| Studio | `0.2.0-rc.1` | `d4c8b11f40882fd62d4418885b20aa8b0ae8978f` | `ghcr.io/youmssi/donka-studio@sha256:bf7209bfcbc00a281a8456062686e1dc034f95e74c0f8153f59c1d70e610bd9b` |
+| CLI | `0.4.0-rc.1` | `e62b4b34d102279dac858a676cb9d04ffb25ccc0` | `donka-cli-0.4.0-rc.1.tgz` with `.sha256` and `.sig` |
+
+All three releases are `draft=false`, `prerelease=true` and `immutable=true`, each targeting the
+commit above. Studio's `prepare` validated the Runtime release's immutability and tag, matched its
+signed manifest on repository, version, release tag and image reference, and verified the image
+digest's Cosign signature against the Runtime's own public key before accepting it; the Runtime
+digest in Studio's manifest is identical to the one the Runtime published. Studio's manifest
+records `"installCheck": "passed using both recorded digests"`, so the two images were installed
+and exercised together pinned by digest. Each candidate image's attestation manifest carries both
+an SBOM (`https://spdx.dev/Document`) and provenance (`https://slsa.dev/provenance/v1`). Checked
+against the live registry afterwards, `latest` does not exist for either image and `edge` still
+resolves to its earlier development digest, so no stable or mutable alias moved.
+
+The implementation was **incomplete until 2026-11-26**. The workflow is dispatch-only and had
+never been run, so two defects survived review and a passing unit suite:
+
+1. The image job checked out `v<version>`, but a candidate's release stays a draft until the
+   publish job flips it and GitHub creates no tag for a draft, so the checkout requested a tag
+   that cannot exist. Fixed in Studio PR #122 and Runtime PR #37. The CLI builds no image.
+2. The publish job resolved its release through the REST by-tag endpoint, which does not return
+   drafts; the lookup answers 404 under `bash -e`, so the job would have failed after the image
+   was built, signed and pushed. Fixed in Studio PR #122, Runtime PR #37 and CLI PR #17.
+
+#### Two criteria remain open
+
+- **Candidate tag reuse is not proven to fail closed.** The alias half of that criterion is
+  verified, and `scripts/candidate-release.test.mjs` covers the tag set and the alias invariant,
+  but the reject-on-reuse steps have only ever run with the tag absent. Exercising the positive
+  failure path needs a deliberate duplicate dispatch.
+- **Two of the required test subjects are missing.** The suite covers invalid versions and refs,
+  the candidate tag set and the stable-alias invariant, but not a duplicate candidate and not
+  signature verification.
+
+#### Deviation from the documented retry guidance
+
+`docs/install.md` states that a run which fails after creating its draft or tag must be corrected
+and retried under the next `-rc.N`, never reusing the tag. The first Runtime dispatch failed at
+defect 1 above, and on the owner's explicit instruction its orphaned draft was deleted and `rc.1`
+reused rather than moving to `rc.2`. That was safe in this instance, verified beforehand: the
+draft held no assets, `ls-remote` showed no Git tag had been created, and `docker manifest
+inspect` returned `manifest unknown` for the image tag. It is nonetheless contrary to the written
+guidance and is recorded here rather than left implicit.
 
 #### Out of scope
 
