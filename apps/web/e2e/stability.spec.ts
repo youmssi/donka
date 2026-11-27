@@ -91,14 +91,15 @@ test('an owner measures the decision mix and the population shift of real produc
   }
 
   // Wait for the production release to answer before timing anything, so the boundary below
-  // separates the two populations rather than the Runtime's own start-up.
+  // separates the two populations rather than the Runtime's own start-up. The call that
+  // succeeds is a northern case like any other, and is counted as one below.
   await expect
     .poll(
       async () =>
         (
           await services.post(`${runtime}/api/projects/${key}/evaluate/score`, {
             headers: { 'X-Access-Token': token.token },
-            data: { context: { input: 1, region: 'warmup' } },
+            data: { context: { input: 10, region: 'north' } },
           })
         ).status(),
       { timeout: 60_000 },
@@ -106,10 +107,14 @@ test('an owner measures the decision mix and the population shift of real produc
     .toBe(200);
   await received(1);
 
-  // The reference population: six decisions in the north, scoring 20.
-  const reference = [];
-  for (let index = 0; index < 6; index += 1) reference.push(await decide(10, 'north'));
-  await received(1 + reference.length);
+  // Both populations have to keep every bin at or above the minimum, or suppression removes
+  // the very bins that carry the shift and the index collapses to zero. Ten northern and five
+  // southern cases, against five and ten, move the mix without hiding it. The warm-up call
+  // above is the first northern case, so it is counted here.
+  for (let index = 0; index < 9; index += 1) await decide(10, 'north');
+  for (let index = 0; index < 5; index += 1) await decide(30, 'south');
+  const referenceRecords = 15;
+  await received(referenceRecords);
 
   // Records carry the instant the Runtime decided them, and nothing can backdate one, so the
   // two periods are separated in real time: everything already sent is the reference, and the
@@ -117,12 +122,14 @@ test('an owner measures the decision mix and the population shift of real produc
   const boundary = new Date();
   await new Promise((resolve) => setTimeout(resolve, 1_100));
 
-  // The recent population: the region moved south and the scores doubled.
-  const recent = [];
-  for (let index = 0; index < 6; index += 1) recent.push(await decide(30, 'south'));
-  // One lone northern case, below the minimum bin, so suppression has something to hide.
-  recent.push(await decide(10, 'north'));
-  await received(1 + reference.length + recent.length);
+  // The recent population: the regions swap round and the scores follow them.
+  for (let index = 0; index < 5; index += 1) await decide(10, 'north');
+  for (let index = 0; index < 10; index += 1) await decide(30, 'south');
+  // One lone eastern case, below the minimum bin, so suppression has something to hide while
+  // the bins that matter stay reportable.
+  await decide(30, 'east');
+  const recentRecords = 16;
+  await received(referenceRecords + recentRecords);
 
   // The two periods are seconds apart, which the page's date fields cannot express, so the
   // shifted snapshot is taken through the API with the exact instants. The page then renders
@@ -146,15 +153,16 @@ test('an owner measures the decision mix and the population shift of real produc
     mix: { week: string; shares: Record<string, number> }[];
     shifts: { field: string; index: number | null; band: string | null; suppressedBins: number }[];
   } = await taken.json();
-  // The region moved from north to south entirely, so it reads as a breach.
+  // The regions swapped round, which is far past the breach threshold.
   expect(snapshotTaken.worstBand).toBe('shifted');
-  expect(snapshotTaken.recordsRead).toBe(14);
+  expect(snapshotTaken.recordsRead).toBe(referenceRecords + recentRecords);
   const region = snapshotTaken.shifts.find((shift) => shift.field === 'region');
   expect(region?.band).toBe('shifted');
-  // The lone northern case in the recent period is one record: hidden, and counted.
+  // The lone eastern case is one record: hidden, and counted.
   expect(region?.suppressedBins).toBe(1);
   const output = snapshotTaken.shifts.find((shift) => shift.field === 'output');
   expect(output?.index, 'the score moved across its bin edge').toBeGreaterThan(0);
+  expect(output?.suppressedBins, 'both score bins stay reportable').toBe(0);
   // Each week's shares divide that week's records, so they sum to one.
   for (const week of snapshotTaken.mix) {
     const total = Object.values(week.shares).reduce((sum, share) => sum + share, 0);
