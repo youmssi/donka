@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/shared", "crates/engine", "crates/db", "crates/audit", "crates/identity", "crates/mail", "crates/project", "crates/decision", "crates/storage", "crates/release", "crates/decision-log", "crates/analysis", "crates/explain", "crates/pack", "crates/licence", "crates/installation", "apps/app", "tools/licence-issuer"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license-file = "LICENSE"
 
