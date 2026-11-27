@@ -1,9 +1,10 @@
 {
   "minimumLinePercent": 70,
   "modules": [
+    "crates/analysis/src",
     "crates/audit/src",
-    "crates/decision/src",
     "crates/decision-log/src",
+    "crates/decision/src",
     "crates/engine/src",
     "crates/explain/src",
     "crates/identity/src",
