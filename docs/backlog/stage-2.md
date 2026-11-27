@@ -116,11 +116,19 @@ Confirmed 2026-10-25:
 - Bins with fewer than a configured number of records are hidden, so a person cannot be
   singled out.
 
-[INTERACTIVE STEP] at story start: whether a breach emails the owners or stays on the screen
-until webhooks exist.
+Confirmed 2026-11-27:
+- A breach emails the project owners through the existing approval email outbox, configurable
+  and **off by default**, so no installation starts sending mail on upgrade. An owner is mailed
+  once when a measure crosses into breach, not on every snapshot, so an expected drift does not
+  become a recurring alert.
+- Snapshots run **on demand and on a configured schedule**. The scheduled pass follows the
+  existing background worker pattern and is **off unless configured**, so no installation starts
+  background analysis on upgrade. Webhooks remain a later candidate and will sit alongside the
+  email rather than replace it.
 
 #### Acceptance criteria
 - [ ] The decision mix shows each outcome's share per week for a chosen period
+- [ ] A measure crossing into breach emails the project owners once while alerts are configured on, and nothing is sent while they are off
 - [ ] SSI on the chosen output and CSI per input use configured bins for numbers and the values for enums; a period with too few records says so instead of showing a value
 - [ ] Small bins are suppressed; personal fields show only aggregated bins
 - [ ] Each snapshot records its periods, bins and thresholds; project isolation matches the decision log; viewing is audited

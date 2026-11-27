@@ -151,6 +151,8 @@ pub enum Action {
     #[serde(rename = "decision_record.viewed")]
     #[sqlx(rename = "decision_record.viewed")]
     DecisionRecordViewed,
+    /// A stability snapshot read many records as bin counts (DNK-57).
+    DecisionRecordsAggregated,
     #[serde(rename = "decision_record.replayed")]
     #[sqlx(rename = "decision_record.replayed")]
     DecisionRecordReplayed,
@@ -280,6 +282,7 @@ impl Action {
             Self::ApprovalRejected => "approval.rejected",
             Self::ApprovalWithdrawn => "approval.withdrawn",
             Self::DecisionRecordViewed => "decision_record.viewed",
+            Self::DecisionRecordsAggregated => "decision_records.aggregated",
             Self::DecisionRecordReplayed => "decision_record.replayed",
             Self::DecisionLogPurged => "decision_log.purged",
             Self::DecisionLogResealed => "decision_log.resealed",
