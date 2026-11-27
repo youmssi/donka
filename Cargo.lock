@@ -1193,7 +1193,7 @@ dependencies = [
 
 [[package]]
 name = "donka-analysis"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "donka-audit",
@@ -1215,7 +1215,7 @@ dependencies = [
 
 [[package]]
 name = "donka-app"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1277,7 +1277,7 @@ dependencies = [
 
 [[package]]
 name = "donka-audit"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "donka-db",
@@ -1305,7 +1305,7 @@ dependencies = [
 
 [[package]]
 name = "donka-db"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "sqlx",
  "thiserror 2.0.21",
@@ -1314,7 +1314,7 @@ dependencies = [
 
 [[package]]
 name = "donka-decision"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "donka-audit",
@@ -1331,7 +1331,7 @@ dependencies = [
 
 [[package]]
 name = "donka-decision-log"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -1356,7 +1356,7 @@ dependencies = [
 
 [[package]]
 name = "donka-engine"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "bumpalo",
@@ -1374,7 +1374,7 @@ dependencies = [
 
 [[package]]
 name = "donka-explain"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axum",
  "reqwest 0.12.28",
@@ -1387,7 +1387,7 @@ dependencies = [
 
 [[package]]
 name = "donka-identity"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "argon2",
  "base64 0.22.1",
@@ -1411,7 +1411,7 @@ dependencies = [
 
 [[package]]
 name = "donka-installation"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "donka-audit",
@@ -1426,7 +1426,7 @@ dependencies = [
 
 [[package]]
 name = "donka-licence"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -1440,7 +1440,7 @@ dependencies = [
 
 [[package]]
 name = "donka-licence-issuer"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1451,7 +1451,7 @@ dependencies = [
 
 [[package]]
 name = "donka-mail"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "lettre",
@@ -1461,7 +1461,7 @@ dependencies = [
 
 [[package]]
 name = "donka-pack"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "donka-audit",
  "donka-db",
@@ -1482,7 +1482,7 @@ dependencies = [
 
 [[package]]
 name = "donka-project"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "donka-audit",
@@ -1500,7 +1500,7 @@ dependencies = [
 
 [[package]]
 name = "donka-release"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -1526,7 +1526,7 @@ dependencies = [
 
 [[package]]
 name = "donka-shared"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",
@@ -1539,7 +1539,7 @@ dependencies = [
 
 [[package]]
 name = "donka-storage"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "object_store",
