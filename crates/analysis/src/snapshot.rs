@@ -4,6 +4,7 @@
 //! holds no decrypted value and no record identifier, so it survives the records it measured
 //! and needs no purging when they age out.
 
+use crate::alerts::{AlertProject, Recipient};
 use crate::stability::{self, Band, BinCounts, MixWeek, Shift, Thresholds};
 use crate::{Analysis, AnalysisError};
 use chrono::{DateTime, Utc};
@@ -94,6 +95,7 @@ impl Analysis {
     /// Returns the snapshot and, when a measure crossed into a worse band than the one last
     /// alerted on, the band to alert for. The caller sends the mail, so this crate keeps no
     /// mailer and the alert cannot be sent twice for the same crossing.
+    #[allow(clippy::too_many_arguments)]
     pub async fn snapshot(
         &self,
         access: &Access,
@@ -101,6 +103,7 @@ impl Analysis {
         trigger: Trigger,
         thresholds: Thresholds,
         minimum_bin: u64,
+        alerts: Option<&AlertContext<'_>>,
     ) -> Result<(Snapshot, Option<Band>), AnalysisError> {
         access.require(Role::Owner)?;
         if !self.enabled {
@@ -170,7 +173,7 @@ impl Analysis {
             created_at: Utc::now(),
         };
 
-        let alert = self.store(access, &snapshot, trigger).await?;
+        let alert = self.store(access, &snapshot, trigger, alerts).await?;
         Ok((snapshot, alert))
     }
 
@@ -181,6 +184,7 @@ impl Analysis {
         access: &Access,
         snapshot: &Snapshot,
         trigger: Trigger,
+        alerts: Option<&AlertContext<'_>>,
     ) -> Result<Option<Band>, AnalysisError> {
         let mut tx = self.pool.begin().await?;
         sqlx::query(
@@ -279,6 +283,21 @@ impl Analysis {
             .execute(&mut *tx)
             .await?;
         }
+        // Queued here, inside the same transaction, so the alert and the snapshot that found
+        // the crossing commit together: a crash between the two can neither lose the alert nor
+        // send it twice. Nothing is queued when alerts are off.
+        if crossed_into_breach {
+            if let Some(context) = alerts {
+                self.queue_alerts(
+                    &mut tx,
+                    snapshot,
+                    &context.project,
+                    context.public_url,
+                    context.owners,
+                )
+                .await?;
+            }
+        }
         tx.commit().await?;
 
         Ok(crossed_into_breach.then_some(snapshot.worst_band))
@@ -306,6 +325,15 @@ impl Analysis {
         .await?;
         rows.into_iter().map(StoredSnapshot::into_snapshot).collect()
     }
+}
+
+/// What an alert needs, when alerts are configured on. Absent turns them off, which is the
+/// default: the caller passes `None` and nothing is queued.
+#[derive(Debug, Clone)]
+pub struct AlertContext<'a> {
+    pub project: AlertProject<'a>,
+    pub public_url: &'a str,
+    pub owners: &'a [Recipient],
 }
 
 /// The characteristics a request measures: the chosen output first, then each input.

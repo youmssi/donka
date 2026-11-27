@@ -42,3 +42,22 @@ CREATE TABLE stability_alerts (
     alerted_at timestamptz NOT NULL,
     PRIMARY KEY (project_id, decision_key)
 );
+
+-- The alert outbox. Each module owns its own, as identity does with account_emails and the
+-- release module with approval_emails, and the shared email worker delivers all three.
+CREATE TABLE stability_alert_emails (
+    id uuid PRIMARY KEY,
+    snapshot_id uuid NOT NULL REFERENCES stability_snapshots (id) ON DELETE CASCADE,
+    recipient text NOT NULL,
+    subject text NOT NULL,
+    body text NOT NULL,
+    created_at timestamptz NOT NULL,
+    attempts integer NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+    next_attempt_at timestamptz NOT NULL,
+    sent_at timestamptz,
+    -- Set when every attempt failed.
+    abandoned_at timestamptz,
+    last_error text
+);
+CREATE INDEX stability_alert_emails_due ON stability_alert_emails (next_attempt_at)
+    WHERE sent_at IS NULL AND abandoned_at IS NULL;
