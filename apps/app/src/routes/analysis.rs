@@ -148,7 +148,10 @@ pub struct SnapshotBody {
 }
 
 #[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+#[serde(rename_all = "camelCase")]
 pub struct StabilityQuery {
+    /// Only this decision, by key.
     pub decision_key: String,
 }
 

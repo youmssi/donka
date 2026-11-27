@@ -7766,7 +7766,8 @@ export interface operations {
   snapshots: {
     parameters: {
       query: {
-        decision_key: string;
+        /** @description Only this decision, by key. */
+        decisionKey: string;
       };
       header?: never;
       path: {

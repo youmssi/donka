@@ -10662,8 +10662,9 @@
             }
           },
           {
+            "description": "Only this decision, by key.",
             "in": "query",
-            "name": "decision_key",
+            "name": "decisionKey",
             "required": true,
             "schema": {
               "type": "string"
