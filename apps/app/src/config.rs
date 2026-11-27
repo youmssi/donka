@@ -96,10 +96,6 @@ pub struct Config {
     /// (`DONKA_STABILITY_ALERTS`). Off unless set, so no installation starts sending mail when
     /// it upgrades.
     pub stability_alerts: bool,
-    /// How often the scheduled snapshot pass runs, in hours
-    /// (`DONKA_STABILITY_SCHEDULE_HOURS`). Unset turns the schedule off, so no installation
-    /// starts background analysis when it upgrades.
-    pub stability_schedule_hours: Option<u64>,
     /// The customer's LLM endpoint that explains logged decisions; `None`
     /// (the default) turns explanations off. Holds a key: never log it.
     pub explain: Option<donka_explain::Settings>,
@@ -392,7 +388,6 @@ impl Config {
             // population is small enough that five still identifies someone.
             stability_minimum_bin: positive(&get, "DONKA_STABILITY_MINIMUM_BIN")?.unwrap_or(5),
             stability_alerts: boolean(&get, "DONKA_STABILITY_ALERTS", false)?,
-            stability_schedule_hours: positive(&get, "DONKA_STABILITY_SCHEDULE_HOURS")?,
             explain,
             packs_dir: get("DONKA_PACKS_DIR")
                 .filter(|v| !v.trim().is_empty())
@@ -1091,24 +1086,18 @@ mod tests {
             !config.stability_alerts,
             "an upgrade must not start sending mail"
         );
-        assert_eq!(
-            config.stability_schedule_hours, None,
-            "an upgrade must not start background analysis"
-        );
 
         let configured = load(&[
             ("DONKA_STABILITY_STABLE_BELOW", "0.05"),
             ("DONKA_STABILITY_SHIFTED_AT", "0.15"),
             ("DONKA_STABILITY_MINIMUM_BIN", "20"),
             ("DONKA_STABILITY_ALERTS", "true"),
-            ("DONKA_STABILITY_SCHEDULE_HOURS", "168"),
         ])
         .unwrap();
         assert_eq!(configured.stability_stable_below, 0.05);
         assert_eq!(configured.stability_shifted_at, 0.15);
         assert_eq!(configured.stability_minimum_bin, 20);
         assert!(configured.stability_alerts);
-        assert_eq!(configured.stability_schedule_hours, Some(168));
 
         // Inverted thresholds would report a breach as merely moved, so they fail at start.
         assert_eq!(

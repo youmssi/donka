@@ -5,9 +5,9 @@ CREATE TABLE stability_snapshots (
     id uuid PRIMARY KEY,
     project_id uuid NOT NULL REFERENCES projects (id) ON DELETE CASCADE,
     decision_key text NOT NULL CHECK (char_length(decision_key) BETWEEN 1 AND 200),
-    -- The run that produced it: an owner on demand, or the scheduled pass.
-    started_by uuid REFERENCES users (id),
-    scheduled boolean NOT NULL DEFAULT false,
+    -- The owner who asked for it. A scheduled pass needs a system actor, which Studio does
+    -- not have yet, so every snapshot is somebody's action for now (DNK-57).
+    started_by uuid NOT NULL REFERENCES users (id),
     -- The reference period the recent one is compared with.
     reference_from timestamptz NOT NULL,
     reference_until timestamptz NOT NULL,

@@ -1,6 +1,8 @@
 //! Background delivery of the emails queued by the identity module (account
-//! emails) and the release module (approval requests).
+//! emails), the release module (approval requests) and the analysis module
+//! (population stability alerts, DNK-57).
 
+use donka_analysis::Analysis;
 use donka_identity::Identity;
 use donka_installation::Installation;
 use donka_mail::Mailer;
@@ -16,6 +18,7 @@ const POLL_INTERVAL: Duration = Duration::from_secs(10);
 pub async fn run(
     identity: Identity,
     releases: Releases,
+    analysis: Analysis,
     installation: Installation,
     mailer: Arc<dyn Mailer>,
     public_url: String,
@@ -38,6 +41,9 @@ pub async fn run(
             .await
         {
             tracing::warn!(%err, "approval email delivery pass failed");
+        }
+        if let Err(err) = analysis.deliver_due_alerts(mailer.as_ref(), organisation).await {
+            tracing::warn!(%err, "stability alert delivery pass failed");
         }
         tokio::select! {
             () = identity.email_queued() => {}

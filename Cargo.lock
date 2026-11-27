@@ -1200,6 +1200,7 @@ dependencies = [
  "donka-db",
  "donka-decision-log",
  "donka-engine",
+ "donka-mail",
  "donka-project",
  "donka-release",
  "donka-shared",

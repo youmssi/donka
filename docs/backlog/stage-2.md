@@ -121,10 +121,18 @@ Confirmed 2026-11-27:
   and **off by default**, so no installation starts sending mail on upgrade. An owner is mailed
   once when a measure crosses into breach, not on every snapshot, so an expected drift does not
   become a recurring alert.
-- Snapshots run **on demand and on a configured schedule**. The scheduled pass follows the
-  existing background worker pattern and is **off unless configured**, so no installation starts
-  background analysis on upgrade. Webhooks remain a later candidate and will sit alongside the
+- Snapshots run **on demand**. Webhooks remain a later candidate and will sit alongside the
   email rather than replace it.
+
+Amended 2026-11-27, during implementation: the **configured schedule is deferred** and is not
+part of this story. A scheduled pass has no user, but `Access` proves a real user's membership
+and is constructed only by the project crate; there is no system actor in Studio. The stability
+pass cannot avoid it the way `purge` and `publish_due` do, because it calls the decision log's
+aggregate read, which is access-scoped by design since it decrypts personal data. The three ways
+round it were to run the pass as a real owner, which puts an action in the audit log that the
+person did not take; to add a background `Access`, which weakens that invariant in the one module
+that decrypts personal data; or to defer. The owner chose to defer. Raise the system actor as its
+own story: webhooks, scheduled reports and DNK-58 will each need it.
 
 #### Acceptance criteria
 - [ ] The decision mix shows each outcome's share per week for a chosen period

@@ -15,15 +15,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use uuid::Uuid;
 
-/// How a snapshot was asked for.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Trigger {
-    /// An owner asked for it.
-    Owner,
-    /// The configured pass produced it.
-    Scheduled,
-}
-
 /// What to measure, and over which two periods.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SnapshotRequest {
@@ -46,7 +37,6 @@ pub struct SnapshotRequest {
 pub struct Snapshot {
     pub id: Uuid,
     pub decision_key: String,
-    pub scheduled: bool,
     pub reference_from: DateTime<Utc>,
     pub reference_until: DateTime<Utc>,
     pub recent_from: DateTime<Utc>,
@@ -100,7 +90,6 @@ impl Analysis {
         &self,
         access: &Access,
         request: &SnapshotRequest,
-        trigger: Trigger,
         thresholds: Thresholds,
         minimum_bin: u64,
         alerts: Option<&AlertContext<'_>>,
@@ -159,7 +148,6 @@ impl Analysis {
         let snapshot = Snapshot {
             id: Uuid::new_v4(),
             decision_key: request.decision_key.clone(),
-            scheduled: trigger == Trigger::Scheduled,
             reference_from: request.reference_from,
             reference_until: request.reference_until,
             recent_from: request.recent_from,
@@ -173,7 +161,7 @@ impl Analysis {
             created_at: Utc::now(),
         };
 
-        let alert = self.store(access, &snapshot, trigger, alerts).await?;
+        let alert = self.store(access, &snapshot, alerts).await?;
         Ok((snapshot, alert))
     }
 
@@ -183,26 +171,20 @@ impl Analysis {
         &self,
         access: &Access,
         snapshot: &Snapshot,
-        trigger: Trigger,
         alerts: Option<&AlertContext<'_>>,
     ) -> Result<Option<Band>, AnalysisError> {
         let mut tx = self.pool.begin().await?;
         sqlx::query(
             "INSERT INTO stability_snapshots (id, project_id, decision_key, started_by, \
-             scheduled, reference_from, reference_until, recent_from, recent_until, \
+             reference_from, reference_until, recent_from, recent_until, \
              stable_below, shifted_at, minimum_bin, records_read, mix, shifts, worst_band, \
              created_at) \
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)",
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)",
         )
         .bind(snapshot.id)
         .bind(access.project_id())
         .bind(&snapshot.decision_key)
-        .bind(match trigger {
-            Trigger::Owner => Some(access.user_id()),
-            // A scheduled pass is nobody's action, so it names no person.
-            Trigger::Scheduled => None,
-        })
-        .bind(snapshot.scheduled)
+        .bind(access.user_id())
         .bind(snapshot.reference_from)
         .bind(snapshot.reference_until)
         .bind(snapshot.recent_from)
@@ -226,17 +208,13 @@ impl Analysis {
             &mut tx,
             Event::new(
                 snapshot.created_at,
-                match trigger {
-                    Trigger::Owner => Some(access.user_id()),
-                    Trigger::Scheduled => None,
-                },
+                Some(access.user_id()),
                 Action::StabilitySnapshotTaken,
             )
             .in_project(access.project_id())
             .with_details(json!({
                 "snapshotId": snapshot.id,
                 "decisionKey": snapshot.decision_key,
-                "scheduled": snapshot.scheduled,
                 "referenceFrom": snapshot.reference_from,
                 "referenceUntil": snapshot.reference_until,
                 "recentFrom": snapshot.recent_from,
@@ -312,7 +290,7 @@ impl Analysis {
     ) -> Result<Vec<Snapshot>, AnalysisError> {
         access.require(Role::Owner)?;
         let rows: Vec<StoredSnapshot> = sqlx::query_as(
-            "SELECT id, decision_key, scheduled, reference_from, reference_until, recent_from, \
+            "SELECT id, decision_key, reference_from, reference_until, recent_from, \
              recent_until, stable_below, shifted_at, minimum_bin, records_read, mix, shifts, \
              worst_band, created_at FROM stability_snapshots \
              WHERE project_id = $1 AND decision_key = $2 \
@@ -362,7 +340,6 @@ fn characteristics(request: &SnapshotRequest) -> Vec<Characteristic> {
 struct StoredSnapshot {
     id: Uuid,
     decision_key: String,
-    scheduled: bool,
     reference_from: DateTime<Utc>,
     reference_until: DateTime<Utc>,
     recent_from: DateTime<Utc>,
@@ -382,7 +359,6 @@ impl StoredSnapshot {
         Ok(Snapshot {
             id: self.id,
             decision_key: self.decision_key,
-            scheduled: self.scheduled,
             reference_from: self.reference_from,
             reference_until: self.reference_until,
             recent_from: self.recent_from,
