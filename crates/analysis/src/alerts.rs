@@ -305,7 +305,11 @@ mod tests {
         let en = stability_breached(Language::En, "Retail credit", &snapshot, "https://s/x");
         assert!(en.subject.contains("Retail credit"));
         assert!(en.subject.contains("scorecard"));
-        assert!(en.body.contains("0.420"), "the index is quoted: {}", en.body);
+        assert!(
+            en.body.contains("0.420"),
+            "the index is quoted: {}",
+            en.body
+        );
         assert!(en.body.contains("not proof of a problem"));
         assert!(
             en.body.contains("does not measure risk") || en.body.contains("not measure risk"),

@@ -415,6 +415,13 @@ fn assemble_full(
             releases: releases.clone(),
             decision_log: decision_log.clone(),
             analysis,
+            // Tests measure against the published thresholds, with alerts off: a test that
+            // wants an alert turns it on for itself.
+            stability: donka_app::StabilitySettings {
+                thresholds: donka_analysis::stability::Thresholds::default(),
+                minimum_bin: 5,
+                alerts: false,
+            },
             explainer,
             audit,
             packs: packs.clone(),

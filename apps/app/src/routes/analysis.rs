@@ -124,3 +124,150 @@ pub async fn cancel(
     state.licensing.require(Module::Analysis)?;
     Ok(Json(state.analysis.cancel(&access, job_id).await?))
 }
+
+// ----- Population stability (DNK-57) ---------------------------------------
+
+/// Which decision to measure, over which two periods, and what to take the indices on.
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SnapshotBody {
+    pub decision_key: String,
+    pub reference_from: DateTime<Utc>,
+    pub reference_until: DateTime<Utc>,
+    pub recent_from: DateTime<Utc>,
+    pub recent_until: DateTime<Utc>,
+    /// The numeric output the shift index is taken on, usually the score, and its bin edges.
+    /// Omitted measures the contract inputs alone.
+    #[serde(default)]
+    pub output_field: Option<String>,
+    #[serde(default)]
+    pub output_bins: Vec<f64>,
+    /// Dotted paths of the contract inputs to measure.
+    #[serde(default)]
+    pub input_fields: Vec<String>,
+}
+
+#[derive(Deserialize, IntoParams)]
+pub struct StabilityQuery {
+    pub decision_key: String,
+}
+
+/// Takes a population stability snapshot: the decision mix by week, and the shift of the chosen
+/// output and each input between a reference period and a recent one.
+#[utoipa::path(
+    post,
+    path = "/projects/{project_id}/stability",
+    tag = "analysis",
+    params(("project_id" = Uuid, Path)),
+    request_body = SnapshotBody,
+    responses(
+        (status = 201, body = donka_analysis::snapshot::Snapshot),
+        (status = 403, description = "Only project owners may take a snapshot", body = ErrorBody),
+        (status = 422, description = "A period ends before it starts", body = ErrorBody),
+        (status = 503, description = "Analysis is disabled", body = ErrorBody),
+    )
+)]
+pub async fn take_snapshot(
+    State(state): State<AppState>,
+    ProjectAccess(access): ProjectAccess,
+    ApiJson(body): ApiJson<SnapshotBody>,
+) -> Result<(StatusCode, Json<donka_analysis::snapshot::Snapshot>), ApiError> {
+    state.licensing.require(Module::Analysis)?;
+    let request = donka_analysis::snapshot::SnapshotRequest {
+        decision_key: body.decision_key,
+        reference_from: body.reference_from,
+        reference_until: body.reference_until,
+        recent_from: body.recent_from,
+        recent_until: body.recent_until,
+        output_field: body
+            .output_field
+            .map(|field| (field, body.output_bins.clone())),
+        input_fields: body.input_fields,
+    };
+
+    // Owners are read, and their addresses with them, only when alerts are configured on: a
+    // snapshot taken with alerts off has no reason to read anyone's address.
+    let owners = if state.stability.alerts {
+        stability_owners(&state, &access).await?
+    } else {
+        Vec::new()
+    };
+    let project = state.projects.get(&access).await?;
+    let context = (state.stability.alerts && !owners.is_empty()).then(|| {
+        donka_analysis::snapshot::AlertContext {
+            project: donka_analysis::alerts::AlertProject {
+                key: &project.key,
+                name: &project.name,
+            },
+            public_url: &state.public_url,
+            owners: &owners,
+        }
+    });
+
+    let (snapshot, _alerted) = state
+        .analysis
+        .snapshot(
+            &access,
+            &request,
+            state.stability.thresholds,
+            state.stability.minimum_bin,
+            context.as_ref(),
+        )
+        .await?;
+    Ok((StatusCode::CREATED, Json(snapshot)))
+}
+
+/// The snapshots taken for one decision, newest first.
+#[utoipa::path(
+    get,
+    path = "/projects/{project_id}/stability",
+    tag = "analysis",
+    params(("project_id" = Uuid, Path), StabilityQuery),
+    responses(
+        (status = 200, body = Vec<donka_analysis::snapshot::Snapshot>),
+        (status = 403, description = "Only project owners may read snapshots", body = ErrorBody),
+        (status = 503, description = "Analysis is disabled", body = ErrorBody),
+    )
+)]
+pub async fn snapshots(
+    State(state): State<AppState>,
+    ProjectAccess(access): ProjectAccess,
+    axum::extract::Query(query): axum::extract::Query<StabilityQuery>,
+) -> Result<Json<Vec<donka_analysis::snapshot::Snapshot>>, ApiError> {
+    state.licensing.require(Module::Analysis)?;
+    Ok(Json(
+        state
+            .analysis
+            .snapshots(&access, &query.decision_key, 50)
+            .await?,
+    ))
+}
+
+/// The project's owners, with the language each reads, as the release module's approvers are
+/// assembled: the analysis module queries no other module's tables.
+async fn stability_owners(
+    state: &AppState,
+    access: &donka_project::Access,
+) -> Result<Vec<donka_analysis::alerts::Recipient>, ApiError> {
+    let owners: Vec<Uuid> = state
+        .projects
+        .members(access)
+        .await?
+        .into_iter()
+        .filter(|member| member.role == donka_project::Role::Owner)
+        .map(|member| member.user_id)
+        .collect();
+    Ok(state
+        .identity
+        .users_by_ids(&owners)
+        .await?
+        .into_iter()
+        .map(|user| donka_analysis::alerts::Recipient {
+            email: user.email,
+            language: match user.locale {
+                donka_identity::Locale::En => donka_analysis::alerts::Language::En,
+                donka_identity::Locale::Fr => donka_analysis::alerts::Language::Fr,
+            },
+        })
+        .collect())
+}

@@ -32,7 +32,7 @@ pub struct SnapshotRequest {
 }
 
 /// A stored snapshot.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Snapshot {
     pub id: Uuid,
@@ -193,12 +193,14 @@ impl Analysis {
         .bind(snapshot.thresholds.shifted_at)
         .bind(i32::try_from(snapshot.minimum_bin).unwrap_or(i32::MAX))
         .bind(i32::try_from(snapshot.records_read).unwrap_or(i32::MAX))
-        .bind(serde_json::to_value(&snapshot.mix).map_err(|e| {
-            AnalysisError::ResultSerialization(e.to_string())
-        })?)
-        .bind(serde_json::to_value(&snapshot.shifts).map_err(|e| {
-            AnalysisError::ResultSerialization(e.to_string())
-        })?)
+        .bind(
+            serde_json::to_value(&snapshot.mix)
+                .map_err(|e| AnalysisError::ResultSerialization(e.to_string()))?,
+        )
+        .bind(
+            serde_json::to_value(&snapshot.shifts)
+                .map_err(|e| AnalysisError::ResultSerialization(e.to_string()))?,
+        )
         .bind(band_name(snapshot.worst_band))
         .bind(snapshot.created_at)
         .execute(&mut *tx)
@@ -301,7 +303,9 @@ impl Analysis {
         .bind(limit)
         .fetch_all(&self.pool)
         .await?;
-        rows.into_iter().map(StoredSnapshot::into_snapshot).collect()
+        rows.into_iter()
+            .map(StoredSnapshot::into_snapshot)
+            .collect()
     }
 }
 
@@ -420,7 +424,10 @@ mod tests {
         assert!(!characteristics[0].from_input, "the score is an output");
         assert!(matches!(characteristics[0].binning, Binning::Numeric(_)));
         assert_eq!(characteristics[1].path, "applicant.region");
-        assert!(characteristics[1].from_input, "a contract field is an input");
+        assert!(
+            characteristics[1].from_input,
+            "a contract field is an input"
+        );
         assert_eq!(characteristics[1].binning, Binning::Value);
     }
 

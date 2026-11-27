@@ -13,7 +13,7 @@ pub const STABLE_BELOW: f64 = 0.1;
 pub const SHIFTED_AT: f64 = 0.25;
 
 /// What a shift index says about one measure.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub enum Band {
     /// Below the lower threshold.
@@ -26,7 +26,7 @@ pub enum Band {
 
 /// The thresholds a snapshot was measured against, recorded with it so a later reader is not
 /// left guessing which configuration produced a band.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Thresholds {
     pub stable_below: f64,
@@ -58,7 +58,7 @@ impl Thresholds {
 
 /// Why a measure has no index. A period that cannot answer says so instead of showing a number
 /// that would be read as "stable".
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub enum Unmeasurable {
     /// Fewer records than the configured minimum, in one period or both.
@@ -68,7 +68,7 @@ pub enum Unmeasurable {
 }
 
 /// One characteristic's shift between a reference period and a recent one.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Shift {
     /// The output field for SSI, or the dotted input path for CSI.
@@ -86,7 +86,7 @@ pub struct Shift {
 }
 
 /// One bin's share in each period, and its contribution to the index.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ShiftBin {
     pub label: String,
@@ -140,8 +140,8 @@ pub fn shift(
         let in_recent = recent.get(label).copied().unwrap_or(0);
         // A bin present in one period and absent from the other still carries the shift, so
         // only a bin that is small *and* non-empty is suppressed: an empty bin names nobody.
-        let too_small = (in_reference > 0 && in_reference < min_bin)
-            || (in_recent > 0 && in_recent < min_bin);
+        let too_small =
+            (in_reference > 0 && in_reference < min_bin) || (in_recent > 0 && in_recent < min_bin);
         if too_small {
             suppressed_bins += 1;
             continue;
@@ -201,7 +201,7 @@ pub fn shift(
 }
 
 /// One week of the decision mix: how the outcomes divided that week.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct MixWeek {
     /// The Monday of the week, as `YYYY-MM-DD`.
@@ -280,7 +280,10 @@ mod tests {
             .iter()
             .find(|bin| bin.label == "B")
             .expect("B is kept");
-        assert_eq!(b.contribution, 0.0, "a bin that did not move contributes nothing");
+        assert_eq!(
+            b.contribution, 0.0,
+            "a bin that did not move contributes nothing"
+        );
         let c = shift
             .bins
             .iter()
@@ -318,9 +321,17 @@ mod tests {
         let thresholds = Thresholds::default();
         assert_eq!(thresholds.band(0.0), Band::Stable);
         assert_eq!(thresholds.band(0.0999), Band::Stable);
-        assert_eq!(thresholds.band(0.1), Band::Moved, "the lower bound is inclusive");
+        assert_eq!(
+            thresholds.band(0.1),
+            Band::Moved,
+            "the lower bound is inclusive"
+        );
         assert_eq!(thresholds.band(0.2499), Band::Moved);
-        assert_eq!(thresholds.band(0.25), Band::Shifted, "the upper bound is inclusive");
+        assert_eq!(
+            thresholds.band(0.25),
+            Band::Shifted,
+            "the upper bound is inclusive"
+        );
         assert_eq!(thresholds.band(9.0), Band::Shifted);
 
         let strict = Thresholds {
@@ -357,7 +368,13 @@ mod tests {
         // "rare" holds 3 records in the recent period, below the minimum of 10.
         let reference = counts(&[("common", 500), ("rare", 400)]);
         let recent = counts(&[("common", 600), ("rare", 3)]);
-        let shift = shift("applicant.region", &reference, &recent, 10, Thresholds::default());
+        let shift = shift(
+            "applicant.region",
+            &reference,
+            &recent,
+            10,
+            Thresholds::default(),
+        );
         assert_eq!(shift.suppressed_bins, 1);
         assert_eq!(shift.bins.len(), 1, "only the common bin is reported");
         assert_eq!(shift.bins[0].label, "common");
@@ -381,7 +398,10 @@ mod tests {
         let shift = shift("decision", &reference, &recent, 10, Thresholds::default());
         assert_eq!(shift.suppressed_bins, 0, "an empty bin names nobody");
         let index = shift.index.expect("both periods are large enough");
-        assert!(index > SHIFTED_AT, "a vanished outcome is a shift, got {index}");
+        assert!(
+            index > SHIFTED_AT,
+            "a vanished outcome is a shift, got {index}"
+        );
         assert_eq!(shift.band, Some(Band::Shifted));
         assert!(index.is_finite(), "the floor keeps the logarithm finite");
     }
@@ -395,8 +415,17 @@ mod tests {
         // Both periods are large enough, but every bin in them is too small to report.
         let reference = counts(&[("a", 1), ("b", 1), ("c", 1), ("d", 1), ("e", 1)]);
         let recent = counts(&[("a", 1), ("b", 1), ("c", 1), ("d", 1), ("e", 1)]);
-        let all_suppressed = shift("applicant.age", &reference, &recent, 3, Thresholds::default());
-        assert_eq!(all_suppressed.reason, Some(Unmeasurable::NoComparableValues));
+        let all_suppressed = shift(
+            "applicant.age",
+            &reference,
+            &recent,
+            3,
+            Thresholds::default(),
+        );
+        assert_eq!(
+            all_suppressed.reason,
+            Some(Unmeasurable::NoComparableValues)
+        );
         assert_eq!(all_suppressed.suppressed_bins, 5);
         assert_eq!(all_suppressed.index, None);
     }

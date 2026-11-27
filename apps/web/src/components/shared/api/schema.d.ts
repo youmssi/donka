@@ -1542,6 +1542,27 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/projects/{project_id}/stability': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The snapshots taken for one decision, newest first. */
+    get: operations['snapshots'];
+    put?: never;
+    /**
+     * Takes a population stability snapshot: the decision mix by week, and the shift of the chosen
+     *     output and each input between a reference period and a recent one.
+     */
+    post: operations['take_snapshot'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/projects/{project_id}/test-scenarios': {
     parameters: {
       query?: never;
@@ -1840,6 +1861,7 @@ export interface components {
       | 'approval.rejected'
       | 'approval.withdrawn'
       | 'decision_record.viewed'
+      | 'DecisionRecordsAggregated'
       | 'decision_record.replayed'
       | 'decision_log.purged'
       | 'decision_log.resealed'
@@ -1861,6 +1883,7 @@ export interface components {
       | 'installation.organisation_renamed'
       | 'installation.modules_changed'
       | 'analysis.run_started'
+      | 'StabilitySnapshotTaken'
       | 'analysis.run_completed';
     AddMemberRequest: {
       /** @description Email of an existing Studio account. */
@@ -1937,6 +1960,11 @@ export interface components {
        */
       total: number;
     };
+    /**
+     * @description What a shift index says about one measure.
+     * @enum {string}
+     */
+    Band: 'stable' | 'moved' | 'shifted';
     /**
      * @description Which part of the version the release raises.
      * @enum {string}
@@ -2460,6 +2488,17 @@ export interface components {
       expected?: unknown;
       path: string;
     };
+    /** @description One week of the decision mix: how the outcomes divided that week. */
+    MixWeek: {
+      /** Format: int64 */
+      records: number;
+      /** @description Share per outcome, summing to one when the week holds any record. */
+      shares: {
+        [key: string]: number;
+      };
+      /** @description The Monday of the week, as `YYYY-MM-DD`. */
+      week: string;
+    };
     NewContestRequest: {
       /** @description Why the person contests the decision: 1 to 2000 characters. */
       reason: string;
@@ -2909,6 +2948,36 @@ export interface components {
       /** @description Policy requires a second step of this person: it cannot be turned off. */
       required: boolean;
     };
+    /** @description One characteristic's shift between a reference period and a recent one. */
+    Shift: {
+      band?: null | components['schemas']['Band'];
+      /** @description Per-bin detail, suppressed bins already removed. */
+      bins: components['schemas']['ShiftBin'][];
+      /** @description The output field for SSI, or the dotted input path for CSI. */
+      field: string;
+      /**
+       * Format: double
+       * @description `None` when the measure could not be taken; `reason` then says why.
+       */
+      index?: number | null;
+      reason?: null | components['schemas']['Unmeasurable'];
+      /** Format: int64 */
+      recentRecords: number;
+      /** Format: int64 */
+      referenceRecords: number;
+      /** @description Bins dropped because either period held fewer records than the minimum. */
+      suppressedBins: number;
+    };
+    /** @description One bin's share in each period, and its contribution to the index. */
+    ShiftBin: {
+      /** Format: double */
+      contribution: number;
+      label: string;
+      /** Format: double */
+      recentShare: number;
+      /** Format: double */
+      referenceShare: number;
+    };
     SignInRequest: {
       email: string;
       password: string;
@@ -2939,6 +3008,53 @@ export interface components {
       result: Record<string, never>;
       /** @description Per-node trace: inputs, outputs and timing of each node. */
       trace: Record<string, never>;
+    };
+    /** @description A stored snapshot. */
+    Snapshot: {
+      /** Format: date-time */
+      createdAt: string;
+      decisionKey: string;
+      /** Format: uuid */
+      id: string;
+      /** Format: int64 */
+      minimumBin: number;
+      /** @description The decision mix of the recent period, by week. */
+      mix: components['schemas']['MixWeek'][];
+      /** Format: date-time */
+      recentFrom: string;
+      /** Format: date-time */
+      recentUntil: string;
+      /** Format: int64 */
+      recordsRead: number;
+      /** Format: date-time */
+      referenceFrom: string;
+      /** Format: date-time */
+      referenceUntil: string;
+      /** @description One shift per measured characteristic. */
+      shifts: components['schemas']['Shift'][];
+      thresholds: components['schemas']['Thresholds'];
+      /** @description The worst band across `shifts`; `Stable` when nothing could be measured. */
+      worstBand: components['schemas']['Band'];
+    };
+    /** @description Which decision to measure, over which two periods, and what to take the indices on. */
+    SnapshotBody: {
+      decisionKey: string;
+      /** @description Dotted paths of the contract inputs to measure. */
+      inputFields?: string[];
+      outputBins?: number[];
+      /**
+       * @description The numeric output the shift index is taken on, usually the score, and its bin edges.
+       *     Omitted measures the contract inputs alone.
+       */
+      outputField?: string | null;
+      /** Format: date-time */
+      recentFrom: string;
+      /** Format: date-time */
+      recentUntil: string;
+      /** Format: date-time */
+      referenceFrom: string;
+      /** Format: date-time */
+      referenceUntil: string;
     };
     StartAnalysisBody: {
       decisionKey: string;
@@ -3118,6 +3234,16 @@ export interface components {
       /** Format: int64 */
       passed: number;
     };
+    /**
+     * @description The thresholds a snapshot was measured against, recorded with it so a later reader is not
+     *     left guessing which configuration produced a band.
+     */
+    Thresholds: {
+      /** Format: double */
+      shiftedAt: number;
+      /** Format: double */
+      stableBelow: number;
+    };
     TokenListResponse: {
       items: components['schemas']['TokenResponse'][];
     };
@@ -3150,6 +3276,12 @@ export interface components {
       count: number;
       records: string[];
     };
+    /**
+     * @description Why a measure has no index. A period that cannot answer says so instead of showing a number
+     *     that would be read as "stable".
+     * @enum {string}
+     */
+    Unmeasurable: 'tooFewRecords' | 'noComparableValues';
     UpdateProjectRequest: {
       description?: string;
       name: string;
@@ -7622,6 +7754,99 @@ export interface operations {
       };
       /** @description NEVER_APPROVED or ALREADY_LIVE */
       422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  snapshots: {
+    parameters: {
+      query: {
+        decision_key: string;
+      };
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Snapshot'][];
+        };
+      };
+      /** @description Only project owners may read snapshots */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Analysis is disabled */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  take_snapshot: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SnapshotBody'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Snapshot'];
+        };
+      };
+      /** @description Only project owners may take a snapshot */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description A period ends before it starts */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+      /** @description Analysis is disabled */
+      503: {
         headers: {
           [name: string]: unknown;
         };

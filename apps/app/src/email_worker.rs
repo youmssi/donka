@@ -42,7 +42,10 @@ pub async fn run(
         {
             tracing::warn!(%err, "approval email delivery pass failed");
         }
-        if let Err(err) = analysis.deliver_due_alerts(mailer.as_ref(), organisation).await {
+        if let Err(err) = analysis
+            .deliver_due_alerts(mailer.as_ref(), organisation)
+            .await
+        {
             tracing::warn!(%err, "stability alert delivery pass failed");
         }
         tokio::select! {
