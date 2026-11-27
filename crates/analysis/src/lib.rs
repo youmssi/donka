@@ -4,6 +4,7 @@
 //! records through the decision-log API, evaluate them through `DecisionRuntime`, then retain
 //! only these aggregates and record identifiers.
 
+pub mod snapshot;
 pub mod stability;
 
 use chrono::{DateTime, Utc};

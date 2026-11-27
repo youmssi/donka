@@ -83,6 +83,23 @@ pub struct Config {
     pub analysis_enabled: bool,
     /// Maximum decision-log records one analysis may read (`DONKA_ANALYSIS_MAX_RECORDS`).
     pub analysis_max_records: usize,
+    /// A shift index below this reads as a stable population
+    /// (`DONKA_STABILITY_STABLE_BELOW`, DNK-57).
+    pub stability_stable_below: f64,
+    /// A shift index at or above this reads as a population that moved
+    /// (`DONKA_STABILITY_SHIFTED_AT`).
+    pub stability_shifted_at: f64,
+    /// Bins holding fewer records than this are hidden, so a bin cannot point at one person
+    /// (`DONKA_STABILITY_MINIMUM_BIN`).
+    pub stability_minimum_bin: u64,
+    /// Whether a measure crossing into breach emails the project's owners
+    /// (`DONKA_STABILITY_ALERTS`). Off unless set, so no installation starts sending mail when
+    /// it upgrades.
+    pub stability_alerts: bool,
+    /// How often the scheduled snapshot pass runs, in hours
+    /// (`DONKA_STABILITY_SCHEDULE_HOURS`). Unset turns the schedule off, so no installation
+    /// starts background analysis when it upgrades.
+    pub stability_schedule_hours: Option<u64>,
     /// The customer's LLM endpoint that explains logged decisions; `None`
     /// (the default) turns explanations off. Holds a key: never log it.
     pub explain: Option<donka_explain::Settings>,
@@ -368,6 +385,14 @@ impl Config {
             analysis_enabled: boolean(&get, "DONKA_ANALYSIS_ENABLED", true)?,
             analysis_max_records: positive(&get, "DONKA_ANALYSIS_MAX_RECORDS")?.unwrap_or(10_000)
                 as usize,
+            // 0.1 and 0.25 are the thresholds risk teams publish for a shift index.
+            stability_stable_below: positive(&get, "DONKA_STABILITY_STABLE_BELOW")?.unwrap_or(0.1),
+            stability_shifted_at: stability_shifted_at(&get)?,
+            // Five is the usual smallest cell in disclosure control. Raise it where the
+            // population is small enough that five still identifies someone.
+            stability_minimum_bin: positive(&get, "DONKA_STABILITY_MINIMUM_BIN")?.unwrap_or(5),
+            stability_alerts: boolean(&get, "DONKA_STABILITY_ALERTS", false)?,
+            stability_schedule_hours: positive(&get, "DONKA_STABILITY_SCHEDULE_HOURS")?,
             explain,
             packs_dir: get("DONKA_PACKS_DIR")
                 .filter(|v| !v.trim().is_empty())
@@ -584,6 +609,21 @@ fn required(
 }
 
 /// An optional variable that must be a number greater than zero when set.
+/// `DONKA_STABILITY_SHIFTED_AT`: the upper threshold, which cannot sit below the lower one. A
+/// configuration that inverted them would report a breach as merely moved, so it fails at start
+/// rather than quietly mis-banding every snapshot.
+fn stability_shifted_at(get: &impl Fn(&str) -> Option<String>) -> Result<f64, ConfigError> {
+    let lower: f64 = positive(get, "DONKA_STABILITY_STABLE_BELOW")?.unwrap_or(0.1);
+    let upper: f64 = positive(get, "DONKA_STABILITY_SHIFTED_AT")?.unwrap_or(0.25);
+    if upper < lower {
+        return Err(invalid(
+            "DONKA_STABILITY_SHIFTED_AT",
+            "must not be below DONKA_STABILITY_STABLE_BELOW",
+        ));
+    }
+    Ok(upper)
+}
+
 fn positive<T>(
     get: &impl Fn(&str) -> Option<String>,
     var: &'static str,
@@ -1039,6 +1079,55 @@ mod tests {
             None
         );
         assert!(load(&[("DONKA_UPDATE_CHECK", "no")]).is_err());
+    }
+
+    #[test]
+    fn stability_defaults_are_off_and_its_thresholds_cannot_invert() {
+        let config = load(&[]).unwrap();
+        assert_eq!(config.stability_stable_below, 0.1);
+        assert_eq!(config.stability_shifted_at, 0.25);
+        assert_eq!(config.stability_minimum_bin, 5);
+        assert!(
+            !config.stability_alerts,
+            "an upgrade must not start sending mail"
+        );
+        assert_eq!(
+            config.stability_schedule_hours, None,
+            "an upgrade must not start background analysis"
+        );
+
+        let configured = load(&[
+            ("DONKA_STABILITY_STABLE_BELOW", "0.05"),
+            ("DONKA_STABILITY_SHIFTED_AT", "0.15"),
+            ("DONKA_STABILITY_MINIMUM_BIN", "20"),
+            ("DONKA_STABILITY_ALERTS", "true"),
+            ("DONKA_STABILITY_SCHEDULE_HOURS", "168"),
+        ])
+        .unwrap();
+        assert_eq!(configured.stability_stable_below, 0.05);
+        assert_eq!(configured.stability_shifted_at, 0.15);
+        assert_eq!(configured.stability_minimum_bin, 20);
+        assert!(configured.stability_alerts);
+        assert_eq!(configured.stability_schedule_hours, Some(168));
+
+        // Inverted thresholds would report a breach as merely moved, so they fail at start.
+        assert_eq!(
+            load(&[
+                ("DONKA_STABILITY_STABLE_BELOW", "0.3"),
+                ("DONKA_STABILITY_SHIFTED_AT", "0.2"),
+            ])
+            .unwrap_err()
+            .var,
+            "DONKA_STABILITY_SHIFTED_AT"
+        );
+        // Equal thresholds are allowed: the band check reports a breach at the boundary.
+        assert!(load(&[
+            ("DONKA_STABILITY_STABLE_BELOW", "0.2"),
+            ("DONKA_STABILITY_SHIFTED_AT", "0.2"),
+        ])
+        .is_ok());
+        assert!(load(&[("DONKA_STABILITY_MINIMUM_BIN", "0")]).is_err());
+        assert!(load(&[("DONKA_STABILITY_STABLE_BELOW", "-1")]).is_err());
     }
 
     #[test]

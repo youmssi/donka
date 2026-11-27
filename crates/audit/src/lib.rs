@@ -233,6 +233,8 @@ pub enum Action {
     #[serde(rename = "analysis.run_started")]
     #[sqlx(rename = "analysis.run_started")]
     AnalysisRunStarted,
+    /// A population stability snapshot was taken (DNK-57).
+    StabilitySnapshotTaken,
     /// A decision analysis ended; details include records read and terminal status.
     #[serde(rename = "analysis.run_completed")]
     #[sqlx(rename = "analysis.run_completed")]
@@ -304,6 +306,7 @@ impl Action {
             Self::InstallationOrganisationRenamed => "installation.organisation_renamed",
             Self::InstallationModulesChanged => "installation.modules_changed",
             Self::AnalysisRunStarted => "analysis.run_started",
+            Self::StabilitySnapshotTaken => "stability.snapshot_taken",
             Self::AnalysisRunCompleted => "analysis.run_completed",
         }
     }
