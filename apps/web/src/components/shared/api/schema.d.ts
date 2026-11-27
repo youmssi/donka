@@ -1861,7 +1861,7 @@ export interface components {
       | 'approval.rejected'
       | 'approval.withdrawn'
       | 'decision_record.viewed'
-      | 'DecisionRecordsAggregated'
+      | 'decision_records.aggregated'
       | 'decision_record.replayed'
       | 'decision_log.purged'
       | 'decision_log.resealed'
@@ -1883,7 +1883,7 @@ export interface components {
       | 'installation.organisation_renamed'
       | 'installation.modules_changed'
       | 'analysis.run_started'
-      | 'StabilitySnapshotTaken'
+      | 'stability.snapshot_taken'
       | 'analysis.run_completed';
     AddMemberRequest: {
       /** @description Email of an existing Studio account. */

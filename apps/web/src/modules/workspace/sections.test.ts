@@ -31,6 +31,7 @@ it("offers people's requests and the audit log to owners only", () => {
     'decision-log',
     'members',
     'settings',
+    'stability',
     'people-requests',
     'audit',
   ]);

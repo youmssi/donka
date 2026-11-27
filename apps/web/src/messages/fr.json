@@ -297,7 +297,8 @@
     "approval": "Approbation",
     "decision-log": "Journal des décisions",
     "decision-record": "Décision enregistrée",
-    "people-requests": "Demandes des personnes"
+    "people-requests": "Demandes des personnes",
+    "stability": "Stabilité"
   },
   "members": {
     "title": "Membres",
@@ -497,6 +498,12 @@
       "set_up": "Installation configurée",
       "organisation_renamed": "Organisation renommée",
       "modules_changed": "Modules modifiés"
+    },
+    "decision_records": {
+      "aggregated": "Décisions comptées pour la stabilité"
+    },
+    "stability": {
+      "snapshot_taken": "Instantané de stabilité pris"
     }
   },
   "auditSentences": {
@@ -1519,5 +1526,46 @@
     "nameInFirstRun": "L'assistant de premier démarrage nomme l'organisation.",
     "renamed": "Le nom de l'organisation est enregistré.",
     "organisationName": "Nom de l'organisation"
+  },
+  "stability": {
+    "title": "Répartition des décisions et stabilité de la population",
+    "description": "Comparez les personnes sur lesquelles les décisions portent aujourd'hui à celles sur lesquelles les règles ont été calibrées.",
+    "limitation": "Un écart ne prouve pas qu'il y a un problème et ne mesure pas le risque : les refus passés n'ont pas d'historique de remboursement ici. Cette page mesure le volume et la répartition, et signale quand la population a changé.",
+    "decision": "Décision",
+    "outputField": "Sortie numérique à mesurer",
+    "outputFieldHint": "score",
+    "outputBins": "Bornes de ses tranches",
+    "inputFields": "Entrées du contrat à mesurer",
+    "referenceFrom": "Période de référence du",
+    "referenceUntil": "Période de référence au",
+    "recentFrom": "Période récente du",
+    "recentUntil": "Période récente au",
+    "run": "Prendre un instantané",
+    "result": "Résultat de l'instantané",
+    "resultTitle": "Dernier instantané",
+    "measuredAgainst": "Stable en dessous de {stableBelow}, écart à partir de {shiftedAt} ; les tranches de moins de {minimumBin} enregistrements sont masquées.",
+    "recordsRead": "{count} enregistrements lus",
+    "mix": "Répartition des décisions par semaine",
+    "week": "Semaine du",
+    "records": "Enregistrements",
+    "noMix": "Aucune décision de production sur la période récente.",
+    "shifts": "Écart par mesure",
+    "noShifts": "Aucune mesure n'a été choisie : rien n'a été comparé.",
+    "field": "Mesure",
+    "index": "Indice",
+    "bandColumn": "Lecture",
+    "periods": "Enregistrements référence / récents",
+    "suppressed": "Tranches masquées",
+    "suppressedBins": "{count} masquées",
+    "earlier": "Instantanés précédents",
+    "band": {
+      "stable": "Stable",
+      "moved": "A bougé",
+      "shifted": "A changé"
+    },
+    "unmeasurable": {
+      "tooFewRecords": "Trop peu d'enregistrements",
+      "noComparableValues": "Aucune valeur comparable"
+    }
   }
 }

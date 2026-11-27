@@ -152,6 +152,8 @@ pub enum Action {
     #[sqlx(rename = "decision_record.viewed")]
     DecisionRecordViewed,
     /// A stability snapshot read many records as bin counts (DNK-57).
+    #[serde(rename = "decision_records.aggregated")]
+    #[sqlx(rename = "decision_records.aggregated")]
     DecisionRecordsAggregated,
     #[serde(rename = "decision_record.replayed")]
     #[sqlx(rename = "decision_record.replayed")]
@@ -234,6 +236,8 @@ pub enum Action {
     #[sqlx(rename = "analysis.run_started")]
     AnalysisRunStarted,
     /// A population stability snapshot was taken (DNK-57).
+    #[serde(rename = "stability.snapshot_taken")]
+    #[sqlx(rename = "stability.snapshot_taken")]
     StabilitySnapshotTaken,
     /// A decision analysis ended; details include records read and terminal status.
     #[serde(rename = "analysis.run_completed")]

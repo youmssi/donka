@@ -297,7 +297,8 @@
     "approval": "Approval",
     "decision-log": "Decision log",
     "decision-record": "Decision record",
-    "people-requests": "People's requests"
+    "people-requests": "People's requests",
+    "stability": "Stability"
   },
   "members": {
     "title": "Members",
@@ -497,6 +498,12 @@
       "set_up": "Installation set up",
       "organisation_renamed": "Organisation renamed",
       "modules_changed": "Modules changed"
+    },
+    "decision_records": {
+      "aggregated": "Decision records counted for stability"
+    },
+    "stability": {
+      "snapshot_taken": "Stability snapshot taken"
     }
   },
   "auditSentences": {
@@ -1519,5 +1526,46 @@
     "nameInFirstRun": "The first-run assistant names the organisation.",
     "renamed": "The organisation's name is saved.",
     "organisationName": "Organisation name"
+  },
+  "stability": {
+    "title": "Decision mix and population stability",
+    "description": "Compare the people being decided about now with the people the rules were tuned on.",
+    "limitation": "A shift is not proof of a problem, and this does not measure risk: past declines have no repayment history here. It measures volume and mix, and says when the population has moved.",
+    "decision": "Decision",
+    "outputField": "Numeric output to measure",
+    "outputFieldHint": "score",
+    "outputBins": "Its bin edges",
+    "inputFields": "Contract inputs to measure",
+    "referenceFrom": "Reference period from",
+    "referenceUntil": "Reference period until",
+    "recentFrom": "Recent period from",
+    "recentUntil": "Recent period until",
+    "run": "Take a snapshot",
+    "result": "Snapshot result",
+    "resultTitle": "Latest snapshot",
+    "measuredAgainst": "Stable below {stableBelow}, shifted at {shiftedAt}; bins under {minimumBin} records are hidden.",
+    "recordsRead": "{count} records read",
+    "mix": "Decision mix by week",
+    "week": "Week of",
+    "records": "Records",
+    "noMix": "No production decisions in the recent period.",
+    "shifts": "Shift per measure",
+    "noShifts": "No measure was chosen, so nothing was compared.",
+    "field": "Measure",
+    "index": "Index",
+    "bandColumn": "Reading",
+    "periods": "Reference / recent records",
+    "suppressed": "Hidden bins",
+    "suppressedBins": "{count} hidden",
+    "earlier": "Earlier snapshots",
+    "band": {
+      "stable": "Stable",
+      "moved": "Moved",
+      "shifted": "Shifted"
+    },
+    "unmeasurable": {
+      "tooFewRecords": "Too few records",
+      "noComparableValues": "No comparable values"
+    }
   }
 }

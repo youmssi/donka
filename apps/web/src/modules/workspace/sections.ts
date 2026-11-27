@@ -13,6 +13,7 @@ import {
   UserSearch,
   UsersRound,
   Workflow,
+  TrendingUp,
 } from 'lucide-react';
 
 import type { Project, ProjectSection } from '@/modules/project';
@@ -66,6 +67,9 @@ export function projectSections(project: Project): { section: ProjectSection; ic
     { section: 'settings', icon: Settings },
     ...(project.role === 'owner'
       ? [
+          // A snapshot is derived from production decisions about people, so it sits with the
+          // other owner-only sections (DNK-57).
+          { section: 'stability' as const, icon: TrendingUp },
           { section: 'people-requests' as const, icon: UserSearch },
           { section: 'audit' as const, icon: History },
         ]
