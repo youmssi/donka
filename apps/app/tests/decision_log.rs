@@ -2032,3 +2032,137 @@ async fn the_access_report_holds_every_record_in_the_persons_language(db: PgPool
         "FORBIDDEN",
     );
 }
+
+/// A stability snapshot is an owner's read of production decisions about people, so it is
+/// refused to everyone else, and it never reaches across projects (DNK-57).
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn stability_snapshots_are_for_a_project_owner_alone(db: PgPool) {
+    let app = with_database(db.clone());
+    let (admin, p, _rid) = released(&app).await;
+    let at = now(&app);
+    let body = || {
+        Some(json!({
+            "decisionKey": "limit",
+            "referenceFrom": at - Duration::days(60),
+            "referenceUntil": at - Duration::days(30),
+            "recentFrom": at - Duration::days(30),
+            "recentUntil": at,
+            "outputField": "output",
+            "outputBins": [5, 15],
+            "inputFields": ["applicant.nationalId"],
+        }))
+    };
+    let path = format!("/projects/{p}/stability");
+
+    // An owner may, and gets a snapshot even when the period holds nothing: a period that
+    // cannot answer says so rather than being an error.
+    let taken = call(&app, "POST", &path, body(), &admin).await;
+    assert_eq!(taken.status, StatusCode::CREATED, "{}", taken.body);
+    let snapshot = &taken.body;
+    assert_eq!(
+        snapshot["worstBand"], "stable",
+        "nothing measured is not a breach"
+    );
+    assert_eq!(snapshot["recordsRead"], 0);
+    assert!(
+        snapshot["mix"].as_array().unwrap().is_empty(),
+        "no production records, no mix: {}",
+        taken.body
+    );
+    // The thresholds and the bin floor are stored with the snapshot, so a later reader knows
+    // which configuration produced the reading.
+    assert_eq!(snapshot["thresholds"]["stableBelow"], 0.1);
+    assert_eq!(snapshot["thresholds"]["shiftedAt"], 0.25);
+    assert_eq!(snapshot["minimumBin"], 5);
+    // Every measure asked for is reported, each saying why it could not be taken.
+    let shifts = snapshot["shifts"].as_array().unwrap();
+    assert_eq!(shifts.len(), 2, "the output and the input: {}", taken.body);
+    for shift in shifts {
+        assert!(shift["index"].is_null(), "no number is shown: {shift}");
+        assert_eq!(shift["reason"], "tooFewRecords");
+    }
+
+    // Reading the records is audited once per period, not once per record.
+    let audit = call(
+        &app,
+        "GET",
+        "/audit?action=decision_records.aggregated",
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(audit.status, StatusCode::OK, "{}", audit.body);
+    let entries = &audit.body;
+    assert_eq!(
+        entries["total"], 2,
+        "two periods, two entries: {}",
+        audit.body
+    );
+    let snapshots_audited = call(
+        &app,
+        "GET",
+        "/audit?action=stability.snapshot_taken",
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(snapshots_audited.body["total"], 1);
+
+    // A viewer of the same project may not: the snapshot is derived from personal data.
+    let vera = signed_in_user(&app, VIEWER, false).await;
+    let added = call(
+        &app,
+        "POST",
+        &format!("/projects/{p}/members"),
+        Some(json!({ "email": VIEWER, "role": "viewer" })),
+        &admin,
+    )
+    .await;
+    assert_eq!(added.status, StatusCode::CREATED, "{}", added.body);
+    assert_error(
+        &call(&app, "POST", &path, body(), &vera).await,
+        StatusCode::FORBIDDEN,
+        "FORBIDDEN",
+    );
+    assert_error(
+        &call(
+            &app,
+            "GET",
+            &format!("{path}?decisionKey=limit"),
+            None,
+            &vera,
+        )
+        .await,
+        StatusCode::FORBIDDEN,
+        "FORBIDDEN",
+    );
+
+    // Someone outside the project sees no project at all, not a forbidden one.
+    let otto = signed_in_user(&app, OUTSIDER, false).await;
+    assert_error(
+        &call(&app, "POST", &path, body(), &otto).await,
+        StatusCode::NOT_FOUND,
+        "PROJECT_NOT_FOUND",
+    );
+
+    // The owner lists what the decision has, and an unmeasured decision has nothing.
+    let listed = call(
+        &app,
+        "GET",
+        &format!("{path}?decisionKey=limit"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(listed.status, StatusCode::OK, "{}", listed.body);
+    assert_eq!(listed.body.as_array().unwrap().len(), 1);
+    let other = call(
+        &app,
+        "GET",
+        &format!("{path}?decisionKey=absent"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(other.body.as_array().unwrap().len(), 0);
+}
