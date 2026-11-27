@@ -43,7 +43,7 @@ Status: **Done** · **P1**, **P2**, **P3** (phase) · **Later** (candidate, not 
 | Every decision logged, encrypted, searchable, replayable | Done | DNK-18, DNK-40 |
 | Plain-language explanation, customer-chosen model | Done | DNK-19 |
 | Statistical scorecards (binning, WoE, scaling) proven equal in Studio | P2 | DNK-61 (`donka-scorecard`) |
-| Decision mix and population stability (SSI/CSI) | P2 | DNK-57 |
+| Decision mix and population stability (SSI/CSI) | Done | DNK-57 |
 | Protected characteristics kept out of decisions | P2 | DNK-71 |
 | Repayment performance: default rate by band, Gini/KS in production | Later | Needs labelled outcomes from the core banking system |
 | Shadow evaluation, then champion/challenger | Later | Needs repayment performance first |

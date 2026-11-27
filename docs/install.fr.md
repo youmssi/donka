@@ -347,6 +347,40 @@ référence, le téléchargement des images, `donka-admin init --demo` et `docke
 mènent à une décision du Runtime enregistrée dans Studio en moins de cinq minutes. La CI le
 mesure après chaque image publiée et échoue au-delà.
 
+### Surveiller la population (DNK-57)
+
+Un propriétaire de projet peut prendre un **instantané de stabilité** : la répartition des
+décisions semaine par semaine, et l'écart de la population entre une période de référence et une
+période récente. L'indice d'écart est celui que publient les équipes risque, appelé PSI sur un
+score et CSI sur une entrée ; l'arithmétique est la même dans les deux cas. En dessous de
+`DONKA_STABILITY_STABLE_BELOW` la population est lue comme stable, à partir de
+`DONKA_STABILITY_SHIFTED_AT` comme ayant changé, 0,1 et 0,25 étant les valeurs publiées par
+défaut. Un instantané conserve les seuils et le plancher de tranche avec lesquels il a été mesuré,
+afin qu'une lecture faite des mois plus tard reste interprétable.
+
+Les tranches comptant moins d'enregistrements que `DONKA_STABILITY_MINIMUM_BIN` sont masquées et
+comptées plutôt qu'affichées : une tranche ne peut pas désigner une seule personne. Cinq est la
+plus petite cellule usuelle en contrôle de divulgation ; une installation servant une population
+restreinte devrait l'augmenter. Une tranche devenue vide est conservée : elle ne désigne personne
+et constitue précisément l'écart qu'il faut voir. Une période comptant trop peu d'enregistrements
+l'indique au lieu d'afficher un nombre qui se lirait comme « stable ».
+
+Avec `DONKA_STABILITY_ALERTS=true`, une mesure passant dans une bande plus défavorable prévient
+les propriétaires du projet par courriel, une seule fois, via la même file d'attente que les
+courriels d'approbation : SMTP doit donc fonctionner. Le propriétaire n'est pas prévenu à nouveau
+avant que la mesure ne se dégrade encore ; le silence ne signifie pas un retour à la normale. Les
+alertes sont désactivées sauf si la variable est définie.
+
+Un instantané ne contient que des effectifs, des parts et des indices — jamais une valeur
+déchiffrée ni un identifiant d'enregistrement : il survit donc aux enregistrements qu'il a mesurés
+et n'a pas besoin d'être purgé lorsque ceux-ci atteignent leur limite de conservation. La lecture
+des enregistrements est journalisée une fois par période, et non une fois par enregistrement.
+
+Ce qu'un instantané ne dit pas : un écart ne prouve pas qu'il y a un problème et ne mesure pas le
+risque. Les refus passés n'ont pas d'historique de remboursement ; l'instantané mesure le volume
+et la répartition, et signale que les personnes concernées ne sont plus celles sur lesquelles les
+règles ont été calibrées.
+
 ## 2. Test de fumée après chaque déploiement
 
 `scripts/smoke.sh` vérifie que Studio répond et joint sa base de données, que le moteur de

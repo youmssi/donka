@@ -135,12 +135,12 @@ that decrypts personal data; or to defer. The owner chose to defer. Raise the sy
 own story: webhooks, scheduled reports and DNK-58 will each need it.
 
 #### Acceptance criteria
-- [ ] The decision mix shows each outcome's share per week for a chosen period
-- [ ] A measure crossing into breach emails the project owners once while alerts are configured on, and nothing is sent while they are off
-- [ ] SSI on the chosen output and CSI per input use configured bins for numbers and the values for enums; a period with too few records says so instead of showing a value
-- [ ] Small bins are suppressed; personal fields show only aggregated bins
-- [ ] Each snapshot records its periods, bins and thresholds; project isolation matches the decision log; viewing is audited
-- [ ] Strings in English and French; tests cover each criterion above, including the PSI arithmetic against a worked example
+- [x] The decision mix shows each outcome's share per week for a chosen period
+- [x] A measure crossing into breach emails the project owners once while alerts are configured on, and nothing is sent while they are off
+- [x] SSI on the chosen output and CSI per input use configured bins for numbers and the values for enums; a period with too few records says so instead of showing a value
+- [x] Small bins are suppressed; personal fields show only aggregated bins
+- [x] Each snapshot records its periods, bins and thresholds; project isolation matches the decision log; viewing is audited
+- [x] Strings in English and French; tests cover each criterion above, including the PSI arithmetic against a worked example
 
 #### Out of scope
 Default rate, Gini or KS in production (need repayment outcomes); automatic rule changes.

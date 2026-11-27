@@ -325,6 +325,34 @@ pulling the images, `donka-admin init --demo` and `docker compose up` reach a Ru
 recorded in Studio in under five minutes. CI measures it after each published image and fails
 above that.
 
+### Watching the population (DNK-57)
+
+A project owner can take a **stability snapshot**: the decision mix week by week, and how far the
+population has moved between a reference period and a recent one. The shift index is the one risk
+teams publish, called PSI on a score and CSI on an input; it is the same arithmetic either way.
+Below `DONKA_STABILITY_STABLE_BELOW` the population reads as stable, at or above
+`DONKA_STABILITY_SHIFTED_AT` as shifted, with 0.1 and 0.25 the published defaults. A snapshot
+records the thresholds and the bin floor it was measured against, so a reading months later can
+still be interpreted.
+
+Bins holding fewer records than `DONKA_STABILITY_MINIMUM_BIN` are hidden and counted rather than
+shown, so a bin cannot point at one person; five is the usual smallest cell in disclosure control,
+and installations serving a small population should raise it. A bin that emptied entirely is kept,
+because it names nobody and is exactly the shift worth seeing. A period holding too few records
+says so instead of showing a number that would read as stable.
+
+Set `DONKA_STABILITY_ALERTS=true` and a measure crossing into a worse band emails the project's
+owners once, through the same outbox as the approval emails, so SMTP must work. An owner is not
+told again until it worsens further; silence is not recovery. Alerts are off unless set.
+
+Snapshots hold counts, shares and indices — never a decrypted value and never a record
+identifier — so they outlive the records they measured and need no purging when those age out.
+Reading the records is audited once per period, not once per record.
+
+What a snapshot does not say: a shift is not proof of a problem, and this does not measure risk.
+Past declines have no repayment history, so it measures volume and mix, and tells you when the
+people being decided about are no longer the people the rules were tuned on.
+
 ## 2. Smoke test after each deploy
 
 `scripts/smoke.sh` checks that Studio answers and reaches its database, that the decision
