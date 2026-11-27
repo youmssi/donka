@@ -2083,42 +2083,16 @@ async fn stability_snapshots_are_for_a_project_owner_alone(db: PgPool) {
     }
 
     // Reading the records is audited once per period, not once per record.
-    let audit = call(
-        &app,
-        "GET",
-        "/audit?action=decision_records.aggregated",
-        None,
-        &admin,
-    )
-    .await;
-    assert_eq!(audit.status, StatusCode::OK, "{}", audit.body);
-    let entries = &audit.body;
+    let aggregated = audit_of(&app, &admin, &p, "decision_records.aggregated").await;
     assert_eq!(
-        entries["total"], 2,
-        "two periods, two entries: {}",
-        audit.body
+        aggregated["total"], 2,
+        "two periods, two entries: {aggregated}"
     );
-    let snapshots_audited = call(
-        &app,
-        "GET",
-        "/audit?action=stability.snapshot_taken",
-        None,
-        &admin,
-    )
-    .await;
-    assert_eq!(snapshots_audited.body["total"], 1);
+    let snapshots_audited = audit_of(&app, &admin, &p, "stability.snapshot_taken").await;
+    assert_eq!(snapshots_audited["total"], 1);
 
     // A viewer of the same project may not: the snapshot is derived from personal data.
-    let vera = signed_in_user(&app, VIEWER, false).await;
-    let added = call(
-        &app,
-        "POST",
-        &format!("/projects/{p}/members"),
-        Some(json!({ "email": VIEWER, "role": "viewer" })),
-        &admin,
-    )
-    .await;
-    assert_eq!(added.status, StatusCode::CREATED, "{}", added.body);
+    let vera = viewer(&app, &admin, &p).await;
     assert_error(
         &call(&app, "POST", &path, body(), &vera).await,
         StatusCode::FORBIDDEN,
