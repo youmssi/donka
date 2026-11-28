@@ -446,7 +446,8 @@
     "release": {
       "created": "Release créée",
       "deployed": "Release déployée",
-      "rolled_back": "Retour arrière en production"
+      "rolled_back": "Retour arrière en production",
+      "document_exported": "Document de politique exporté"
     },
     "token": {
       "issued": "Jeton Runtime créé",
@@ -713,6 +714,8 @@
     "engineFailed": "l'évaluation a échoué"
   },
   "releases": {
+    "document": "Document de politique",
+    "documentReady": "Le document de politique {file} est prêt.",
     "title": "Releases",
     "errorTitle": "Impossible de charger les releases",
     "create": "Nouvelle release",

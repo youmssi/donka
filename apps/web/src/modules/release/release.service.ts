@@ -225,3 +225,20 @@ export function rollback(projectId: string, releaseId: string, reason: string): 
     return response.ok ? success(await response.json<Deployment>()) : failure(response);
   });
 }
+
+export interface DocumentFile {
+  blob: Blob;
+  name: string;
+}
+
+/** The release as a policy document: a PDF in the reader's language, for auditors. */
+export function releaseDocument(projectId: string, releaseId: string): Promise<ActionResult<DocumentFile>> {
+  return attempt(async () => {
+    const response = await http.get(`${project(projectId)}/releases/${encodeURIComponent(releaseId)}/document`, {
+      timeout: 120_000,
+    });
+    if (!response.ok) return failure(response);
+    const name = response.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1];
+    return success({ blob: await response.blob(), name: name ?? 'policy.pdf' });
+  });
+}

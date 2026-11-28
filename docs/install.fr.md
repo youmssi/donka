@@ -381,6 +381,30 @@ risque. Les refus passés n'ont pas d'historique de remboursement ; l'instantan�
 et la répartition, et signale que les personnes concernées ne sont plus celles sur lesquelles les
 règles ont été calibrées.
 
+### Les règles comme document (DNK-79)
+
+Tout membre d'un projet peut exporter une version en **document de politique** : un PDF des
+règles que porte cette version, depuis la liste des releases. Il est écrit dans la langue du
+lecteur, ou dans celle demandée par `?language=en` ou `?language=fr`, et enregistré sous
+`policy-<version>.pdf`.
+
+Le document indique la version, qui l'a créée, quand, et dans quels environnements elle est en
+service — ou qu'elle ne l'est nulle part. Viennent ensuite les approbations qui l'ont libérée,
+avec qui a demandé, qui a décidé, la justification qu'une version lisant une caractéristique
+protégée doit porter (DNK-71) et le motif d'un refus. Chaque décision suit, avec le contrat
+qu'une demande doit porter, ses règles, l'historique de ses versions jusqu'à celle que cette
+version a figée, et le résultat de ses scénarios.
+
+Les tables de décision sont écrites ligne par ligne, dans l'ordre où elles sont lues, avec leur
+politique de correspondance ; les expressions sont écrites telles quelles. **Une partie d'une
+décision qui n'est pas détaillée est nommée avec son type plutôt qu'omise**, pour qu'un lecteur
+sache toujours qu'elle existe. Un document qui tairait une partie de la politique serait pire
+qu'un document qui dit ce qu'il ne montre pas.
+
+L'export est journalisé (`release.document_exported`) avec la version, les environnements où elle
+était en service et la langue, et le document porte l'instant qui a été enregistré, pour qu'un
+fichier retrouvé plus tard puisse être rattaché à l'export qui l'a produit.
+
 ## 2. Test de fumée après chaque déploiement
 
 `scripts/smoke.sh` vérifie que Studio répond et joint sa base de données, que le moteur de

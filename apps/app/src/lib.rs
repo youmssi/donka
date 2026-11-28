@@ -294,6 +294,7 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
         .routes(routes!(routes::releases::list, routes::releases::create))
         .routes(routes!(routes::releases::preview))
         .routes(routes!(routes::releases::get))
+        .routes(routes!(routes::releases::document))
         .routes(routes!(routes::releases::environments))
         .routes(routes!(
             routes::releases::deployments,

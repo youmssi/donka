@@ -353,6 +353,27 @@ What a snapshot does not say: a shift is not proof of a problem, and this does n
 Past declines have no repayment history, so it measures volume and mix, and tells you when the
 people being decided about are no longer the people the rules were tuned on.
 
+### The rules as a document (DNK-79)
+
+Any member of a project can export a release as a **policy document**: a PDF of the rules that
+release holds, from the release list. It is written in the reader's own language, or in the one
+asked for with `?language=en` or `?language=fr`, and saved as `policy-<version>.pdf`.
+
+The document states the release, who made it, when, and which environments it is live in — or
+that it is live nowhere. It then lists the approvals that released it, with who asked, who
+decided, the justification a release reading a protected characteristic must carry (DNK-71) and
+the reason a rejection gives. Each decision follows with the contract a request must carry, its
+rules, its version history up to the version this release froze, and how its scenarios ran.
+
+Decision tables are written out as their rows, in the order they are read, with the hit policy
+stated; expressions are written as their text. **A part of a decision that is not written out is
+named with its kind rather than left out**, so a reader always knows that it is there. A document
+that silently omitted part of the policy would be worse than one that says what it does not show.
+
+Exporting is audited (`release.document_exported`) with the release, where it was live and the
+language, and the document carries the same instant it was recorded at, so a file found later can
+be matched to the export that produced it.
+
 ## 2. Smoke test after each deploy
 
 `scripts/smoke.sh` checks that Studio answers and reaches its database, that the decision

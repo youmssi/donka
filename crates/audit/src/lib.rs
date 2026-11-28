@@ -243,6 +243,11 @@ pub enum Action {
     #[serde(rename = "analysis.run_completed")]
     #[sqlx(rename = "analysis.run_completed")]
     AnalysisRunCompleted,
+    /// A release was exported as a policy document (DNK-79); details state the release, the
+    /// environments it was live in and the language it was written in.
+    #[serde(rename = "release.document_exported")]
+    #[sqlx(rename = "release.document_exported")]
+    ReleaseDocumentExported,
 }
 
 impl Action {
@@ -312,6 +317,7 @@ impl Action {
             Self::AnalysisRunStarted => "analysis.run_started",
             Self::StabilitySnapshotTaken => "stability.snapshot_taken",
             Self::AnalysisRunCompleted => "analysis.run_completed",
+            Self::ReleaseDocumentExported => "release.document_exported",
         }
     }
 }
