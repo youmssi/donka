@@ -356,8 +356,10 @@ people being decided about are no longer the people the rules were tuned on.
 ### The rules as a document (DNK-79)
 
 Any member of a project can export a release as a **policy document**: a PDF of the rules that
-release holds, from the release list. It is written in the reader's own language, or in the one
-asked for with `?language=en` or `?language=fr`, and saved as `policy-<version>.pdf`.
+release holds, from the release list. It is written in the language the reader is
+reading Studio in — the interface sends it, since an account's language is not always the one its
+owner is reading today — or in the one asked for with `?language=en` or `?language=fr`; an API
+client that asks for neither gets the account's own. It is saved as `policy-<version>.pdf`.
 
 The document states the release, who made it, when, and which environments it is live in — or
 that it is live nowhere. It then lists the approvals that released it, with who asked, who

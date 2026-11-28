@@ -2,7 +2,7 @@
 
 import { FileText, MoreHorizontal, Package, Rocket, ScrollText } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
@@ -212,6 +212,7 @@ function ReleaseActions({
   const t = useTranslations('releases');
   const common = useTranslations('common');
   const errors = useTranslations('errors');
+  const locale = useLocale();
   const changed = useReleasesChanged(project.id);
   const [confirming, setConfirming] = useState(false);
   const [writing, setWriting] = useState(false);
@@ -226,7 +227,7 @@ function ReleaseActions({
   // The rules of this release as a document an auditor can read, in the reader's language.
   async function onDocument() {
     setWriting(true);
-    const result = await releaseDocument(project.id, release.id);
+    const result = await releaseDocument(project.id, release.id, locale);
     setWriting(false);
     if (!result.ok) {
       toast.error(errors(result.error.code));

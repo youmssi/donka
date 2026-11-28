@@ -384,8 +384,10 @@ règles ont été calibrées.
 ### Les règles comme document (DNK-79)
 
 Tout membre d'un projet peut exporter une version en **document de politique** : un PDF des
-règles que porte cette version, depuis la liste des releases. Il est écrit dans la langue du
-lecteur, ou dans celle demandée par `?language=en` ou `?language=fr`, et enregistré sous
+règles que porte cette version, depuis la liste des releases. Il est écrit dans la langue dans laquelle le lecteur
+lit Studio — l'interface l'envoie, car la langue d'un compte n'est pas toujours celle que son
+titulaire lit aujourd'hui — ou dans celle demandée par `?language=en` ou `?language=fr` ; un
+client d'API qui n'en demande aucune obtient celle du compte. Il est enregistré sous
 `policy-<version>.pdf`.
 
 Le document indique la version, qui l'a créée, quand, et dans quels environnements elle est en
