@@ -9,6 +9,7 @@ export type ProjectSection =
   | 'approvals'
   | 'approval'
   | 'decision-log'
+  | 'stability'
   | 'decision-record'
   | 'people-requests'
   | 'members'

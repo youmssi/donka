@@ -116,15 +116,31 @@ Confirmed 2026-10-25:
 - Bins with fewer than a configured number of records are hidden, so a person cannot be
   singled out.
 
-[INTERACTIVE STEP] at story start: whether a breach emails the owners or stays on the screen
-until webhooks exist.
+Confirmed 2026-11-27:
+- A breach emails the project owners through the existing approval email outbox, configurable
+  and **off by default**, so no installation starts sending mail on upgrade. An owner is mailed
+  once when a measure crosses into breach, not on every snapshot, so an expected drift does not
+  become a recurring alert.
+- Snapshots run **on demand**. Webhooks remain a later candidate and will sit alongside the
+  email rather than replace it.
+
+Amended 2026-11-27, during implementation: the **configured schedule is deferred** and is not
+part of this story. A scheduled pass has no user, but `Access` proves a real user's membership
+and is constructed only by the project crate; there is no system actor in Studio. The stability
+pass cannot avoid it the way `purge` and `publish_due` do, because it calls the decision log's
+aggregate read, which is access-scoped by design since it decrypts personal data. The three ways
+round it were to run the pass as a real owner, which puts an action in the audit log that the
+person did not take; to add a background `Access`, which weakens that invariant in the one module
+that decrypts personal data; or to defer. The owner chose to defer. Raise the system actor as its
+own story: webhooks, scheduled reports and DNK-58 will each need it.
 
 #### Acceptance criteria
-- [ ] The decision mix shows each outcome's share per week for a chosen period
-- [ ] SSI on the chosen output and CSI per input use configured bins for numbers and the values for enums; a period with too few records says so instead of showing a value
-- [ ] Small bins are suppressed; personal fields show only aggregated bins
-- [ ] Each snapshot records its periods, bins and thresholds; project isolation matches the decision log; viewing is audited
-- [ ] Strings in English and French; tests cover each criterion above, including the PSI arithmetic against a worked example
+- [x] The decision mix shows each outcome's share per week for a chosen period
+- [x] A measure crossing into breach emails the project owners once while alerts are configured on, and nothing is sent while they are off
+- [x] SSI on the chosen output and CSI per input use configured bins for numbers and the values for enums; a period with too few records says so instead of showing a value
+- [x] Small bins are suppressed; personal fields show only aggregated bins
+- [x] Each snapshot records its periods, bins and thresholds; project isolation matches the decision log; viewing is audited
+- [x] Strings in English and French; tests cover each criterion above, including the PSI arithmetic against a worked example
 
 #### Out of scope
 Default rate, Gini or KS in production (need repayment outcomes); automatic rule changes.

@@ -10,6 +10,7 @@ donka-audit.workspace = true
 donka-db.workspace = true
 donka-decision-log.workspace = true
 donka-engine.workspace = true
+donka-mail.workspace = true
 donka-project.workspace = true
 donka-release.workspace = true
 donka-shared.workspace = true

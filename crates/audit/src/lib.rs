@@ -151,6 +151,10 @@ pub enum Action {
     #[serde(rename = "decision_record.viewed")]
     #[sqlx(rename = "decision_record.viewed")]
     DecisionRecordViewed,
+    /// A stability snapshot read many records as bin counts (DNK-57).
+    #[serde(rename = "decision_records.aggregated")]
+    #[sqlx(rename = "decision_records.aggregated")]
+    DecisionRecordsAggregated,
     #[serde(rename = "decision_record.replayed")]
     #[sqlx(rename = "decision_record.replayed")]
     DecisionRecordReplayed,
@@ -231,6 +235,10 @@ pub enum Action {
     #[serde(rename = "analysis.run_started")]
     #[sqlx(rename = "analysis.run_started")]
     AnalysisRunStarted,
+    /// A population stability snapshot was taken (DNK-57).
+    #[serde(rename = "stability.snapshot_taken")]
+    #[sqlx(rename = "stability.snapshot_taken")]
+    StabilitySnapshotTaken,
     /// A decision analysis ended; details include records read and terminal status.
     #[serde(rename = "analysis.run_completed")]
     #[sqlx(rename = "analysis.run_completed")]
@@ -280,6 +288,7 @@ impl Action {
             Self::ApprovalRejected => "approval.rejected",
             Self::ApprovalWithdrawn => "approval.withdrawn",
             Self::DecisionRecordViewed => "decision_record.viewed",
+            Self::DecisionRecordsAggregated => "decision_records.aggregated",
             Self::DecisionRecordReplayed => "decision_record.replayed",
             Self::DecisionLogPurged => "decision_log.purged",
             Self::DecisionLogResealed => "decision_log.resealed",
@@ -301,6 +310,7 @@ impl Action {
             Self::InstallationOrganisationRenamed => "installation.organisation_renamed",
             Self::InstallationModulesChanged => "installation.modules_changed",
             Self::AnalysisRunStarted => "analysis.run_started",
+            Self::StabilitySnapshotTaken => "stability.snapshot_taken",
             Self::AnalysisRunCompleted => "analysis.run_completed",
         }
     }

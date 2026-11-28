@@ -170,6 +170,16 @@ fn hsts_value(public_url: &str) -> Option<&'static str> {
     public_url.starts_with("https://").then_some(HSTS_VALUE)
 }
 
+/// What a population stability snapshot is measured against (DNK-57).
+#[derive(Clone, Copy)]
+pub struct StabilitySettings {
+    pub thresholds: donka_analysis::stability::Thresholds,
+    /// Bins holding fewer records than this are hidden, so a bin cannot point at one person.
+    pub minimum_bin: u64,
+    /// Whether a crossing into a worse band emails the project's owners.
+    pub alerts: bool,
+}
+
 #[derive(Clone)]
 pub struct AppState {
     pub runtime: Arc<dyn DecisionRuntime>,
@@ -180,6 +190,8 @@ pub struct AppState {
     pub releases: Releases,
     pub decision_log: DecisionLog,
     pub analysis: Analysis,
+    /// Thresholds, bin floor and alerting for stability snapshots (DNK-57).
+    pub stability: StabilitySettings,
     /// Explains logged decisions; `None` when the installation does not (DNK-19).
     pub explainer: Option<donka_explain::Explainer>,
     pub audit: AuditLog,
@@ -335,6 +347,10 @@ pub fn router(state: AppState, api_base_path: &str, web_dir: Option<&Path>) -> R
             routes::analysis::latest_for_approval
         ))
         .routes(routes!(routes::analysis::get, routes::analysis::cancel))
+        .routes(routes!(
+            routes::analysis::take_snapshot,
+            routes::analysis::snapshots
+        ))
         .routes(routes!(routes::rights::search))
         .routes(routes!(routes::rights::report))
         .routes(routes!(routes::rights::anonymise))

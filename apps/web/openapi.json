@@ -136,6 +136,7 @@
           "approval.rejected",
           "approval.withdrawn",
           "decision_record.viewed",
+          "decision_records.aggregated",
           "decision_record.replayed",
           "decision_log.purged",
           "decision_log.resealed",
@@ -157,6 +158,7 @@
           "installation.organisation_renamed",
           "installation.modules_changed",
           "analysis.run_started",
+          "stability.snapshot_taken",
           "analysis.run_completed"
         ],
         "type": "string"
@@ -407,6 +409,15 @@
           "total"
         ],
         "type": "object"
+      },
+      "Band": {
+        "description": "What a shift index says about one measure.",
+        "enum": [
+          "stable",
+          "moved",
+          "shifted"
+        ],
+        "type": "string"
       },
       "BumpRequest": {
         "description": "Which part of the version the release raises.",
@@ -1940,6 +1951,37 @@
         ],
         "type": "object"
       },
+      "MixWeek": {
+        "description": "One week of the decision mix: how the outcomes divided that week.",
+        "properties": {
+          "records": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "shares": {
+            "additionalProperties": {
+              "format": "double",
+              "type": "number"
+            },
+            "description": "Share per outcome, summing to one when the week holds any record.",
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "week": {
+            "description": "The Monday of the week, as `YYYY-MM-DD`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "week",
+          "records",
+          "shares"
+        ],
+        "type": "object"
+      },
       "NewContestRequest": {
         "properties": {
           "reason": {
@@ -3203,6 +3245,100 @@
         ],
         "type": "object"
       },
+      "Shift": {
+        "description": "One characteristic's shift between a reference period and a recent one.",
+        "properties": {
+          "band": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Band"
+              }
+            ]
+          },
+          "bins": {
+            "description": "Per-bin detail, suppressed bins already removed.",
+            "items": {
+              "$ref": "#/components/schemas/ShiftBin"
+            },
+            "type": "array"
+          },
+          "field": {
+            "description": "The output field for SSI, or the dotted input path for CSI.",
+            "type": "string"
+          },
+          "index": {
+            "description": "`None` when the measure could not be taken; `reason` then says why.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "reason": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Unmeasurable"
+              }
+            ]
+          },
+          "recentRecords": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "referenceRecords": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "suppressedBins": {
+            "description": "Bins dropped because either period held fewer records than the minimum.",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "field",
+          "bins",
+          "referenceRecords",
+          "recentRecords",
+          "suppressedBins"
+        ],
+        "type": "object"
+      },
+      "ShiftBin": {
+        "description": "One bin's share in each period, and its contribution to the index.",
+        "properties": {
+          "contribution": {
+            "format": "double",
+            "type": "number"
+          },
+          "label": {
+            "type": "string"
+          },
+          "recentShare": {
+            "format": "double",
+            "type": "number"
+          },
+          "referenceShare": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "label",
+          "referenceShare",
+          "recentShare",
+          "contribution"
+        ],
+        "type": "object"
+      },
       "SignInRequest": {
         "properties": {
           "email": {
@@ -3272,6 +3408,138 @@
           "result",
           "trace",
           "performance"
+        ],
+        "type": "object"
+      },
+      "Snapshot": {
+        "description": "A stored snapshot.",
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decisionKey": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "minimumBin": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "mix": {
+            "description": "The decision mix of the recent period, by week.",
+            "items": {
+              "$ref": "#/components/schemas/MixWeek"
+            },
+            "type": "array"
+          },
+          "recentFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "recentUntil": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "recordsRead": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "referenceFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "referenceUntil": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "shifts": {
+            "description": "One shift per measured characteristic.",
+            "items": {
+              "$ref": "#/components/schemas/Shift"
+            },
+            "type": "array"
+          },
+          "thresholds": {
+            "$ref": "#/components/schemas/Thresholds"
+          },
+          "worstBand": {
+            "$ref": "#/components/schemas/Band",
+            "description": "The worst band across `shifts`; `Stable` when nothing could be measured."
+          }
+        },
+        "required": [
+          "id",
+          "decisionKey",
+          "referenceFrom",
+          "referenceUntil",
+          "recentFrom",
+          "recentUntil",
+          "thresholds",
+          "minimumBin",
+          "recordsRead",
+          "mix",
+          "shifts",
+          "worstBand",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "SnapshotBody": {
+        "description": "Which decision to measure, over which two periods, and what to take the indices on.",
+        "properties": {
+          "decisionKey": {
+            "type": "string"
+          },
+          "inputFields": {
+            "description": "Dotted paths of the contract inputs to measure.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "outputBins": {
+            "items": {
+              "format": "double",
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "outputField": {
+            "description": "The numeric output the shift index is taken on, usually the score, and its bin edges.\nOmitted measures the contract inputs alone.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "recentFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "recentUntil": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "referenceFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "referenceUntil": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decisionKey",
+          "referenceFrom",
+          "referenceUntil",
+          "recentFrom",
+          "recentUntil"
         ],
         "type": "object"
       },
@@ -3872,6 +4140,24 @@
         ],
         "type": "object"
       },
+      "Thresholds": {
+        "description": "The thresholds a snapshot was measured against, recorded with it so a later reader is not\nleft guessing which configuration produced a band.",
+        "properties": {
+          "shiftedAt": {
+            "format": "double",
+            "type": "number"
+          },
+          "stableBelow": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "stableBelow",
+          "shiftedAt"
+        ],
+        "type": "object"
+      },
       "TokenListResponse": {
         "properties": {
           "items": {
@@ -3985,6 +4271,14 @@
           "records"
         ],
         "type": "object"
+      },
+      "Unmeasurable": {
+        "description": "Why a measure has no index. A period that cannot answer says so instead of showing a number\nthat would be read as \"stable\".",
+        "enum": [
+          "tooFewRecords",
+          "noComparableValues"
+        ],
+        "type": "string"
       },
       "UpdateProjectRequest": {
         "properties": {
@@ -10351,6 +10645,140 @@
         "summary": "Puts a release once approved for production back in production, with a\nreason and without a new approval (owners).",
         "tags": [
           "approvals"
+        ]
+      }
+    },
+    "/projects/{project_id}/stability": {
+      "get": {
+        "operationId": "snapshots",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only this decision, by key.",
+            "in": "query",
+            "name": "decisionKey",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Snapshot"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Only project owners may read snapshots"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Analysis is disabled"
+          }
+        },
+        "summary": "The snapshots taken for one decision, newest first.",
+        "tags": [
+          "analysis"
+        ]
+      },
+      "post": {
+        "operationId": "take_snapshot",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SnapshotBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Snapshot"
+                }
+              }
+            },
+            "description": ""
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Only project owners may take a snapshot"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "A period ends before it starts"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Analysis is disabled"
+          }
+        },
+        "summary": "Takes a population stability snapshot: the decision mix by week, and the shift of the chosen\noutput and each input between a reference period and a recent one.",
+        "tags": [
+          "analysis"
         ]
       }
     },

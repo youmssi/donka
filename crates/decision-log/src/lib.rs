@@ -26,6 +26,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 use uuid::Uuid;
 
+pub mod aggregate;
 mod feed;
 mod people;
 pub mod report;

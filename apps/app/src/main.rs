@@ -213,6 +213,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn(donka_app::email_worker::run(
         identity.clone(),
         releases.clone(),
+        analysis.clone(),
         installation.clone(),
         Arc::new(mailer),
         config.public_url.clone(),
@@ -307,7 +308,15 @@ async fn main() -> anyhow::Result<()> {
             decisions,
             releases,
             decision_log,
-            analysis,
+            analysis: analysis.clone(),
+            stability: donka_app::StabilitySettings {
+                thresholds: donka_analysis::stability::Thresholds {
+                    stable_below: config.stability_stable_below,
+                    shifted_at: config.stability_shifted_at,
+                },
+                minimum_bin: config.stability_minimum_bin,
+                alerts: config.stability_alerts,
+            },
             explainer,
             audit,
             packs,
