@@ -218,7 +218,7 @@ function SnapshotResult({ snapshot }: { snapshot: Snapshot }) {
   const t = useTranslations('stability');
   return (
     <section aria-label={t('result')} className="grid min-w-0 gap-4">
-      <Card>
+      <Card className="min-w-0">
         <CardHeader>
           <CardTitle className="flex flex-wrap items-center gap-2">
             {t('resultTitle')}
@@ -232,7 +232,7 @@ function SnapshotResult({ snapshot }: { snapshot: Snapshot }) {
             })}
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4">
+        <CardContent className="grid min-w-0 gap-4">
           <p className="text-sm">{t('recordsRead', { count: snapshot.recordsRead })}</p>
           <Mix weeks={snapshot.mix} />
           <Shifts shifts={snapshot.shifts} />
@@ -247,7 +247,7 @@ function Mix({ weeks }: { weeks: MixWeek[] }) {
   if (weeks.length === 0) return <p className="text-sm text-muted-foreground">{t('noMix')}</p>;
   const outcomes = [...new Set(weeks.flatMap((week) => Object.keys(week.shares)))].sort();
   return (
-    <div>
+    <div className="min-w-0">
       <h3 className="mb-1 text-sm font-medium">{t('mix')}</h3>
       {/* The table scrolls inside its own area, so the page never scrolls sideways at 390 px. */}
       <div className="max-w-full overflow-x-auto rounded-md border" tabIndex={0} aria-label={t('mix')}>
@@ -292,7 +292,7 @@ function Shifts({ shifts }: { shifts: Shift[] }) {
   const t = useTranslations('stability');
   if (shifts.length === 0) return <p className="text-sm text-muted-foreground">{t('noShifts')}</p>;
   return (
-    <div>
+    <div className="min-w-0">
       <h3 className="mb-1 text-sm font-medium">{t('shifts')}</h3>
       <div className="max-w-full overflow-x-auto rounded-md border" tabIndex={0} aria-label={t('shifts')}>
         <table className="min-w-[520px] text-left text-sm">
