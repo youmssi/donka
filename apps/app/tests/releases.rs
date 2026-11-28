@@ -1673,6 +1673,20 @@ async fn a_release_exports_as_a_policy_document_every_member_may_read(db: PgPool
     assert_eq!(audited.body["total"], 3, "{}", audited.body);
     let latest = &audited.body["items"][0]["details"];
     assert_eq!(latest["releaseId"], json!(rid), "{latest}");
-    assert_eq!(latest["liveIn"], json!(["production"]), "{latest}");
-    assert_eq!(latest["version"], "1.1.0");
+    // Approving for production does not take the release off staging, and the document says
+    // every environment it is in rather than only the last one it reached.
+    assert_eq!(
+        latest["liveIn"],
+        json!(["staging", "production"]),
+        "{latest}"
+    );
+    let release = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/releases/{rid}"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(latest["version"], release.body["version"], "{latest}");
 }
