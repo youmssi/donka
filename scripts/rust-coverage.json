@@ -12,6 +12,7 @@
     "crates/licence/src",
     "crates/pack/src",
     "crates/project/src",
-    "crates/release/src"
+    "crates/release/src",
+    "crates/shared/src/pdf.rs"
   ]
 }

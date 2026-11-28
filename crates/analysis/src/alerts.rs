@@ -17,23 +17,8 @@ const BATCH: usize = 20;
 /// Attempts before an email is abandoned, matching the approval outbox.
 const MAX_ATTEMPTS: i32 = 5;
 
-/// The language an alert is written in. Mirrors the release module's own, so a recipient reads
-/// the same two languages everywhere.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Language {
-    En,
-    Fr,
-}
-
-impl Language {
-    /// The segment the web app serves this language under.
-    fn as_str(self) -> &'static str {
-        match self {
-            Self::En => "en",
-            Self::Fr => "fr",
-        }
-    }
-}
+/// The language an alert is written in.
+pub use donka_shared::language::Language;
 
 /// An owner to tell. Supplied by the caller, which knows the project's members.
 #[derive(Debug, Clone)]

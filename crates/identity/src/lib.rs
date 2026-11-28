@@ -86,6 +86,16 @@ impl Locale {
     }
 }
 
+/// A person's language is the language everything written for them is written in.
+impl From<Locale> for donka_shared::language::Language {
+    fn from(locale: Locale) -> Self {
+        match locale {
+            Locale::En => Self::En,
+            Locale::Fr => Self::Fr,
+        }
+    }
+}
+
 impl std::str::FromStr for Locale {
     type Err = String;
 
