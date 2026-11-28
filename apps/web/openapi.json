@@ -159,7 +159,8 @@
           "installation.modules_changed",
           "analysis.run_started",
           "stability.snapshot_taken",
-          "analysis.run_completed"
+          "analysis.run_completed",
+          "release.document_exported"
         ],
         "type": "string"
       },
@@ -10284,6 +10285,67 @@
           }
         },
         "summary": "One release with the version of each decision it froze (any member).",
+        "tags": [
+          "releases"
+        ]
+      }
+    },
+    "/projects/{project_id}/releases/{release_id}/document": {
+      "get": {
+        "operationId": "document",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "release_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The language to write it in; the reader's own by default. Inlined, so the generated\nreference describes the two languages where the parameter is read rather than\npointing at a schema a query parameter never registers.",
+            "in": "query",
+            "name": "language",
+            "required": false,
+            "schema": {
+              "description": "Which language to write the document in.",
+              "enum": [
+                "en",
+                "fr"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {}
+            },
+            "description": "The document, `policy-<version>.pdf`"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "PROJECT_NOT_FOUND or RELEASE_NOT_FOUND"
+          }
+        },
+        "summary": "The release as a document: its decisions, their rules and contracts, the versions they\nfroze, the approvals that released it and the tests that ran on it, as a PDF in English or\nFrench (any member). Audited once (`release.document_exported`).",
         "tags": [
           "releases"
         ]

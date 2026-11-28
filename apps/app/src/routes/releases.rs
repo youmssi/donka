@@ -680,7 +680,10 @@ impl From<DocumentLanguage> for Language {
 #[derive(Debug, Deserialize, IntoParams)]
 #[into_params(parameter_in = Query)]
 pub struct DocumentQuery {
-    /// The language to write it in; the reader's own by default.
+    /// The language to write it in; the reader's own by default. Inlined, so the generated
+    /// reference describes the two languages where the parameter is read rather than
+    /// pointing at a schema a query parameter never registers.
+    #[param(inline)]
     pub language: Option<DocumentLanguage>,
 }
 
