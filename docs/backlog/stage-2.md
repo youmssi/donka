@@ -315,8 +315,8 @@ Confirmed 2026-11-28:
   single implementation rather than two that drift.
 
 #### Acceptance criteria
-- [ ] A release exports as a PDF (EN/FR): decisions, tables, expressions and contract in readable form, with version history, approvals and test results
-- [ ] The export is audited and states the release, environment and date it describes
+- [x] A release exports as a PDF (EN/FR): decisions, tables, expressions and contract in readable form, with version history, approvals and test results
+- [x] The export is audited and states the release, environment and date it describes
 
 ---
 
