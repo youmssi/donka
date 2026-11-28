@@ -3,5 +3,7 @@
 
 pub mod cipher;
 pub mod clock;
+pub mod language;
 pub mod page;
+pub mod pdf;
 pub mod secret;

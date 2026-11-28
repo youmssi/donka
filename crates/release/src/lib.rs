@@ -29,6 +29,7 @@ use uuid::Uuid;
 
 pub mod approval;
 pub mod artifact;
+pub mod document;
 mod emails;
 pub mod sync;
 

@@ -267,10 +267,7 @@ async fn stability_owners(
         .into_iter()
         .map(|user| donka_analysis::alerts::Recipient {
             email: user.email,
-            language: match user.locale {
-                donka_identity::Locale::En => donka_analysis::alerts::Language::En,
-                donka_identity::Locale::Fr => donka_analysis::alerts::Language::Fr,
-            },
+            language: user.locale.into(),
         })
         .collect())
 }

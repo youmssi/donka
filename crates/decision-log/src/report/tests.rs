@@ -98,20 +98,3 @@ fn nested_values_read_as_dotted_paths() {
         ["age\u{a0}: 30"]
     );
 }
-
-#[test]
-fn long_text_wraps_inside_the_page_and_long_words_break() {
-    let width = PAGE.0 - 2.0 * MARGIN;
-    let long = "word ".repeat(200);
-    let lines = wrap(REGULAR, BODY, &long, width);
-    assert!(lines.len() > 5);
-    let unbroken = "x".repeat(400);
-    assert!(wrap(REGULAR, BODY, &unbroken, width).len() > 1);
-}
-
-#[test]
-fn dates_are_written_in_the_reports_language() {
-    let at = Utc.with_ymd_and_hms(2026, 8, 3, 9, 5, 0).unwrap();
-    assert_eq!(date(at, Locale::En), "3 August 2026, 09:05 UTC");
-    assert_eq!(date(at, Locale::Fr), "3 août 2026, 09:05 UTC");
-}

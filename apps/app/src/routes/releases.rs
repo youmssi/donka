@@ -4,15 +4,20 @@ use crate::routes::people::{emails, known_person, person, PersonRef};
 use crate::routes::scenarios::TestSummaryResponse;
 use crate::AppState;
 use axum::extract::{Query, State};
+use axum::http::header;
 use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
 use axum::Json;
 use chrono::{DateTime, Utc};
+use donka_release::document;
 use donka_release::{
     Bump, Deployment, DeploymentReason, DeploymentStatus, Environment, EnvironmentState, Release,
     ReleaseSummary, ReleasedDecision, RuntimeToken, SemVer, MAX_NOTES_CHARS, MAX_TOKEN_NAME_CHARS,
 };
+use donka_shared::language::Language;
 use donka_shared::page::PageRequest;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use utoipa::openapi::schema::{ObjectBuilder, Type};
 use utoipa::openapi::{RefOr, Schema};
@@ -651,4 +656,143 @@ fn token(emails: &HashMap<Uuid, String>, t: RuntimeToken) -> TokenResponse {
         revoked_at: t.revoked_at,
         revoked_by: person(emails, t.revoked_by),
     }
+}
+
+// ----- The release as a document for auditors (DNK-79) ----------------------
+
+/// Which language to write the document in.
+#[derive(Debug, Clone, Copy, Deserialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum DocumentLanguage {
+    En,
+    Fr,
+}
+
+impl From<DocumentLanguage> for Language {
+    fn from(language: DocumentLanguage) -> Self {
+        match language {
+            DocumentLanguage::En => Language::En,
+            DocumentLanguage::Fr => Language::Fr,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct DocumentQuery {
+    /// The language to write it in; the reader's own by default. Inlined, so the generated
+    /// reference describes the two languages where the parameter is read rather than
+    /// pointing at a schema a query parameter never registers.
+    #[param(inline)]
+    pub language: Option<DocumentLanguage>,
+}
+
+/// Every version of a decision a document may show. A policy older than this has more history
+/// than a reader can use, and the document states the version each entry belongs to anyway.
+const HISTORY_SHOWN: i64 = 100;
+
+/// The release as a document: its decisions, their rules and contracts, the versions they
+/// froze, the approvals that released it and the tests that ran on it, as a PDF in English or
+/// French (any member). Audited once (`release.document_exported`).
+#[utoipa::path(
+    get,
+    path = "/projects/{project_id}/releases/{release_id}/document",
+    tag = "releases",
+    params(("project_id" = Uuid, Path), ("release_id" = Uuid, Path), DocumentQuery),
+    responses(
+        (status = 200, description = "The document, `policy-<version>.pdf`", content_type = "application/pdf"),
+        (status = 404, description = "PROJECT_NOT_FOUND or RELEASE_NOT_FOUND", body = ErrorBody),
+    )
+)]
+pub async fn document(
+    State(state): State<AppState>,
+    ProjectAccess(access): ProjectAccess,
+    ReleaseId(release_id): ReleaseId,
+    Query(query): Query<DocumentQuery>,
+) -> Result<Response, ApiError> {
+    let reader = state.identity.users_by_ids(&[access.user_id()]).await?;
+    let language = match query.language {
+        Some(language) => language.into(),
+        // The person asking reads Studio in a language; their document is written in it.
+        None => reader
+            .first()
+            .map(|user| user.locale.into())
+            .unwrap_or(Language::En),
+    };
+    // Reading the policy is recorded before it is written, so an export that fails to render
+    // is still an export that happened.
+    let (release, generated_at) = state
+        .releases
+        .document_exported(&access, release_id, language)
+        .await?;
+    let contents = state.releases.contents(&access, release_id).await?;
+    let approvals = state
+        .releases
+        .approvals(
+            &access,
+            PageRequest {
+                limit: HISTORY_SHOWN,
+                offset: 0,
+            },
+        )
+        .await?;
+    let mut histories = BTreeMap::new();
+    for decision in &release.decisions {
+        let versions = state
+            .decisions
+            .versions(
+                &access,
+                decision.decision_id,
+                PageRequest {
+                    limit: HISTORY_SHOWN,
+                    offset: 0,
+                },
+            )
+            .await?;
+        histories.insert(decision.key.clone(), versions.items);
+    }
+    let people = emails(
+        &state,
+        std::iter::once(Some(release.summary.created_by))
+            .chain(
+                approvals
+                    .items
+                    .iter()
+                    .flat_map(|a| [Some(a.requested_by), a.decided_by]),
+            )
+            .chain(
+                histories
+                    .values()
+                    .flatten()
+                    .map(|version| Some(version.created_by)),
+            ),
+    )
+    .await?;
+    let project = state.projects.get(&access).await?;
+    let version = release.summary.version.to_string();
+    let pdf = document::render(&document::assemble(
+        document::About {
+            organisation: state.installation.organisation().await?,
+            project: project.name,
+            language,
+            generated_at,
+        },
+        &release,
+        &contents,
+        &histories,
+        &approvals.items,
+        &|id| people.get(&id).cloned().unwrap_or_default(),
+    ))
+    .map_err(|err| ApiError::Internal(err.to_string()))?;
+    Ok((
+        [
+            (header::CONTENT_TYPE, "application/pdf".to_owned()),
+            (
+                header::CONTENT_DISPOSITION,
+                format!("attachment; filename=\"policy-{version}.pdf\""),
+            ),
+        ],
+        pdf,
+    )
+        .into_response())
 }

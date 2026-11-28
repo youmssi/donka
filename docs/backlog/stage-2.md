@@ -299,9 +299,24 @@ at that moment.
 Internal audit and supervisors ask for the policy in force as a document, with who changed and
 approved it. The data exists; the document does not.
 
+#### Decisions
+Confirmed 2026-11-28:
+- **Tables and expressions are rendered; every other node kind is named, never dropped.** A
+  decision table reads as its rows with their inputs, outputs and hit policy, an expression as
+  its text, and the contract as a field list. A switch, function, custom node or connector is
+  listed by name and type with a line saying its content is not rendered, because an audit
+  document that silently omits part of the policy is worse than one that says what it leaves out.
+- **Any project member may export it.** The document describes the rules in force, not personal
+  data, and a viewer can already read the decisions, the version history and the approvals on
+  screen. The export is audited whoever makes it.
+- **Any release exports**, and the document states where it is live now, or that it is not live
+  anywhere. Audit asks about the policy in force on a past date as often as the current one.
+- The layout is the one DNK-75 introduced, moved into `crates/shared` so both documents share a
+  single implementation rather than two that drift.
+
 #### Acceptance criteria
-- [ ] A release exports as a PDF (EN/FR): decisions, tables, expressions and contract in readable form, with version history, approvals and test results
-- [ ] The export is audited and states the release, environment and date it describes
+- [x] A release exports as a PDF (EN/FR): decisions, tables, expressions and contract in readable form, with version history, approvals and test results
+- [x] The export is audited and states the release, environment and date it describes
 
 ---
 

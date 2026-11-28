@@ -9,7 +9,7 @@ exclude a source file to make it pass.
 
 | Repository | Measured business logic | Gate |
 | --- | --- | --- |
-| Studio Rust | The eleven business crates listed in `scripts/rust-coverage.json`: audit, decision, decision-log, engine, explain, identity, installation, licence, pack, project and release | Each crate independently reaches 70% |
+| Studio Rust | The twelve business crates listed in `scripts/rust-coverage.json`: analysis, audit, decision, decision-log, engine, explain, identity, installation, licence, pack, project and release, and the document layout `crates/shared/src/pdf.rs` that two of them share | Each entry independently reaches 70% |
 | Studio web | All `.ts` files under `src/modules` and `src/components/shared/api`, including service responses, schemas, hooks and transformations | Combined executable lines reach 70% |
 | Runtime | Connectors, contracts, release/access data, immutable loading, engine access, decision records, throttling, rule specifications, schema derivation, secret-file resolution, ZIP publication and prefix handling, listed in its `scripts/rust-coverage.json` | Each listed file or module independently reaches 70% |
 | CLI | All executable `src/**/*.ts`, including commands, artifact handling, forms and the MCP bridge | Combined executable lines reach 70% |
@@ -27,7 +27,8 @@ later changes from inflating the denominator with test code.
 Web rendering lives in `.tsx` and has component, Storybook and live-browser checks. Its
 service and state logic in `.ts` remains in the line gate. Declaration files, tests and barrel
 re-exports contribute no business behavior and are outside that measurement. New business
-modules must join the applicable policy in the same story.
+modules must join the applicable policy in the same story. Business logic moved into the
+shared crate stays measured as its own entry, so a move cannot quietly leave the gate.
 
 The Rust checker rejects malformed reports, duplicate files, missing modules and zero-line
 modules. It compares exact covered/total counts, without rounding or pooling modules. Web

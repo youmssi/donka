@@ -225,3 +225,28 @@ export function rollback(projectId: string, releaseId: string, reason: string): 
     return response.ok ? success(await response.json<Deployment>()) : failure(response);
   });
 }
+
+export interface DocumentFile {
+  blob: Blob;
+  name: string;
+}
+
+/**
+ * The release as a policy document, for auditors. The language is the one the reader is
+ * reading Studio in right now, which is not always the one their account was created with.
+ */
+export function releaseDocument(
+  projectId: string,
+  releaseId: string,
+  language: string,
+): Promise<ActionResult<DocumentFile>> {
+  return attempt(async () => {
+    const path = `${project(projectId)}/releases/${encodeURIComponent(releaseId)}/document`;
+    const response = await http.get(`${path}?language=${encodeURIComponent(language)}`, {
+      timeout: 120_000,
+    });
+    if (!response.ok) return failure(response);
+    const name = response.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1];
+    return success({ blob: await response.blob(), name: name ?? 'policy.pdf' });
+  });
+}

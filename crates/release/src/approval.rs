@@ -134,20 +134,7 @@ pub struct ApprovalReview {
 }
 
 /// The language an approval email is written in.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Language {
-    En,
-    Fr,
-}
-
-impl Language {
-    fn as_str(self) -> &'static str {
-        match self {
-            Language::En => "en",
-            Language::Fr => "fr",
-        }
-    }
-}
+pub use donka_shared::language::Language;
 
 /// An owner who may be asked to approve.
 #[derive(Debug, Clone)]

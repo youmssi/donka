@@ -446,7 +446,8 @@
     "release": {
       "created": "Release created",
       "deployed": "Release deployed",
-      "rolled_back": "Production rolled back"
+      "rolled_back": "Production rolled back",
+      "document_exported": "Policy document exported"
     },
     "token": {
       "issued": "Runtime token created",
@@ -713,6 +714,8 @@
     "engineFailed": "the evaluation failed"
   },
   "releases": {
+    "document": "Policy document",
+    "documentReady": "The policy document {file} is ready.",
     "title": "Releases",
     "errorTitle": "Releases could not be loaded",
     "create": "New release",

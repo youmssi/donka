@@ -12,10 +12,9 @@ use axum::http::StatusCode;
 use axum::Json;
 use chrono::{DateTime, Utc};
 use donka_engine::contract;
-use donka_identity::Locale;
 use donka_project::Role;
 use donka_release::{
-    Approval, ApprovalStatus, Approver, Change, DecisionChange, Language, MAX_JUSTIFICATION_CHARS,
+    Approval, ApprovalStatus, Approver, Change, DecisionChange, MAX_JUSTIFICATION_CHARS,
     MAX_REASON_CHARS,
 };
 use donka_shared::page::PageRequest;
@@ -279,10 +278,7 @@ pub async fn request(
         .map(|user| Approver {
             user_id: user.id,
             email: user.email,
-            language: match user.locale {
-                Locale::En => Language::En,
-                Locale::Fr => Language::Fr,
-            },
+            language: user.locale.into(),
         })
         .collect();
     let requested = state

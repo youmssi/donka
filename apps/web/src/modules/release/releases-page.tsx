@@ -1,8 +1,8 @@
 'use client';
 
-import { MoreHorizontal, Package, Rocket, ScrollText } from 'lucide-react';
+import { FileText, MoreHorizontal, Package, Rocket, ScrollText } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
@@ -37,7 +37,7 @@ import { projectHref, ProjectFrame, type Project } from '@/modules/project';
 import { FrozenDecisions } from './frozen-decisions';
 import { NewRelease } from './release-dialog';
 import { useReleasesTour } from './tours';
-import { deployRelease, RELEASES_PAGE_SIZE } from './release.service';
+import { deployRelease, releaseDocument, RELEASES_PAGE_SIZE } from './release.service';
 import type { EnvironmentName, ReleaseSummary } from './schema';
 import { useRelease, useReleaseList, useReleasesChanged } from './useReleases';
 
@@ -212,14 +212,34 @@ function ReleaseActions({
   const t = useTranslations('releases');
   const common = useTranslations('common');
   const errors = useTranslations('errors');
+  const locale = useLocale();
   const changed = useReleasesChanged(project.id);
   const [confirming, setConfirming] = useState(false);
+  const [writing, setWriting] = useState(false);
 
   async function onDeploy() {
     const result = await deployRelease(project.id, 'staging', release.id);
     changed();
     if (result.ok) toast.success(t('deploying', { version: release.version }));
     else toast.error(errors(result.error.code));
+  }
+
+  // The rules of this release as a document an auditor can read, in the reader's language.
+  async function onDocument() {
+    setWriting(true);
+    const result = await releaseDocument(project.id, release.id, locale);
+    setWriting(false);
+    if (!result.ok) {
+      toast.error(errors(result.error.code));
+      return;
+    }
+    const url = URL.createObjectURL(result.data.blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = result.data.name;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success(t('documentReady', { file: result.data.name }));
   }
 
   return (
@@ -234,6 +254,11 @@ function ReleaseActions({
           <DropdownMenuItem onSelect={onView}>
             <ScrollText aria-hidden />
             {t('view')}
+          </DropdownMenuItem>
+          {/* Every member may read the policy: it is the rules, not anyone's data. */}
+          <DropdownMenuItem disabled={writing} onSelect={() => void onDocument()}>
+            <FileText aria-hidden />
+            {t('document')}
           </DropdownMenuItem>
           {editable ? (
             <DropdownMenuItem onSelect={() => setConfirming(true)}>

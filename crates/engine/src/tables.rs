@@ -145,18 +145,12 @@ impl Tables {
             .filter_map(|node| {
                 let text = |value: Option<&Value>| value.and_then(Value::as_str).map(str::to_owned);
                 let table = node.get("content")?;
+                // The same rule as the document's outline: a column is named once.
                 let columns = ["inputs", "outputs"]
                     .iter()
                     .filter_map(|key| table.get(*key).and_then(Value::as_array))
                     .flatten()
-                    .filter_map(|column| {
-                        let id = text(column.get("id"))?;
-                        let name = text(column.get("name"))
-                            .filter(|name| !name.trim().is_empty())
-                            .or_else(|| text(column.get("field")))
-                            .unwrap_or_else(|| id.clone());
-                        Some((id, name))
-                    })
+                    .filter_map(crate::outline::column_label)
                     .collect();
                 let rows = table
                     .get("rules")

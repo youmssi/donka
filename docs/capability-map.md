@@ -27,7 +27,7 @@ Status: **Done** · **P1**, **P2**, **P3** (phase) · **Later** (candidate, not 
 | Branches, several approvers, webhooks, Git sync | P2 | Delivery plan, Phase 2 |
 | Document-assisted authoring and chat edits accepted as a diff | P2 | Delivery plan, Phase 2 |
 | Policies effective from a date | P2 | DNK-78 |
-| Rules document for auditors (PDF) | P2 | DNK-79 |
+| Rules document for auditors (PDF) | Done | DNK-79 |
 | Batch evaluation of a portfolio | P2 | DNK-70 |
 | Decision-path coverage, policy-document editor, global roles | P3 | Delivery plan, Phase 3 |
 | Process orchestration (BPMN), case management, manual review queue | Customer / P3 | The lender's loan system; Case Tracker in Phase 3 |

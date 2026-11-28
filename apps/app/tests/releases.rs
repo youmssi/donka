@@ -1597,3 +1597,96 @@ async fn table_findings_warn_on_save_and_show_in_the_review_with_their_acknowled
     let unchanged = changes.iter().find(|c| c["key"] == "person-score").unwrap();
     assert_eq!(unchanged["findings"], json!([]));
 }
+
+// ----- The release as a document for auditors (DNK-79) ----------------------
+
+const VERA: &str = "vera@bank.example";
+const OTTO: &str = "otto@bank.example";
+
+#[sqlx::test(migrator = "donka_db::MIGRATOR")]
+async fn a_release_exports_as_a_policy_document_every_member_may_read(db: PgPool) {
+    let app = with_database(db);
+    let (admin, grace, alan, p, rid) = staged(&app).await;
+    // Live in production, so the document says where these rules are in force.
+    let asked = approval(&app, &grace, &p, &rid).await;
+    assert_eq!(asked.status, StatusCode::CREATED, "{}", asked.body);
+    let request_id = asked.body["id"].as_str().unwrap().to_owned();
+    assert_eq!(
+        decide(&app, &alan, &p, &request_id, "approve", None)
+            .await
+            .status,
+        StatusCode::OK
+    );
+    app.releases.publish_due().await.unwrap();
+
+    let path = format!("/projects/{p}/releases/{rid}/document");
+    let document = call(&app, "GET", &path, None, &admin).await;
+    assert_eq!(document.status, StatusCode::OK, "{}", document.body);
+    let english = document.body.as_str().unwrap().to_owned();
+    assert!(english.starts_with("%PDF"), "a PDF, not a page");
+
+    // The reader asks for the other language and gets a different document.
+    let french = call(&app, "GET", &format!("{path}?language=fr"), None, &admin).await;
+    assert_eq!(french.status, StatusCode::OK, "{}", french.body);
+    let french = french.body.as_str().unwrap().to_owned();
+    assert!(french.starts_with("%PDF"));
+    assert_ne!(english, french, "the two languages are not the same bytes");
+
+    // The policy is the rules, not anyone's data: a viewer of the project may read it.
+    let vera = signed_in_user(&app, VERA, false).await;
+    add(&app, &admin, &p, VERA, "viewer").await;
+    let theirs = call(&app, "GET", &path, None, &vera).await;
+    assert_eq!(theirs.status, StatusCode::OK, "{}", theirs.body);
+    assert!(theirs.body.as_str().unwrap().starts_with("%PDF"));
+
+    // Someone outside the project sees no project at all, not a forbidden one.
+    let otto = signed_in_user(&app, OTTO, false).await;
+    assert_error(
+        &call(&app, "GET", &path, None, &otto).await,
+        StatusCode::NOT_FOUND,
+        "PROJECT_NOT_FOUND",
+    );
+    // A release of another project is not found either.
+    assert_error(
+        &call(
+            &app,
+            "GET",
+            &format!("/projects/{p}/releases/{}/document", uuid::Uuid::new_v4()),
+            None,
+            &admin,
+        )
+        .await,
+        StatusCode::NOT_FOUND,
+        "RELEASE_NOT_FOUND",
+    );
+
+    // Every export is recorded, with the release and where it was live.
+    let audited = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/audit?action=release.document_exported"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(audited.status, StatusCode::OK, "{}", audited.body);
+    assert_eq!(audited.body["total"], 3, "{}", audited.body);
+    let latest = &audited.body["items"][0]["details"];
+    assert_eq!(latest["releaseId"], json!(rid), "{latest}");
+    // Approving for production does not take the release off staging, and the document says
+    // every environment it is in rather than only the last one it reached.
+    assert_eq!(
+        latest["liveIn"],
+        json!(["staging", "production"]),
+        "{latest}"
+    );
+    let release = call(
+        &app,
+        "GET",
+        &format!("/projects/{p}/releases/{rid}"),
+        None,
+        &admin,
+    )
+    .await;
+    assert_eq!(latest["version"], release.body["version"], "{latest}");
+}

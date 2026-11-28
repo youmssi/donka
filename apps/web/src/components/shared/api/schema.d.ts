@@ -1450,6 +1450,27 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/projects/{project_id}/releases/{release_id}/document': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The release as a document: its decisions, their rules and contracts, the versions they
+     *     froze, the approvals that released it and the tests that ran on it, as a PDF in English or
+     *     French (any member). Audited once (`release.document_exported`).
+     */
+    get: operations['document'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/projects/{project_id}/restore': {
     parameters: {
       query?: never;
@@ -1884,7 +1905,8 @@ export interface components {
       | 'installation.modules_changed'
       | 'analysis.run_started'
       | 'stability.snapshot_taken'
-      | 'analysis.run_completed';
+      | 'analysis.run_completed'
+      | 'release.document_exported';
     AddMemberRequest: {
       /** @description Email of an existing Studio account. */
       email: string;
@@ -7488,6 +7510,45 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['ReleaseResponse'];
+        };
+      };
+      /** @description PROJECT_NOT_FOUND or RELEASE_NOT_FOUND */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorBody'];
+        };
+      };
+    };
+  };
+  document: {
+    parameters: {
+      query?: {
+        /**
+         * @description The language to write it in; the reader's own by default. Inlined, so the generated
+         *     reference describes the two languages where the parameter is read rather than
+         *     pointing at a schema a query parameter never registers.
+         */
+        language?: 'en' | 'fr';
+      };
+      header?: never;
+      path: {
+        project_id: string;
+        release_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The document, `policy-<version>.pdf` */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/pdf': unknown;
         };
       };
       /** @description PROJECT_NOT_FOUND or RELEASE_NOT_FOUND */

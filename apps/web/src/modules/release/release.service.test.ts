@@ -6,6 +6,7 @@ import {
   listEnvironments,
   listRollbackTargets,
   reject,
+  releaseDocument,
   revokeToken,
   rollback,
 } from './release.service';
@@ -79,5 +80,37 @@ it('distinguishes a queued staging deployment from refused production publicatio
   expect(await deployRelease('project', 'production', 'release-1')).toMatchObject({
     ok: false,
     error: { code: 'APPROVAL_REQUIRED' },
+  });
+});
+
+it('saves the policy document under the name the server gives it', async () => {
+  fetchMock.mockResolvedValueOnce(
+    new Response('%PDF-1.7 rules', {
+      status: 200,
+      headers: { 'content-type': 'application/pdf', 'content-disposition': 'attachment; filename="policy-1.4.0.pdf"' },
+    }),
+  );
+  const result = await releaseDocument('project', 'release/one', 'fr');
+  expect(result.ok).toBe(true);
+  if (!result.ok) throw new Error(result.error.code);
+  expect(result.data.name).toBe('policy-1.4.0.pdf');
+  expect(await result.data.blob.text()).toContain('%PDF-');
+  const asked = new URL(sentRequest().url);
+  expect(asked.pathname).toBe('/api/v1/projects/project/releases/release%2Fone/document');
+  // The language the reader is reading Studio in now, not the one their account was made with.
+  expect(asked.searchParams.get('language')).toBe('fr');
+});
+
+it('names the document itself when the server does not', async () => {
+  fetchMock.mockResolvedValueOnce(new Response('%PDF-1.7', { status: 200 }));
+  const result = await releaseDocument('project', 'release', 'en');
+  expect(result).toMatchObject({ ok: true, data: { name: 'policy.pdf' } });
+});
+
+it('keeps a refused export as a failure rather than an empty file', async () => {
+  reply({ code: 'RELEASE_NOT_FOUND' }, 404);
+  expect(await releaseDocument('project', 'release', 'en')).toMatchObject({
+    ok: false,
+    error: { code: 'RELEASE_NOT_FOUND' },
   });
 });
